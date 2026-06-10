@@ -32,13 +32,17 @@ export function xpForLevel(level) {
 }
 
 export function maxHp(stats, level) {
-  return Math.floor(40 + stats.end * 8 + stats.str * 2 + level * 6);
+  return Math.floor((7 + stats.end / 20)*level);
 }
 export function maxMana(stats, level) {
-  return Math.floor(20 + stats.int * 6 + stats.wis * 4 + level * 3);
+  return (Math.floor(stats.wis/60) + Math.floor(3 + stats.int / 20)) * level;
 }
 export function hpRegenPerSec(stats) { return 0.6 + stats.end * 0.06; }
 export function manaRegenPerSec(stats) { return 0.5 + stats.wis * 0.09; }
+
+export function enc(stats) {
+  return Math.floor((stats.str * 500)/(stats.str + 100));
+}
 
 export function meleeDamage(stats, weaponDmg) {
   const base = (weaponDmg || 2) + Math.floor(stats.str / 3);

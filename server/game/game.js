@@ -351,6 +351,7 @@ export class Game {
       statPoints: p.statPoints, stats: p.stats, eff: p.eff.stats,
       hp: Math.round(p.hp), maxHp: p.eff.maxHp,
       mana: Math.round(p.mana), maxMana: p.eff.maxMana,
+      enc: C.enc(p.stats),
       dmg: p.eff.dmg, defense: p.eff.defense, gold: p.gold,
       inventory: p.inventory.map(it => ({ ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot, price: itemPrice(it) })),
       equip: p.equip,
