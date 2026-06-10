@@ -137,6 +137,10 @@ await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
 
 // --- Épreuve : confirmation puis entrée ---
+// niveau 15 pour survivre à la marche vers le portail (les minotaures de
+// l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
+send({ t: 'admin', cmd: 'set', level: 15 });
+await sleep(400);
 send({ t: 'interact', prop: 'trialgate', x: 60.5, z: 28.5 });
 await waitFor(() => S.trial, 25000); // longue marche vers le nord
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
@@ -151,10 +155,10 @@ send({ t: 'movedir', x: 0, z: 0 });
 ok('mort définitive déclarée', S.died?.permadeath === true);
 ok('panthéon transmis', Array.isArray(S.died?.pantheon) && S.died.pantheon.length >= 1);
 
-// --- nouveau personnage ---
+// --- nouveau personnage (redistribution des points via create_char) ---
 S.zone = null;
 send({ t: 'newchar' });
-await waitFor(() => S.zone && S.self?.level === 1 && S.self?.gold <= 600, 5000);
+await waitFor(() => S.zone?.zoneId === 0 && S.self?.level === 1, 6000);
 ok('réincarnation niveau 1 zone 0', S.zone?.zoneId === 0 && S.self?.level === 1 && (S.self?.spells || []).length === 0);
 
 const failed = checks.filter(([, c]) => !c);

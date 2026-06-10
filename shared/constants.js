@@ -43,11 +43,21 @@ export function xpForLevel(level) {
   return _cumXp[Math.min(level, MAX_LEVEL + 1)];
 }
 
+// Gains PAR NIVEAU, calculés au moment du passage de niveau avec les stats
+// du moment (équipement compris) — comme dans T4C : monter l'Endurance tôt
+// paie sur toute la carrière du personnage.
+export function hpGainPerLevel(stats) {
+  return 7 + stats.end / 20;
+}
+export function manaGainPerLevel(stats) {
+  return Math.floor(stats.wis / 60) + Math.floor(3 + stats.int / 20);
+}
+// Approximation rétroactive (migration d'anciens personnages, outils admin)
 export function maxHp(stats, level) {
-  return Math.floor((7 + stats.end / 20)*level);
+  return Math.floor(hpGainPerLevel(stats) * level);
 }
 export function maxMana(stats, level) {
-  return (Math.floor(stats.wis/60) + Math.floor(3 + stats.int / 20)) * level;
+  return manaGainPerLevel(stats) * level;
 }
 export function hpRegenPerSec(stats) { return 0.6 + stats.end * 0.06; }
 export function manaRegenPerSec(stats) { return 0.5 + stats.wis * 0.09; }
