@@ -397,6 +397,11 @@ canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Control' && !combatMode) { combatMode = true; ui.setCombatMode(true); }
   if (ui.isTyping() || ui.bindingSpell) return;
+  // menu ouvert : seules Échap (fermer) passe, le jeu est en pause d'entrées
+  if (ui.menuOpen()) {
+    if (ev.key === 'Escape') ui.hideMenu();
+    return;
+  }
 
   // touche de sort (hors chat) = entrer en visée — comportement par défaut.
   // Les sorts `centered` (effet autour du lanceur) partent immédiatement.
@@ -423,7 +428,13 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 's') ui.togglePanel('spells');
   else if (k === 'h') ui.togglePanel('help');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
-  else if (ev.key === 'Escape') { cancelAim(); ui.togglePanel(null); }
+  else if (ev.key === 'Escape') {
+    // priorité : annuler la visée > fermer les panneaux > menu (reprendre/quitter)
+    if (aimSpell) { cancelAim(); return; }
+    if (ui.menuOpen()) { ui.hideMenu(); return; }
+    if (ui.anyPanelOpen()) { ui.togglePanel(null); return; }
+    if (selfId != null) ui.showMenu();
+  }
 });
 
 window.addEventListener('keyup', (ev) => {

@@ -121,6 +121,10 @@ button.secondary { background: #2a2444; }
   0% { transform: translateY(0); opacity: 1; }
   100% { transform: translateY(-55px); opacity: 0; }
 }
+#game-menu .login-box button { display: block; width: 100%; margin: 7px 0; }
+#game-menu .danger-btn { background: #7a2a2a; border-color: #aa4a4a; }
+#game-menu .danger-btn:hover { background: #9a3a3a; }
+
 #zone-banner {
   position: fixed; top: 44px; left: 50%; transform: translateX(-50%);
   color: #ffd24a; font-size: 22px; text-shadow: 0 2px 6px #000; z-index: 12;

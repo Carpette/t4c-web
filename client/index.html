@@ -132,6 +132,26 @@
       </div>
     </div>
 
+    <!-- Menu de jeu (Échap) -->
+    <div id="game-menu" class="overlay hidden">
+      <div class="login-box" style="min-width: 300px">
+        <h1>Menu</h1>
+        <div id="menu-buttons">
+          <button id="menu-resume">Reprendre</button>
+          <button id="menu-settings" class="secondary">Paramètres</button>
+          <button id="menu-quit" class="danger-btn">Quitter la partie</button>
+        </div>
+        <div id="menu-settings-panel" class="hidden">
+          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Paramètres</h2>
+          <div id="settings-list">
+            <p class="hint" style="color:#8a80a8;font-size:12px">D'autres options arriveront ici
+            (fenêtres de chat, volume, affichage…).</p>
+          </div>
+          <button id="menu-back" class="secondary" style="margin-top:10px">Retour</button>
+        </div>
+      </div>
+    </div>
+
     <div id="buffs-display"></div>
     <div id="floaters"></div>
     <div id="tooltip" class="hidden"></div>

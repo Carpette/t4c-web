@@ -76,6 +76,21 @@ export class UI {
     });
 
     $('btn-respawn').onclick = () => net.send({ t: 'newchar' });
+
+    // ---- Menu de jeu (Échap) ----
+    $('menu-resume').onclick = () => this.hideMenu();
+    $('menu-settings').onclick = () => {
+      $('menu-buttons').classList.add('hidden');
+      $('menu-settings-panel').classList.remove('hidden');
+    };
+    $('menu-back').onclick = () => {
+      $('menu-settings-panel').classList.add('hidden');
+      $('menu-buttons').classList.remove('hidden');
+    };
+    $('menu-quit').onclick = () => {
+      try { net.ws?.close(1000, 'logout'); } catch {}
+      location.reload(); // retour propre à l'écran de connexion
+    };
     $('btn-trial-go').onclick = () => { $('trial-modal').classList.add('hidden'); net.send({ t: 'trial_enter' }); };
     $('btn-trial-no').onclick = () => $('trial-modal').classList.add('hidden');
     document.querySelectorAll('#shop-tabs button').forEach(b => {
@@ -244,6 +259,20 @@ export class UI {
 
   setCombatMode(on) {
     $('combat-indicator').classList.toggle('hidden', !on);
+  }
+
+  // ---- Menu de jeu ----
+  menuOpen() { return !$('game-menu').classList.contains('hidden'); }
+  showMenu() {
+    $('menu-settings-panel').classList.add('hidden');
+    $('menu-buttons').classList.remove('hidden');
+    $('game-menu').classList.remove('hidden');
+  }
+  hideMenu() { $('game-menu').classList.add('hidden'); }
+  // un panneau (inventaire, sorts, boutique...) est-il ouvert ?
+  anyPanelOpen() {
+    return ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel']
+      .some(p => !$(p).classList.contains('hidden'));
   }
 
   renderBuffs() {
