@@ -384,7 +384,7 @@ export class Game {
 
   // ---------- Messages clients ----------
   onMessage(p, msg) {
-    if (p.permadead && msg.t !== 'newchar') return;
+    if (p.permadead && msg.t !== 'newchar' && msg.t !== 'create') return;
     switch (msg.t) {
       case 'move': {
         if (p.dead) return;
