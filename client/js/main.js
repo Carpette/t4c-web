@@ -133,7 +133,7 @@ let combatMode = false;       // Ctrl maintenu
 let held = false;             // clic maintenu = déplacement continu
 let heldTimer = null;
 let lastPointer = { x: 0, y: 0 };
-const arrows = new Set();
+const arrows = [];
 
 // ---- Visée et relance automatique des sorts ----
 // Appui sur la touche du sort -> curseur "main scintillante" -> clic sur la cible.
@@ -225,10 +225,12 @@ function drawAimCursor(now) {
 function sendMoveDirFromArrows() {
   // écran -> carte : haut = (-1,-1), droite = (1,-1), bas = (1,1), gauche = (-1,1)
   let sx = 0, sy = 0;
-  if (arrows.has('ArrowUp')) sy -= 1;
-  if (arrows.has('ArrowDown')) sy += 1;
-  if (arrows.has('ArrowLeft')) sx -= 1;
-  if (arrows.has('ArrowRight')) sx += 1;
+  const lastH = [...arrows].reverse().find(k => k === 'ArrowLeft' || k === 'ArrowRight');
+  const lastV = [...arrows].reverse().find(k => k === 'ArrowUp' || k === 'ArrowDown');
+  if (lastV === 'ArrowUp') sy = -1;
+  else if (lastV === 'ArrowDown') sy = 1;
+  if (lastH === 'ArrowLeft') sx = -1;
+  else if (lastH === 'ArrowRight') sx = 1;
   if (!sx && !sy) { net.send({ t: 'movedir', x: 0, z: 0 }); return; }
   const mx = sx + sy, mz = sy - sx; // conversion iso écran -> monde
   net.send({ t: 'movedir', x: mx, z: mz });
@@ -416,10 +418,11 @@ window.addEventListener('keydown', (ev) => {
     }
   }
 
-  if (ev.key.startsWith('Arrow')) {
+    if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
     cancelAuto();
-    if (!arrows.has(ev.key)) { arrows.add(ev.key); sendMoveDirFromArrows(); }
+    if (!arrows.includes(ev.key)) { arrows.push(ev.key); }
+    sendMoveDirFromArrows();
     return;
   }
   const k = ev.key.toLowerCase();
@@ -440,12 +443,13 @@ window.addEventListener('keydown', (ev) => {
 window.addEventListener('keyup', (ev) => {
   if (ev.key === 'Control') { combatMode = false; ui.setCombatMode(false); }
   if (ev.key.startsWith('Arrow')) {
-    arrows.delete(ev.key);
+    const idx = arrows.indexOf(ev.key);
+    if (idx > -1) arrows.splice(idx, 1);
     sendMoveDirFromArrows();
   }
 });
 window.addEventListener('blur', () => {
-  arrows.clear();
+  arrows.length = 0;
   combatMode = false;
   ui.setCombatMode(false);
   if (selfId != null) net.send({ t: 'movedir', x: 0, z: 0 });
