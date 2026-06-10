@@ -53,7 +53,7 @@ function bot(n) {
             }
           }
           break;
-        case 'died': ws.send(JSON.stringify({ t: 'respawn' })); break;
+        case 'died': ws.send(JSON.stringify({ t: 'newchar' })); break;
       }
     });
 

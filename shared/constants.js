@@ -16,12 +16,19 @@ export const STAT_NAMES = {
 };
 export const BASE_STATS = { str: 12, end: 12, agi: 12, int: 10, wis: 10 };
 export const POINTS_PER_LEVEL = 5;
-export const MAX_LEVEL = 50;
+export const MAX_LEVEL = 200;
 
+// Courbe XP façon T4C : départ rapide, exponentielle ensuite — le 200 est mythique.
+// XP pour passer du niveau k au niveau k+1 :
+export function xpToNext(k) {
+  return Math.floor(55 * Math.pow(k, 1.9) * Math.pow(1.028, k));
+}
+const _cumXp = new Float64Array(MAX_LEVEL + 2);
+for (let k = 1; k <= MAX_LEVEL; k++) _cumXp[k + 1] = _cumXp[k] + xpToNext(k);
 export function xpForLevel(level) {
   // XP totale requise pour atteindre `level` (niveau 1 = 0)
   if (level <= 1) return 0;
-  return Math.floor(60 * Math.pow(level - 1, 2.15) + 40 * (level - 1));
+  return _cumXp[Math.min(level, MAX_LEVEL + 1)];
 }
 
 export function maxHp(stats, level) {
@@ -57,16 +64,28 @@ export function moveSpeed(stats) {
 }
 
 export function mobXpReward(mobLevel, playerLevel) {
-  const base = 18 + mobLevel * 14;
+  const base = 18 + mobLevel * 14 + mobLevel * mobLevel * 1.1;
   const diff = mobLevel - playerLevel;
   let mult = 1 + diff * 0.12;
   mult = Math.max(0.15, Math.min(1.6, mult));
   return Math.floor(base * mult);
 }
 
-export const DEATH_XP_LOSS = 0.03; // 3% de l'XP du niveau courant, jamais de déniveau
+// Scaling des monstres selon le niveau de base de la zone (0, 25, 50, ...)
+export function scaleMob(def, zoneBase) {
+  const level = def.level + zoneBase;
+  const k = 1 + zoneBase * 0.35;
+  return {
+    level,
+    hp: Math.floor(def.hp * k * (1 + zoneBase * 0.06)),
+    dmg: Math.floor(def.dmg * (1 + zoneBase * 0.22)),
+    def: Math.floor(def.def * (1 + zoneBase * 0.15)),
+    goldMul: 1 + zoneBase * 0.5,
+  };
+}
 
 // États d'entité (champ binaire `state`)
 export const ST = { IDLE: 0, WALK: 1, ATTACK: 2, DEAD: 3, HURT: 4 };
 // Genres d'entité
-export const KIND = { PLAYER: 0, MOB: 1, DROP: 2 };
+export const KIND = { PLAYER: 0, MOB: 1, DROP: 2, NPC: 3 };
+export const INTERACT_RANGE = 3.2;

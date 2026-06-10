@@ -2,13 +2,37 @@
 import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 
-const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', ring: '💍', use: '🧪', gold: '🟡' };
+const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', boots: '🥾', ring: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
+const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
 const $ = (id) => document.getElementById(id);
 
 export class UI {
   constructor(net) {
     this.net = net;
     this.self = null;
+    this.spellDefs = [];      // chargés depuis /content/spells.json
+    this.activeSpell = null;  // sort lancé via Ctrl+clic
+    this.hotkeys = {};        // touche -> spellId
+    this.cds = {};            // spellId -> timestamp de fin
+    this.bindingSpell = null;
+    try { this.hotkeys = JSON.parse(localStorage.getItem('t4c_hotkeys') || '{}'); } catch {}
+
+    // capture de touche pour l'assignation de raccourci
+    window.addEventListener('keydown', (e) => {
+      if (!this.bindingSpell) return;
+      e.preventDefault(); e.stopPropagation();
+      const k = e.key.toLowerCase();
+      if (k !== 'escape' && k.length === 1) {
+        for (const key of Object.keys(this.hotkeys)) {
+          if (this.hotkeys[key] === this.bindingSpell) delete this.hotkeys[key];
+        }
+        this.hotkeys[k] = this.bindingSpell;
+        localStorage.setItem('t4c_hotkeys', JSON.stringify(this.hotkeys));
+      }
+      this.bindingSpell = null;
+      this.renderSpellPanel();
+      this.renderSpellbar();
+    }, true);
 
     // Connexion
     const submit = (type) => {
@@ -39,7 +63,160 @@ export class UI {
       e.stopPropagation();
     });
 
-    $('btn-respawn').onclick = () => net.send({ t: 'respawn' });
+    $('btn-respawn').onclick = () => net.send({ t: 'newchar' });
+    $('btn-trial-go').onclick = () => { $('trial-modal').classList.add('hidden'); net.send({ t: 'trial_enter' }); };
+    $('btn-trial-no').onclick = () => $('trial-modal').classList.add('hidden');
+    document.querySelectorAll('#shop-tabs button').forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll('#shop-tabs button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        this.shopTab = b.dataset.tab;
+        this.renderShop();
+      };
+    });
+    this.shopTab = 'items';
+  }
+
+  setSpellDefs(defs) { this.spellDefs = defs; }
+  spellDef(id) { return this.spellDefs.find(s => s.id === id); }
+  knownSpells() { return (this.self?.spells || []).map(id => this.spellDef(id)).filter(Boolean); }
+
+  // ---- Panneau des sorts + raccourcis ----
+  renderSpellPanel() {
+    const div = $('spell-list');
+    if (!div) return;
+    div.innerHTML = '';
+    const known = this.knownSpells();
+    if (!known.length) { div.innerHTML = '<p class="hint">Aucun sort appris. Voyez le marchand du village.</p>'; return; }
+    for (const sp of known) {
+      const row = document.createElement('div');
+      row.className = 'spell-row' + (this.activeSpell === sp.id ? ' active-spell' : '');
+      const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
+      row.innerHTML = `<span>${SPELL_ICONS[sp.type] || '✨'} ${sp.name} <span class="meta">(${sp.mana} mana)</span></span>`;
+      const btn = document.createElement('button');
+      btn.textContent = this.bindingSpell === sp.id ? 'Touche ?' : (key ? `Ctrl+${key.toUpperCase()}` : 'Raccourci');
+      btn.onclick = (e) => { e.stopPropagation(); this.bindingSpell = sp.id; this.renderSpellPanel(); };
+      row.appendChild(btn);
+      row.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
+      div.appendChild(row);
+    }
+  }
+
+  renderSpellbar() {
+    const bar = $('spellbar');
+    bar.innerHTML = '';
+    for (const sp of this.knownSpells()) {
+      const slot = document.createElement('div');
+      slot.className = 'spell-slot' + (this.activeSpell === sp.id ? ' active' : '');
+      const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
+      slot.innerHTML = `<span class="icon">${SPELL_ICONS[sp.type] || '✨'}</span>` +
+        (key ? `<span class="key">${key.toUpperCase()}</span>` : '');
+      slot.title = `${sp.name} — ${sp.mana} mana` + (key ? ` — Ctrl+${key.toUpperCase()}` : '');
+      slot.dataset.spell = sp.id;
+      slot.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
+      const cd = document.createElement('div');
+      cd.className = 'cd hidden';
+      slot.appendChild(cd);
+      bar.appendChild(slot);
+    }
+  }
+
+  startCooldown(spellId, dur) {
+    this.cds[spellId] = performance.now() / 1000 + dur;
+  }
+
+  tickCooldowns() {
+    const now = performance.now() / 1000;
+    document.querySelectorAll('.spell-slot').forEach(slot => {
+      const cd = slot.querySelector('.cd');
+      const left = (this.cds[slot.dataset.spell] || 0) - now;
+      if (left > 0) { cd.classList.remove('hidden'); cd.textContent = Math.ceil(left); }
+      else cd.classList.add('hidden');
+    });
+  }
+
+  // ---- Boutique ----
+  showShop(msg) {
+    this.shop = msg;
+    $('shop-title').textContent = msg.name;
+    $('shop').classList.remove('hidden');
+    this.renderShop();
+  }
+
+  renderShop() {
+    const div = $('shop-list');
+    if (!this.shop) return;
+    div.innerHTML = '';
+    const gold = this.self?.gold || 0;
+    const mk = (label, meta, price, disabled, onBuy, ownedText) => {
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.innerHTML = `<span>${label}<br><span class="meta">${meta}</span></span>`;
+      const btn = document.createElement('button');
+      if (ownedText) { btn.textContent = ownedText; btn.disabled = true; }
+      else {
+        btn.textContent = `${price} 🟡`;
+        btn.disabled = disabled || gold < price;
+        btn.onclick = onBuy;
+      }
+      row.appendChild(btn);
+      div.appendChild(row);
+    };
+    if (this.shopTab === 'items') {
+      for (const it of this.shop.items) {
+        const meta = [it.dmg && `dégâts ${it.dmg}`, it.def && `défense ${it.def}`, it.heal && `+${it.heal} PV`, it.mana && `+${it.mana} mana`]
+          .filter(Boolean).join(' — ') || '';
+        mk(`${SLOT_ICONS[it.slot] || ''} ${it.name}`, meta, it.price, false,
+          () => this.net.send({ t: 'buy', kind: 'item', id: it.defId }));
+      }
+    } else if (this.shopTab === 'spells') {
+      for (const sp of this.shop.spells) {
+        mk(`${SPELL_ICONS[sp.type] || '✨'} ${sp.name}`, `${sp.mana} mana — ${sp.type}`, sp.price, false,
+          () => this.net.send({ t: 'buy', kind: 'spell', id: sp.id }), sp.known ? 'Appris' : null);
+      }
+    } else {
+      for (const sk of this.shop.skills) {
+        mk(`🎖 ${sk.name}`, sk.desc, sk.price, false,
+          () => this.net.send({ t: 'buy', kind: 'skill', id: sk.id }), sk.known ? 'Apprise' : null);
+      }
+    }
+  }
+
+  // ---- Obélisque ----
+  showObelisk(msg) {
+    const div = $('obelisk-list');
+    div.innerHTML = '';
+    for (const z of msg.zones) {
+      const btn = document.createElement('button');
+      btn.textContent = `${z.name} (niv. ${z.levels[0]}-${z.levels[1]})` + (z.id === msg.current ? ' — ici' : '');
+      btn.disabled = z.id === msg.current;
+      btn.onclick = () => { $('obelisk-panel').classList.add('hidden'); this.net.send({ t: 'teleport', zoneId: z.id }); };
+      div.appendChild(btn);
+    }
+    $('obelisk-panel').classList.remove('hidden');
+  }
+
+  showTrialConfirm(msg) {
+    $('trial-text').textContent = msg.text;
+    $('trial-modal').classList.remove('hidden');
+  }
+
+  zoneBanner(name, levels) {
+    const b = $('zone-banner');
+    b.textContent = levels ? `${name} — niveaux ${levels[0]} à ${levels[1]}` : name;
+    b.style.opacity = 1;
+    clearTimeout(this._bannerTimer);
+    this._bannerTimer = setTimeout(() => { b.style.opacity = 0; }, 4000);
+  }
+
+  setCombatMode(on) {
+    $('combat-indicator').classList.toggle('hidden', !on);
+  }
+
+  renderBuffs() {
+    const names = { def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Bénédiction', regen: '💚 Régénération' };
+    $('buffs-display').innerHTML = (this.self?.buffs || [])
+      .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');
   }
 
   isTyping() { return document.activeElement === this.chatInput || document.activeElement?.tagName === 'INPUT'; }
@@ -52,7 +229,7 @@ export class UI {
   }
 
   togglePanel(name) {
-    for (const p of ['inventory', 'character', 'help']) {
+    for (const p of ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel']) {
       if (p === name) $(p).classList.toggle('hidden');
       else $(p).classList.add('hidden');
     }
@@ -87,6 +264,10 @@ export class UI {
     this.renderBars();
     this.renderInventory();
     this.renderCharacter();
+    this.renderSpellPanel();
+    this.renderSpellbar();
+    this.renderBuffs();
+    if (this.shop) this.renderShop();
   }
 
   renderInventory() {
@@ -197,8 +378,12 @@ export class UI {
     setTimeout(() => div.remove(), 1100);
   }
 
-  showDeath(by) {
-    $('death-by').textContent = by ? `Tué par ${by}` : '';
+  showDeath(msg) {
+    $('death-by').textContent = `${this.self?.level ? `Niveau ${msg.level}` : ''} — tué par ${msg.by} dans ${msg.zone}. Ce personnage est perdu à jamais.`;
+    const pan = $('pantheon');
+    pan.innerHTML = '<b style="color:#c8b87a">Panthéon des morts</b><br>' +
+      (msg.pantheon || []).map(d =>
+        `<div class="dead-row">☠ ${d.name} — niveau ${d.level}, tué par ${d.killer} (${d.zone})</div>`).join('');
     $('death-screen').classList.remove('hidden');
   }
   hideDeath() { $('death-screen').classList.add('hidden'); }

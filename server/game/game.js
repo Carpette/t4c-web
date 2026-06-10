@@ -1,29 +1,27 @@
-// Boucle de jeu autoritative : mouvements, combat, IA, intérêt local (AOI), snapshots.
+// Boucle de jeu autoritative multi-zones : îles, Épreuves solo, PNJ, sorts, permadeath.
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS, SLOTS } from '../../shared/defs.js';
-import { generateWorld, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
+import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
-import { makeItem, rollDrops, itemStats, itemLabel, setNextIid } from './items.js';
+import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, setNextIid, zoneMult } from './items.js';
 import { findPath, lineOfSight } from './pathfind.js';
+import { content } from '../content.js';
 import * as db from '../db.js';
 
 const CELL = 16;
 
-export class Game {
-  constructor() {
-    this.world = generateWorld();
-    this.entities = new Map();   // id -> entité
-    this.players = new Map();    // id -> joueur
-    this.grid = new Map();       // hash spatial
-    this.nextId = 1;
-    this.worldTime = C.DAY_LENGTH * 0.3; // on démarre le matin
-    this.tickCount = 0;
-    this.spawnMobs();
-    setInterval(() => this.tick(), 1000 / C.TICK_RATE);
-    setInterval(() => this.saveAll(), 60_000);
+// ---------- Une zone = un monde isolé (île ou instance d'Épreuve) ----------
+class ZoneInstance {
+  constructor(key, world, zoneId, isTrial = false, owner = null) {
+    this.key = key;
+    this.world = world;
+    this.zoneId = zoneId;       // index de la zone (pour le scaling des mobs)
+    this.isTrial = isTrial;
+    this.owner = owner;          // accountId si instance personnelle
+    this.entities = new Map();
+    this.grid = new Map();
+    this.players = 0;
   }
-
-  // ---------- Hash spatial ----------
   cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
   gridAdd(e) {
     const k = this.cellKey(e.x, e.z);
@@ -33,10 +31,7 @@ export class Game {
   }
   gridMove(e) {
     const k = this.cellKey(e.x, e.z);
-    if (k !== e._cell) {
-      this.grid.get(e._cell)?.delete(e);
-      this.gridAdd(e);
-    }
+    if (k !== e._cell) { this.grid.get(e._cell)?.delete(e); this.gridAdd(e); }
   }
   gridRemove(e) { this.grid.get(e._cell)?.delete(e); }
   *nearby(x, z, r) {
@@ -54,10 +49,35 @@ export class Game {
       }
     }
   }
+  add(e) { this.entities.set(e.id, e); this.gridAdd(e); e.zi = this; }
+  remove(e) { this.entities.delete(e.id); this.gridRemove(e); }
+}
 
-  // ---------- Apparition des monstres ----------
-  spawnMobs() {
-    const rng = mulberry32(C.WORLD_SEED ^ 0xbeef);
+export class Game {
+  constructor() {
+    this.zones = new Map();      // key -> ZoneInstance
+    this.players = new Map();    // id -> joueur
+    this.nextId = 1;
+    this.worldTime = C.DAY_LENGTH * 0.3;
+    this.tickCount = 0;
+
+    for (const z of content.zones) {
+      const zi = new ZoneInstance(`zone:${z.id}`, generateWorld(z.seed), z.id);
+      this.zones.set(zi.key, zi);
+      this.populateIsland(zi);
+    }
+    setInterval(() => this.tick(), 1000 / C.TICK_RATE);
+    setInterval(() => this.saveAll(), 60_000);
+  }
+
+  zoneDef(id) { return content.zones[id]; }
+  island(id) { return this.zones.get(`zone:${id}`); }
+  now() { return this.tickCount / C.TICK_RATE; }
+
+  // ---------- Peuplement ----------
+  populateIsland(zi) {
+    const rng = mulberry32((this.zoneDef(zi.zoneId).seed ^ 0xbeef) >>> 0);
+    const base = this.zoneDef(zi.zoneId).levels[0] - 1;
     for (const zone of SPAWN_ZONES) {
       for (let i = 0; i < zone.count; i++) {
         let x, z, tries = 0;
@@ -65,61 +85,91 @@ export class Game {
           const a = rng() * Math.PI * 2, d = rng() * zone.radius;
           x = zone.center[0] + Math.cos(a) * d + 0.5;
           z = zone.center[1] + Math.sin(a) * d + 0.5;
-        } while (!this.world.isWalkable(x, z) && ++tries < 40);
+        } while (!zi.world.isWalkable(x, z) && ++tries < 40);
         if (tries >= 40) continue;
-        this.spawnMob(zone.mob, x, z);
+        this.spawnMob(zi, zone.mob, x, z, base);
       }
     }
+    this.spawnNpc(zi);
   }
 
-  spawnMob(defId, x, z) {
+  spawnMob(zi, defId, x, z, zoneBase, noRespawn = false) {
     const def = MOBS[defId];
+    const sc = C.scaleMob(def, zoneBase);
     const m = {
-      id: this.nextId++, kind: C.KIND.MOB, defId, def,
+      id: this.nextId++, kind: C.KIND.MOB, defId, def, sc,
+      level: sc.level,
       x, z, dir: 0, state: C.ST.IDLE,
-      hp: def.hp, maxHp: def.hp,
+      hp: sc.hp, maxHp: sc.hp,
       home: { x, z }, target: null, atkCd: 0, path: null,
       wanderAt: this.now() + 2 + Math.random() * 6,
-      dead: false, hidden: false, respawnAt: 0, hideAt: 0,
+      dead: false, hidden: false, respawnAt: 0, hideAt: 0, noRespawn,
     };
-    this.entities.set(m.id, m);
-    this.gridAdd(m);
+    zi.add(m);
     return m;
   }
 
-  now() { return this.tickCount / C.TICK_RATE; }
+  spawnNpc(zi) {
+    const v = zi.world.village;
+    let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
+    while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
+    const npc = {
+      id: this.nextId++, kind: C.KIND.NPC, npcId: 'merchant',
+      name: content.npc.merchant.name,
+      look: content.npc.merchant.look,
+      x, z, dir: Math.PI, state: C.ST.IDLE, level: 0,
+      hp: 1, dead: false, hidden: false,
+    };
+    zi.add(npc);
+    return npc;
+  }
 
   // ---------- Joueurs ----------
-  addPlayer(ws, accountId, name) {
+  addPlayer(ws, accountId, name, isAdmin) {
     if (this.players.size >= C.MAX_PLAYERS) return { error: 'Serveur plein (256 joueurs max)' };
     for (const p of this.players.values()) {
       if (p.accountId === accountId) this.removePlayer(p, 'Connecté ailleurs');
     }
     let data = db.loadCharacter(accountId);
     if (!data) {
-      data = db.newCharacterData(name, this.world.spawnPoint);
+      data = db.newCharacterData(name, this.island(0).world.spawnPoint);
       db.saveCharacter(accountId, data);
     }
     const p = {
-      id: this.nextId++, kind: C.KIND.PLAYER, ws, accountId,
+      id: this.nextId++, kind: C.KIND.PLAYER, ws, accountId, isAdmin: !!isAdmin,
       name: data.name, level: data.level, xp: data.xp, statPoints: data.statPoints,
       stats: data.stats, gold: data.gold,
       inventory: data.inventory || [], equip: data.equip || {},
+      spells: data.spells || [], skills: data.skills || [],
+      unlocked: data.unlocked || [0],
       x: data.x, z: data.z, dir: 0, state: C.ST.IDLE,
-      path: null, attackTarget: null, atkCd: 0, lastCombat: -99,
-      hp: 1, mana: 1, dead: false, hidden: false, respawnReady: false,
+      path: null, moveDir: null, attackTarget: null, atkCd: 0, lastCombat: -99,
+      spellCds: {}, buffs: [],
+      hp: 1, mana: 1, dead: false, hidden: false,
       known: new Set(), events: [], lastChat: 0,
+      pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
     };
     for (const it of p.inventory) setNextIid(it.iid + 1);
-    if (!this.world.isWalkable(p.x, p.z)) { p.x = this.world.spawnPoint.x; p.z = this.world.spawnPoint.z; }
+
+    // zone de départ : Épreuve en cours (recréée) ou île courante
+    let zi;
+    if (data.trialFor != null && data.trialFor < content.zones.length) {
+      zi = this.createTrial(p, data.trialFor);
+      p.x = zi.world.spawnPoint.x; p.z = zi.world.spawnPoint.z;
+    } else {
+      const zid = Math.min(data.zoneId || 0, content.zones.length - 1);
+      zi = this.island(zid);
+      if (!zi.world.isWalkable(p.x, p.z)) { p.x = zi.world.spawnPoint.x; p.z = zi.world.spawnPoint.z; }
+    }
     this.recompute(p);
     p.hp = data.hp == null ? p.eff.maxHp : Math.min(data.hp, p.eff.maxHp);
     p.mana = data.mana == null ? p.eff.maxMana : Math.min(data.mana, p.eff.maxMana);
-    if (p.hp <= 0) p.hp = p.eff.maxHp; // pas de connexion mort
+    if (p.hp <= 0) p.hp = p.eff.maxHp;
     this.players.set(p.id, p);
-    this.entities.set(p.id, p);
-    this.gridAdd(p);
-    this.send(p, { t: 'welcome', id: p.id, time: this.worldTime });
+    zi.add(p);
+    zi.players++;
+    this.send(p, { t: 'welcome', id: p.id, time: this.worldTime, admin: p.isAdmin });
+    this.sendZone(p);
     this.sendSelf(p);
     this.broadcastChat('sys', `${p.name} entre dans le monde.`);
     return { player: p };
@@ -127,24 +177,109 @@ export class Game {
 
   removePlayer(p, reason) {
     if (!this.players.has(p.id)) return;
-    this.savePlayer(p);
+    if (!p.permadead) this.savePlayer(p);
+    p.zi.players--;
+    p.zi.remove(p);
+    this.maybeDestroyTrial(p.zi);
     this.players.delete(p.id);
-    this.entities.delete(p.id);
-    this.gridRemove(p);
     this.broadcastChat('sys', `${p.name} quitte le monde.`);
     try { p.ws.close(1000, reason || 'bye'); } catch {}
   }
 
   savePlayer(p) {
+    if (p.permadead) return;
     db.saveCharacter(p.accountId, {
       name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
       stats: p.stats, hp: p.hp, mana: p.mana, x: p.x, z: p.z,
       gold: p.gold, inventory: p.inventory, equip: p.equip,
+      spells: p.spells, skills: p.skills, unlocked: p.unlocked,
+      zoneId: p.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
+      trialFor: p.zi.isTrial ? p.zi.trialTarget : null,
     });
   }
   saveAll() { for (const p of this.players.values()) this.savePlayer(p); }
 
-  // Stats effectives (base + équipement)
+  sendZone(p) {
+    const zi = p.zi;
+    const def = zi.isTrial ? this.zoneDef(zi.trialTarget) : this.zoneDef(zi.zoneId);
+    this.send(p, {
+      t: 'zone',
+      kind: zi.isTrial ? 'trial' : 'island',
+      zoneId: zi.isTrial ? zi.trialTarget : zi.zoneId,
+      name: zi.isTrial ? `L'Épreuve — vers ${def.name}` : def.name,
+      seed: def.seed,
+      tint: zi.isTrial ? 'rgba(40, 20, 60, 0.18)' : def.tint,
+      levels: def.levels,
+      x: p.x, z: p.z,
+      unlocked: p.unlocked,
+    });
+    p.known = new Set(); // les entités de l'ancienne zone seront purgées côté client
+  }
+
+  movePlayerToZone(p, zi, x, z) {
+    p.zi.players--;
+    p.zi.remove(p);
+    const old = p.zi;
+    p.x = x; p.z = z;
+    p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null;
+    zi.add(p);
+    zi.players++;
+    this.maybeDestroyTrial(old);
+    this.sendZone(p);
+    this.sendSelf(p);
+  }
+
+  // ---------- Épreuve ----------
+  createTrial(p, targetZoneId) {
+    const key = `trial:${targetZoneId}:${p.accountId}`;
+    this.zones.get(key) && this.zones.delete(key);
+    const def = this.zoneDef(targetZoneId);
+    const world = generateTrial(def.seed);
+    const fromZone = targetZoneId - 1;
+    const zi = new ZoneInstance(key, world, fromZone, true, p.accountId);
+    zi.trialTarget = targetZoneId;
+    this.zones.set(key, zi);
+    // les monstres les plus puissants de la zone actuelle, sans réapparition
+    const fromDef = this.zoneDef(fromZone);
+    const base = fromDef.levels[0] - 1;
+    const strongest = [...fromDef.mobs].sort((a, b) => MOBS[b].level - MOBS[a].level).slice(0, 3);
+    const rng = mulberry32((def.seed ^ 0x5eed) >>> 0);
+    for (const spot of world.mobSpots) {
+      const defId = strongest[Math.floor(rng() * strongest.length)];
+      const m = this.spawnMob(zi, defId, spot.x, spot.z, base, true);
+      m.def = { ...m.def, aggro: 9, leash: 60 }; // agressifs, pas de retour au bercail
+    }
+    return zi;
+  }
+
+  maybeDestroyTrial(zi) {
+    if (zi?.isTrial && zi.players <= 0) this.zones.delete(zi.key);
+  }
+
+  startTrial(p) {
+    if (p.zi.isTrial) return;
+    const target = p.zi.zoneId + 1;
+    if (target >= content.zones.length) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
+    if (p.unlocked.includes(target)) { this.send(p, { t: 'info', text: 'Vous avez déjà conquis cette Épreuve. Utilisez l\'obélisque.' }); return; }
+    const zi = this.createTrial(p, target);
+    p.trialFrom = p.zi.zoneId;
+    this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
+    this.savePlayer(p);
+    this.send(p, { t: 'info', text: 'L\'Épreuve commence. Atteignez la sortie... ou mourez.' });
+  }
+
+  finishTrial(p) {
+    const zi = p.zi;
+    if (!zi.isTrial) return;
+    const target = zi.trialTarget;
+    if (!p.unlocked.includes(target)) p.unlocked.push(target);
+    const dest = this.island(target);
+    this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
+    this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+    this.savePlayer(p);
+  }
+
+  // ---------- Stats effectives ----------
   recompute(p) {
     const stats = { ...p.stats };
     let weaponDmg = 0, weaponSpeed = null, defense = 0;
@@ -158,20 +293,37 @@ export class Game {
       defense += s.def;
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
+    // compétences passives
+    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, crit: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
+    for (const id of p.skills) {
+      const sk = content.skillById[id];
+      if (!sk) continue;
+      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v;
+    }
+    // buffs temporaires
+    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0;
+    for (const b of p.buffs) {
+      if (b.stat === 'def') buffDef += b.power;
+      else if (b.stat === 'speed') buffSpeed += b.power;
+      else if (b.stat === 'dmg') buffDmgMul += b.power;
+      else if (b.stat === 'regen') buffRegen += b.power;
+    }
+    p.skillFx = fx;
     p.eff = {
       stats,
-      maxHp: C.maxHp(stats, p.level),
+      maxHp: Math.floor(C.maxHp(stats, p.level) * (1 + fx.hpMul)),
       maxMana: C.maxMana(stats, p.level),
-      dmg: C.meleeDamage(stats, weaponDmg),
+      dmg: Math.floor(C.meleeDamage(stats, weaponDmg) * (1 + fx.dmgMul + buffDmgMul)),
       atkCd: C.attackCooldown(stats, weaponSpeed),
-      defense,
-      speed: C.moveSpeed(stats),
+      defense: defense + fx.def + buffDef,
+      speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
       atkRange: 1.8,
+      buffRegen,
     };
     p.hp = Math.min(p.hp, p.eff.maxHp);
     p.mana = Math.min(p.mana, p.eff.maxMana);
 
-    // apparence (couches Flare) diffusée aux clients
+    // apparence (couches Flare)
     const layerOf = (slot) => {
       const iid = p.equip[slot];
       const item = iid && p.inventory.find(i => i.iid === iid);
@@ -179,12 +331,12 @@ export class Game {
     };
     const look = {
       chest: layerOf('armor'), head: layerOf('helmet'),
-      main: layerOf('weapon'), off: layerOf('shield'),
+      main: layerOf('weapon'), off: layerOf('shield'), feet: layerOf('boots'),
     };
     const changed = JSON.stringify(look) !== JSON.stringify(p.look || null);
     p.look = look;
     if (changed && this.players.has(p.id)) {
-      this.eventNear(p.x, p.z, { t: 'look', id: p.id, look });
+      this.eventNear(p, { t: 'look', id: p.id, look });
     }
   }
 
@@ -199,52 +351,98 @@ export class Game {
       dmg: p.eff.dmg, defense: p.eff.defense, gold: p.gold,
       inventory: p.inventory.map(it => ({ ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot })),
       equip: p.equip,
+      spells: p.spells, skills: p.skills,
+      buffs: p.buffs.map(b => ({ stat: b.stat, power: b.power, left: Math.max(0, Math.round(b.until - this.now())) })),
+      zoneId: p.zi.isTrial ? p.zi.trialTarget : p.zi.zoneId,
+      inTrial: !!p.zi.isTrial,
+      unlocked: p.unlocked,
     });
   }
 
-  send(p, obj) {
-    if (p.ws.readyState === 1) p.ws.send(JSON.stringify(obj));
-  }
+  send(p, obj) { if (p.ws.readyState === 1) p.ws.send(JSON.stringify(obj)); }
   broadcastChat(from, text) {
     const msg = JSON.stringify({ t: 'chat', from, text });
     for (const p of this.players.values()) if (p.ws.readyState === 1) p.ws.send(msg);
   }
-  eventNear(x, z, obj) {
-    for (const e of this.nearby(x, z, C.AOI_RADIUS)) {
+  eventNear(ref, obj) {
+    for (const e of ref.zi.nearby(ref.x, ref.z, C.AOI_RADIUS)) {
       if (e.kind === C.KIND.PLAYER) e.events.push(obj);
     }
   }
 
   // ---------- Messages clients ----------
   onMessage(p, msg) {
+    if (p.permadead && msg.t !== 'newchar') return;
     switch (msg.t) {
       case 'move': {
         if (p.dead) return;
         const x = +msg.x, z = +msg.z;
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
-        p.attackTarget = null;
-        p.path = findPath(this.world, p.x, p.z, x, z);
+        p.attackTarget = null; p.moveDir = null; p.pendingInteract = null;
+        p.path = findPath(p.zi.world, p.x, p.z, x, z);
+        break;
+      }
+      case 'movedir': {
+        if (p.dead) return;
+        const x = +msg.x, z = +msg.z;
+        if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+        const len = Math.hypot(x, z);
+        if (len < 0.01) { p.moveDir = null; if (p.state === C.ST.WALK) p.state = C.ST.IDLE; return; }
+        p.moveDir = { x: x / len, z: z / len };
+        p.path = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null;
         break;
       }
       case 'attack': {
         if (p.dead) return;
-        const target = this.entities.get(msg.id | 0);
-        if (target && target.kind !== C.KIND.DROP && !target.dead && target.id !== p.id) {
+        const target = p.zi.entities.get(msg.id | 0);
+        if (target && target.kind === C.KIND.MOB && !target.dead) {
           p.attackTarget = target.id;
-          p.path = null;
+          p.path = null; p.moveDir = null;
         }
+        break;
+      }
+      case 'cast': {
+        if (p.dead) return;
+        this.castSpell(p, msg);
         break;
       }
       case 'pickup': {
         if (p.dead) return;
-        const d = this.entities.get(msg.id | 0);
+        const d = p.zi.entities.get(msg.id | 0);
         if (!d || d.kind !== C.KIND.DROP || d.hidden) return;
         if (Math.hypot(d.x - p.x, d.z - p.z) > C.PICKUP_RANGE) {
-          p.path = findPath(this.world, p.x, p.z, d.x, d.z);
+          p.path = findPath(p.zi.world, p.x, p.z, d.x, d.z);
+          p.moveDir = null;
           p.pendingPickup = d.id;
           return;
         }
         this.doPickup(p, d);
+        break;
+      }
+      case 'interact': {
+        if (p.dead) return;
+        this.interact(p, msg);
+        break;
+      }
+      case 'buy': {
+        if (p.dead) return;
+        this.buy(p, msg);
+        break;
+      }
+      case 'teleport': {
+        if (p.dead || p.zi.isTrial) return;
+        const zid = msg.zoneId | 0;
+        if (!p.unlocked.includes(zid) || !this.island(zid)) return;
+        if (this.now() > p.obeliskUntil) { this.send(p, { t: 'info', text: 'Approchez-vous de l\'obélisque.' }); return; }
+        const dest = this.island(zid);
+        this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+        break;
+      }
+      case 'trial_enter': {
+        if (p.dead || p.zi.isTrial) return;
+        if (!p.trialOffer || this.now() > p.trialOffer) { this.send(p, { t: 'info', text: 'Retournez au portail de l\'Épreuve.' }); return; }
+        p.trialOffer = null;
+        this.startTrial(p);
         break;
       }
       case 'equip': {
@@ -264,12 +462,12 @@ export class Game {
         if (p.dead) return;
         const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
         if (i < 0) return;
-        const def = ITEMS[p.inventory[i].defId];
-        if (def.slot !== 'use') return;
-        if (def.heal) p.hp = Math.min(p.eff.maxHp, p.hp + def.heal);
-        if (def.mana) p.mana = Math.min(p.eff.maxMana, p.mana + def.mana);
+        const st = itemStats(p.inventory[i]);
+        if (ITEMS[p.inventory[i].defId].slot !== 'use') return;
+        if (st.heal) p.hp = Math.min(p.eff.maxHp, p.hp + st.heal);
+        if (st.mana) p.mana = Math.min(p.eff.maxMana, p.mana + st.mana);
         p.inventory.splice(i, 1);
-        this.eventNear(p.x, p.z, { t: 'fx', kind: 'heal', id: p.id });
+        this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
         this.sendSelf(p);
         break;
       }
@@ -286,80 +484,231 @@ export class Game {
         if (now - p.lastChat < 800) return;
         p.lastChat = now;
         const text = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
-        if (text) this.broadcastChat(p.name, text);
+        if (!text) return;
+        this.broadcastChat(p.name, text);
+        this.eventNear(p, { t: 'say', id: p.id, text }); // bulle au-dessus de la tête
         break;
       }
-      case 'respawn': {
-        if (!p.dead) return;
-        p.dead = false; p.hidden = false; p.state = C.ST.IDLE;
+      case 'newchar': {
+        if (!p.permadead) return;
+        this.reincarnate(p);
+        break;
+      }
+      case 'admin': {
+        if (!p.isAdmin) return;
+        this.adminCommand(p, msg);
+        break;
+      }
+    }
+  }
+
+  // ---------- Commandes d'administration (en jeu) ----------
+  adminCommand(p, msg) {
+    switch (msg.cmd) {
+      case 'set': {
+        if (Number.isFinite(+msg.level)) {
+          p.level = Math.max(1, Math.min(C.MAX_LEVEL, msg.level | 0));
+          p.xp = C.xpForLevel(p.level);
+        }
+        if (Number.isFinite(+msg.gold)) p.gold = Math.max(0, msg.gold | 0);
+        if (Number.isFinite(+msg.statPoints)) p.statPoints = Math.max(0, msg.statPoints | 0);
+        this.recompute(p);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-        p.x = this.world.spawnPoint.x; p.z = this.world.spawnPoint.z;
-        this.gridMove(p);
         this.sendSelf(p);
         break;
       }
+      case 'goto': {
+        const x = +msg.x, z = +msg.z;
+        if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+        if (!p.zi.world.isWalkable(x, z)) return;
+        p.x = x; p.z = z;
+        p.path = null; p.moveDir = null;
+        p.zi.gridMove(p);
+        break;
+      }
+      case 'zone': {
+        const zid = msg.zoneId | 0;
+        const dest = this.island(zid);
+        if (!dest) return;
+        if (!p.unlocked.includes(zid)) p.unlocked.push(zid);
+        this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+        break;
+      }
     }
   }
 
-  doPickup(p, d) {
-    if (d.gold) {
-      p.gold += d.gold;
-      this.send(p, { t: 'loot', text: `+${d.gold} or` });
-    } else if (d.item) {
-      if (p.inventory.length >= 24) { this.send(p, { t: 'loot', text: 'Inventaire plein !' }); return; }
-      p.inventory.push(d.item);
-      this.send(p, { t: 'loot', text: itemLabel(d.item) });
+  // ---------- Interactions (PNJ, obélisque, portails) ----------
+  interact(p, msg) {
+    const goTo = (x, z, what) => {
+      p.path = findPath(p.zi.world, p.x, p.z, x, z);
+      p.moveDir = null;
+      p.pendingInteract = { ...what, x, z };
+    };
+    if (msg.id != null) {
+      const npc = p.zi.entities.get(msg.id | 0);
+      if (!npc || npc.kind !== C.KIND.NPC) return;
+      if (Math.hypot(npc.x - p.x, npc.z - p.z) > C.INTERACT_RANGE) { goTo(npc.x, npc.z, { id: npc.id }); return; }
+      this.openShop(p, npc);
+      return;
     }
-    this.removeEntity(d);
+    // interaction avec un élément du décor : le client envoie sa position
+    const prop = (p.zi.world.props || []).find(pr =>
+      pr.type === msg.prop && Math.hypot(pr.x - (+msg.x), pr.z - (+msg.z)) < 1.5);
+    if (!prop) return;
+    if (Math.hypot(prop.x - p.x, prop.z - p.z) > C.INTERACT_RANGE) { goTo(prop.x, prop.z, { prop: msg.prop, px: prop.x, pz: prop.z }); return; }
+    this.interactProp(p, prop);
+  }
+
+  interactProp(p, prop) {
+    if (prop.type === 'obelisk') {
+      p.obeliskUntil = this.now() + 30;
+      this.send(p, {
+        t: 'obelisk',
+        zones: p.unlocked.map(id => ({ id, name: this.zoneDef(id).name, levels: this.zoneDef(id).levels }))
+          .sort((a, b) => a.id - b.id),
+        current: p.zi.zoneId,
+      });
+    } else if (prop.type === 'trialgate') {
+      const target = p.zi.zoneId + 1;
+      if (target >= content.zones.length) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
+      if (p.unlocked.includes(target)) { this.send(p, { t: 'info', text: 'Épreuve déjà conquise. L\'obélisque vous mènera à ' + this.zoneDef(target).name + '.' }); return; }
+      p.trialOffer = this.now() + 30;
+      this.send(p, {
+        t: 'confirm_trial',
+        zone: this.zoneDef(target).name,
+        text: `Vous êtes sur le point d'entrer dans l'Épreuve menant à ${this.zoneDef(target).name}. ` +
+          `Vous y serez SEUL face aux monstres les plus puissants de cette zone. ` +
+          `Une fois entré, il n'existe que deux issues : atteindre la sortie... ou mourir. ` +
+          `La mort y est DÉFINITIVE, comme partout. Personne ne pourra vous aider.`,
+      });
+    } else if (prop.type === 'exitgate' && p.zi.isTrial) {
+      this.finishTrial(p);
+    }
+  }
+
+  openShop(p, npc) {
+    const zid = p.zi.zoneId;
+    const disc = 1 - (p.skillFx?.discount || 0);
+    const items = Object.entries(ITEMS)
+      .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold')
+      .map(([defId, d]) => ({
+        defId, name: d.name + (zid > 0 ? ` +${zid}` : ''), slot: d.slot,
+        price: Math.round(d.price * Math.pow(zoneMult(zid), 2.6) * disc),
+        dmg: d.dmg ? Math.round(d.dmg * zoneMult(zid)) : 0,
+        def: d.def ? Math.round(d.def * zoneMult(zid)) : 0,
+        heal: d.heal ? Math.round(d.heal * zoneMult(zid)) : 0,
+        mana: d.mana ? Math.round(d.mana * zoneMult(zid)) : 0,
+      }));
+    const spells = content.spells.filter(s => s.zone <= zid)
+      .map(s => ({ ...s, price: Math.round(s.price * disc), known: p.spells.includes(s.id) }));
+    const skills = content.skills.filter(s => s.zone <= zid)
+      .map(s => ({ ...s, price: Math.round(s.price * disc), known: p.skills.includes(s.id) }));
+    const line = content.npc.merchant.greetings[Math.floor(Math.random() * content.npc.merchant.greetings.length)];
+    this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
+    this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells, skills });
+  }
+
+  buy(p, msg) {
+    // vérifie qu'un marchand est proche
+    let npc = null;
+    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
+      if (e.kind === C.KIND.NPC) { npc = e; break; }
+    }
+    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    const zid = p.zi.zoneId;
+    const disc = 1 - (p.skillFx?.discount || 0);
+
+    if (msg.kind === 'item') {
+      const def = ITEMS[msg.id];
+      if (!def || def.zone == null || def.zone > Math.min(zid, 3)) return;
+      const price = Math.round(def.price * Math.pow(zoneMult(zid), 2.6) * disc);
+      if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
+      if (p.inventory.length >= 24) { this.send(p, { t: 'info', text: 'Inventaire plein.' }); return; }
+      p.gold -= price;
+      const item = makeItem(msg.id, Math.random, zid);
+      item.q = 0; item.bonus = {}; // le marchand vend du standard ; le butin, lui, peut être magique
+      p.inventory.push(item);
+      this.send(p, { t: 'loot', text: `Acheté : ${itemLabel(item)}` });
+    } else if (msg.kind === 'spell') {
+      const sp = content.spellById[msg.id];
+      if (!sp || sp.zone > zid || p.spells.includes(sp.id)) return;
+      const price = Math.round(sp.price * disc);
+      if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
+      p.gold -= price;
+      p.spells.push(sp.id);
+      this.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
+    } else if (msg.kind === 'skill') {
+      const sk = content.skillById[msg.id];
+      if (!sk || sk.zone > zid || p.skills.includes(sk.id)) return;
+      const price = Math.round(sk.price * disc);
+      if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
+      p.gold -= price;
+      p.skills.push(sk.id);
+      this.recompute(p);
+      this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
+    }
     this.sendSelf(p);
   }
 
-  removeEntity(e) {
-    this.entities.delete(e.id);
-    this.gridRemove(e);
+  // ---------- Sorts ----------
+  castSpell(p, msg) {
+    const sp = content.spellById[msg.spellId];
+    if (!sp || !p.spells.includes(sp.id)) return;
+    const now = this.now();
+    if ((p.spellCds[sp.id] || 0) > now) return;
+    if (p.mana < sp.mana) { this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
+
+    const spellMul = 1 + (p.skillFx?.spellMul || 0);
+    const intel = p.eff.stats.int, wis = p.eff.stats.wis;
+
+    if (sp.type === 'heal') {
+      const amount = Math.round(sp.power * (1 + wis * 0.05) * spellMul);
+      p.hp = Math.min(p.eff.maxHp, p.hp + amount);
+      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+    } else if (sp.type === 'buff') {
+      p.buffs = p.buffs.filter(b => b.stat !== sp.stat);
+      p.buffs.push({ stat: sp.stat, power: sp.power, until: now + sp.duration });
+      this.recompute(p);
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
+    } else if (sp.type === 'bolt') {
+      const target = p.zi.entities.get(msg.target | 0);
+      if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
+      if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
+      if (!lineOfSight(p.zi.world, p, target)) return;
+      let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
+      dmg = C.mitigate(dmg, target.sc.def);
+      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
+      this.applyDamage(p, target, dmg, false);
+      if (sp.leech) {
+        p.hp = Math.min(p.eff.maxHp, p.hp + dmg * sp.leech);
+        this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+      }
+      p.dir = Math.atan2(target.x - p.x, target.z - p.z);
+      p.lastCombat = now;
+    } else if (sp.type === 'aoe') {
+      const cx = +msg.x, cz = +msg.z;
+      if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
+      if (Math.hypot(cx - p.x, cz - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
+      this.eventNear(p, { t: 'aoe', x: cx, z: cz, radius: sp.radius, color: sp.color });
+      for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
+        if (e.kind !== C.KIND.MOB || e.dead) continue;
+        let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
+        dmg = C.mitigate(dmg, e.sc.def);
+        this.applyDamage(p, e, dmg, false);
+      }
+      p.lastCombat = now;
+    }
+
+    p.mana -= sp.mana;
+    p.spellCds[sp.id] = now + sp.cd;
+    p.state = C.ST.ATTACK;
+    this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd, mana: Math.round(p.mana) });
   }
 
-  spawnDrop(x, z, payload) {
-    // petite dispersion praticable
-    for (let tries = 0; tries < 8; tries++) {
-      const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
-      if (this.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
-    }
-    const d = {
-      id: this.nextId++, kind: C.KIND.DROP,
-      defId: payload.gold ? 'or' : payload.item.defId,
-      gold: payload.gold || 0, item: payload.item || null,
-      x, z, dir: 0, state: 0, hidden: false,
-      expiresAt: this.now() + C.ITEM_DESPAWN,
-    };
-    this.entities.set(d.id, d);
-    this.gridAdd(d);
-  }
-
-  // ---------- Combat ----------
-  attack(attacker, defender) {
-    const aStats = attacker.kind === C.KIND.PLAYER ? attacker.eff.stats
-      : { str: 0, agi: 10 + attacker.def.level * 1.8, end: 0, int: 0, wis: 0 };
-    const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
-      : { str: 0, agi: 10 + defender.def.level * 1.8, end: 0, int: 0, wis: 0 };
-    attacker.state = C.ST.ATTACK;
-    attacker.dir = Math.atan2(defender.x - attacker.x, defender.z - attacker.z);
-    attacker.lastCombat = this.now();
-    defender.lastCombat = this.now();
-
-    if (Math.random() > C.hitChance(aStats, dStats)) {
-      this.eventNear(defender.x, defender.z, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
-      return;
-    }
-    let dmg = attacker.kind === C.KIND.PLAYER ? attacker.eff.dmg : attacker.def.dmg;
-    dmg = Math.round(dmg * (0.85 + Math.random() * 0.3));
-    let crit = false;
-    if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats)) { dmg = Math.round(dmg * 1.6); crit = true; }
-    const defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.def.def;
-    dmg = C.mitigate(dmg, defense);
+  applyDamage(attacker, defender, dmg, crit) {
     defender.hp -= dmg;
-    this.eventNear(defender.x, defender.z, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit });
-
+    defender.lastCombat = this.now();
+    this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit });
     if (defender.hp <= 0) {
       if (defender.kind === C.KIND.MOB) this.killMob(defender, attacker);
       else this.killPlayer(defender, attacker);
@@ -368,29 +717,76 @@ export class Game {
     }
   }
 
+  // ---------- Combat ----------
+  attack(attacker, defender) {
+    const aStats = attacker.kind === C.KIND.PLAYER ? attacker.eff.stats
+      : { str: 0, agi: 10 + attacker.level * 1.8, end: 0, int: 0, wis: 0 };
+    const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
+      : { str: 0, agi: 10 + defender.level * 1.8, end: 0, int: 0, wis: 0 };
+    attacker.state = C.ST.ATTACK;
+    attacker.dir = Math.atan2(defender.x - attacker.x, defender.z - attacker.z);
+    attacker.lastCombat = this.now();
+    defender.lastCombat = this.now();
+
+    let hitC = C.hitChance(aStats, dStats);
+    if (attacker.kind === C.KIND.PLAYER) hitC = Math.min(0.98, hitC + (attacker.skillFx?.hit || 0));
+    if (Math.random() > hitC) {
+      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
+      return;
+    }
+    let dmg = attacker.kind === C.KIND.PLAYER ? attacker.eff.dmg : attacker.sc.dmg;
+    dmg = Math.round(dmg * (0.85 + Math.random() * 0.3));
+    let crit = false;
+    if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (attacker.skillFx?.crit || 0)) {
+      dmg = Math.round(dmg * 1.6); crit = true;
+    }
+    const defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
+    dmg = C.mitigate(dmg, defense);
+    this.applyDamage(attacker, defender, dmg, crit);
+  }
+
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
     m.hideAt = this.now() + 6;
-    m.respawnAt = this.now() + m.def.respawn;
+    m.respawnAt = m.noRespawn ? Infinity : this.now() + m.def.respawn;
     if (killer.kind === C.KIND.PLAYER) {
-      const xp = C.mobXpReward(m.def.level, killer.level);
+      const xp = C.mobXpReward(m.level, killer.level);
       this.addXp(killer, xp);
       this.send(killer, { t: 'loot', text: `+${xp} XP (${m.def.name})` });
       if (killer.attackTarget === m.id) killer.attackTarget = null;
-      for (const payload of rollDrops(m.def)) this.spawnDrop(m.x, m.z, payload);
+      const zid = m.zi.zoneId;
+      for (const payload of rollDrops(m.def, Math.random, zid, killer.skillFx?.loot || 0)) {
+        this.spawnDrop(m.zi, m.x, m.z, payload);
+      }
     }
   }
 
+  // Mort définitive : le personnage est effacé. Roguelike.
   killPlayer(p, killer) {
-    p.dead = true; p.state = C.ST.DEAD; p.hp = 0;
-    p.path = null; p.attackTarget = null;
-    const floor = C.xpForLevel(p.level);
-    const span = C.xpForLevel(p.level + 1) - floor;
-    p.xp = Math.max(floor, p.xp - Math.floor(span * C.DEATH_XP_LOSS));
+    p.dead = true; p.permadead = true; p.state = C.ST.DEAD; p.hp = 0;
+    p.path = null; p.moveDir = null; p.attackTarget = null;
     const who = killer.kind === C.KIND.MOB ? killer.def.name : killer.name;
-    this.send(p, { t: 'died', by: who });
-    this.broadcastChat('sys', `${p.name} a été tué par ${who}.`);
-    this.sendSelf(p);
+    const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}` : this.zoneDef(p.zi.zoneId).name;
+    db.recordDeath(p.name, p.level, zoneName, who);
+    db.deleteCharacter(p.accountId);
+    this.broadcastChat('sys', `☠ ${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
+    this.send(p, { t: 'died', by: who, level: p.level, zone: zoneName, permadeath: true, pantheon: db.pantheon(8) });
+  }
+
+  reincarnate(p) {
+    const zi0 = this.island(0);
+    const data = db.newCharacterData(p.name, zi0.world.spawnPoint);
+    db.saveCharacter(p.accountId, data);
+    p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
+    p.level = 1; p.xp = 0; p.statPoints = 0;
+    p.stats = { ...data.stats };
+    p.gold = data.gold; p.inventory = []; p.equip = {};
+    p.spells = []; p.skills = []; p.unlocked = [0];
+    p.buffs = []; p.spellCds = {};
+    this.recompute(p);
+    p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
+    this.movePlayerToZone(p, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
+    this.broadcastChat('sys', `${p.name} renaît sur ${this.zoneDef(0).name}.`);
   }
 
   addXp(p, amount) {
@@ -404,10 +800,38 @@ export class Game {
     if (leveled) {
       this.recompute(p);
       p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-      this.eventNear(p.x, p.z, { t: 'fx', kind: 'levelup', id: p.id });
+      this.eventNear(p, { t: 'fx', kind: 'levelup', id: p.id });
       this.broadcastChat('sys', `${p.name} passe niveau ${p.level} !`);
     }
     this.sendSelf(p);
+  }
+
+  doPickup(p, d) {
+    if (d.gold) {
+      p.gold += d.gold;
+      this.send(p, { t: 'loot', text: `+${d.gold} or` });
+    } else if (d.item) {
+      if (p.inventory.length >= 24) { this.send(p, { t: 'loot', text: 'Inventaire plein !' }); return; }
+      p.inventory.push(d.item);
+      this.send(p, { t: 'loot', text: itemLabel(d.item) });
+    }
+    d.zi.remove(d);
+    this.sendSelf(p);
+  }
+
+  spawnDrop(zi, x, z, payload) {
+    for (let tries = 0; tries < 8; tries++) {
+      const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
+      if (zi.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
+    }
+    const d = {
+      id: this.nextId++, kind: C.KIND.DROP,
+      defId: payload.gold ? 'or' : payload.item.defId,
+      gold: payload.gold || 0, item: payload.item || null,
+      x, z, dir: 0, state: 0, hidden: false,
+      expiresAt: this.now() + C.ITEM_DESPAWN,
+    };
+    zi.add(d);
   }
 
   // ---------- Boucle ----------
@@ -417,80 +841,113 @@ export class Game {
     this.worldTime = (this.worldTime + dt) % C.DAY_LENGTH;
     const now = this.now();
 
-    // Joueurs
     for (const p of this.players.values()) {
       if (p.dead) continue;
-      // régénération hors combat
-      if (now - p.lastCombat > 5) {
+      // expiration des buffs
+      const nb = p.buffs.filter(b => b.until > now);
+      if (nb.length !== p.buffs.length) { p.buffs = nb; this.recompute(p); this.sendSelf(p); }
+
+      // régénération
+      if (now - p.lastCombat > 5 || p.eff.buffRegen) {
         const oldHp = p.hp, oldMana = p.mana;
-        p.hp = Math.min(p.eff.maxHp, p.hp + C.hpRegenPerSec(p.eff.stats) * dt);
-        p.mana = Math.min(p.eff.maxMana, p.mana + C.manaRegenPerSec(p.eff.stats) * dt);
+        const inCombat = now - p.lastCombat <= 5;
+        if (!inCombat) {
+          p.hp = Math.min(p.eff.maxHp, p.hp + C.hpRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.hpRegenMul || 0)) * dt);
+          p.mana = Math.min(p.eff.maxMana, p.mana + C.manaRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.manaRegenMul || 0)) * dt);
+        }
+        if (p.eff.buffRegen) p.hp = Math.min(p.eff.maxHp, p.hp + p.eff.buffRegen * dt);
         if ((Math.floor(p.hp) !== Math.floor(oldHp) || Math.floor(p.mana) !== Math.floor(oldMana)) && this.tickCount % 10 === 0) {
           this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
         }
       }
       p.atkCd = Math.max(0, p.atkCd - dt);
 
+      // déplacement direct (flèches / clic maintenu)
+      if (p.moveDir) {
+        const sp = p.eff.speed * dt;
+        const nx = p.x + p.moveDir.x * sp, nz = p.z + p.moveDir.z * sp;
+        if (p.zi.world.isWalkable(nx, nz)) { p.x = nx; p.z = nz; }
+        else if (p.zi.world.isWalkable(nx, p.z)) { p.x = nx; }
+        else if (p.zi.world.isWalkable(p.x, nz)) { p.z = nz; }
+        p.dir = Math.atan2(p.moveDir.x, p.moveDir.z);
+        p.state = C.ST.WALK;
+        p.zi.gridMove(p);
+      }
+
       // poursuite/attaque
       if (p.attackTarget != null) {
-        const tgt = this.entities.get(p.attackTarget);
+        const tgt = p.zi.entities.get(p.attackTarget);
         if (!tgt || tgt.dead || tgt.hidden) { p.attackTarget = null; p.state = C.ST.IDLE; }
         else {
           const dist = Math.hypot(tgt.x - p.x, tgt.z - p.z);
-          if (dist <= p.eff.atkRange && lineOfSight(this.world, p, tgt)) {
+          if (dist <= p.eff.atkRange && lineOfSight(p.zi.world, p, tgt)) {
             p.path = null;
             if (p.atkCd <= 0) { p.atkCd = p.eff.atkCd; this.attack(p, tgt); }
             else if (p.state !== C.ST.ATTACK) p.state = C.ST.IDLE;
-          } else {
-            if (!p.path || this.tickCount % 5 === 0) {
-              p.path = findPath(this.world, p.x, p.z, tgt.x, tgt.z);
-            }
+          } else if (!p.path || this.tickCount % 5 === 0) {
+            p.path = findPath(p.zi.world, p.x, p.z, tgt.x, tgt.z);
           }
         }
       }
-      this.stepAlong(p, p.eff.speed, dt);
+      if (!p.moveDir) this.stepAlong(p, p.eff.speed, dt);
 
-      // ramassage en attente
+      // ramassage / interaction en attente
       if (p.pendingPickup != null) {
-        const d = this.entities.get(p.pendingPickup);
+        const d = p.zi.entities.get(p.pendingPickup);
         if (!d || d.kind !== C.KIND.DROP) p.pendingPickup = null;
         else if (Math.hypot(d.x - p.x, d.z - p.z) <= C.PICKUP_RANGE) {
           this.doPickup(p, d);
           p.pendingPickup = null;
         }
       }
+      if (p.pendingInteract) {
+        const pi = p.pendingInteract;
+        const tx = pi.id != null ? p.zi.entities.get(pi.id)?.x : pi.px;
+        const tz = pi.id != null ? p.zi.entities.get(pi.id)?.z : pi.pz;
+        if (tx == null) p.pendingInteract = null;
+        else if (Math.hypot(tx - p.x, tz - p.z) <= C.INTERACT_RANGE) {
+          p.pendingInteract = null;
+          if (pi.id != null) {
+            const npc = p.zi.entities.get(pi.id);
+            if (npc?.kind === C.KIND.NPC) this.openShop(p, npc);
+          } else {
+            const prop = (p.zi.world.props || []).find(pr => pr.type === pi.prop && Math.hypot(pr.x - pi.px, pr.z - pi.pz) < 0.1);
+            if (prop) this.interactProp(p, prop);
+          }
+        }
+      }
     }
 
-    // Monstres
-    for (const e of this.entities.values()) {
-      if (e.kind !== C.KIND.MOB) continue;
-      this.tickMob(e, now, dt);
-    }
-
-    // Objets au sol expirés
-    for (const e of [...this.entities.values()]) {
-      if (e.kind === C.KIND.DROP && now > e.expiresAt) this.removeEntity(e);
+    // Monstres et objets au sol, zone par zone
+    for (const zi of this.zones.values()) {
+      const hasPlayers = zi.players > 0;
+      for (const e of [...zi.entities.values()]) {
+        if (e.kind === C.KIND.MOB) {
+          if (hasPlayers || e.dead) this.tickMob(zi, e, now, dt);
+        } else if (e.kind === C.KIND.DROP && now > e.expiresAt) {
+          zi.remove(e);
+        }
+      }
     }
 
     this.sendSnapshots();
   }
 
-  tickMob(m, now, dt) {
+  tickMob(zi, m, now, dt) {
     if (m.dead) {
       if (!m.hidden && now >= m.hideAt) m.hidden = true;
       if (now >= m.respawnAt) {
         m.dead = false; m.hidden = false; m.hp = m.maxHp; m.state = C.ST.IDLE;
         m.x = m.home.x; m.z = m.home.z; m.target = null; m.path = null;
-        this.gridMove(m);
+        zi.gridMove(m);
       }
       return;
     }
     m.atkCd = Math.max(0, m.atkCd - dt);
 
-    // acquisition de cible (échelonnée)
     if (!m.target && (this.tickCount + m.id) % 5 === 0) {
       let best = null, bestD = m.def.aggro;
-      for (const e of this.nearby(m.x, m.z, m.def.aggro)) {
+      for (const e of zi.nearby(m.x, m.z, m.def.aggro)) {
         if (e.kind !== C.KIND.PLAYER || e.dead) continue;
         const d = Math.hypot(e.x - m.x, e.z - m.z);
         if (d < bestD) { bestD = d; best = e; }
@@ -499,26 +956,25 @@ export class Game {
     }
 
     if (m.target) {
-      const tgt = this.entities.get(m.target);
+      const tgt = zi.entities.get(m.target);
       const leashed = Math.hypot(m.x - m.home.x, m.z - m.home.z) > m.def.leash;
       if (!tgt || tgt.dead || leashed || Math.hypot(tgt.x - m.x, tgt.z - m.z) > m.def.leash) {
         m.target = null;
-        m.path = findPath(this.world, m.x, m.z, m.home.x, m.home.z);
+        m.path = findPath(zi.world, m.x, m.z, m.home.x, m.home.z);
       } else {
         const dist = Math.hypot(tgt.x - m.x, tgt.z - m.z);
         if (dist <= m.def.atkRange) {
           m.path = null;
           if (m.atkCd <= 0) { m.atkCd = m.def.atkSpeed; this.attack(m, tgt); }
         } else if (!m.path || (this.tickCount + m.id) % 5 === 0) {
-          m.path = findPath(this.world, m.x, m.z, tgt.x, tgt.z);
+          m.path = findPath(zi.world, m.x, m.z, tgt.x, tgt.z);
         }
       }
     } else if (now >= m.wanderAt) {
-      // errance autour du point d'origine
       m.wanderAt = now + 4 + Math.random() * 8;
       const a = Math.random() * Math.PI * 2, d = 1 + Math.random() * 4;
       const wx = m.home.x + Math.cos(a) * d, wz = m.home.z + Math.sin(a) * d;
-      if (this.world.isWalkable(wx, wz)) m.path = findPath(this.world, m.x, m.z, wx, wz);
+      if (zi.world.isWalkable(wx, wz)) m.path = findPath(zi.world, m.x, m.z, wx, wz);
     }
 
     this.stepAlong(m, m.def.speed, dt);
@@ -543,7 +999,7 @@ export class Game {
     }
     if (e.path && !e.path.length) e.path = null;
     e.state = e.path ? C.ST.WALK : (e.state === C.ST.ATTACK ? C.ST.ATTACK : C.ST.IDLE);
-    this.gridMove(e);
+    e.zi.gridMove(e);
   }
 
   // ---------- Snapshots ----------
@@ -553,13 +1009,14 @@ export class Game {
       const visible = [];
       const seen = new Set();
       const metas = [];
-      for (const e of this.nearby(p.x, p.z, C.AOI_RADIUS)) {
+      for (const e of p.zi.nearby(p.x, p.z, C.AOI_RADIUS)) {
         seen.add(e.id);
         visible.push({
           id: e.id, kind: e.kind, x: e.x, z: e.z, dir: e.dir || 0,
           state: e.state || 0,
-          hpPct: e.kind === C.KIND.DROP ? 0 : Math.max(0, Math.min(255, Math.round((e.hp / (e.kind === C.KIND.PLAYER ? e.eff.maxHp : e.maxHp)) * 100))),
-          level: e.kind === C.KIND.PLAYER ? e.level : (e.kind === C.KIND.MOB ? e.def.level : 0),
+          hpPct: e.kind === C.KIND.DROP || e.kind === C.KIND.NPC ? 100
+            : Math.max(0, Math.min(100, Math.round((e.hp / (e.kind === C.KIND.PLAYER ? e.eff.maxHp : e.maxHp)) * 100))),
+          level: Math.min(255, e.level || 0),
         });
         if (!p.known.has(e.id)) {
           p.known.add(e.id);
@@ -584,7 +1041,10 @@ export class Game {
       return { id: e.id, kind: e.kind, name: e.name, level: e.level, look: e.look };
     }
     if (e.kind === C.KIND.MOB) {
-      return { id: e.id, kind: e.kind, defId: e.defId, name: e.def.name, level: e.def.level };
+      return { id: e.id, kind: e.kind, defId: e.defId, name: e.def.name, level: e.level };
+    }
+    if (e.kind === C.KIND.NPC) {
+      return { id: e.id, kind: e.kind, npcId: e.npcId, name: e.name, look: e.look, level: 0 };
     }
     return { id: e.id, kind: e.kind, defId: e.defId, gold: e.gold || 0, q: e.item?.q || 0 };
   }

@@ -1,0 +1,16 @@
+{
+  "skills": [
+    { "id": "maitrise_lames",   "name": "Maîtrise des lames",   "zone": 0, "price": 200,     "desc": "+10 % de dégâts au corps à corps",   "effect": { "dmgMul": 0.10 } },
+    { "id": "peau_de_fer",      "name": "Peau de fer",          "zone": 0, "price": 250,     "desc": "+8 de défense",                       "effect": { "def": 8 } },
+    { "id": "vigueur",          "name": "Vigueur",              "zone": 1, "price": 1500,    "desc": "+12 % de points de vie",              "effect": { "hpMul": 0.12 } },
+    { "id": "celerite_passive", "name": "Célérité",             "zone": 1, "price": 2000,    "desc": "+0,4 de vitesse de déplacement",      "effect": { "speed": 0.4 } },
+    { "id": "precision",        "name": "Précision",            "zone": 2, "price": 8000,    "desc": "+8 % de chances de toucher",          "effect": { "hit": 0.08 } },
+    { "id": "coup_critique",    "name": "Coup critique",        "zone": 2, "price": 10000,   "desc": "+8 % de chances de critique",         "effect": { "crit": 0.08 } },
+    { "id": "meditation",       "name": "Méditation",           "zone": 3, "price": 35000,   "desc": "+80 % de régénération de mana",       "effect": { "manaRegenMul": 0.8 } },
+    { "id": "recuperation",     "name": "Récupération",         "zone": 3, "price": 30000,   "desc": "+80 % de régénération de vie",        "effect": { "hpRegenMul": 0.8 } },
+    { "id": "marchandage",      "name": "Marchandage",          "zone": 4, "price": 120000,  "desc": "-15 % sur les prix du marchand",      "effect": { "discount": 0.15 } },
+    { "id": "chance",           "name": "Chance",               "zone": 4, "price": 150000,  "desc": "+25 % de chances de butin",           "effect": { "loot": 0.25 } },
+    { "id": "concentration",    "name": "Concentration",        "zone": 5, "price": 500000,  "desc": "+20 % de dégâts des sorts",           "effect": { "spellMul": 0.20 } },
+    { "id": "coeur_de_titan",   "name": "Cœur de titan",        "zone": 6, "price": 1500000, "desc": "+25 % de points de vie",              "effect": { "hpMul": 0.25 } }
+  ]
+}

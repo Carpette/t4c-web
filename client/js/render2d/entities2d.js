@@ -4,6 +4,7 @@ import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { Animator, flareDir, LAYER_ORDER } from './anim.js';
 
 const BASE_LAYERS = { feet: 'default_feet', legs: 'cloth_pants', hands: 'default_hands' };
+const BUBBLE_FONT = '13px "Trebuchet MS", sans-serif';
 
 class EntityView2D {
   constructor(meta, assets) {
@@ -17,7 +18,7 @@ class EntityView2D {
     this.swinging = false;
     this.bbox = null;
 
-    if (meta.kind === KIND.PLAYER) {
+    if (meta.kind === KIND.PLAYER || meta.kind === KIND.NPC) {
       this.layers = {};
       for (const [type, name] of Object.entries(BASE_LAYERS)) {
         this.layers[type] = { name, anim: new Animator(assets.manifest.avatar[name].anims) };
@@ -38,10 +39,11 @@ class EntityView2D {
   }
 
   setLook(look) {
-    if (this.kind !== KIND.PLAYER) return;
+    if (this.kind !== KIND.PLAYER && this.kind !== KIND.NPC) return;
     const want = {
       chest: look?.chest || 'default_chest',
       head: look?.head || 'head_short',
+      feet: look?.feet || 'default_feet',
       main: look?.main || null,
       off: look?.off || null,
     };
@@ -95,6 +97,10 @@ class EntityView2D {
       }
     }
     if (this.kind === KIND.DROP) return;
+    if (this.kind === KIND.NPC) {
+      this.eachAnim(a => { a.set('stance'); a.tick(dt); });
+      return;
+    }
 
     // machine d'animation
     let target;
@@ -111,6 +117,10 @@ class EntityView2D {
 
     this.eachAnim(a => a.set(target, target === 'swing' && a.name !== 'swing'));
     this.eachAnim(a => a.tick(dt));
+  }
+
+  say(text) {
+    this.bubble = { text, until: performance.now() / 1000 + Math.min(8, 2.5 + text.length * 0.06) };
   }
 
   draw(ctx, assets, px, py, s) {
@@ -152,20 +162,57 @@ class EntityView2D {
   drawOverlay(ctx, px, py, s, selfId) {
     if (this.kind === KIND.DROP || this.state === ST.DEAD) return;
     const top = (this.topY ?? (py - 100 * s)) - 8;
-    const name = `${this.meta.name} [${this.level || this.meta.level}]`;
+    const isNpc = this.kind === KIND.NPC;
+    const name = isNpc ? this.meta.name : `${this.meta.name} [${this.level || this.meta.level}]`;
     ctx.font = `bold ${Math.max(11, 13 * s)}px "Trebuchet MS", sans-serif`;
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.75)';
     ctx.strokeText(name, px, top - 6);
-    ctx.fillStyle = this.id === selfId ? '#a8e8a8' : (this.kind === KIND.PLAYER ? '#a8d8ff' : '#ffd2a8');
+    ctx.fillStyle = this.id === selfId ? '#a8e8a8'
+      : isNpc ? '#ffe48a'
+      : (this.kind === KIND.PLAYER ? '#a8d8ff' : '#ffd2a8');
     ctx.fillText(name, px, top - 6);
-    // barre de vie
-    const bw = 64 * s, bh = 5 * Math.max(0.8, s);
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(px - bw / 2 - 1, top - 2, bw + 2, bh + 2);
-    ctx.fillStyle = this.hpPct < 30 ? '#ff8020' : '#e03030';
-    ctx.fillRect(px - bw / 2, top - 1, bw * this.hpPct / 100, bh);
+    // barre de vie (pas pour les PNJ)
+    let barTop = top;
+    if (!isNpc) {
+      const bw = 64 * s, bh = 5 * Math.max(0.8, s);
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(px - bw / 2 - 1, top - 2, bw + 2, bh + 2);
+      ctx.fillStyle = this.hpPct < 30 ? '#ff8020' : '#e03030';
+      ctx.fillRect(px - bw / 2, top - 1, bw * this.hpPct / 100, bh);
+    }
+    // bulle de dialogue
+    if (this.bubble) {
+      const now = performance.now() / 1000;
+      if (now > this.bubble.until) { this.bubble = null; return; }
+      ctx.font = BUBBLE_FONT;
+      const words = this.bubble.text.split(' ');
+      const lines = [];
+      let cur = '';
+      for (const w of words) {
+        const t = cur ? cur + ' ' + w : w;
+        if (ctx.measureText(t).width > 220 && cur) { lines.push(cur); cur = w; }
+        else cur = t;
+      }
+      if (cur) lines.push(cur);
+      const lh = 16;
+      const bw2 = Math.min(236, Math.max(...lines.map(l => ctx.measureText(l).width)) + 16);
+      const bh2 = lines.length * lh + 10;
+      const bx = px - bw2 / 2, by = barTop - 26 - bh2;
+      ctx.fillStyle = isNpc ? 'rgba(40, 32, 12, 0.88)' : 'rgba(12, 16, 36, 0.88)';
+      ctx.strokeStyle = isNpc ? '#c8b87a' : '#5a6a9a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw2, bh2, 6);
+      ctx.fill(); ctx.stroke();
+      // petite pointe
+      ctx.beginPath();
+      ctx.moveTo(px - 5, by + bh2); ctx.lineTo(px + 5, by + bh2); ctx.lineTo(px, by + bh2 + 6);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#f0ead8';
+      lines.forEach((l, i) => ctx.fillText(l, px, by + 16 + i * lh));
+    }
   }
 }
 
@@ -201,6 +248,16 @@ export class EntityManager2D {
   remove(id) {
     this.views.delete(id);
     this.pendingSnaps.delete(id);
+  }
+
+  // vide tout sauf soi-même (changement de zone)
+  clear(keepId) {
+    for (const id of [...this.views.keys()]) {
+      if (id !== keepId) this.views.delete(id);
+    }
+    this.pendingSnaps.clear();
+    const self = this.views.get(keepId);
+    if (self) self.buf = [];
   }
 
   update(renderTime, now, dt) {

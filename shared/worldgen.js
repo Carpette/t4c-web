@@ -39,9 +39,9 @@ export const SPAWN_ZONES = [
   { mob: 'ogre',      center: [102, 70], radius: 6,  count: 2 },
 ];
 
-export function generateWorld() {
+export function generateWorld(seed = WORLD_SEED) {
   const N = MAP_SIZE;
-  const rng = mulberry32(WORLD_SEED);
+  const rng = mulberry32(seed);
   const n1 = makeNoise(rng, 16), n2 = makeNoise(rng, 32), n3 = makeNoise(rng, 64);
   const height = new Float32Array(N * N);
   const tile = new Uint8Array(N * N);
@@ -150,6 +150,23 @@ export function generateWorld() {
   props.push({ type: 'well', x: cx + 0.5, z: cz + 0.5, rot: 0, s: 1 });
   block(cx, cz);
 
+  // Obélisque de téléportation (zones débloquées) à l'entrée est du village
+  {
+    let ox = cx + 12, oz = cz + 2;
+    while (!walk[idx(ox, oz)] && ox < N - 2) ox++;
+    props.push({ type: 'obelisk', x: ox + 0.5, z: oz + 0.5, rot: 0, s: 1 });
+    block(ox, oz);
+  }
+
+  // Portail de l'Épreuve (accès à la zone suivante), au bout du chemin nord
+  {
+    let px = 60, pz = 28;
+    let tries = 0;
+    while (!walk[idx(px, pz)] && tries++ < 200) { px += (tries % 2 ? tries : -tries) % 5; pz += 1; }
+    props.push({ type: 'trialgate', x: px + 0.5, z: pz + 0.5, rot: 0, s: 1 });
+    block(px, pz);
+  }
+
   // --- Torches : place + entrées de chemins ---
   const torches = [
     [cx - 6, cz - 6], [cx + 6, cz - 6], [cx - 6, cz + 6], [cx + 6, cz + 6],
@@ -182,7 +199,7 @@ export function generateWorld() {
   }
 
   return {
-    size: N, height, tile, walk, props,
+    size: N, height, tile, walk, props, kind: 'island',
     spawnPoint: { x: cx + 0.5, z: cz + 3.5 },
     village: { x: cx, z: cz },
     isWalkable(x, z) {
@@ -199,5 +216,80 @@ export function generateWorld() {
       const h01 = height[(Z + 1) * N + X], h11 = height[(Z + 1) * N + X + 1];
       return (h00 * (1 - fx) + h10 * fx) * (1 - fz) + (h01 * (1 - fx) + h11 * fx) * fz;
     },
+  };
+}
+
+// --- L'Épreuve : labyrinthe solo vers la zone suivante ---
+// Couloir sinueux taillé dans la roche, du sud-ouest au nord-est.
+// Seule issue : la sortie (ou la mort). Les monstres les plus puissants de la zone y rôdent.
+export function generateTrial(seed) {
+  const N = 64;
+  const rng = mulberry32((seed ^ 0x71a1) >>> 0);
+  const height = new Float32Array(N * N).fill(0.4);
+  const tile = new Uint8Array(N * N).fill(TILE.ROCK);
+  const walk = new Uint8Array(N * N); // tout bloqué par défaut
+  const idx = (x, z) => z * N + x;
+
+  // chemin par points de passage en zigzag
+  const waypoints = [[6, 57]];
+  let x = 6, z = 57;
+  while (x < 54 || z > 10) {
+    if (rng() < 0.5 && x < 54) x += 6 + Math.floor(rng() * 8);
+    else if (z > 10) z -= 6 + Math.floor(rng() * 8);
+    else x += 6;
+    x = Math.min(56, x); z = Math.max(7, z);
+    waypoints.push([x, z]);
+  }
+  waypoints.push([57, 6]);
+
+  const carve = (x0, z0, x1, z1) => {
+    const steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) * 2) + 1;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const px = Math.round(x0 + (x1 - x0) * t);
+      const pz = Math.round(z0 + (z1 - z0) * t);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const X = px + dx, Z = pz + dz;
+        if (X > 0 && Z > 0 && X < N - 1 && Z < N - 1) {
+          tile[idx(X, Z)] = TILE.PATH;
+          walk[idx(X, Z)] = 1;
+        }
+      }
+    }
+  };
+  for (let i = 1; i < waypoints.length; i++) {
+    carve(waypoints[i - 1][0], waypoints[i - 1][1], waypoints[i][0], waypoints[i][1]);
+  }
+
+  // emplacements des monstres le long du chemin (hors entrée/sortie)
+  const mobSpots = [];
+  for (let i = 2; i < waypoints.length - 1; i++) {
+    const [wx, wz] = waypoints[i];
+    const count = 2 + Math.floor(rng() * 2);
+    for (let j = 0; j < count; j++) {
+      const mx = wx + Math.floor(rng() * 3) - 1, mz = wz + Math.floor(rng() * 3) - 1;
+      if (walk[idx(mx, mz)]) mobSpots.push({ x: mx + 0.5, z: mz + 0.5 });
+    }
+  }
+
+  const exitPoint = { x: 57.5, z: 6.5 };
+  const props = [{ type: 'exitgate', x: exitPoint.x, z: exitPoint.z, rot: 0, s: 1 }];
+  // torches le long du chemin
+  for (let i = 1; i < waypoints.length; i += 2) {
+    props.push({ type: 'torch', x: waypoints[i][0] + 0.5, z: waypoints[i][1] + 0.5, rot: 0, s: 1 });
+  }
+
+  return {
+    size: N, height, tile, walk, props, kind: 'trial',
+    spawnPoint: { x: 6.5, z: 57.5 },
+    exitPoint,
+    mobSpots,
+    village: { x: 6, z: 57 },
+    isWalkable(X, Z) {
+      const tx = Math.floor(X), tz = Math.floor(Z);
+      if (tx < 0 || tz < 0 || tx >= N || tz >= N) return false;
+      return walk[tz * N + tx] === 1;
+    },
+    heightAt() { return 0.4; },
   };
 }

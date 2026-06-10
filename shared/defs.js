@@ -1,9 +1,10 @@
 // Définitions d'objets et de monstres — partagées serveur/client
 // Sprites : projet Flare (CC-BY-SA 3.0), voir client/assets/CREDITS.txt
 
-export const SLOTS = ['weapon', 'shield', 'armor', 'helmet', 'ring'];
+export const SLOTS = ['weapon', 'shield', 'armor', 'helmet', 'boots', 'ring', 'amulet'];
 export const SLOT_NAMES = {
-  weapon: 'Arme', shield: 'Bouclier', armor: 'Armure', helmet: 'Casque', ring: 'Anneau',
+  weapon: 'Arme', shield: 'Bouclier', armor: 'Armure', helmet: 'Casque',
+  boots: 'Bottes', ring: 'Anneau', amulet: 'Amulette',
 };
 
 // Qualités (roll à la génération)
@@ -13,31 +14,41 @@ export const QUALITY = [
   { name: 'rare', color: '#ffd24a', bonusCount: 2, mult: 1.28 },
 ];
 
-// layer = couche avatar (visuel porté) ; loot = sprite au sol
+// layer = couche avatar (visuel porté) ; loot = sprite au sol ; zone = dispo chez le marchand à partir de cette zone
 export const ITEMS = {
   // ---- Armes (dmg, speed en s) ----
-  dague:        { name: 'Dague rouillée',      slot: 'weapon', tier: 0, dmg: 3,  speed: 1.1, layer: 'dagger',     loot: 'dagger',     price: 8 },
-  epee_courte:  { name: 'Épée courte',          slot: 'weapon', tier: 1, dmg: 6,  speed: 1.5, layer: 'shortsword', loot: 'shortsword', price: 35 },
-  hache:        { name: 'Hache de bûcheron',    slot: 'weapon', tier: 1, dmg: 9,  speed: 2.0, layer: 'hand_axe',   loot: 'hand_axe',   price: 50 },
-  masse:        { name: 'Masse cloutée',        slot: 'weapon', tier: 2, dmg: 12, speed: 2.1, layer: 'mace',       loot: 'mace',       price: 110 },
-  epee_large:   { name: 'Épée large',           slot: 'weapon', tier: 2, dmg: 14, speed: 1.9, layer: 'longsword',  loot: 'longsword',  price: 160 },
-  lame_runique: { name: 'Lame runique',         slot: 'weapon', tier: 3, dmg: 19, speed: 1.7, layer: 'greatsword', loot: 'greatsword', price: 420 },
+  dague:        { name: 'Dague rouillée',      slot: 'weapon', zone: 0, dmg: 3,  speed: 1.1, layer: 'dagger',     loot: 'dagger',     price: 8 },
+  epee_courte:  { name: 'Épée courte',          slot: 'weapon', zone: 0, dmg: 6,  speed: 1.5, layer: 'shortsword', loot: 'shortsword', price: 35 },
+  baton:        { name: 'Bâton de novice',      slot: 'weapon', zone: 0, dmg: 5,  speed: 1.7, int: 3, layer: 'staff',      loot: 'clothes',    price: 45 },
+  hache:        { name: 'Hache de bûcheron',    slot: 'weapon', zone: 1, dmg: 9,  speed: 2.0, layer: 'hand_axe',   loot: 'hand_axe',   price: 50 },
+  masse:        { name: 'Masse cloutée',        slot: 'weapon', zone: 2, dmg: 12, speed: 2.1, layer: 'mace',       loot: 'mace',       price: 110 },
+  epee_large:   { name: 'Épée large',           slot: 'weapon', zone: 2, dmg: 14, speed: 1.9, layer: 'longsword',  loot: 'longsword',  price: 160 },
+  lame_runique: { name: 'Lame runique',         slot: 'weapon', zone: 3, dmg: 19, speed: 1.7, layer: 'greatsword', loot: 'greatsword', price: 420 },
+  baton_arcane: { name: 'Bâton des arcanes',    slot: 'weapon', zone: 3, dmg: 14, speed: 1.8, int: 8, wis: 5, layer: 'greatstaff', loot: 'clothes', price: 520 },
 
   // ---- Boucliers / armures (def) ----
-  bouclier_bois:{ name: 'Bouclier en bois',     slot: 'shield', tier: 0, def: 3,  layer: 'buckler',     loot: 'buckler', price: 12 },
-  bouclier_fer: { name: 'Bouclier en fer',      slot: 'shield', tier: 2, def: 8,  layer: 'kite_shield', loot: 'shield',  price: 130 },
-  tunique:      { name: 'Tunique de toile',     slot: 'armor',  tier: 0, def: 2,  layer: 'cloth_shirt',   loot: 'clothes',       price: 10 },
-  cuir:         { name: 'Armure de cuir',       slot: 'armor',  tier: 1, def: 6,  layer: 'leather_chest', loot: 'leather_armor', price: 60 },
-  mailles:      { name: 'Cotte de mailles',     slot: 'armor',  tier: 2, def: 11, layer: 'chain_cuirass', loot: 'steel_armor',   price: 190 },
-  plates:       { name: 'Armure de plates',     slot: 'armor',  tier: 3, def: 17, layer: 'plate_cuirass', loot: 'steel_armor',   price: 480 },
-  capuche:      { name: 'Capuche de cuir',      slot: 'helmet', tier: 1, def: 3,  layer: 'leather_hood',  loot: 'clothes',       price: 40 },
-  casque_fer:   { name: 'Casque de fer',        slot: 'helmet', tier: 2, def: 6,  layer: 'plate_helm',    loot: 'steel_armor',   price: 150 },
-  anneau_os:    { name: 'Anneau en os',         slot: 'ring',   tier: 1, def: 0,  loot: 'ring', price: 70 },
-  anneau_saphir:{ name: 'Anneau de saphir',     slot: 'ring',   tier: 3, def: 1,  loot: 'ring', price: 350 },
+  bouclier_bois:{ name: 'Bouclier en bois',     slot: 'shield', zone: 0, def: 3,  layer: 'buckler',     loot: 'buckler', price: 12 },
+  bouclier_fer: { name: 'Bouclier en fer',      slot: 'shield', zone: 2, def: 8,  layer: 'kite_shield', loot: 'shield',  price: 130 },
+  tunique:      { name: 'Tunique de toile',     slot: 'armor',  zone: 0, def: 2,  layer: 'cloth_shirt',   loot: 'clothes',       price: 10 },
+  robe_mage:    { name: 'Robe de mage',         slot: 'armor',  zone: 1, def: 4,  int: 5, layer: 'mage_vest',  loot: 'clothes',  price: 90 },
+  cuir:         { name: 'Armure de cuir',       slot: 'armor',  zone: 1, def: 6,  layer: 'leather_chest', loot: 'leather_armor', price: 60 },
+  mailles:      { name: 'Cotte de mailles',     slot: 'armor',  zone: 2, def: 11, layer: 'chain_cuirass', loot: 'steel_armor',   price: 190 },
+  plates:       { name: 'Armure de plates',     slot: 'armor',  zone: 3, def: 17, layer: 'plate_cuirass', loot: 'steel_armor',   price: 480 },
+  capuche:      { name: 'Capuche de cuir',      slot: 'helmet', zone: 1, def: 3,  layer: 'leather_hood',  loot: 'clothes',       price: 40 },
+  capuche_mage: { name: 'Capuche de mage',      slot: 'helmet', zone: 1, def: 2,  wis: 4, layer: 'mage_hood', loot: 'clothes',   price: 75 },
+  casque_fer:   { name: 'Casque de fer',        slot: 'helmet', zone: 2, def: 6,  layer: 'plate_helm',    loot: 'steel_armor',   price: 150 },
+  bottes_cuir:  { name: 'Bottes de cuir',       slot: 'boots',  zone: 0, def: 2,  layer: 'leather_boots', loot: 'boots', price: 25 },
+  bottes_mage:  { name: 'Bottes de mage',       slot: 'boots',  zone: 1, def: 2,  wis: 3, layer: 'mage_boots', loot: 'boots', price: 80 },
+  bottes_mailles:{ name: 'Bottes de mailles',   slot: 'boots',  zone: 2, def: 5,  layer: 'chain_boots',   loot: 'boots', price: 140 },
+  bottes_plates:{ name: 'Bottes de plates',     slot: 'boots',  zone: 3, def: 8,  layer: 'plate_boots',   loot: 'boots', price: 320 },
+  anneau_os:    { name: 'Anneau en os',         slot: 'ring',   zone: 1, def: 0,  loot: 'ring', price: 70 },
+  anneau_saphir:{ name: 'Anneau de saphir',     slot: 'ring',   zone: 3, def: 1,  loot: 'ring', price: 350 },
+  amulette_loup:{ name: 'Amulette du loup',     slot: 'amulet', zone: 1, str: 3, agi: 2, loot: 'ring', price: 120 },
+  amulette_sage:{ name: 'Amulette du sage',     slot: 'amulet', zone: 3, int: 5, wis: 5, loot: 'ring', price: 400 },
 
   // ---- Consommables ----
-  potion_vie:   { name: 'Potion de vie',        slot: 'use', heal: 60,  loot: 'hp_potion', price: 15 },
-  potion_mana:  { name: 'Potion de mana',       slot: 'use', mana: 50,  loot: 'mp_potion', price: 15 },
+  potion_vie:   { name: 'Potion de vie',        slot: 'use', zone: 0, heal: 60,  loot: 'hp_potion', price: 15 },
+  potion_mana:  { name: 'Potion de mana',       slot: 'use', zone: 0, mana: 50,  loot: 'mp_potion', price: 15 },
 
   // ---- Divers ----
   or:           { name: "Pièces d'or",          slot: 'gold', loot: 'coins25', price: 1 },

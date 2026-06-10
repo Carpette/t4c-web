@@ -65,6 +65,8 @@ const AVATAR_LAYERS = [
   'chain_cuirass', 'plate_cuirass', 'plate_helm',
   'buckler', 'kite_shield',
   'dagger', 'shortsword', 'hand_axe', 'mace', 'longsword', 'greatsword',
+  'mage_vest', 'mage_hood', 'staff', 'greatstaff',
+  'leather_boots', 'plate_boots', 'mage_boots', 'chain_boots',
 ];
 const LOOT = ['coins5', 'coins25', 'coins100', 'hp_potion', 'mp_potion', 'dagger', 'shortsword',
   'hand_axe', 'mace', 'longsword', 'greatsword', 'buckler', 'shield', 'clothes',

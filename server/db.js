@@ -16,13 +16,23 @@ CREATE TABLE IF NOT EXISTS accounts (
   name TEXT UNIQUE NOT NULL COLLATE NOCASE,
   hash TEXT NOT NULL,
   salt TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS characters (
   account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
   data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS deaths (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  level INTEGER NOT NULL,
+  zone TEXT NOT NULL,
+  killer TEXT NOT NULL,
+  died_at INTEGER NOT NULL
+);
 `);
+try { db.exec('ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
 
 function hashPassword(pass, salt) {
   return crypto.scryptSync(pass, salt, 32).toString('hex');
@@ -34,9 +44,11 @@ export function register(name, pass) {
   const exists = db.prepare('SELECT id FROM accounts WHERE name = ?').get(name);
   if (exists) return { error: 'Ce pseudo est déjà pris' };
   const salt = crypto.randomBytes(16).toString('hex');
-  const info = db.prepare('INSERT INTO accounts (name, hash, salt, created_at) VALUES (?, ?, ?, ?)')
-    .run(name, hashPassword(pass, salt), salt, Date.now());
-  return { accountId: info.lastInsertRowid, name };
+  // le tout premier compte créé est administrateur
+  const isFirst = db.prepare('SELECT COUNT(*) AS n FROM accounts').get().n === 0;
+  const info = db.prepare('INSERT INTO accounts (name, hash, salt, created_at, is_admin) VALUES (?, ?, ?, ?, ?)')
+    .run(name, hashPassword(pass, salt), salt, Date.now(), isFirst ? 1 : 0);
+  return { accountId: info.lastInsertRowid, name, isAdmin: isFirst };
 }
 
 export function login(name, pass) {
@@ -44,7 +56,29 @@ export function login(name, pass) {
   if (!acc) return { error: 'Compte inconnu' };
   const h = hashPassword(pass, acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(h), Buffer.from(acc.hash))) return { error: 'Mot de passe incorrect' };
-  return { accountId: acc.id, name: acc.name };
+  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin };
+}
+
+export function deleteCharacter(accountId) {
+  db.prepare('DELETE FROM characters WHERE account_id = ?').run(accountId);
+}
+
+export function recordDeath(name, level, zone, killer) {
+  db.prepare('INSERT INTO deaths (name, level, zone, killer, died_at) VALUES (?, ?, ?, ?, ?)')
+    .run(name, level, zone, killer, Date.now());
+}
+
+export function pantheon(limit = 10) {
+  return db.prepare('SELECT name, level, zone, killer, died_at FROM deaths ORDER BY died_at DESC LIMIT ?').all(limit);
+}
+
+// --- pour l'administration ---
+export function listCharacters() {
+  return db.prepare(`SELECT a.id, a.name, a.is_admin, c.data FROM accounts a
+                     LEFT JOIN characters c ON c.account_id = a.id`).all();
+}
+export function setAdmin(accountId, val) {
+  db.prepare('UPDATE accounts SET is_admin = ? WHERE id = ?').run(val ? 1 : 0, accountId);
 }
 
 export function loadCharacter(accountId) {
@@ -66,8 +100,13 @@ export function newCharacterData(name, spawn) {
     stats: { ...BASE_STATS },
     hp: null, mana: null, // null => max au premier chargement
     x: spawn.x, z: spawn.z,
-    gold: 25,
-    inventory: [], // [{iid, defId, q, bonus}]
+    gold: parseInt(process.env.T4C_START_GOLD || '25', 10),
+    inventory: [], // [{iid, defId, q, z, bonus}]
     equip: {},     // slot -> iid
+    zoneId: 0,
+    unlocked: [0],
+    spells: [],    // ids de sorts appris
+    skills: [],    // ids de compétences apprises
+    trialFor: null, // zone cible si le joueur est piégé dans une Épreuve
   };
 }

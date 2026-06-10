@@ -29,6 +29,7 @@ const pick = (arr, r) => arr[Math.floor(r * arr.length) % arr.length];
 
 export function buildDecor(world) {
   const N = world.size;
+  const voidMode = world.kind === 'trial'; // l'Épreuve : un chemin suspendu au-dessus du vide
   // --- id de tuile de sol par case ---
   const floor = new Int16Array(N * N);
   const isWater = new Uint8Array(N * N);
@@ -43,7 +44,10 @@ export function buildDecor(world) {
         case TILE.SAND: id = pick(DIRT_IDS, r); break;
         case TILE.GRASS: id = pick(GRASS_IDS, r); break;
         case TILE.FOREST: id = pick(FOREST_IDS, r); break;
-        case TILE.ROCK: id = pick(ROCKY_IDS, r); break;
+        case TILE.ROCK:
+          if (voidMode) { id = pick(WATER_IDS, r); isWater[i] = 1; }
+          else id = pick(ROCKY_IDS, r);
+          break;
         case TILE.COBBLE: id = pick(COBBLE_IDS, r); break;
         case TILE.PATH: id = pick(PATH_IDS, r); break;
         case TILE.GRAVE: id = pick(DIRT_IDS, r); break;
@@ -114,15 +118,29 @@ export function buildDecor(world) {
       case 'well':
         props.push({ tileId: WELL_ID, x: p.x, z: p.z });
         break;
+      case 'obelisk':
+        props.push({ tileId: 143, x: p.x, z: p.z, interact: 'obelisk' });
+        lights.push({ x: p.x, z: p.z, r: 240, flicker: false, color: 'rgba(120, 160, 255, 0.14)' });
+        break;
+      case 'trialgate':
+        props.push({ tileId: 265, x: p.x, z: p.z + 1, interact: 'trialgate' });
+        lights.push({ x: p.x, z: p.z, r: 300, flicker: true, color: 'rgba(160, 120, 255, 0.16)' });
+        break;
+      case 'exitgate':
+        props.push({ tileId: 265, x: p.x, z: p.z + 1, interact: 'exitgate' });
+        lights.push({ x: p.x, z: p.z, r: 320, flicker: true, color: 'rgba(120, 200, 255, 0.18)' });
+        break;
     }
   }
 
-  // falaises décoratives dans les montagnes
-  for (let z = 2; z < N - 2; z++) {
-    for (let x = 2; x < N - 2; x++) {
-      const i = z * N + x;
-      if (world.tile[i] === TILE.ROCK && hash(x + 31, z + 17) < 0.06) {
-        props.push({ tileId: pick(CLIFF_IDS, hash(x, z + 5)), x: x + 0.5, z: z + 0.5 });
+  // falaises décoratives dans les montagnes (pas dans le vide de l'Épreuve)
+  if (!voidMode) {
+    for (let z = 2; z < N - 2; z++) {
+      for (let x = 2; x < N - 2; x++) {
+        const i = z * N + x;
+        if (world.tile[i] === TILE.ROCK && hash(x + 31, z + 17) < 0.06) {
+          props.push({ tileId: pick(CLIFF_IDS, hash(x, z + 5)), x: x + 0.5, z: z + 0.5 });
+        }
       }
     }
   }

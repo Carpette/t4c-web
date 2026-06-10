@@ -20,15 +20,29 @@ export class Renderer {
     this.lightCanvas = document.createElement('canvas');
     this.lctx = this.lightCanvas.getContext('2d');
 
-    // props pré-projetés et triés
+    this.tint = null;   // voile coloré propre à la zone
+    this.fx = [];       // effets éphémères (projectiles, zones d'effet)
+    this.setWorld(world, decor);
+
+    window.addEventListener('resize', () => this.resize());
+    this.resize();
+  }
+
+  // change de monde (téléportation entre zones)
+  setWorld(world, decor, tint = null) {
+    this.world = world;
+    this.decor = decor;
+    this.tint = tint;
+    this.cam = { x: world.spawnPoint.x, z: world.spawnPoint.z };
     this.props = decor.props.map(p => ({
       ...p,
       sx: (p.x - p.z) * HW,
       sy: (p.x + p.z) * HH,
     })).sort((a, b) => a.sy - b.sy);
+  }
 
-    window.addEventListener('resize', () => this.resize());
-    this.resize();
+  addFx(fx) {
+    this.fx.push({ ...fx, start: performance.now() / 1000 });
   }
 
   resize() {
@@ -129,6 +143,42 @@ export class Renderer {
       }
     }
 
+    // --- Effets de sorts (projectiles, zones d'effet) ---
+    const fnow = performance.now() / 1000;
+    this.fx = this.fx.filter(f => fnow - f.start < (f.dur || 0.45));
+    for (const f of this.fx) {
+      const t = (fnow - f.start) / (f.dur || 0.45);
+      if (f.type === 'proj') {
+        const a = this.w2s(f.x0, f.z0), b = this.w2s(f.x1, f.z1);
+        const px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t - 40 * s;
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createRadialGradient(px, py, 0, px, py, 14 * s);
+        g.addColorStop(0, f.color || '#aaddff');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(px - 16 * s, py - 16 * s, 32 * s, 32 * s);
+        ctx.globalCompositeOperation = 'source-over';
+      } else if (f.type === 'aoe') {
+        const c = this.w2s(f.x, f.z);
+        const r = (f.radius || 3) * HW * s * Math.min(1, t * 1.6);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = f.color || '#ff8040';
+        ctx.globalAlpha = 1 - t;
+        ctx.lineWidth = 5 * s;
+        ctx.beginPath();
+        ctx.ellipse(c.x, c.y, r, r / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    // --- Voile coloré de la zone ---
+    if (this.tint) {
+      ctx.fillStyle = this.tint;
+      ctx.fillRect(0, 0, W, H);
+    }
+
     // --- Éclairage : obscurité + trous de lumière ---
     const darkness = (1 - daylight) * 0.78;
     if (darkness > 0.02) {
@@ -152,7 +202,7 @@ export class Renderer {
         const fl = li.flicker ? 1 + Math.sin(now * 9 + li.x * 7) * 0.08 : 1;
         const r = li.r * fl * s;
         punch(p.x, p.y - 20 * s, r, 0.97);
-        this._lightPts.push({ x: p.x, y: p.y - 20 * s, r });
+        this._lightPts.push({ x: p.x, y: p.y - 20 * s, r, color: li.color });
       }
       const self = em.get(selfId);
       if (self) {
@@ -161,12 +211,12 @@ export class Renderer {
       }
       ctx.drawImage(this.lightCanvas, 0, 0);
 
-      // halos chauds par-dessus
+      // halos chauds (ou colorés) par-dessus
       ctx.globalCompositeOperation = 'lighter';
       for (const lp of this._lightPts) {
         const g = ctx.createRadialGradient(lp.x, lp.y, 0, lp.x, lp.y, lp.r * 0.75);
-        g.addColorStop(0, 'rgba(255, 150, 50, 0.16)');
-        g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+        g.addColorStop(0, lp.color || 'rgba(255, 150, 50, 0.16)');
+        g.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = g;
         ctx.fillRect(lp.x - lp.r, lp.y - lp.r, lp.r * 2, lp.r * 2);
       }

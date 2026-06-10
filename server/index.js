@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
   if (url === '/') url = '/index.html';
 
   let file;
-  if (url.startsWith('/shared/')) {
+  if (url.startsWith('/shared/') || url.startsWith('/content/')) {
     file = path.join(ROOT, url);
   } else {
     file = path.join(ROOT, 'client', url);
@@ -56,7 +56,7 @@ wss.on('connection', (ws) => {
       if (msg.t === 'register' || msg.t === 'login') {
         const res = msg.t === 'register' ? db.register(msg.name, msg.pass) : db.login(msg.name, msg.pass);
         if (res.error) { ws.send(JSON.stringify({ t: 'auth_error', error: res.error })); return; }
-        const joined = game.addPlayer(ws, res.accountId, res.name);
+        const joined = game.addPlayer(ws, res.accountId, res.name, res.isAdmin);
         if (joined.error) { ws.send(JSON.stringify({ t: 'auth_error', error: joined.error })); return; }
         player = joined.player;
       }

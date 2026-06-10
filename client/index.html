@@ -42,8 +42,13 @@
     <div id="hotbuttons">
       <button data-panel="inventory" title="Inventaire (I)">🎒</button>
       <button data-panel="character" title="Personnage (C)">📜</button>
+      <button data-panel="spells" title="Sorts (S)">📖</button>
       <button data-panel="help" title="Aide (H)">❔</button>
     </div>
+
+    <div id="zone-banner"></div>
+    <div id="spellbar"></div>
+    <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
 
     <!-- Inventaire -->
     <div id="inventory" class="panel hidden">
@@ -60,13 +65,53 @@
       <div id="char-stats"></div>
     </div>
 
+    <!-- Sorts et raccourcis -->
+    <div id="spells" class="panel hidden">
+      <h2>Sorts</h2>
+      <div id="spell-list"></div>
+      <p class="hint">Clic : sort actif (lancé en mode combat Ctrl+clic).<br>
+      « Raccourci » : appuyez ensuite sur une touche — le sort se lancera avec Ctrl+touche.</p>
+    </div>
+
+    <!-- Boutique -->
+    <div id="shop" class="panel hidden">
+      <h2 id="shop-title">Marchand</h2>
+      <div id="shop-tabs">
+        <button data-tab="items" class="active">Objets</button>
+        <button data-tab="spells">Sorts</button>
+        <button data-tab="skills">Compétences</button>
+      </div>
+      <div id="shop-list"></div>
+    </div>
+
+    <!-- Obélisque -->
+    <div id="obelisk-panel" class="panel hidden">
+      <h2>Obélisque des voyages</h2>
+      <div id="obelisk-list"></div>
+      <p class="hint">Seules les zones déjà conquises sont accessibles.</p>
+    </div>
+
+    <!-- Confirmation d'Épreuve -->
+    <div id="trial-modal" class="overlay hidden">
+      <div class="login-box" style="max-width: 460px">
+        <h1>⚠ L'Épreuve</h1>
+        <p id="trial-text" style="text-align: left; line-height: 1.6; margin: 14px 0"></p>
+        <div class="login-buttons">
+          <button id="btn-trial-go" style="background:#7a2a2a; border-color:#aa4a4a">Entrer dans l'Épreuve</button>
+          <button id="btn-trial-no" class="secondary">Renoncer</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Aide -->
     <div id="help" class="panel hidden">
       <h2>Aide</h2>
-      <p>Clic gauche : se déplacer / attaquer / ramasser<br>
-      Molette : zoom<br>
-      I : inventaire — C : personnage — Entrée : chat<br>
-      Montez de niveau et répartissez vos points de stats (Force, Endurance, Agilité, Intelligence, Sagesse) comme dans T4C.</p>
+      <p>Clic : déplacer / attaquer / ramasser / parler<br>
+      Clic maintenu : déplacement continu — Flèches : déplacement clavier<br>
+      Ctrl maintenu : mode combat (clic = frappe ou sort actif)<br>
+      Ctrl+touche : lancer le sort assigné (panneau Sorts)<br>
+      Molette : zoom — I/C/S/H : panneaux — Entrée : chat<br><br>
+      ☠ La mort est DÉFINITIVE. Choisissez vos combats.</p>
     </div>
 
     <div id="target-frame" class="hidden">
@@ -75,13 +120,15 @@
     </div>
 
     <div id="death-screen" class="overlay hidden">
-      <div class="login-box">
-        <h1>Vous êtes mort</h1>
-        <p id="death-by"></p>
-        <button id="btn-respawn">Ressusciter au village</button>
+      <div class="login-box" style="max-width: 480px">
+        <h1>☠ Mort définitive</h1>
+        <p id="death-by" style="margin: 10px 0"></p>
+        <div id="pantheon"></div>
+        <button id="btn-respawn">Créer un nouveau personnage</button>
       </div>
     </div>
 
+    <div id="buffs-display"></div>
     <div id="floaters"></div>
     <div id="tooltip" class="hidden"></div>
   </div>
