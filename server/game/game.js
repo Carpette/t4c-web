@@ -153,6 +153,9 @@ export class Game {
       pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
     };
     for (const it of p.inventory) setNextIid(it.iid + 1);
+    // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
+    p.hpAcc = data.hpAcc ?? C.maxHp(p.stats, p.level);
+    p.manaAcc = data.manaAcc ?? C.maxMana(p.stats, p.level);
 
     // zone de départ : Épreuve en cours (recréée) ou île courante
     let zi;
@@ -197,6 +200,7 @@ export class Game {
       name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
       stats: p.stats, hp: p.hp, mana: p.mana, x: p.x, z: p.z,
       gold: p.gold, inventory: p.inventory, equip: p.equip,
+      hpAcc: p.hpAcc, manaAcc: p.manaAcc,
       spells: p.spells, skills: p.skills, unlocked: p.unlocked,
       zoneId: p.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
       trialFor: p.zi.isTrial ? p.zi.trialTarget : null,
@@ -318,8 +322,8 @@ export class Game {
     p.skillFx = fx;
     p.eff = {
       stats,
-      maxHp: Math.floor(C.maxHp(stats, p.level) * (1 + fx.hpMul)) + buffMaxHp,
-      maxMana: C.maxMana(stats, p.level),
+      maxHp: Math.floor((p.hpAcc ?? C.maxHp(stats, p.level)) * (1 + fx.hpMul)) + buffMaxHp,
+      maxMana: Math.floor(p.manaAcc ?? C.maxMana(stats, p.level)),
       dmg: Math.floor(C.meleeDamage(stats, weaponDmg) * (1 + fx.dmgMul + buffDmgMul)),
       atkCd: C.attackCooldown(stats, weaponSpeed),
       defense: defense + fx.def + buffDef,
@@ -528,6 +532,9 @@ export class Game {
         if (Number.isFinite(+msg.level)) {
           p.level = Math.max(1, Math.min(C.MAX_LEVEL, msg.level | 0));
           p.xp = C.xpForLevel(p.level);
+          // recalcule l'accumulation PV/mana (approximation avec les stats actuelles)
+          p.hpAcc = C.maxHp(p.eff.stats, p.level);
+          p.manaAcc = C.maxMana(p.eff.stats, p.level);
         }
         if (Number.isFinite(+msg.gold)) p.gold = Math.max(0, msg.gold | 0);
         if (Number.isFinite(+msg.statPoints)) p.statPoints = Math.max(0, msg.statPoints | 0);
@@ -884,6 +891,8 @@ export class Game {
     p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
     p.level = 1; p.xp = 0; p.statPoints = 0;
     p.stats = { ...data.stats };
+    p.hpAcc = C.maxHp(p.stats, 1);
+    p.manaAcc = C.maxMana(p.stats, 1);
     p.gold = data.gold;
     p.inventory = data.inventory; p.equip = data.equip;
     p.spells = []; p.skills = []; p.unlocked = [0];
@@ -900,6 +909,10 @@ export class Game {
     while (p.level < C.MAX_LEVEL && p.xp >= C.xpForLevel(p.level + 1)) {
       p.level++;
       p.statPoints += C.POINTS_PER_LEVEL;
+      // gains de PV/mana figés au passage de niveau, selon les stats DU MOMENT
+      // (équipement compris) — fidèle à T4C
+      p.hpAcc += C.hpGainPerLevel(p.eff.stats);
+      p.manaAcc += C.manaGainPerLevel(p.eff.stats);
       leveled = true;
     }
     if (leveled) {
