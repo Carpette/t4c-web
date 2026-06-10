@@ -1,0 +1,15 @@
+{
+  "name": "t4c-web",
+  "version": "0.1.0",
+  "description": "MMORPG isométrique en navigateur inspiré de La Quatrième Prophétie",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "bots": "node tools/bots.js"
+  },
+  "engines": { "node": ">=22.5" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

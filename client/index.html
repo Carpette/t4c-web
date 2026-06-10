@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>La Quatrième Prophétie — Web</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Écran de connexion -->
+  <div id="login" class="overlay">
+    <div class="login-box">
+      <h1>La Quatrième Prophétie</h1>
+      <p class="subtitle">— Hommage web —</p>
+      <input id="login-name" type="text" placeholder="Pseudo" maxlength="16" autocomplete="username">
+      <input id="login-pass" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      <div class="login-buttons">
+        <button id="btn-login">Connexion</button>
+        <button id="btn-register" class="secondary">Créer un compte</button>
+      </div>
+      <p id="login-error"></p>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="vitals">
+      <div class="bar hp"><div id="hp-fill"></div><span id="hp-text"></span></div>
+      <div class="bar mana"><div id="mana-fill"></div><span id="mana-text"></span></div>
+      <div class="bar xp"><div id="xp-fill"></div><span id="xp-text"></span></div>
+    </div>
+    <div id="gold-display">🟡 <span id="gold-text">0</span></div>
+    <div id="clock">🌞</div>
+
+    <div id="chat">
+      <div id="chat-messages"></div>
+      <input id="chat-input" type="text" placeholder="Entrée pour parler…" maxlength="200">
+    </div>
+
+    <div id="hotbuttons">
+      <button data-panel="inventory" title="Inventaire (I)">🎒</button>
+      <button data-panel="character" title="Personnage (C)">📜</button>
+      <button data-panel="help" title="Aide (H)">❔</button>
+    </div>
+
+    <!-- Inventaire -->
+    <div id="inventory" class="panel hidden">
+      <h2>Inventaire</h2>
+      <div id="equip-slots"></div>
+      <div id="inv-grid"></div>
+      <p class="hint">Clic : équiper / utiliser — Clic droit sur un slot équipé : retirer</p>
+    </div>
+
+    <!-- Fiche personnage -->
+    <div id="character" class="panel hidden">
+      <h2 id="char-name">Personnage</h2>
+      <div id="char-info"></div>
+      <div id="char-stats"></div>
+    </div>
+
+    <!-- Aide -->
+    <div id="help" class="panel hidden">
+      <h2>Aide</h2>
+      <p>Clic gauche : se déplacer / attaquer / ramasser<br>
+      Molette : zoom<br>
+      I : inventaire — C : personnage — Entrée : chat<br>
+      Montez de niveau et répartissez vos points de stats (Force, Endurance, Agilité, Intelligence, Sagesse) comme dans T4C.</p>
+    </div>
+
+    <div id="target-frame" class="hidden">
+      <span id="target-name"></span>
+      <div class="bar hp small"><div id="target-hp"></div></div>
+    </div>
+
+    <div id="death-screen" class="overlay hidden">
+      <div class="login-box">
+        <h1>Vous êtes mort</h1>
+        <p id="death-by"></p>
+        <button id="btn-respawn">Ressusciter au village</button>
+      </div>
+    </div>
+
+    <div id="floaters"></div>
+    <div id="tooltip" class="hidden"></div>
+  </div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+Crédits artistiques
+===================
+
+Les images de ce dossier (tuiles, monstres, avatars, butins) proviennent du projet
+Flare (Free Libre Action Roleplaying Engine) — https://flarerpg.org
+Dépôt : https://github.com/flareteam/flare-game
+
+Licence : Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA 3.0)
+https://creativecommons.org/licenses/by-sa/3.0/
+
+Artistes principaux (voir CREDITS.txt de flare-game pour la liste complète) :
+- Clint Bellanger — https://clintbellanger.net
+- Justin Nichol
+- Henrique "Danimal" Lazarini
+- Blarumyrran
+- Pennomi (Thane Brimhall)
+- et les autres contributeurs du projet Flare
+
+Conformément à la licence CC-BY-SA, toute redistribution de ces assets
+(y compris modifiés) doit conserver cette attribution et la même licence.
+Le code source de ce jeu (hors assets) n'est pas concerné par cette licence.
