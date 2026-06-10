@@ -525,6 +525,15 @@ export class Game {
         this.sendSelf(p);
         break;
       }
+      case 'stats': {
+        for (const st of C.STATS) {
+          if (Number.isFinite(+msg[st])) p.stats[st] = Math.max(1, msg[st] | 0);
+        }
+        this.recompute(p);
+        p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
+        this.sendSelf(p);
+        break;
+      }
       case 'goto': {
         const x = +msg.x, z = +msg.z;
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
@@ -608,7 +617,13 @@ export class Game {
         mana: d.mana ? Math.round(d.mana * zoneMult(zid)) : 0,
       }));
     const spells = content.spells.filter(s => s.zone <= zid)
-      .map(s => ({ ...s, price: Math.round(s.price * disc), known: p.spells.includes(s.id) }));
+      .map(s => ({
+        ...s,
+        price: Math.round(s.price * disc),
+        known: p.spells.includes(s.id),
+        reqMet: this.spellReqMet(p, s) === true,
+        reqText: this.spellReqText(s),
+      }));
     const skills = content.skills.filter(s => s.zone <= zid)
       .map(s => ({ ...s, price: Math.round(s.price * disc), known: p.skills.includes(s.id) }));
     const line = content.npc.merchant.greetings[Math.floor(Math.random() * content.npc.merchant.greetings.length)];
@@ -640,6 +655,8 @@ export class Game {
     } else if (msg.kind === 'spell') {
       const sp = content.spellById[msg.id];
       if (!sp || sp.zone > zid || p.spells.includes(sp.id)) return;
+      const req = this.spellReqMet(p, sp);
+      if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const price = Math.round(sp.price * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
@@ -679,6 +696,29 @@ export class Game {
     this.recompute(p);
     this.send(p, { t: 'loot', text: `Vendu : ${itemLabel(item)} (+${price} or)` });
     this.sendSelf(p);
+  }
+
+  // Prérequis T4C d'un sort : niveau, Sagesse, Intelligence, sort précédent.
+  // Retourne true, ou le message expliquant ce qui manque.
+  spellReqMet(p, sp) {
+    const wis = p.eff.stats.wis, intel = p.eff.stats.int;
+    if (sp.level && p.level < sp.level) return `Niveau ${sp.level} requis.`;
+    if (sp.wis && wis < sp.wis) return `${sp.wis} de Sagesse requis (vous : ${wis}).`;
+    if (sp.int && intel < sp.int) return `${sp.int} d'Intelligence requis (vous : ${intel}).`;
+    if (sp.requires && !p.spells.includes(sp.requires)) {
+      const r = content.spellById[sp.requires];
+      return `Sort prérequis : ${r ? r.name : sp.requires}.`;
+    }
+    return true;
+  }
+
+  spellReqText(sp) {
+    const parts = [];
+    if (sp.level) parts.push(`niv. ${sp.level}`);
+    if (sp.wis) parts.push(`Sag ${sp.wis}`);
+    if (sp.int) parts.push(`Int ${sp.int}`);
+    if (sp.requires) parts.push(content.spellById[sp.requires]?.name || sp.requires);
+    return parts.join(', ');
   }
 
   // ---------- Sorts ----------

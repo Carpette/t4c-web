@@ -194,6 +194,7 @@ export class UI {
       }
       row.appendChild(btn);
       div.appendChild(row);
+      return row;
     };
     if (this.shopTab === 'items') {
       for (const it of this.shop.items) {
@@ -204,8 +205,10 @@ export class UI {
       }
     } else if (this.shopTab === 'spells') {
       for (const sp of this.shop.spells) {
-        mk(`${SPELL_ICONS[sp.type] || '✨'} ${sp.name}`, `${sp.mana} mana — ${sp.type}`, sp.price, false,
+        const meta = `${sp.mana} mana — requis : ${sp.reqText || '—'}`;
+        const row = mk(`${SPELL_ICONS[sp.type] || '✨'} ${sp.name}`, meta, sp.price, !sp.reqMet,
           () => this.net.send({ t: 'buy', kind: 'spell', id: sp.id }), sp.known ? 'Appris' : null);
+        if (!sp.known && !sp.reqMet) row.style.opacity = 0.55;
       }
     } else if (this.shopTab === 'skills') {
       for (const sk of this.shop.skills) {

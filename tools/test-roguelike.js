@@ -73,9 +73,22 @@ send({ t: 'equip', iid: sword.iid });
 await waitFor(() => S.self?.equip?.weapon === sword.iid);
 ok('épée équipée', S.self?.equip?.weapon === sword.iid);
 
-send({ t: 'buy', kind: 'spell', id: 'eclair_mineur' });
-await waitFor(() => S.self?.spells.includes('eclair_mineur'));
-ok('sort appris', S.self?.spells.includes('eclair_mineur'));
+// prérequis T4C : refus tant que Sag/Int insuffisants (stats de départ 10/10)
+send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
+await sleep(600);
+ok('sort refusé sans les prérequis (Sag 15 / Int 21)', !S.self?.spells.includes('dard_de_feu'));
+// montée des stats via admin (1er compte du serveur de test)
+send({ t: 'admin', cmd: 'stats', wis: 20, int: 25 });
+await sleep(400);
+send({ t: 'admin', cmd: 'set', level: 3 });
+await sleep(400);
+send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
+await waitFor(() => S.self?.spells.includes('dard_de_feu'));
+ok('Dard de Feu appris une fois les prérequis remplis', S.self?.spells.includes('dard_de_feu'));
+// chaîne de prérequis : Flèche Enflammée exige Dard de Feu + Int 44
+send({ t: 'buy', kind: 'spell', id: 'fleche_enflammee' });
+await sleep(600);
+ok('chaîne de prérequis respectée (Int 44 manquant)', !S.self?.spells.includes('fleche_enflammee'));
 send({ t: 'buy', kind: 'skill', id: 'peau_de_fer' });
 await waitFor(() => S.self?.skills.includes('peau_de_fer'));
 ok('compétence apprise', S.self?.skills.includes('peau_de_fer'));
@@ -97,13 +110,13 @@ if (mob) {
     const dist = Math.hypot(tgt.x - me.x, tgt.z - me.z);
     if (dist > 7) { send({ t: 'move', x: tgt.x, z: tgt.z }); await sleep(1000); continue; }
     const before = S.pos.get(mob.id)?.hpPct ?? 100;
-    send({ t: 'cast', spellId: 'eclair_mineur', target: mob.id });
+    send({ t: 'cast', spellId: 'dard_de_feu', target: mob.id });
     await sleep(1200);
     const after = S.pos.get(mob.id)?.hpPct ?? before;
     castWorked = after < before || !S.pos.has(mob.id); // blessé ou tué
   }
 }
-ok('éclair mineur a blessé un monstre', castWorked);
+ok('Dard de Feu a blessé un monstre', castWorked);
 
 // --- mouvement clavier (movedir) ---
 const p0 = { ...(S.pos.get(S.id) || { x: 0, z: 0 }) };
