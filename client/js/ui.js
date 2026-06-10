@@ -279,7 +279,10 @@ export class UI {
   }
 
   renderBuffs() {
-    const names = { def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Bénédiction', regen: '💚 Régénération' };
+    const names = {
+      def: '🛡 Protection', speed: '💨 Dextérité', dmg: '⚔ Instinct de Combat',
+      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la Terre',
+    };
     $('buffs-display').innerHTML = (this.self?.buffs || [])
       .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');
   }

@@ -303,18 +303,20 @@ export class Game {
       if (!sk) continue;
       for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v;
     }
-    // buffs temporaires
-    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0;
+    // buffs temporaires (valeurs calculées au lancement, façon T4C)
+    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
     for (const b of p.buffs) {
       if (b.stat === 'def') buffDef += b.power;
       else if (b.stat === 'speed') buffSpeed += b.power;
       else if (b.stat === 'dmg') buffDmgMul += b.power;
       else if (b.stat === 'regen') buffRegen += b.power;
+      else if (b.stat === 'maxhp') buffMaxHp += b.power;       // Bénédiction
+      else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
     }
     p.skillFx = fx;
     p.eff = {
       stats,
-      maxHp: Math.floor(C.maxHp(stats, p.level) * (1 + fx.hpMul)),
+      maxHp: Math.floor(C.maxHp(stats, p.level) * (1 + fx.hpMul)) + buffMaxHp,
       maxMana: C.maxMana(stats, p.level),
       dmg: Math.floor(C.meleeDamage(stats, weaponDmg) * (1 + fx.dmgMul + buffDmgMul)),
       atkCd: C.attackCooldown(stats, weaponSpeed),
@@ -737,9 +739,17 @@ export class Game {
       const amount = Math.round(sp.power * (1 + wis * 0.05) * spellMul);
       p.hp = Math.min(p.eff.maxHp, p.hp + amount);
       this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+      this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana - sp.mana) });
     } else if (sp.type === 'buff') {
+      // puissance influencée par les stats, fidèle à T4C :
+      // Bénédiction ~ 1,2 x Sagesse ; Force de la Terre +25% de Force ;
+      // protections (CA) bonifiées par la Sagesse
+      let power = sp.power;
+      if (sp.stat === 'maxhp') power = Math.round(sp.power * wis);
+      else if (sp.stat === 'str') power = Math.max(1, Math.round(p.stats.str * sp.power));
+      else if (sp.stat === 'def') power = Math.round(sp.power * (1 + wis * 0.008));
       p.buffs = p.buffs.filter(b => b.stat !== sp.stat);
-      p.buffs.push({ stat: sp.stat, power: sp.power, until: now + sp.duration });
+      p.buffs.push({ stat: sp.stat, power, until: now + sp.duration });
       this.recompute(p);
       this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
     } else if (sp.type === 'bolt') {
@@ -775,6 +785,7 @@ export class Game {
     p.spellCds[sp.id] = now + sp.cd;
     p.state = C.ST.ATTACK;
     this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd, mana: Math.round(p.mana) });
+    if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
   }
 
   applyDamage(attacker, defender, dmg, crit) {
