@@ -17,20 +17,32 @@ Puis ouvrir **http://localhost:8080** — créez un compte et jouez. Pour jouer 
 
 | Action | Commande |
 |---|---|
-| Se déplacer | Clic gauche sur le sol |
-| Attaquer | Clic gauche sur un monstre |
-| Ramasser | Clic gauche sur un objet au sol |
+| Se déplacer | Clic (maintenu = suivi du curseur) ou flèches du clavier |
+| Attaquer | Clic sur un monstre — ou `Ctrl` maintenu : mode combat |
+| Sort | Barre de sorts, ou `Ctrl`+touche assignée (panneau `S`) |
+| Parler à un PNJ / interagir | Clic (marchand, obélisque, portails) |
+| Ramasser | Clic sur un objet au sol |
 | Zoom | Molette |
-| Inventaire / Personnage / Aide | `I` / `C` / `H` |
+| Inventaire / Personnage / Sorts / Aide | `I` / `C` / `S` / `H` |
 | Chat | `Entrée` |
 
-## Le jeu
+## Le jeu — roguelike T4C
 
-- **Stats T4C** : Force, Endurance, Agilité, Intelligence, Sagesse — 5 points à répartir à chaque niveau (touche `C`).
-- **Monstres** : fourmilions, fourmis de feu des marais, gobelins, squelettes et zombies du cimetière, hobgobelins des collines du nord, et deux minotaures redoutables à l'est. Chaque zone a son niveau — explorez prudemment.
-- **Objets** : armes, armures, boucliers, casques, anneaux, potions. Qualités *normale / magique / rare* avec bonus de stats aléatoires. **L'équipement est visible sur votre personnage** (armure, casque, arme, bouclier).
-- **Monde vivant** : cycle jour/nuit (10 min), feux de camp qui éclairent la nuit, village central, berges escarpées, chemins, cimetière, forêts.
-- **Mort** : perte de 3 % de l'XP du niveau courant, résurrection au village.
+- **☠ Mort définitive.** Tout personnage qui meurt est effacé (Panthéon des morts). On renaît niveau 1.
+- **8 zones** (anciennes îles) : niveaux 1-25, 25-50… jusqu'à 175-200. Monstres, butin et prix scalés.
+- **L'Épreuve** : pour passer à la zone suivante, franchissez seul un labyrinthe suspendu au-dessus du vide, peuplé des monstres les plus puissants de la zone. Confirmation explicite à l'entrée — on n'en sort que victorieux ou mort.
+- **Obélisque** : à l'est de chaque village, téléportation vers les zones déjà conquises.
+- **Marchand** (Maître Aldric, sur chaque île) : équipement de la zone, rachat au prix d'achat, 20 sorts, 12 compétences passives.
+- **Stats T4C** : For/End/Agi/Int/Sag, 5 points par niveau ; courbe XP exponentielle (le 200 est mythique : ~8 milliards d'XP).
+- **Équipement visible** : arme, armure, casque, bottes, bouclier changent l'apparence du personnage.
+- **Bulles de chat** au-dessus des têtes ; les PNJ parlent en chat local.
+
+## Administration
+
+`http://localhost:8080/admin` — le **premier compte créé** sur le serveur est administrateur.
+Éditeur de cartes (peinture de tuiles + décors, appliqué à chaud), édition du contenu JSON
+(zones, PNJ, sorts, compétences), gestion des personnages (niveau, or, zone, suppression), Panthéon.
+En jeu, l'admin dispose aussi de commandes (`set`, `goto`, `zone`) via le protocole.
 
 ## Architecture
 

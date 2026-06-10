@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>T4C-Web — Administration</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #14101e; color: #d8d0f0; font-family: 'Trebuchet MS', Verdana, sans-serif; padding: 16px; }
+    h1 { color: #c8b87a; font-size: 20px; margin-bottom: 12px; }
+    h2 { color: #c8b87a; font-size: 15px; margin: 12px 0 8px; }
+    button { padding: 6px 14px; background: #4a3a7a; color: #e8e0ff; border: 1px solid #6a5aaa; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #5d4a98; }
+    button.active { background: #7a5ac8; }
+    button.danger { background: #7a2a2a; border-color: #aa4a4a; }
+    input, select, textarea { background: #0c0a16; border: 1px solid #4a4070; border-radius: 4px; color: #e8e0ff; padding: 6px 8px; font-size: 13px; }
+    textarea { width: 100%; height: 60vh; font-family: monospace; font-size: 12px; }
+    #login-box { max-width: 320px; margin: 80px auto; background: #1a1428; padding: 24px; border-radius: 8px; border: 1px solid #5a4a8a; }
+    #login-box input { display: block; width: 100%; margin: 8px 0; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .tab-content { display: none; }
+    .tab-content.visible { display: block; }
+    #map-canvas { border: 1px solid #4a4070; cursor: crosshair; image-rendering: pixelated; }
+    .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; align-items: center; }
+    .toolbar .swatch { width: 26px; height: 26px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
+    .toolbar .swatch.active { border-color: #ffd24a; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th, td { border: 1px solid #2a2444; padding: 5px 8px; text-align: left; }
+    th { color: #c8b87a; }
+    .msg { color: #8ae88a; margin: 8px 0; min-height: 16px; font-size: 13px; }
+    .err { color: #e86a6a; }
+    .hint { color: #8a80a8; font-size: 11px; margin: 6px 0; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="login-box">
+    <h1>Administration</h1>
+    <input id="adm-name" placeholder="Compte admin">
+    <input id="adm-pass" type="password" placeholder="Mot de passe">
+    <button id="adm-login">Connexion</button>
+    <p id="adm-error" class="msg err"></p>
+  </div>
+
+  <div id="panel" style="display:none">
+    <h1>T4C-Web — Administration <span id="who" style="font-size:12px;color:#8a80a8"></span></h1>
+    <div class="tabs">
+      <button data-tab="map" class="active">🗺 Cartes</button>
+      <button data-tab="content">📜 Contenu</button>
+      <button data-tab="chars">👤 Personnages</button>
+      <button data-tab="pantheon">☠ Panthéon</button>
+    </div>
+
+    <div id="tab-map" class="tab-content visible">
+      <div class="toolbar">
+        <label>Zone : <select id="map-zone"></select></label>
+        <span id="map-tools"></span>
+        <select id="prop-type">
+          <option value="tree">arbre</option><option value="rock">rocher</option>
+          <option value="house">maison</option><option value="torch">feu de camp</option>
+          <option value="grave">tombe</option><option value="well">dalle centrale</option>
+          <option value="obelisk">obélisque</option><option value="trialgate">portail d'Épreuve</option>
+        </select>
+        <button id="save-map">💾 Enregistrer</button>
+        <button id="reset-map" class="danger">Réinitialiser la zone</button>
+      </div>
+      <p class="hint">Outils : peindre une tuile (glisser pour tracer) — « + décor » pose le décor choisi — « − décor » supprime le décor cliqué.
+      Les modifications s'appliquent à chaud sur le serveur et au prochain chargement de zone pour les joueurs.</p>
+      <p id="map-msg" class="msg"></p>
+      <canvas id="map-canvas" width="768" height="768"></canvas>
+    </div>
+
+    <div id="tab-content" class="tab-content">
+      <div class="toolbar">
+        <select id="content-file">
+          <option value="zones">zones.json (zones + PNJ)</option>
+          <option value="spells">spells.json (sorts)</option>
+          <option value="skills">skills.json (compétences)</option>
+        </select>
+        <button id="load-content">Charger</button>
+        <button id="save-content">💾 Enregistrer</button>
+      </div>
+      <p id="content-msg" class="msg"></p>
+      <textarea id="content-editor" spellcheck="false"></textarea>
+    </div>
+
+    <div id="tab-chars" class="tab-content">
+      <button id="reload-chars">Rafraîchir</button>
+      <p id="chars-msg" class="msg"></p>
+      <table id="chars-table"></table>
+      <p class="hint">Modifier un champ puis « Appliquer ». Le joueur est déconnecté pour recharger ses données. « Supprimer » efface le personnage (le compte reste).</p>
+    </div>
+
+    <div id="tab-pantheon" class="tab-content">
+      <table id="pantheon-table"></table>
+    </div>
+  </div>
+
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

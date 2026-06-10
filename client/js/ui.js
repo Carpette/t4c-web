@@ -174,10 +174,25 @@ export class UI {
         mk(`${SPELL_ICONS[sp.type] || '✨'} ${sp.name}`, `${sp.mana} mana — ${sp.type}`, sp.price, false,
           () => this.net.send({ t: 'buy', kind: 'spell', id: sp.id }), sp.known ? 'Appris' : null);
       }
-    } else {
+    } else if (this.shopTab === 'skills') {
       for (const sk of this.shop.skills) {
         mk(`🎖 ${sk.name}`, sk.desc, sk.price, false,
           () => this.net.send({ t: 'buy', kind: 'skill', id: sk.id }), sk.known ? 'Apprise' : null);
+      }
+    } else {
+      // vente : l'inventaire du joueur, au prix d'achat
+      const inv = this.self?.inventory || [];
+      if (!inv.length) { div.innerHTML = '<p class="hint">Votre inventaire est vide.</p>'; return; }
+      const equipped = new Set(Object.values(this.self?.equip || {}));
+      for (const it of inv) {
+        const row = document.createElement('div');
+        row.className = 'shop-row';
+        row.innerHTML = `<span>${SLOT_ICONS[it.slot] || ''} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}</span>`;
+        const btn = document.createElement('button');
+        btn.textContent = `Vendre ${it.price} 🟡`;
+        btn.onclick = () => this.net.send({ t: 'sell', iid: it.iid });
+        row.appendChild(btn);
+        div.appendChild(row);
       }
     }
   }

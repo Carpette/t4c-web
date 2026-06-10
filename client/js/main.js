@@ -1,5 +1,6 @@
 // Point d'entrée client : assets Flare, rendu iso 2D, multi-zones, contrôles, sorts
 import { generateWorld, generateTrial } from '../../shared/worldgen.js';
+import { applyOverrides } from '../../shared/overrides.js';
 import { KIND, DAY_LENGTH } from '../../shared/constants.js';
 import { loadAssets } from './render2d/assets.js';
 import { buildDecor } from './render2d/decor.js';
@@ -48,11 +49,17 @@ net.on('welcome', (m) => {
   ui.enterGame();
   ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
 });
-net.on('zone', (m) => {
-  world = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed);
-  const decor = buildDecor(world);
-  renderer.setWorld(world, decor, m.tint || null);
-  em.clear(selfId);
+net.on('zone', async (m) => {
+  em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
+  const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed);
+  if (m.kind !== 'trial') {
+    try {
+      const r = await fetch(`/content/overrides_${m.zoneId}.json`);
+      if (r.ok) applyOverrides(w, await r.json());
+    } catch { /* pas d'overrides */ }
+  }
+  world = w;
+  renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
   ui.zoneBanner(m.name, m.kind === 'trial' ? null : m.levels);
   if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');

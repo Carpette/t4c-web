@@ -6,6 +6,8 @@ import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, setNextIid, zoneMult } from './items.js';
 import { findPath, lineOfSight } from './pathfind.js';
 import { content } from '../content.js';
+import { applyOverrides } from '../../shared/overrides.js';
+import { loadOverrides } from '../admin.js';
 import * as db from '../db.js';
 
 const CELL = 16;
@@ -62,7 +64,8 @@ export class Game {
     this.tickCount = 0;
 
     for (const z of content.zones) {
-      const zi = new ZoneInstance(`zone:${z.id}`, generateWorld(z.seed), z.id);
+      const world = applyOverrides(generateWorld(z.seed), loadOverrides(z.id));
+      const zi = new ZoneInstance(`zone:${z.id}`, world, z.id);
       this.zones.set(zi.key, zi);
       this.populateIsland(zi);
     }
@@ -349,7 +352,7 @@ export class Game {
       hp: Math.round(p.hp), maxHp: p.eff.maxHp,
       mana: Math.round(p.mana), maxMana: p.eff.maxMana,
       dmg: p.eff.dmg, defense: p.eff.defense, gold: p.gold,
-      inventory: p.inventory.map(it => ({ ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot })),
+      inventory: p.inventory.map(it => ({ ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot, price: itemPrice(it) })),
       equip: p.equip,
       spells: p.spells, skills: p.skills,
       buffs: p.buffs.map(b => ({ stat: b.stat, power: b.power, left: Math.max(0, Math.round(b.until - this.now())) })),
@@ -427,6 +430,11 @@ export class Game {
       case 'buy': {
         if (p.dead) return;
         this.buy(p, msg);
+        break;
+      }
+      case 'sell': {
+        if (p.dead) return;
+        this.sell(p, msg);
         break;
       }
       case 'teleport': {
@@ -647,6 +655,29 @@ export class Game {
       this.recompute(p);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     }
+    this.sendSelf(p);
+  }
+
+  // Vente au marchand : même prix que l'achat (qualité et zone de l'objet comprises)
+  sell(p, msg) {
+    let npc = null;
+    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
+      if (e.kind === C.KIND.NPC) { npc = e; break; }
+    }
+    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
+    if (i < 0) return;
+    const item = p.inventory[i];
+    // déséquipe si nécessaire
+    for (const [slot, iid] of Object.entries(p.equip)) {
+      if (iid === item.iid) delete p.equip[slot];
+    }
+    // même rabais qu'à l'achat (sinon Marchandage permettrait l'or infini)
+    const price = Math.round(itemPrice(item) * (1 - (p.skillFx?.discount || 0)));
+    p.inventory.splice(i, 1);
+    p.gold += price;
+    this.recompute(p);
+    this.send(p, { t: 'loot', text: `Vendu : ${itemLabel(item)} (+${price} or)` });
     this.sendSelf(p);
   }
 

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Game } from './game/game.js';
+import { handleAdmin } from './admin.js';
 import * as db from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,7 +24,9 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   let url = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (url.startsWith('/api/admin/')) { handleAdmin(req, res, url, game); return; }
   if (url === '/') url = '/index.html';
+  if (url === '/admin') url = '/admin.html';
 
   let file;
   if (url.startsWith('/shared/') || url.startsWith('/content/')) {
