@@ -264,6 +264,50 @@ export class UI {
     $('combat-indicator').classList.toggle('hidden', !on);
   }
 
+  // ---- Création de personnage (répartition des points, façon T4C) ----
+  showCreation(info) {
+    $('login').classList.add('hidden');
+    $('death-screen').classList.add('hidden');
+    const alloc = {};
+    for (const st of info.stats) alloc[st] = info.base;
+    let left = info.pool;
+
+    const render = () => {
+      const div = $('creation-stats');
+      div.innerHTML = '';
+      for (const st of info.stats) {
+        const row = document.createElement('div');
+        row.className = 'stat-alloc';
+        const minus = document.createElement('button');
+        minus.textContent = '−';
+        minus.disabled = alloc[st] <= info.base;
+        minus.onclick = () => { alloc[st]--; left++; render(); };
+        const plus = document.createElement('button');
+        plus.textContent = '+';
+        plus.disabled = left <= 0 || alloc[st] >= info.max;
+        plus.onclick = () => { alloc[st]++; left--; render(); };
+        row.innerHTML = `<span>${info.names[st]}</span>`;
+        const ctrls = document.createElement('span');
+        const val = document.createElement('span');
+        val.className = 'val';
+        val.textContent = alloc[st];
+        ctrls.append(minus, val, plus);
+        row.appendChild(ctrls);
+        div.appendChild(row);
+      }
+      $('creation-left').textContent = left > 0
+        ? `Points restants : ${left}` : 'Tous les points sont répartis.';
+      $('creation-confirm').disabled = left !== 0;
+    };
+    $('creation-confirm').onclick = () => {
+      if (left !== 0) return;
+      $('creation').classList.add('hidden');
+      this.net.send({ t: 'create', stats: alloc });
+    };
+    render();
+    $('creation').classList.remove('hidden');
+  }
+
   // ---- Menu de jeu ----
   menuOpen() { return !$('game-menu').classList.contains('hidden'); }
   showMenu() {

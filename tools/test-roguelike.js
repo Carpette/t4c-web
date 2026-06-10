@@ -36,6 +36,9 @@ ws.on('message', (raw, bin) => {
   }
   const m = JSON.parse(raw.toString());
   switch (m.t) {
+    case 'create_char':
+      send({ t: 'create', stats: { str: 22, end: 18, agi: 14, int: 8, wis: 8 } });
+      break;
     case 'welcome': S.id = m.id; break;
     case 'self': S.self = m; break;
     case 'zone': S.zone = m; S.pos.clear(); break;
@@ -93,7 +96,9 @@ send({ t: 'buy', kind: 'skill', id: 'peau_de_fer' });
 await waitFor(() => S.self?.skills.includes('peau_de_fer'));
 ok('compétence apprise', S.self?.skills.includes('peau_de_fer'));
 
-// --- sort sur un monstre ---
+// --- sort sur un monstre (niveau 10 pour survivre à l'approche : ~78 PV) ---
+send({ t: 'admin', cmd: 'set', level: 10 });
+await sleep(400);
 const mob = await waitFor(() => {
   for (const [id, e] of S.pos) {
     const meta = S.metas.get(id);

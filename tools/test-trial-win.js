@@ -28,7 +28,8 @@ ws.on('message', (raw, bin) => {
     return;
   }
   const m = JSON.parse(raw.toString());
-  if (m.t === 'welcome') { S.id = m.id; S.admin = m.admin; }
+  if (m.t === 'create_char') send({ t: 'create', stats: { str: 22, end: 18, agi: 14, int: 8, wis: 8 } });
+  else if (m.t === 'welcome') { S.id = m.id; S.admin = m.admin; }
   else if (m.t === 'self') S.self = m;
   else if (m.t === 'zone') { S.zone = m; S.pos.clear(); }
   else if (m.t === 'confirm_trial') S.trial = m;

@@ -49,6 +49,13 @@ const wss = new WebSocketServer({ server, maxPayload: 4096 });
 
 wss.on('connection', (ws) => {
   let player = null;
+  let pendingAuth = null; // compte authentifié en attente de création de personnage
+
+  const join = (res) => {
+    const joined = game.addPlayer(ws, res.accountId, res.name, res.isAdmin);
+    if (joined.error) { ws.send(JSON.stringify({ t: 'auth_error', error: joined.error })); return; }
+    player = joined.player;
+  };
 
   ws.on('message', (raw, isBinary) => {
     if (isBinary) return;
@@ -59,9 +66,19 @@ wss.on('connection', (ws) => {
       if (msg.t === 'register' || msg.t === 'login') {
         const res = msg.t === 'register' ? db.register(msg.name, msg.pass) : db.login(msg.name, msg.pass);
         if (res.error) { ws.send(JSON.stringify({ t: 'auth_error', error: res.error })); return; }
-        const joined = game.addPlayer(ws, res.accountId, res.name, res.isAdmin);
-        if (joined.error) { ws.send(JSON.stringify({ t: 'auth_error', error: joined.error })); return; }
-        player = joined.player;
+        if (!db.loadCharacter(res.accountId)) {
+          // pas encore de personnage : le joueur répartit ses points (façon T4C)
+          pendingAuth = res;
+          ws.send(JSON.stringify({ t: 'create_char', ...game.creationInfo() }));
+          return;
+        }
+        join(res);
+      } else if (msg.t === 'create' && pendingAuth) {
+        const data = game.buildCharacter(pendingAuth.name, msg.stats);
+        if (!data) { ws.send(JSON.stringify({ t: 'auth_error', error: 'Répartition de points invalide' })); return; }
+        db.saveCharacter(pendingAuth.accountId, data);
+        join(pendingAuth);
+        pendingAuth = null;
       }
       return;
     }
