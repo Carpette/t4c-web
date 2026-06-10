@@ -87,7 +87,27 @@ export class Renderer {
     this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
   }
 
-  render(em, worldTime, now, selfId) {
+  // cercle de sélection au sol (sous les pieds d'une entité)
+  drawSelCircle(px, py, s, color, pulse, now) {
+    const ctx = this.ctx;
+    const a = pulse ? 0.55 + Math.sin(now * 6) * 0.25 : 0.45;
+    const r = (pulse ? 46 + Math.sin(now * 6) * 3 : 42) * s;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3 * s;
+    ctx.beginPath();
+    ctx.ellipse(px, py + 4 * s, r, r / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = a * 0.25;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(px, py + 4 * s, r, r / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  render(em, worldTime, now, selfId, hl = {}) {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
     const s = this.scale;
@@ -139,6 +159,12 @@ export class Renderer {
         this.drawTile(d.prop.tileId, p.x, p.y);
       } else {
         const p = this.w2s(d.view.x, d.view.z);
+        // surlignement : cible en cours (pulsant) ou entité survolée
+        if (hl.targetId === d.view.id && !d.view.isDead?.()) {
+          this.drawSelCircle(p.x, p.y, s, hl.targetColor || '#ff5040', true, now);
+        } else if (hl.hoverId === d.view.id && !d.view.isDead?.()) {
+          this.drawSelCircle(p.x, p.y, s, hl.hoverColor || '#ffd24a', false, now);
+        }
         d.view.draw(ctx, this.assets, p.x, p.y, s);
       }
     }

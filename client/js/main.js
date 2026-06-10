@@ -339,6 +339,7 @@ window.addEventListener('pointerup', () => {
 });
 
 let hoverPending = null;
+let hover = { id: null, color: null }; // entité survolée (pour le surlignement)
 canvas.addEventListener('pointermove', (ev) => {
   hoverPending = ev;
   lastPointer = { x: ev.clientX, y: ev.clientY };
@@ -347,10 +348,27 @@ function processHover() {
   if (!hoverPending || selfId == null || !renderer) return;
   const ev = hoverPending;
   hoverPending = null;
-  if (aimSpell) { canvas.style.cursor = 'none'; ui.hideTooltip(); return; }
+  if (aimSpell) {
+    canvas.style.cursor = 'none';
+    ui.hideTooltip();
+    // en visée : surligne la cible potentielle avec la couleur du sort
+    const sp = ui.spellDef(aimSpell);
+    const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
+    if (sp?.type === 'bolt' && v && v.kind === KIND.MOB && !v.isDead?.()) {
+      hover = { id: v.id, color: sp.color || '#aaddff' };
+    } else {
+      hover = { id: null, color: null };
+    }
+    return;
+  }
   const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
   if (v && v.id !== selfId && !v.isDead?.()) {
     canvas.style.cursor = 'pointer';
+    hover = {
+      id: v.id,
+      color: v.kind === KIND.MOB ? '#ff9a6a' : v.kind === KIND.NPC ? '#ffe48a'
+        : v.kind === KIND.DROP ? '#d8d8d8' : '#8ac8ff',
+    };
     const label = v.kind === KIND.DROP
       ? (v.meta.gold ? `${v.meta.gold} pièces d'or` : 'Objet (clic pour ramasser)')
       : v.kind === KIND.NPC ? `${v.meta.name} (clic pour parler)`
@@ -358,6 +376,7 @@ function processHover() {
     ui.showTooltip(label);
     ui.moveTooltip(ev.clientX, ev.clientY);
   } else {
+    hover = { id: null, color: null };
     const w = renderer.s2w(ev.clientX, ev.clientY);
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
@@ -442,7 +461,17 @@ function frame() {
   const selfView = em.get(selfId);
   if (selfView) renderer.follow(selfView.x, selfView.z);
 
-  const daylight = renderer.render(em, worldTime, now, selfId);
+  // cible en cours : sort auto en priorité, sinon cible d'attaque/inspection
+  const curTargetId = autoCast?.target ?? targetId;
+  const curTargetView = curTargetId != null ? em.get(curTargetId) : null;
+  const hl = {
+    targetId: curTargetId,
+    targetColor: autoCast?.target != null ? (ui.spellDef(autoCast.spellId)?.color || '#ff5040')
+      : curTargetView?.kind === KIND.PLAYER ? '#8ac8ff' : '#ff5040',
+    hoverId: hover.id !== curTargetId ? hover.id : null,
+    hoverColor: hover.color,
+  };
+  const daylight = renderer.render(em, worldTime, now, selfId, hl);
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
   drawAimCursor(now);
 
