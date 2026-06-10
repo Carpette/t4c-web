@@ -18,11 +18,23 @@ export class UI {
     try { this.hotkeys = JSON.parse(localStorage.getItem('t4c_hotkeys') || '{}'); } catch {}
 
     // capture de touche pour l'assignation de raccourci
+    this.RESERVED_KEYS = { i: 'inventaire', c: 'personnage', s: 'sorts', h: 'aide' };
+    // purge d'éventuels raccourcis réservés enregistrés avant ce garde-fou
+    for (const k of Object.keys(this.hotkeys)) {
+      if (this.RESERVED_KEYS[k]) delete this.hotkeys[k];
+    }
     window.addEventListener('keydown', (e) => {
       if (!this.bindingSpell) return;
       e.preventDefault(); e.stopPropagation();
       const k = e.key.toLowerCase();
+      this.bindingError = null;
       if (k !== 'escape' && k.length === 1) {
+        if (this.RESERVED_KEYS[k]) {
+          // touche déjà utilisée par l'interface : refusée, on reste en attente
+          this.bindingError = `« ${k.toUpperCase()} » est réservée (${this.RESERVED_KEYS[k]}). Choisissez une autre touche.`;
+          this.renderSpellPanel();
+          return;
+        }
         for (const key of Object.keys(this.hotkeys)) {
           if (this.hotkeys[key] === this.bindingSpell) delete this.hotkeys[key];
         }
@@ -86,8 +98,14 @@ export class UI {
     const div = $('spell-list');
     if (!div) return;
     div.innerHTML = '';
+    if (this.bindingError) {
+      const err = document.createElement('p');
+      err.style.cssText = 'color:#e86a6a;font-size:12px;margin-bottom:6px';
+      err.textContent = this.bindingError;
+      div.appendChild(err);
+    }
     const known = this.knownSpells();
-    if (!known.length) { div.innerHTML = '<p class="hint">Aucun sort appris. Voyez le marchand du village.</p>'; return; }
+    if (!known.length) { div.innerHTML += '<p class="hint">Aucun sort appris. Voyez le marchand du village.</p>'; return; }
     for (const sp of known) {
       const row = document.createElement('div');
       row.className = 'spell-row' + (this.activeSpell === sp.id ? ' active-spell' : '');
