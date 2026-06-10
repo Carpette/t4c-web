@@ -94,7 +94,7 @@ export class UI {
       const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
       row.innerHTML = `<span>${SPELL_ICONS[sp.type] || '✨'} ${sp.name} <span class="meta">(${sp.mana} mana)</span></span>`;
       const btn = document.createElement('button');
-      btn.textContent = this.bindingSpell === sp.id ? 'Touche ?' : (key ? `Ctrl+${key.toUpperCase()}` : 'Raccourci');
+      btn.textContent = this.bindingSpell === sp.id ? 'Touche ?' : (key ? `« ${key.toUpperCase()} »` : 'Raccourci');
       btn.onclick = (e) => { e.stopPropagation(); this.bindingSpell = sp.id; this.renderSpellPanel(); };
       row.appendChild(btn);
       row.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
@@ -111,7 +111,7 @@ export class UI {
       const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
       slot.innerHTML = `<span class="icon">${SPELL_ICONS[sp.type] || '✨'}</span>` +
         (key ? `<span class="key">${key.toUpperCase()}</span>` : '');
-      slot.title = `${sp.name} — ${sp.mana} mana` + (key ? ` — Ctrl+${key.toUpperCase()}` : '');
+      slot.title = `${sp.name} — ${sp.mana} mana` + (key ? ` — touche ${key.toUpperCase()}` : '');
       slot.dataset.spell = sp.id;
       slot.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
       const cd = document.createElement('div');

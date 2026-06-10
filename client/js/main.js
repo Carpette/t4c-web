@@ -50,6 +50,7 @@ net.on('welcome', (m) => {
   ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
 });
 net.on('zone', async (m) => {
+  cancelAim(); cancelAuto(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
   const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed);
   if (m.kind !== 'trial') {
@@ -77,7 +78,7 @@ net.on('loot', (m) => {
   const v = em.get(selfId);
   if (v) ui.floater(headPos(v), m.text, 'xp');
 });
-net.on('died', (m) => ui.showDeath(m));
+net.on('died', (m) => { cancelAim(); cancelAuto(); ui.showDeath(m); });
 net.on('shop', (m) => ui.showShop(m));
 net.on('obelisk', (m) => ui.showObelisk(m));
 net.on('confirm_trial', (m) => ui.showTrialConfirm(m));
@@ -134,6 +135,93 @@ let heldTimer = null;
 let lastPointer = { x: 0, y: 0 };
 const arrows = new Set();
 
+// ---- Visée et relance automatique des sorts ----
+// Appui sur la touche du sort -> curseur "main scintillante" -> clic sur la cible.
+// Le sort est ensuite relancé dès que possible, tant qu'aucune autre action
+// n'est faite et que la cible est en vie. (Les sorts `centered` — effet autour
+// du lanceur — partent immédiatement, sans visée.)
+let aimSpell = null;          // sort en cours de visée
+let autoCast = null;          // { spellId, targetId?, x?, z? }
+
+function cancelAim() { aimSpell = null; canvas.style.cursor = ''; }
+function cancelAuto() { autoCast = null; }
+
+function castSpellAt(spellId, params) {
+  net.send({ t: 'cast', spellId, ...params });
+  autoCast = { spellId, ...params };
+}
+
+// clic de visée : détermine la cible selon le type du sort
+function aimClick(spellId, ev) {
+  const sp = ui.spellDef(spellId);
+  if (!sp) return;
+  cancelAuto();
+  if (sp.type === 'bolt') {
+    const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
+    if (!v || v.kind !== KIND.MOB || v.isDead?.()) { ui.addChat('sys', 'Cible invalide.'); return; }
+    targetId = v.id;
+    updateTargetFrame();
+    castSpellAt(spellId, { target: v.id });
+  } else if (sp.type === 'aoe') {
+    const w = renderer.s2w(ev.clientX, ev.clientY);
+    castSpellAt(spellId, { x: w.x, z: w.z });
+  } else { // heal / buff : sur soi
+    castSpellAt(spellId, {});
+  }
+}
+
+// relance automatique (appelée régulièrement par la boucle de rendu)
+function tickAutoCast() {
+  if (!autoCast || selfId == null) return;
+  const sp = ui.spellDef(autoCast.spellId);
+  if (!sp) { cancelAuto(); return; }
+  // cible morte ou disparue -> stop
+  if (autoCast.target != null) {
+    const v = em.get(autoCast.target);
+    if (!v || v.isDead?.()) { cancelAuto(); return; }
+  }
+  const now = performance.now() / 1000;
+  if ((ui.cds[sp.id] || 0) > now) return;            // encore en recharge
+  if ((ui.self?.mana ?? 0) < sp.mana) return;        // attend le mana
+  // attend que la cible/le point soit à portée (évite le spam « Trop loin »)
+  if (sp.range > 0) {
+    const me = em.get(selfId);
+    const tx = autoCast.target != null ? em.get(autoCast.target)?.x : autoCast.x;
+    const tz = autoCast.target != null ? em.get(autoCast.target)?.z : autoCast.z;
+    if (me && tx != null && Math.hypot(tx - me.x, tz - me.z) > sp.range) return;
+  }
+  net.send({ t: 'cast', spellId: sp.id, ...(autoCast.target != null ? { target: autoCast.target } : {}), ...(autoCast.x != null ? { x: autoCast.x, z: autoCast.z } : {}) });
+  ui.cds[sp.id] = now + 0.4; // anti-spam local en attendant le cast_ok serveur
+}
+
+// curseur "main scintillante" dessiné dans le canvas (un curseur CSS ne s'anime pas)
+function drawAimCursor(now) {
+  if (!aimSpell) return;
+  const ctx = renderer.ctx;
+  const { x, y } = lastPointer;
+  const sp = ui.spellDef(aimSpell);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(now * 6) * 0.14);
+  ctx.font = '30px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🖐', 0, 12);
+  // étincelles au bout des doigts
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) {
+    const a = now * 7 + i * 1.3;
+    const px = -2 + Math.sin(a) * 7 + (i - 2) * 4;
+    const py = -16 + Math.cos(a * 1.7) * 5;
+    const r = 1.5 + Math.sin(a * 2.3 + i) * 1;
+    const g = ctx.createRadialGradient(px, py, 0, px, py, r * 3);
+    g.addColorStop(0, sp?.color || '#ffe48a');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(px - r * 3, py - r * 3, r * 6, r * 6);
+  }
+  ctx.restore();
+}
+
 function sendMoveDirFromArrows() {
   // écran -> carte : haut = (-1,-1), droite = (1,-1), bas = (1,1), gauche = (-1,1)
   let sx = 0, sy = 0;
@@ -158,10 +246,10 @@ function dirToCursor() {
 function castActive(spellId, ev) {
   const sp = ui.spellDef(spellId);
   if (!sp) return false;
-  if (sp.type === 'heal' || sp.type === 'buff') { net.send({ t: 'cast', spellId }); return true; }
+  if (sp.type === 'heal' || sp.type === 'buff') { castSpellAt(spellId, {}); return true; }
   if (sp.type === 'aoe') {
     const w = renderer.s2w(ev?.clientX ?? lastPointer.x, ev?.clientY ?? lastPointer.y);
-    net.send({ t: 'cast', spellId, x: w.x, z: w.z });
+    castSpellAt(spellId, { x: w.x, z: w.z });
     return true;
   }
   // bolt : cible sous le curseur, sinon cible courante
@@ -170,16 +258,29 @@ function castActive(spellId, ev) {
   if (v && v.kind === KIND.MOB && !v.isDead?.()) tid = v.id;
   else if (targetId != null) tid = targetId;
   if (tid == null) { ui.addChat('sys', 'Aucune cible pour ' + sp.name + '.'); return false; }
-  net.send({ t: 'cast', spellId, target: tid });
+  castSpellAt(spellId, { target: tid });
   return true;
 }
 
 canvas.addEventListener('pointerdown', (ev) => {
-  if (ev.button !== 0 || selfId == null) return;
+  if (selfId == null) return;
   lastPointer = { x: ev.clientX, y: ev.clientY };
+
+  // clic droit : annule la visée en cours
+  if (ev.button === 2) { cancelAim(); return; }
+  if (ev.button !== 0) return;
+
+  // ---- visée de sort : ce clic désigne la cible ----
+  if (aimSpell) {
+    const id = aimSpell;
+    cancelAim();
+    aimClick(id, ev);
+    return;
+  }
 
   // ---- mode combat : tous les clics sont des attaques/sorts ----
   if (combatMode) {
+    cancelAuto();
     if (ui.activeSpell) { castActive(ui.activeSpell, ev); return; }
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
     if (v && v.kind === KIND.MOB && !v.isDead?.()) {
@@ -190,6 +291,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     return;
   }
 
+  cancelAuto(); // toute autre action interrompt la relance automatique
   const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
   if (v && v.id !== selfId && !v.isDead?.()) {
     if (v.kind === KIND.MOB) {
@@ -245,6 +347,7 @@ function processHover() {
   if (!hoverPending || selfId == null || !renderer) return;
   const ev = hoverPending;
   hoverPending = null;
+  if (aimSpell) { canvas.style.cursor = 'none'; ui.hideTooltip(); return; }
   const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
   if (v && v.id !== selfId && !v.isDead?.()) {
     canvas.style.cursor = 'pointer';
@@ -276,18 +379,22 @@ window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Control' && !combatMode) { combatMode = true; ui.setCombatMode(true); }
   if (ui.isTyping() || ui.bindingSpell) return;
 
-  // Ctrl+touche = sort assigné
-  if (combatMode && ev.key.length === 1) {
+  // touche de sort (hors chat) = entrer en visée — comportement par défaut.
+  // Les sorts `centered` (effet autour du lanceur) partent immédiatement.
+  if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1) {
     const spellId = ui.hotkeys[ev.key.toLowerCase()];
     if (spellId && (ui.self?.spells || []).includes(spellId)) {
       ev.preventDefault();
-      castActive(spellId, null);
+      const sp = ui.spellDef(spellId);
+      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); }
+      else { aimSpell = spellId; canvas.style.cursor = 'none'; }
       return;
     }
   }
 
   if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
+    cancelAuto();
     if (!arrows.has(ev.key)) { arrows.add(ev.key); sendMoveDirFromArrows(); }
     return;
   }
@@ -297,7 +404,7 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 's') ui.togglePanel('spells');
   else if (k === 'h') ui.togglePanel('help');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
-  else if (ev.key === 'Escape') ui.togglePanel(null);
+  else if (ev.key === 'Escape') { cancelAim(); ui.togglePanel(null); }
 });
 
 window.addEventListener('keyup', (ev) => {
@@ -337,8 +444,10 @@ function frame() {
 
   const daylight = renderer.render(em, worldTime, now, selfId);
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
+  drawAimCursor(now);
 
   processHover();
+  if (frameN % 6 === 0) tickAutoCast();
   if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); }
 }
 frame();
