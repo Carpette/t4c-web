@@ -16,6 +16,18 @@ export const STAT_NAMES = {
 };
 export const BASE_STATS = { str: 12, end: 12, agi: 12, int: 10, wis: 10 };
 export const POINTS_PER_LEVEL = 5;
+
+// Création de personnage façon T4C : points à répartir par le joueur
+export const CREATION = { base: 8, pool: 30, max: 25 };
+export function validateCreationStats(s) {
+  let total = 0;
+  for (const st of STATS) {
+    const v = s?.[st] | 0;
+    if (v < CREATION.base || v > CREATION.max) return false;
+    total += v;
+  }
+  return total === CREATION.base * STATS.length + CREATION.pool;
+}
 export const MAX_LEVEL = 200;
 
 // Courbe XP façon T4C : départ rapide, exponentielle ensuite — le 200 est mythique.

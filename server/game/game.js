@@ -168,6 +168,8 @@ export class Game {
     p.hp = data.hp == null ? p.eff.maxHp : Math.min(data.hp, p.eff.maxHp);
     p.mana = data.mana == null ? p.eff.maxMana : Math.min(data.mana, p.eff.maxMana);
     if (p.hp <= 0) p.hp = p.eff.maxHp;
+    // plancher à la connexion : on ne réapparaît jamais agonisant
+    p.hp = Math.max(p.hp, Math.round(p.eff.maxHp * 0.6));
     this.players.set(p.id, p);
     zi.add(p);
     zi.players++;
@@ -502,7 +504,13 @@ export class Game {
       }
       case 'newchar': {
         if (!p.permadead) return;
-        this.reincarnate(p);
+        this.send(p, { t: 'create_char', ...this.creationInfo() });
+        break;
+      }
+      case 'create': {
+        if (!p.permadead) return;
+        if (!C.validateCreationStats(msg.stats)) { this.send(p, { t: 'info', text: 'Répartition invalide.' }); return; }
+        this.reincarnate(p, msg.stats);
         break;
       }
       case 'admin': {
@@ -856,14 +864,28 @@ export class Game {
     this.send(p, { t: 'died', by: who, level: p.level, zone: zoneName, permadeath: true, pantheon: db.pantheon(8) });
   }
 
-  reincarnate(p) {
+  // Infos de création (base, points à répartir, plafond) pour le client
+  creationInfo() {
+    return { ...C.CREATION, stats: C.STATS, names: C.STAT_NAMES };
+  }
+
+  // Construit les données d'un nouveau personnage (répartition validée)
+  buildCharacter(name, stats) {
+    if (!C.validateCreationStats(stats)) return null;
+    const clean = {};
+    for (const st of C.STATS) clean[st] = stats[st] | 0;
+    return db.newCharacterData(name, this.island(0).world.spawnPoint, clean);
+  }
+
+  reincarnate(p, stats = null) {
     const zi0 = this.island(0);
-    const data = db.newCharacterData(p.name, zi0.world.spawnPoint);
+    const data = db.newCharacterData(p.name, zi0.world.spawnPoint, stats);
     db.saveCharacter(p.accountId, data);
     p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
     p.level = 1; p.xp = 0; p.statPoints = 0;
     p.stats = { ...data.stats };
-    p.gold = data.gold; p.inventory = []; p.equip = {};
+    p.gold = data.gold;
+    p.inventory = data.inventory; p.equip = data.equip;
     p.spells = []; p.skills = []; p.unlocked = [0];
     p.buffs = []; p.spellCds = {};
     this.recompute(p);

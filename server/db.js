@@ -102,16 +102,23 @@ export function saveCharacter(accountId, data) {
     .run(accountId, JSON.stringify(data));
 }
 
-export function newCharacterData(name, spawn) {
+export function newCharacterData(name, spawn, stats = null) {
+  // équipement de départ : dague, tunique, deux potions de vie
+  const inventory = [
+    { iid: 1, defId: 'dague', q: 0, z: 0, bonus: {} },
+    { iid: 2, defId: 'tunique', q: 0, z: 0, bonus: {} },
+    { iid: 3, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
+    { iid: 4, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
+  ];
   return {
     name,
     level: 1, xp: 0, statPoints: 0,
-    stats: { ...BASE_STATS },
+    stats: stats ? { ...stats } : { ...BASE_STATS },
     hp: null, mana: null, // null => max au premier chargement
     x: spawn.x, z: spawn.z,
     gold: parseInt(process.env.T4C_START_GOLD || '25', 10),
-    inventory: [], // [{iid, defId, q, z, bonus}]
-    equip: {},     // slot -> iid
+    inventory,
+    equip: { weapon: 1, armor: 2 },
     zoneId: 0,
     unlocked: [0],
     spells: [],    // ids de sorts appris

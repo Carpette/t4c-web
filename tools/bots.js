@@ -38,6 +38,9 @@ function bot(n) {
       const msg = JSON.parse(raw.toString());
       switch (msg.t) {
         case 'auth_error': state.errors.push('auth: ' + msg.error); break;
+        case 'create_char':
+          ws.send(JSON.stringify({ t: 'create', stats: { str: 22, end: 18, agi: 14, int: 8, wis: 8 } }));
+          break;
         case 'welcome': state.id = msg.id; break;
         case 'self': state.level = msg.level; state.gold = msg.gold; break;
         case 'meta': for (const m of msg.list) state.metas.set(m.id, m); break;

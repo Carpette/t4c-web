@@ -43,6 +43,7 @@ await net.connect();
 
 // ---------- Réseau ----------
 net.on('auth_error', (m) => ui.loginError(m.error));
+net.on('create_char', (m) => ui.showCreation(m));
 net.on('welcome', (m) => {
   selfId = m.id;
   worldTime = m.time;

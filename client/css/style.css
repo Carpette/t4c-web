@@ -121,6 +121,15 @@ button.secondary { background: #2a2444; }
   0% { transform: translateY(0); opacity: 1; }
   100% { transform: translateY(-55px); opacity: 0; }
 }
+#creation .stat-alloc {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 4px; border-bottom: 1px solid #2a2444; font-size: 14px;
+}
+#creation .stat-alloc .val { width: 36px; text-align: center; font-weight: bold; color: #ffd24a; }
+#creation .stat-alloc button { padding: 2px 12px; font-size: 15px; margin: 0 3px; }
+#creation .stat-alloc button:disabled { opacity: 0.3; cursor: default; }
+#creation-confirm:disabled { opacity: 0.4; cursor: default; }
+
 #game-menu .login-box button { display: block; width: 100%; margin: 7px 0; }
 #game-menu .danger-btn { background: #7a2a2a; border-color: #aa4a4a; }
 #game-menu .danger-btn:hover { background: #9a3a3a; }
