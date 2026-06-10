@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS deaths (
 );
 `);
 try { db.exec('ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
+// Auto-réparation : s'il existe des comptes mais aucun administrateur
+// (base créée avant la fonctionnalité admin), promeut le plus ancien.
+{
+  const hasAdmin = db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE is_admin = 1').get().n > 0;
+  const hasAccounts = db.prepare('SELECT COUNT(*) AS n FROM accounts').get().n > 0;
+  if (!hasAdmin && hasAccounts) {
+    db.prepare('UPDATE accounts SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM accounts)').run();
+  }
+}
 
 function hashPassword(pass, salt) {
   return crypto.scryptSync(pass, salt, 32).toString('hex');
