@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: t4c-web
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - T4C_DB=/data/game.db
+      - T4C_START_GOLD=25
+    volumes:
+      - t4c-data:/data
+    restart: unless-stopped
+
+volumes:
+  t4c-data:
+    name: t4c-web-data
