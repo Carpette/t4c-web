@@ -48,6 +48,7 @@
 
     <div id="zone-banner"></div>
     <div id="spellbar"></div>
+    <div id="quickbar"></div>
     <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
 
     <!-- Inventaire T4C : poupée d'équipement + grille -->
@@ -144,7 +145,9 @@
       Ctrl maintenu : mode combat (clic = frappe)<br>
       Touche de sort : visée (main scintillante) → clic sur la cible,
       puis relance automatique tant qu'aucune autre action<br>
-      Molette : zoom — I/C/S/H : panneaux — Entrée : chat<br>
+      P : potion de vie — M : potion de mana<br>
+      Molette : zoom — I/C/S/H : panneaux — Entrée : chat — Échap : menu et paramètres<br>
+      Inventaire, clic droit : poser un objet au sol (échanges entre joueurs)<br>
       Chat : local (15 tuiles) par défaut — canaux mondiaux : /general, /aide, /ventes, /roleplay<br><br>
       ☠ La mort est DÉFINITIVE. Choisissez vos combats.</p>
     </div>
@@ -188,11 +191,8 @@
           <button id="menu-quit" class="danger-btn">Quitter la partie</button>
         </div>
         <div id="menu-settings-panel" class="hidden">
-          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Paramètres</h2>
-          <div id="settings-list">
-            <p class="hint" style="color:#8a80a8;font-size:12px">D'autres options arriveront ici
-            (fenêtres de chat, volume, affichage…).</p>
-          </div>
+          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Affichage</h2>
+          <div id="settings-list"></div>
           <button id="menu-back" class="secondary" style="margin-top:10px">Retour</button>
         </div>
       </div>

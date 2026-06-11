@@ -2,6 +2,7 @@
 import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
+import { SETTING_DEFS, settings, setSetting } from './settings.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
@@ -19,7 +20,10 @@ export class UI {
     try { this.hotkeys = JSON.parse(localStorage.getItem('t4c_hotkeys') || '{}'); } catch {}
 
     // capture de touche pour l'assignation de raccourci
-    this.RESERVED_KEYS = { i: 'inventaire', c: 'personnage', s: 'sorts', h: 'aide' };
+    this.RESERVED_KEYS = {
+      i: 'inventaire', c: 'personnage', s: 'sorts', h: 'aide',
+      p: 'potion de vie', m: 'potion de mana',
+    };
     // purge d'éventuels raccourcis réservés enregistrés avant ce garde-fou
     for (const k of Object.keys(this.hotkeys)) {
       if (this.RESERVED_KEYS[k]) delete this.hotkeys[k];
@@ -92,6 +96,7 @@ export class UI {
     $('menu-settings').onclick = () => {
       $('menu-buttons').classList.add('hidden');
       $('menu-settings-panel').classList.remove('hidden');
+      this.renderSettings();
     };
     $('menu-back').onclick = () => {
       $('menu-settings-panel').classList.add('hidden');
@@ -209,6 +214,62 @@ export class UI {
       const cd = document.createElement('div');
       cd.className = 'cd hidden';
       slot.appendChild(cd);
+      bar.appendChild(slot);
+    }
+  }
+
+  // ---- Paramètres d'affichage (menu Échap) ----
+  renderSettings() {
+    const div = $('settings-list');
+    div.innerHTML = '';
+    for (const [key, label] of SETTING_DEFS) {
+      const row = document.createElement('label');
+      row.className = 'setting-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = settings[key];
+      cb.onchange = () => setSetting(key, cb.checked);
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(label));
+      div.appendChild(row);
+    }
+  }
+
+  // ---- Barre de potions (raccourcis P / M) ----
+  potionOf(kind) {
+    const match = kind === 'vie' ? (d) => d.heal : (d) => d.mana;
+    return (this.self?.inventory || []).find(it => {
+      const d = ITEMS[it.defId];
+      return d?.slot === 'use' && match(d);
+    });
+  }
+
+  usePotion(kind) {
+    const it = this.potionOf(kind);
+    if (!it) { this.addChat('sys', `Plus de potion de ${kind}.`); return; }
+    this.net.send({ t: 'use', iid: it.iid });
+  }
+
+  renderQuickbar() {
+    const bar = $('quickbar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    const defs = [
+      { kind: 'vie', key: 'P', defId: 'potion_vie', name: 'Potion de vie' },
+      { kind: 'mana', key: 'M', defId: 'potion_mana', name: 'Potion de mana' },
+    ];
+    for (const q of defs) {
+      const count = (this.self?.inventory || []).filter(it => {
+        const d = ITEMS[it.defId];
+        return d?.slot === 'use' && (q.kind === 'vie' ? d.heal : d.mana);
+      }).length;
+      const slot = document.createElement('div');
+      slot.className = 'spell-slot potion-slot' + (count ? '' : ' empty');
+      slot.title = `${q.name} — touche ${q.key}` + (count ? '' : ' (aucune)');
+      slot.appendChild(this.itemIconEl(q.defId, '🧪', 28));
+      slot.insertAdjacentHTML('beforeend',
+        `<span class="key">${q.key}</span><span class="count">${count}</span>`);
+      slot.onclick = () => this.usePotion(q.kind);
       bar.appendChild(slot);
     }
   }
@@ -534,6 +595,7 @@ export class UI {
     this.renderCharacter();
     this.renderSpellPanel();
     this.renderSpellbar();
+    this.renderQuickbar();
     this.renderBuffs();
     if (this.shop) this.renderShop();
     if (this.bank && !$('bank').classList.contains('hidden')) this.renderBank();
@@ -712,7 +774,7 @@ export class UI {
   }
 
   floater(screen, text, cls = '') {
-    if (!screen.visible) return;
+    if (!screen.visible || !settings.showFloaters) return;
     const div = document.createElement('div');
     div.className = `floater ${cls}`;
     div.textContent = text;

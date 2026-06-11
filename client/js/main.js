@@ -441,6 +441,8 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 'c') ui.togglePanel('character');
   else if (k === 's') ui.togglePanel('spells');
   else if (k === 'h') ui.togglePanel('help');
+  else if (k === 'p') ui.usePotion('vie');
+  else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
   else if (ev.key === 'Escape') {
     // priorité : annuler la visée > fermer les panneaux > menu (reprendre/quitter)
