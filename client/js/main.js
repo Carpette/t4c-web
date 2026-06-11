@@ -405,7 +405,7 @@ function processHover() {
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
       canvas.style.cursor = 'pointer';
-      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)' };
+      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)', cave: prop.name || 'Grotte' };
       ui.showTooltip(labels[prop.interact] || '');
       ui.moveTooltip(ev.clientX, ev.clientY);
     } else {

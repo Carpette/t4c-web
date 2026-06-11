@@ -134,7 +134,7 @@ ok('Dard de Feu a blessé un monstre', castWorked);
 // --- mouvement clavier (movedir) ---
 // retour sur la place de Lighthaven : position déterministe, dégagée,
 // loin des monstres (la chasse a pu nous emmener n'importe où)
-send({ t: 'admin', cmd: 'goto', x: 95.5, z: 82.5 });
+send({ t: 'admin', cmd: 'goto', x: 333.5, z: 250.5 });
 await sleep(500);
 const p0 = { ...(S.pos.get(S.id) || { x: 0, z: 0 }) };
 send({ t: 'movedir', x: 1, z: 0 });
@@ -144,7 +144,7 @@ const p1 = S.pos.get(S.id);
 ok('déplacement direct (flèches)', p1 && Math.abs(p1.x - p0.x) > 1);
 
 // --- obélisque (à l'est de la place de Lighthaven) ---
-send({ t: 'interact', prop: 'obelisk', x: 106.5, z: 86.5 });
+send({ t: 'interact', prop: 'obelisk', x: 345.5, z: 254.5 });
 await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
 
@@ -154,9 +154,9 @@ ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.z
 send({ t: 'admin', cmd: 'set', level: 15 });
 await sleep(400);
 // téléportation près du portail (la marche LH -> monts Righul serait trop longue)
-send({ t: 'admin', cmd: 'goto', x: 52.5, z: 20.5 });
+send({ t: 'admin', cmd: 'goto', x: 114.5, z: 43.5 });
 await sleep(400);
-send({ t: 'interact', prop: 'trialgate', x: 52.5, z: 16.5 });
+send({ t: 'interact', prop: 'trialgate', x: 114.5, z: 45.5 });
 await waitFor(() => S.trial, 25000);
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
 send({ t: 'trial_enter' });

@@ -11,9 +11,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const NAME = 'Banquier_' + Math.floor(Math.random() * 1e6);
 const PASS = 'test1234';
-const BANK = { x: 100.5, z: 90.5 };      // coffre de Lighthaven (carte Arakas)
-const NEAR_BANK = { x: 100.5, z: 91.5 }; // case praticable adjacente
-const NPC_POS = { x: 92.5, z: 89.5 };    // devant Maître Aldric (place de LH)
+const BANK = { x: 340.5, z: 259.5 };      // coffre de Lighthaven (carte Arakas 384x384)
+const NEAR_BANK = { x: 340.5, z: 258.5 }; // case praticable adjacente
+const NPC_POS = { x: 324.5, z: 239.5 };   // devant Maître Aldric (échoppe de LH)
 
 // petite session WebSocket : état + helpers
 function session() {
@@ -73,7 +73,7 @@ await A.waitFor(() => A.self?.inventory.some(i => i.iid === weapon.iid));
 ok('poignard retiré de la banque', A.bank.items.length === 0 && A.self.inventory.some(i => i.iid === weapon.iid));
 
 // --- refus à distance (proximité du coffre obligatoire) ---
-A.send({ t: 'admin', cmd: 'goto', x: 95.5, z: 82.5 }); // place de Lighthaven, loin du coffre
+A.send({ t: 'admin', cmd: 'goto', x: 333.5, z: 250.5 }); // place de Lighthaven, loin du coffre
 await sleep(400);
 const invCount = A.self.inventory.length;
 A.send({ t: 'bank_deposit', iid: weapon.iid });

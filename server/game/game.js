@@ -753,6 +753,11 @@ export class Game {
       this.openChest(p, prop);
     } else if (prop.type === 'bank') {
       this.openBank(p);
+    } else if (prop.type === 'cave') {
+      this.send(p, {
+        t: 'info',
+        text: `${prop.name || 'La grotte'} : l'entrée est obstruée par des éboulis... (les souterrains arrivent dans une prochaine version)`,
+      });
     }
   }
 

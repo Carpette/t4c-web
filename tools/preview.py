@@ -56,7 +56,9 @@ def avatar_frames(layers, anim='stance', d=6, fi=0):
     out = []
     for type_, name in layers:
         if not name: continue
-        av = manifest['avatar'][name]
+        # manifest récent : avatars rangés par sexe (male/female)
+        avs = manifest['avatar'].get('male', manifest['avatar'])
+        av = avs.get(name) or manifest['avatar'][name]
         a = av['anims'].get(anim) or av['anims']['stance']
         fr = a['fr'].get(str(d)) or a['fr']['0']
         out.append((get_img(av['image']), fr[min(fi, len(fr)-1)]))

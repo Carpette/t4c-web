@@ -1,5 +1,8 @@
 // A* simple sur la grille de tuiles (8 directions), borné pour rester léger.
-const MAX_EXPAND = 2500;
+// Budget épuisé (longs trajets sur les grandes cartes comme Arakas) : on
+// renvoie le chemin vers le nœud exploré le plus proche de la cible — le
+// joueur progresse, et le serveur recalcule en route.
+const MAX_EXPAND = 6000;
 
 export function findPath(world, x0, z0, x1, z1) {
   const sx = Math.floor(x0), sz = Math.floor(z0);
@@ -27,6 +30,20 @@ export function findPath(world, x0, z0, x1, z1) {
   const gScore = new Map([[key(sx, sz), 0]]);
   const closed = new Set();
   let expanded = 0;
+  let best = null, bestH = Infinity; // nœud le plus proche de la cible (repli)
+
+  const rebuild = (endX, endZ) => {
+    const path = [];
+    let k = key(endX, endZ);
+    let node = { x: endX, z: endZ };
+    while (node) {
+      path.push({ x: node.x + 0.5, z: node.z + 0.5 });
+      node = came.get(k);
+      if (node) k = key(node.x, node.z);
+    }
+    path.reverse();
+    return smooth(world, path);
+  };
 
   while (open.length && expanded < MAX_EXPAND) {
     // extraction du min (tas binaire serait mieux, mais les chemins sont courts)
@@ -37,18 +54,11 @@ export function findPath(world, x0, z0, x1, z1) {
     if (closed.has(ck)) continue;
     closed.add(ck);
     expanded++;
+    const curH = Math.hypot(tx - cur.x, tz - cur.z);
+    if (curH < bestH) { bestH = curH; best = cur; }
 
     if (cur.x === tx && cur.z === tz) {
-      const path = [];
-      let k = ck;
-      let node = { x: tx, z: tz };
-      while (node) {
-        path.push({ x: node.x + 0.5, z: node.z + 0.5 });
-        node = came.get(k);
-        if (node) k = key(node.x, node.z);
-      }
-      path.reverse();
-      return smooth(world, path);
+      return rebuild(tx, tz);
     }
 
     for (let dz = -1; dz <= 1; dz++) {
@@ -71,7 +81,11 @@ export function findPath(world, x0, z0, x1, z1) {
       }
     }
   }
-  return null; // pas de chemin trouvé dans le budget
+  // budget épuisé : avance vers le nœud exploré le plus proche de la cible
+  if (best && (best.x !== sx || best.z !== sz) && bestH < Math.hypot(tx - sx, tz - sz) - 2) {
+    return rebuild(best.x, best.z);
+  }
+  return null; // pas de chemin trouvé
 }
 
 // Lissage : supprime les points intermédiaires en ligne de vue
