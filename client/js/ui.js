@@ -267,6 +267,50 @@ export class UI {
     }
   }
 
+  // ---- Banque : coffre personnel ----
+  showBank(msg) {
+    this.bank = msg;
+    $('bank').classList.remove('hidden');
+    this.renderBank();
+  }
+
+  renderBank() {
+    if (!this.bank) return;
+    const bankFull = this.bank.items.length >= this.bank.max;
+    $('bank-count').textContent = `Banque ${this.bank.items.length} / ${this.bank.max}`;
+    const mkRow = (parent, label, btnText, disabled, onClick) => {
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.innerHTML = `<span>${label}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = btnText;
+      btn.disabled = disabled;
+      btn.onclick = onClick;
+      row.appendChild(btn);
+      parent.appendChild(row);
+    };
+    // objets en banque -> Retirer
+    const list = $('bank-list');
+    list.innerHTML = '';
+    if (!this.bank.items.length) list.innerHTML = '<p class="hint">Votre coffre est vide.</p>';
+    for (const it of this.bank.items) {
+      mkRow(list, `${SLOT_ICONS[it.slot] || ''} ${it.label}`, 'Retirer', false,
+        () => this.net.send({ t: 'bank_withdraw', iid: it.iid }));
+    }
+    // inventaire -> Déposer
+    const inv = this.self?.inventory || [];
+    const equipped = new Set(Object.values(this.self?.equip || {}));
+    const invList = $('bank-inv-list');
+    invList.innerHTML = '';
+    if (!inv.length) invList.innerHTML = '<p class="hint">Votre inventaire est vide.</p>';
+    for (const it of inv) {
+      mkRow(invList,
+        `${SLOT_ICONS[it.slot] || ''} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}`,
+        'Déposer', bankFull,
+        () => this.net.send({ t: 'bank_deposit', iid: it.iid }));
+    }
+  }
+
   // ---- Obélisque ----
   showObelisk(msg) {
     const div = $('obelisk-list');
@@ -372,7 +416,7 @@ export class UI {
   hideMenu() { $('game-menu').classList.add('hidden'); }
   // un panneau (inventaire, sorts, boutique...) est-il ouvert ?
   anyPanelOpen() {
-    return ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel']
+    return ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel', 'bank']
       .some(p => !$(p).classList.contains('hidden'));
   }
 
@@ -396,7 +440,7 @@ export class UI {
   }
 
   togglePanel(name) {
-    for (const p of ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel']) {
+    for (const p of ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel', 'bank']) {
       if (p === name) $(p).classList.toggle('hidden');
       else $(p).classList.add('hidden');
     }
@@ -435,6 +479,7 @@ export class UI {
     this.renderSpellbar();
     this.renderBuffs();
     if (this.shop) this.renderShop();
+    if (this.bank && !$('bank').classList.contains('hidden')) this.renderBank();
   }
 
   // dessine le personnage avec son équipement dans l'inventaire (face caméra)

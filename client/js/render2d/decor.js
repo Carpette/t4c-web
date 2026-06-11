@@ -133,6 +133,11 @@ export function buildDecor(world) {
       case 'chest':
         props.push({ tileId: 298, x: p.x, z: p.z, interact: 'chest' });
         break;
+      case 'bank':
+        // coffre clouté du tileset : la banque personnelle du village
+        props.push({ tileId: 300, x: p.x, z: p.z, interact: 'bank' });
+        lights.push({ x: p.x, z: p.z, r: 200, flicker: false, color: 'rgba(255, 200, 120, 0.10)' });
+        break;
     }
   }
 

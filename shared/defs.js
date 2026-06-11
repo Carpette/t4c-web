@@ -191,6 +191,9 @@ export const ITEMS = {
   or:           { name: "Pièces d'or",          slot: 'gold', weight: 0, loot: 'coins25', price: 1 },
 };
 
+// Coffre personnel (banque du village) : nombre d'emplacements par personnage
+export const BANK_SIZE = 30;
+
 // ================= Coffres =================
 // Or généreux (justifie le déplacement) OU objet rare du palier.
 export const CHESTS = {
