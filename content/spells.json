@@ -2,6 +2,24 @@
   "_note": "Sorts standards de T4C (libellés, niveaux, prérequis Sag/Int et chaînes de sorts authentiques, source : wiki T4C). Prix divisés par 5 pour l'économie du jeu. zone = disponibilité marchand (0: niv 1-25, 1: 26-50, 2: 51-75, 3: 76+).",
   "spells": [
     {
+      "id": "lumiere",
+      "name": "Lumière",
+      "zone": 0,
+      "level": 2,
+      "wis": 15,
+      "int": 18,
+      "requires": null,
+      "price": 47,
+      "mana": 10,
+      "cd": 10,
+      "type": "buff",
+      "stat": "light",
+      "power": 1,
+      "duration": 600,
+      "color": "#ffe9a8",
+      "element": "lumiere"
+    },
+    {
       "id": "dard_de_feu",
       "name": "Dard de Feu",
       "zone": 0,

@@ -492,6 +492,8 @@ function frame() {
       : curTargetView?.kind === KIND.PLAYER ? '#8ac8ff' : '#ff5040',
     hoverId: hover.id !== curTargetId ? hover.id : null,
     hoverColor: hover.color,
+    // sort Lumière actif -> le rendu perce l'obscurité autour de soi
+    selfLight: !!(ui.self?.buffs || []).some(b => b.stat === 'light'),
   };
   const daylight = renderer.render(em, worldTime, now, selfId, hl);
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
