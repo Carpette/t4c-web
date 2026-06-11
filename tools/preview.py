@@ -66,18 +66,25 @@ def avatar_frames(layers, anim='stance', d=6, fi=0):
 
 sx, sz = scene['spawn']['x'], scene['spawn']['z']
 fake = []
+import os
+if os.environ.get('NOFAKE'): fake_disabled = True
+else: fake_disabled = False
 # joueur équipé (sud)
 layers6 = [('main','longsword'),('feet','default_feet'),('legs','cloth_pants'),('hands','default_hands'),('chest','chain_cuirass'),('head','head_short'),('off','buckler')]
-fake.append({'x': sx, 'z': sz, 'type': 'avatar', 'layers': layers6, 'name': 'Testeur [5]'})
+if not fake_disabled:
+    fake.append({'x': sx, 'z': sz, 'type': 'avatar', 'layers': layers6, 'name': 'Testeur [5]'})
 # joueur basique
 layers_b = [('main',None),('feet','default_feet'),('legs','cloth_pants'),('hands','default_hands'),('chest','cloth_shirt'),('head','head_short'),('off',None)]
-fake.append({'x': sx - 2.5, 'z': sz + 1.5, 'type': 'avatar', 'layers': layers_b, 'name': 'Novice [1]'})
+if not fake_disabled:
+    fake.append({'x': sx - 2.5, 'z': sz + 1.5, 'type': 'avatar', 'layers': layers_b, 'name': 'Novice [1]'})
 # monstres
 for i, (mob, dx, dz) in enumerate([('goblin', 3, 2), ('skeleton', 5, -1), ('antlion_small', -3.5, -2), ('minotaur', 7, 4), ('zombie', -5, 3)]):
-    fake.append({'x': sx + dx, 'z': sz + dz, 'type': 'mob', 'sprite': mob, 'dir': i % 8})
+    if not fake_disabled:
+        fake.append({'x': sx + dx, 'z': sz + dz, 'type': 'mob', 'sprite': mob, 'dir': i % 8})
 # butin au sol
 for loot, dx, dz in [('coins25', 1.5, -1.5), ('hp_potion', -1.5, -1)]:
-    fake.append({'x': sx + dx, 'z': sz + dz, 'type': 'loot', 'name_': loot})
+    if not fake_disabled:
+        fake.append({'x': sx + dx, 'z': sz + dz, 'type': 'loot', 'name_': loot})
 
 drawables = []
 for p in scene['props']:

@@ -3,7 +3,7 @@
 //            props: { add: [{type, x, z}], remove: [[x, z]] } }
 import { TILE } from './worldgen.js';
 
-const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave']);
+const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
 const HOUSE_SIZE = { w: 5, d: 4 };
 
 export function applyOverrides(world, ov) {
