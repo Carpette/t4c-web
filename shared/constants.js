@@ -75,15 +75,19 @@ export function attackCooldown(stats, weaponSpeed) {
   const cd = (weaponSpeed || 1.6) * (1 - Math.min(stats.agi, 100) * 0.004);
   return Math.max(0.55, cd);
 }
-export function hitChance(attStats, defStats) {
-  const c = 0.78 + (attStats.agi - defStats.agi) * 0.006;
-  return Math.min(0.95, Math.max(0.45, c));
+// Jet de toucher façon T4C : l'esquive (Agilité) ET la Capacité d'Armure
+// du défenseur font rater les coups. defCA = CA totale du défenseur.
+export function hitChance(attStats, defStats, defCA = 0) {
+  const c = 0.78 + (attStats.agi - defStats.agi) * 0.006 - defCA * 0.0035;
+  return Math.min(0.95, Math.max(0.25, c));
 }
 export function critChance(stats) {
   return Math.min(0.35, 0.05 + stats.agi * 0.003);
 }
+// Absorption résiduelle : dans T4C la CA sert surtout à faire rater les
+// coups (géré dans hitChance) ; l'armure n'absorbe qu'une part modérée.
 export function mitigate(dmg, defense) {
-  return Math.max(1, Math.round(dmg * (1 - defense / (defense + 60))));
+  return Math.max(1, Math.round(dmg * (1 - defense / (defense + 150))));
 }
 export function moveSpeed(stats) {
   return Math.min(6.2, 4.0 + stats.agi * 0.02);
