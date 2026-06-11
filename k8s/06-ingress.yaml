@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: t4c-web-ingress
+  namespace: t4c-web
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # Support des connexions WebSockets persistantes (évite les déconnexions dues aux timeouts inactifs)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Optimisation du flux WebSocket et de la taille des messages
+    nginx.ingress.kubernetes.io/proxy-body-size: "4m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Configuration optionnelle pour SSL/TLS (décommenter si cert-manager est configuré)
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+spec:
+  rules:
+    - host: t4c.vhome.fr # À adapter avec votre nom de domaine
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: t4c-web-service
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - t4c.vhome.fr
+      secretName: t4c-web-tls
