@@ -235,6 +235,7 @@ export class Game {
       name: zi.isTrial ? `L'Épreuve — vers ${def.name}` : def.name,
       seed: def.seed,
       map: zi.isTrial ? null : def.map || null,
+      music: this.musicFor(zi),
       tint: zi.isTrial ? 'rgba(40, 20, 60, 0.18)' : def.tint,
       levels: def.levels,
       x: p.x, z: p.z,
@@ -417,6 +418,19 @@ export class Game {
       inTrial: !!p.zi.isTrial,
       unlocked: p.unlocked,
     });
+  }
+
+  // Musique de la zone (mapping administrable dans content/music.json)
+  musicFor(zi) {
+    if (zi.isTrial) return content.music?.trial || null;
+    return content.music?.zones?.[String(zi.zoneId)] || null;
+  }
+
+  // Pousse la musique à jour à tous les joueurs connectés (après édition admin)
+  refreshMusic() {
+    for (const p of this.players.values()) {
+      this.send(p, { t: 'music', file: this.musicFor(p.zi) });
+    }
   }
 
   send(p, obj) { if (p.ws.readyState === 1) p.ws.send(JSON.stringify(obj)); }

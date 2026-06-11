@@ -38,9 +38,67 @@ async function enter(name) {
   $('panel').style.display = 'block';
   $('who').textContent = name ? `connecté : ${name}` : '';
   await initMap();
+  loadMusic();
   loadChars();
   loadPantheon();
 }
+
+// ---------- Musiques : correspondance zone -> fichier ----------
+let musicMap = { login: null, trial: null, zones: {} };
+
+async function loadMusic() {
+  let files = [];
+  try {
+    const r = await api('/api/admin/music');
+    files = r.files;
+    musicMap = r.map || musicMap;
+    if (!musicMap.zones) musicMap.zones = {};
+  } catch (e) { $('music-msg').textContent = e.message; return; }
+
+  const table = $('music-table');
+  table.innerHTML = '<tr><th>Zone</th><th>Musique (en boucle)</th><th></th></tr>';
+  const mkRow = (label, getVal, setVal) => {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = label;
+    const tdSel = document.createElement('td');
+    const sel = document.createElement('select');
+    sel.innerHTML = '<option value="">— silence —</option>' +
+      files.map(f => `<option value="${f}"${getVal() === f ? ' selected' : ''}>${f}</option>`).join('');
+    sel.onchange = () => setVal(sel.value || null);
+    tdSel.appendChild(sel);
+    const tdPlay = document.createElement('td');
+    const play = document.createElement('button');
+    play.textContent = '▶';
+    play.title = 'Pré-écouter';
+    play.onclick = () => {
+      const f = sel.value;
+      if (!f) return;
+      const a = $('music-preview');
+      a.src = `/assets/music/${encodeURIComponent(f)}`;
+      a.play();
+    };
+    tdPlay.appendChild(play);
+    tr.append(tdName, tdSel, tdPlay);
+    table.appendChild(tr);
+  };
+
+  mkRow('Écran de connexion', () => musicMap.login, v => { musicMap.login = v; });
+  mkRow("L'Épreuve", () => musicMap.trial, v => { musicMap.trial = v; });
+  for (const z of zonesDef) {
+    mkRow(`${z.id} — ${z.name} (${z.levels[0]}-${z.levels[1]})`,
+      () => musicMap.zones[String(z.id)] || null,
+      v => { if (v) musicMap.zones[String(z.id)] = v; else delete musicMap.zones[String(z.id)]; });
+  }
+}
+
+$('reload-music').onclick = loadMusic;
+$('save-music').onclick = async () => {
+  try {
+    await api('/api/admin/music', 'PUT', musicMap);
+    $('music-msg').textContent = 'Enregistré — appliqué à chaud aux joueurs connectés.';
+  } catch (e) { $('music-msg').textContent = 'Erreur : ' + e.message; }
+};
 
 // reprise de session
 if (token) {

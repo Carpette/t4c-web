@@ -4,6 +4,7 @@ const KEY = 't4c_settings';
 
 // [clé, libellé, valeur par défaut]
 export const SETTING_DEFS = [
+  ['musicOn',          'Musique', true],
   ['showPlayerNames',  'Noms des autres joueurs', true],
   ['showPlayerLevels', 'Niveaux des autres joueurs', true],
   ['showSelfName',     'Votre propre nom', true],

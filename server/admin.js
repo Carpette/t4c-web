@@ -89,6 +89,33 @@ export async function handleAdmin(req, res, url, game) {
       }
     }
 
+    // ---- musiques : liste des fichiers + correspondance zone -> musique ----
+    if (url === '/api/admin/music') {
+      const musicDir = path.join(CONTENT_DIR, '..', 'client', 'assets', 'music');
+      if (req.method === 'GET') {
+        let files = [];
+        try {
+          files = fs.readdirSync(musicDir).filter(f => /\.(mp3|ogg)$/i.test(f)).sort();
+        } catch { /* pas de dossier musique */ }
+        return json(200, { files, map: content.music });
+      }
+      if (req.method === 'PUT') {
+        const map = JSON.parse(await readBody(req));
+        // ne garde que la structure attendue
+        const clean = {
+          login: typeof map.login === 'string' ? map.login : null,
+          trial: typeof map.trial === 'string' ? map.trial : null,
+          zones: {},
+        };
+        for (const [k, v] of Object.entries(map.zones || {})) {
+          if (typeof v === 'string' && v) clean.zones[k] = v;
+        }
+        saveContentFile('music', clean);
+        game.refreshMusic(); // appliqué à chaud aux joueurs connectés
+        return json(200, { ok: true });
+      }
+    }
+
     // ---- personnages ----
     if (url === '/api/admin/characters' && req.method === 'GET') {
       const rows = db.listCharacters().map(r => {
