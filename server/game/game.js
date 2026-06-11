@@ -1,6 +1,6 @@
 // Boucle de jeu autoritative multi-zones : îles, Épreuves solo, PNJ, sorts, permadeath.
 import * as C from '../../shared/constants.js';
-import { ITEMS, MOBS, SLOTS, CHESTS, chestPool } from '../../shared/defs.js';
+import { ITEMS, MOBS, SLOTS, CHESTS, BANK_SIZE, chestPool } from '../../shared/defs.js';
 import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
@@ -145,6 +145,7 @@ export class Game {
       level: data.level, xp: data.xp, statPoints: data.statPoints,
       stats: data.stats, gold: data.gold,
       inventory: data.inventory || [], equip: data.equip || {},
+      bank: data.bank ?? [], // coffre personnel (migration : anciens personnages sans banque)
       spells: data.spells || [],
       // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
       skills: (data.skills && !Array.isArray(data.skills)) ? data.skills : {},
@@ -158,6 +159,7 @@ export class Game {
       pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
     };
     for (const it of p.inventory) setNextIid(it.iid + 1);
+    for (const it of p.bank) setNextIid(it.iid + 1);
     // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
     p.hpAcc = data.hpAcc ?? C.maxHp(p.stats, p.level);
     p.manaAcc = data.manaAcc ?? C.maxMana(p.stats, p.level);
@@ -205,6 +207,7 @@ export class Game {
       name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
       stats: p.stats, hp: p.hp, mana: p.mana, x: p.x, z: p.z,
       gold: p.gold, inventory: p.inventory, equip: p.equip,
+      bank: p.bank,
       hpAcc: p.hpAcc, manaAcc: p.manaAcc,
       spells: p.spells, skills: p.skills, unlocked: p.unlocked,
       sex: p.sex,
@@ -500,6 +503,16 @@ export class Game {
         this.sell(p, msg);
         break;
       }
+      case 'bank_deposit': {
+        if (p.dead) return;
+        this.bankDeposit(p, msg);
+        break;
+      }
+      case 'bank_withdraw': {
+        if (p.dead) return;
+        this.bankWithdraw(p, msg);
+        break;
+      }
       case 'teleport': {
         if (p.dead || p.zi.isTrial) return;
         const zid = msg.zoneId | 0;
@@ -708,7 +721,64 @@ export class Game {
       this.finishTrial(p);
     } else if (prop.type === 'chest') {
       this.openChest(p, prop);
+    } else if (prop.type === 'bank') {
+      this.openBank(p);
     }
+  }
+
+  // ---------- Banque personnelle ----------
+  // Coffre instancié par personnage (p.bank, stocké dans data) : inviolable par
+  // construction — aucun message ne permet de viser la banque d'un autre joueur.
+  // Les objets déposés ne comptent PAS dans l'encombrement (tout l'intérêt).
+  // À la mort définitive, la banque est perdue avec le personnage (roguelike).
+  nearBankProp(p) {
+    return (p.zi.world.props || []).find(pr =>
+      pr.type === 'bank' && Math.hypot(pr.x - p.x, pr.z - p.z) <= C.INTERACT_RANGE);
+  }
+
+  openBank(p) {
+    this.send(p, {
+      t: 'bank_open',
+      max: BANK_SIZE,
+      items: p.bank.map(it => ({
+        ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot, weight: itemWeight(it),
+      })),
+    });
+  }
+
+  bankDeposit(p, msg) {
+    if (!this.nearBankProp(p)) { this.send(p, { t: 'info', text: 'Approchez-vous de votre coffre.' }); return; }
+    const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
+    if (i < 0) return;
+    if (p.bank.length >= BANK_SIZE) { this.send(p, { t: 'info', text: 'Votre coffre est plein.' }); return; }
+    const item = p.inventory[i];
+    // déséquipe si nécessaire (comme la vente)
+    for (const [slot, iid] of Object.entries(p.equip)) {
+      if (iid === item.iid) delete p.equip[slot];
+    }
+    p.inventory.splice(i, 1);
+    p.bank.push(item);
+    this.recompute(p);
+    this.openBank(p);
+    this.sendSelf(p);
+  }
+
+  bankWithdraw(p, msg) {
+    if (!this.nearBankProp(p)) { this.send(p, { t: 'info', text: 'Approchez-vous de votre coffre.' }); return; }
+    const i = p.bank.findIndex(it => it.iid === (msg.iid | 0));
+    if (i < 0) return;
+    if (p.inventory.length >= 24) { this.send(p, { t: 'info', text: 'Inventaire plein.' }); return; }
+    const item = p.bank[i];
+    // encombrement T4C : mêmes règles qu'au ramassage
+    const w = inventoryWeight(p.inventory) + itemWeight(item);
+    if (w > p.eff.capacity) {
+      this.send(p, { t: 'info', text: `Trop lourd ! (${w.toFixed(1)} / ${p.eff.capacity} — montez la Force ou délestez-vous)` });
+      return;
+    }
+    p.bank.splice(i, 1);
+    p.inventory.push(item);
+    this.openBank(p);
+    this.sendSelf(p);
   }
 
   // Coffre au trésor : or généreux ou objet rare du palier, puis se referme un moment
@@ -1119,6 +1189,7 @@ export class Game {
     p.manaAcc = C.maxMana(p.stats, 1);
     p.gold = data.gold;
     p.inventory = data.inventory; p.equip = data.equip;
+    p.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     p.spells = []; p.skills = {}; p.unlocked = [0];
     p.buffs = []; p.spellCds = {};
     this.recompute(p);

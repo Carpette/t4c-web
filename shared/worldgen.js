@@ -158,6 +158,14 @@ export function generateWorld(seed = WORLD_SEED) {
     block(ox, oz);
   }
 
+  // Coffre personnel (banque) à l'entrée ouest du village, symétrique de l'obélisque
+  {
+    let bx = cx - 12, bz = cz - 2;
+    while (!walk[idx(bx, bz)] && bx > 1) bx--;
+    props.push({ type: 'bank', x: bx + 0.5, z: bz + 0.5, rot: 0, s: 1 });
+    block(bx, bz);
+  }
+
   // Portail de l'Épreuve (accès à la zone suivante), au bout du chemin nord
   {
     let px = 60, pz = 28;

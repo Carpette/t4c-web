@@ -119,6 +119,7 @@ export function newCharacterData(name, spawn, stats = null, sex = 'male') {
     x: spawn.x, z: spawn.z,
     gold: parseInt(process.env.T4C_START_GOLD || '25', 10),
     inventory,
+    bank: [], // coffre personnel : perdu avec le personnage à la mort définitive
     equip: { weapon: 1, armor: 2 },
     zoneId: 0,
     unlocked: [0],

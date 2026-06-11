@@ -83,6 +83,7 @@ net.on('loot', (m) => {
 net.on('died', (m) => { cancelAim(); cancelAuto(); ui.showDeath(m); });
 net.on('shop', (m) => ui.showShop(m));
 net.on('obelisk', (m) => ui.showObelisk(m));
+net.on('bank_open', (m) => ui.showBank(m));
 net.on('confirm_trial', (m) => ui.showTrialConfirm(m));
 net.on('cast_ok', (m) => {
   ui.startCooldown(m.spellId, m.cd);
@@ -393,7 +394,7 @@ function processHover() {
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
       canvas.style.cursor = 'pointer';
-      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor' };
+      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)' };
       ui.showTooltip(labels[prop.interact] || '');
       ui.moveTooltip(ev.clientX, ev.clientY);
     } else {
