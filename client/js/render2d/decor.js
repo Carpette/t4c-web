@@ -160,14 +160,20 @@ export function buildDecor(world) {
         // pan de mur effondré (Cité naine, Ruines Émergées...)
         props.push({ tileId: pick([217, 219, 224, 225, 227, 228, 230, 231], r), x: p.x, z: p.z });
         break;
-      case 'bridge':
-        // pont de bois : platelage + rambardes le long des bords donnant sur l'eau
-        props.push({ tileId: 232, x: p.x, z: p.z });
-        if (p.rails?.n) props.push({ tileId: 104, x: p.x, z: p.z - 0.42 });
-        if (p.rails?.s) props.push({ tileId: 104, x: p.x, z: p.z + 0.42 });
-        if (p.rails?.w) props.push({ tileId: 107, x: p.x - 0.42, z: p.z });
-        if (p.rails?.e) props.push({ tileId: 107, x: p.x + 0.42, z: p.z });
+      case 'bridge': {
+        // pont de bois : tuile de planches pleine (312 : pont le long de x,
+        // 313 : le long de z) + poteaux espacés côté eau
+        const alongX = (p.rails?.n || p.rails?.s) && !(p.rails?.w || p.rails?.e) ? true
+          : (p.rails?.w || p.rails?.e) && !(p.rails?.n || p.rails?.s) ? false : true;
+        props.push({ tileId: alongX ? 312 : 313, x: p.x, z: p.z });
+        if ((Math.floor(p.x) + Math.floor(p.z)) % 2 === 0) {
+          if (p.rails?.n) props.push({ tileId: 106, x: p.x + 0.3, z: p.z - 0.38 });
+          if (p.rails?.s) props.push({ tileId: 106, x: p.x - 0.3, z: p.z + 0.38 });
+          if (p.rails?.w) props.push({ tileId: 106, x: p.x - 0.38, z: p.z + 0.3 });
+          if (p.rails?.e) props.push({ tileId: 106, x: p.x + 0.38, z: p.z - 0.3 });
+        }
         break;
+      }
     }
   }
 

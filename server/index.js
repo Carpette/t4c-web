@@ -41,7 +41,16 @@ const server = http.createServer((req, res) => {
 
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('404'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    const ext = path.extname(file);
+    // code et contenu : jamais de cache (sinon un client périmé après une mise à
+    // jour serveur génère la mauvaise carte -> écran vide au spawn) ;
+    // assets lourds (sprites, musiques) : cache court.
+    const cache = ['.js', '.html', '.css', '.json'].includes(ext)
+      ? 'no-cache' : 'max-age=3600';
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': cache,
+    });
     res.end(data);
   });
 });
