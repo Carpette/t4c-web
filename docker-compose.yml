@@ -14,6 +14,10 @@ services:
     volumes:
       - t4c-data:/data
     restart: unless-stopped
+    # l'arrêt gracieux diffuse un décompte de 45 s aux joueurs avant de
+    # sauvegarder : sans ceci, Docker enverrait SIGKILL après 10 s
+    stop_grace_period: 60s
+    init: true
 
 volumes:
   t4c-data:
