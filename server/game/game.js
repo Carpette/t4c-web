@@ -298,7 +298,7 @@ export class Game {
   recompute(p) {
     const stats = { ...p.stats };
     let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0, dodgeMalus = 0;
-    let wRanged = false, wRange = 0;
+    let wRanged = false, wRange = 0, attBonus = 0;
     for (const slot of SLOTS) {
       const iid = p.equip[slot];
       if (!iid) continue;
@@ -312,7 +312,8 @@ export class Game {
         wRanged = !!wDef.ranged; wRange = wDef.range || 0;
       }
       defense += s.def;
-      dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C)
+      dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C) — négatif = bonus
+      attBonus += ITEMS[item.defId].att || 0; // points d'Attaque offerts (Écu de Drachen : +50 Att)
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
     // compétences T4C : points entraînés x effet par point
@@ -324,6 +325,8 @@ export class Game {
     }
     // un bouclier équipé améliore la parade de moitié (T4C)
     if (p.equip.shield) fx.parry *= 1.5;
+    // bonus d'Attaque d'objets (+50 Att = +5 % de toucher en mêlée, comme la compétence)
+    fx.hit += attBonus * 0.001;
     // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
     fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
     // buffs temporaires (valeurs calculées au lancement, façon T4C)
