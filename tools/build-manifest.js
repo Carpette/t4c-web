@@ -68,6 +68,8 @@ const AVATAR_LAYERS = [
   'mage_vest', 'mage_hood', 'staff', 'greatstaff',
   'leather_boots', 'plate_boots', 'mage_boots', 'chain_boots',
   'club', 'reinforced_club', 'war_hammer', 'maul', 'battle_axe',
+  'cloth_gloves', 'cloth_sandals', 'leather_pants', 'leather_gloves',
+  'chain_greaves', 'chain_gloves', 'chain_coif', 'plate_greaves', 'plate_gauntlets',
 ];
 const SEXES = ['male', 'female'];
 const LOOT = ['coins5', 'coins25', 'coins100', 'hp_potion', 'mp_potion', 'dagger', 'shortsword',

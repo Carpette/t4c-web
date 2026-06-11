@@ -61,11 +61,13 @@ export function itemStats(item) {
   return {
     dmgMin, dmgMax,
     dmg: Math.round((dmgMin + dmgMax) / 2),
-    def: def.def ? Math.round(def.def * mult) : 0,
+    // CA T4C décimale (1.45, 0.405...) : on garde 2 décimales
+    def: def.def ? Math.round(def.def * mult * 100) / 100 : 0,
     speed: def.speed || null,
     heal: def.heal ? Math.round(def.heal * (def.fixed ? 1 : zoneMult(item.z))) : 0,
     mana: def.mana ? Math.round(def.mana * (def.fixed ? 1 : zoneMult(item.z))) : 0,
     weight: def.weight || 0,
+    malus: def.malus || 0,
     req: def.req || null,
     bonus,
   };
