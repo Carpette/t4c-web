@@ -167,6 +167,20 @@ export function generateWorld(seed = WORLD_SEED) {
     block(px, pz);
   }
 
+  // Coffres au trésor : dispersés loin du village (le déplacement se mérite)
+  {
+    let placed = 0, tries = 0;
+    while (placed < 7 && tries++ < 4000) {
+      const x = 4 + Math.floor(rng() * (N - 8));
+      const z = 4 + Math.floor(rng() * (N - 8));
+      if (!walk[idx(x, z)]) continue;
+      if (Math.hypot(x - cx, z - cz) < 28) continue; // pas près du village
+      if (props.some(p => p.type === 'chest' && Math.hypot(p.x - x, p.z - z) < 18)) continue;
+      props.push({ type: 'chest', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 });
+      placed++;
+    }
+  }
+
   // --- Torches : place + entrées de chemins ---
   const torches = [
     [cx - 6, cz - 6], [cx + 6, cz - 6], [cx - 6, cz + 6], [cx + 6, cz + 6],

@@ -149,8 +149,8 @@ export class Renderer {
       const sy = (v.x + v.z) * HH;
       const sx = (v.x - v.z) * HW;
       if (sx < viewL || sx > viewR || sy < viewT || sy > viewB) continue;
-      // les morts au sol passent sous les vivants
-      drawables.push({ sy: sy + (v.isDead?.() ? -0.1 : 0), view: v });
+      // les cadavres passent nettement sous tout (drops et vivants visibles par-dessus)
+      drawables.push({ sy: sy + (v.isDead?.() ? -96 : 0), view: v });
     }
     drawables.sort((a, b) => a.sy - b.sy);
     for (const d of drawables) {
@@ -264,16 +264,34 @@ export class Renderer {
     return daylight;
   }
 
-  // sélection d'entité au clic (le plus proche du premier plan d'abord)
-  pickEntity(em, px, py) {
+  // sélection d'entité au clic : hitbox élargie (taille minimale garantie
+  // pour les petits monstres) + clic magnétique (un clic raté à moins de
+  // `magnet` px du centre d'un monstre vivant le cible quand même)
+  pickEntity(em, px, py, magnet = 40) {
+    const s = this.scale;
+    const MIN_W = 56 * s, MIN_H = 64 * s, PAD = 6 * s;
     let best = null;
     for (const v of em.views.values()) {
       const b = v.bbox;
       if (!b) continue;
-      const shrinkX = b.w * 0.18;
-      if (px >= b.x + shrinkX && px <= b.x + b.w - shrinkX && py >= b.y && py <= b.y + b.h) {
+      if (v.isDead?.()) continue; // les cadavres sont transparents au clic
+      // boîte élargie et garantie à une taille minimale, centrée sur le sprite
+      const cx = b.x + b.w / 2;
+      const w = Math.max(b.w + PAD * 2, MIN_W);
+      const h = Math.max(b.h + PAD * 2, MIN_H);
+      const x0 = cx - w / 2, y0 = b.y + b.h - h;
+      if (px >= x0 && px <= x0 + w && py >= y0 && py <= y0 + h + PAD) {
         if (!best || b.sy > best.bbox.sy) best = v;
       }
+    }
+    if (best || !magnet) return best;
+    // magnétisme : monstre vivant le plus proche du clic
+    let bestD = magnet;
+    for (const v of em.views.values()) {
+      if (v.kind !== 1 /* MOB */ || v.isDead?.() || !v.bbox) continue;
+      const b = v.bbox;
+      const d = Math.hypot(b.x + b.w / 2 - px, b.y + b.h * 0.6 - py);
+      if (d < bestD) { bestD = d; best = v; }
     }
     return best;
   }

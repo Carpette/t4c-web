@@ -130,6 +130,9 @@ export function buildDecor(world) {
         props.push({ tileId: 265, x: p.x, z: p.z + 1, interact: 'exitgate' });
         lights.push({ x: p.x, z: p.z, r: 320, flicker: true, color: 'rgba(120, 200, 255, 0.18)' });
         break;
+      case 'chest':
+        props.push({ tileId: 298, x: p.x, z: p.z, interact: 'chest' });
+        break;
     }
   }
 

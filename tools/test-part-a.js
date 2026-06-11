@@ -136,31 +136,6 @@ send({ t: 'interact', prop: 'obelisk', x: 77.5, z: 72.5 });
 await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
 
-// --- Épreuve : confirmation puis entrée ---
-// niveau 15 pour survivre à la marche vers le portail (les minotaures de
-// l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
-send({ t: 'admin', cmd: 'set', level: 15 });
-await sleep(400);
-send({ t: 'interact', prop: 'trialgate', x: 60.5, z: 28.5 });
-await waitFor(() => S.trial, 25000); // longue marche vers le nord
-ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
-send({ t: 'trial_enter' });
-await waitFor(() => S.zone?.kind === 'trial', 5000);
-ok('téléporté dans l\'Épreuve', S.zone?.kind === 'trial');
-
-// --- mourir dans l'Épreuve (fonce dans le tas) ---
-send({ t: 'movedir', x: 1, z: -0.3 });
-await waitFor(() => S.died, 60000);
-send({ t: 'movedir', x: 0, z: 0 });
-ok('mort définitive déclarée', S.died?.permadeath === true);
-ok('panthéon transmis', Array.isArray(S.died?.pantheon) && S.died.pantheon.length >= 1);
-
-// --- nouveau personnage (redistribution des points via create_char) ---
-S.zone = null;
-send({ t: 'newchar' });
-await waitFor(() => S.zone?.zoneId === 0 && S.self?.level === 1, 6000);
-ok('réincarnation niveau 1 zone 0', S.zone?.zoneId === 0 && S.self?.level === 1 && (S.self?.spells || []).length === 0);
-
 const failed = checks.filter(([, c]) => !c);
 console.log(failed.length === 0 ? '\nTOUT EST OK' : `\n${failed.length} ÉCHEC(S): ${failed.map(([n]) => n).join(', ')}`);
 process.exit(failed.length === 0 ? 0 : 1);

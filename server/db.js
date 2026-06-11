@@ -102,16 +102,17 @@ export function saveCharacter(accountId, data) {
     .run(accountId, JSON.stringify(data));
 }
 
-export function newCharacterData(name, spawn, stats = null) {
-  // équipement de départ : dague, tunique, deux potions de vie
+export function newCharacterData(name, spawn, stats = null, sex = 'male') {
+  // équipement de départ : poignard rouillé (T4C), tunique, deux potions de vie
   const inventory = [
-    { iid: 1, defId: 'dague', q: 0, z: 0, bonus: {} },
+    { iid: 1, defId: 'poignard_rouille', q: 0, z: 0, bonus: {} },
     { iid: 2, defId: 'tunique', q: 0, z: 0, bonus: {} },
     { iid: 3, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
     { iid: 4, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
   ];
   return {
     name,
+    sex: sex === 'female' ? 'female' : 'male',
     level: 1, xp: 0, statPoints: 0,
     stats: stats ? { ...stats } : { ...BASE_STATS },
     hp: null, mana: null, // null => max au premier chargement

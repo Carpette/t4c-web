@@ -74,7 +74,7 @@ wss.on('connection', (ws) => {
         }
         join(res);
       } else if (msg.t === 'create' && pendingAuth) {
-        const data = game.buildCharacter(pendingAuth.name, msg.stats);
+        const data = game.buildCharacter(pendingAuth.name, msg.stats, msg.sex === 'female' ? 'female' : 'male');
         if (!data) { ws.send(JSON.stringify({ t: 'auth_error', error: 'Répartition de points invalide' })); return; }
         db.saveCharacter(pendingAuth.accountId, data);
         join(pendingAuth);
@@ -93,4 +93,14 @@ server.listen(PORT, () => {
   console.log(`T4C-Web : http://localhost:${PORT}  (max ${256} joueurs)`);
 });
 
-process.on('SIGINT', () => { game.saveAll(); process.exit(0); });
+// Ctrl-C : arrêt gracieux avec décompte pour les joueurs (45 s par défaut).
+// Un second Ctrl-C force l'arrêt immédiat (avec sauvegarde).
+process.on('SIGINT', () => {
+  if (game.shuttingDown) {
+    console.log('Arrêt forcé.');
+    game.saveAll();
+    process.exit(0);
+  }
+  game.beginShutdown(parseInt(process.env.T4C_SHUTDOWN_SECS || '45', 10));
+});
+process.on('SIGTERM', () => { game.saveAll(); process.exit(0); });

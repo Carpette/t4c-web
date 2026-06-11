@@ -50,12 +50,25 @@
     <div id="spellbar"></div>
     <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
 
-    <!-- Inventaire -->
+    <!-- Inventaire T4C : poupée d'équipement + grille -->
     <div id="inventory" class="panel hidden">
       <h2>Inventaire</h2>
-      <div id="equip-slots"></div>
+      <div id="paperdoll">
+        <canvas id="doll-canvas" width="170" height="190"></canvas>
+        <div class="doll-slot" data-slot="helmet"  style="top: 4px;   left: 4px;"   title="Casque"></div>
+        <div class="doll-slot" data-slot="amulet"  style="top: 4px;   right: 4px;"  title="Amulette"></div>
+        <div class="doll-slot" data-slot="weapon"  style="top: 64px;  left: 4px;"   title="Arme"></div>
+        <div class="doll-slot" data-slot="shield"  style="top: 64px;  right: 4px;"  title="Bouclier"></div>
+        <div class="doll-slot" data-slot="armor"   style="bottom: 4px; left: 4px;"  title="Armure"></div>
+        <div class="doll-slot" data-slot="ring"    style="bottom: 4px; right: 4px;" title="Anneau"></div>
+        <div class="doll-slot" data-slot="boots"   style="bottom: 4px; left: 50%; transform: translateX(-50%);" title="Bottes"></div>
+      </div>
+      <div id="weight-row">
+        <div id="weight-bar"><div id="weight-fill"></div></div>
+        <span id="weight-text"></span>
+      </div>
       <div id="inv-grid"></div>
-      <p class="hint">Clic : équiper / utiliser — Clic droit sur un slot équipé : retirer</p>
+      <p class="hint">Clic : équiper / utiliser — Clic droit sur un emplacement : retirer</p>
     </div>
 
     <!-- Fiche personnage -->
