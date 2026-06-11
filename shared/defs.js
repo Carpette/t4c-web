@@ -47,7 +47,7 @@ export const ITEMS = {
   amulette_sage:{ name: 'Amulette du sage',     slot: 'amulet', zone: 3, int: 5, wis: 5, loot: 'ring', price: 400 },
 
   // ---- Consommables ----
-  potion_vie:   { name: 'Potion de vie',        slot: 'use', zone: 0, heal: 20,  loot: 'hp_potion', price: 15 },
+  potion_vie:   { name: 'Potion de vie',        slot: 'use', zone: 0, heal: 20,  loot: 'hp_potion', price: 10 },
   potion_mana:  { name: 'Potion de mana',       slot: 'use', zone: 0, mana: 50,  loot: 'mp_potion', price: 15 },
 
   // ---- Divers ----
@@ -60,43 +60,43 @@ export const MOBS = {
     name: 'Fourmilion', level: 1, hp: 12, dmg: 2, def: 0, speed: 3.4,
     aggro: 6, leash: 16, atkRange: 1.3, atkSpeed: 1.4,
     sprite: 'antlion_small', respawn: 12,
-    drops: [['or', 0.8, 1, 4], ['potion_vie', 0.10, 1, 1], ['dague', 0.06, 1, 1]],
+    drops: [['or', 0.9, 2, 5], ['potion_vie', 0.10, 1, 1], ['dague', 0.06, 1, 1]],
   },
   serpent: {
     name: 'Fourmi de feu', level: 3, hp: 22, dmg: 3, def: 2, speed: 3.8,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.2,
     sprite: 'fire_ant', respawn: 16,
-    drops: [['or', 0.85, 2, 8], ['potion_vie', 0.12, 1, 1], ['tunique', 0.08, 1, 1], ['epee_courte', 0.05, 1, 1]],
+    drops: [['or', 0.9, 3, 9], ['potion_vie', 0.12, 1, 1], ['tunique', 0.08, 1, 1], ['epee_courte', 0.05, 1, 1]],
   },
   gobelin: {
     name: 'Gobelin', level: 5, hp: 40, dmg: 5, def: 4, speed: 4.2,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.5,
     sprite: 'goblin', respawn: 20,
-    drops: [['or', 0.9, 4, 14], ['potion_vie', 0.15, 1, 2], ['cuir', 0.08, 1, 1], ['hache', 0.06, 1, 1], ['capuche', 0.06, 1, 1], ['bouclier_bois', 0.07, 1, 1]],
+    drops: [['or', 0.95, 5, 16], ['potion_vie', 0.15, 1, 2], ['cuir', 0.08, 1, 1], ['hache', 0.06, 1, 1], ['capuche', 0.06, 1, 1], ['bouclier_bois', 0.07, 1, 1]],
   },
   squelette: {
     name: 'Squelette', level: 8, hp: 70, dmg: 8, def: 7, speed: 3.6,
     aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.7,
     sprite: 'skeleton', respawn: 26,
-    drops: [['or', 0.9, 8, 22], ['potion_vie', 0.15, 1, 2], ['mailles', 0.06, 1, 1], ['epee_large', 0.05, 1, 1], ['anneau_os', 0.07, 1, 1], ['casque_fer', 0.05, 1, 1]],
+    drops: [['or', 0.95, 10, 25], ['potion_vie', 0.15, 1, 2], ['mailles', 0.06, 1, 1], ['epee_large', 0.05, 1, 1], ['anneau_os', 0.07, 1, 1], ['casque_fer', 0.05, 1, 1]],
   },
   zombie: {
     name: 'Zombie', level: 10, hp: 95, dmg: 10, def: 8, speed: 2.8,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 2.0,
     sprite: 'zombie', respawn: 30,
-    drops: [['or', 0.9, 10, 28], ['potion_vie', 0.18, 1, 2], ['mailles', 0.07, 1, 1], ['casque_fer', 0.06, 1, 1], ['anneau_os', 0.08, 1, 1]],
+    drops: [['or', 0.95, 12, 32], ['potion_vie', 0.18, 1, 2], ['mailles', 0.07, 1, 1], ['casque_fer', 0.06, 1, 1], ['anneau_os', 0.08, 1, 1]],
   },
   orc: {
     name: 'Hobgobelin', level: 12, hp: 130, dmg: 12, def: 11, speed: 4.0,
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.8,
     sprite: 'hobgoblin', respawn: 35,
-    drops: [['or', 0.95, 15, 40], ['potion_vie', 0.2, 1, 2], ['masse', 0.07, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['plates', 0.03, 1, 1]],
+    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['masse', 0.07, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['plates', 0.03, 1, 1]],
   },
   ogre: {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
     sprite: 'minotaur', respawn: 90,
-    drops: [['or', 1.0, 40, 110], ['potion_vie', 0.4, 2, 3], ['lame_runique', 0.10, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1]],
+    drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['lame_runique', 0.10, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1]],
   },
 };
 
