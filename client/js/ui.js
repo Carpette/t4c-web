@@ -219,9 +219,35 @@ export class UI {
         if (!sp.known && !sp.reqMet) row.style.opacity = 0.55;
       }
     } else if (this.shopTab === 'skills') {
+      // compétences T4C : apprentissage puis entraînement point par point
       for (const sk of this.shop.skills) {
-        mk(`🎖 ${sk.name}`, sk.desc, sk.price, false,
-          () => this.net.send({ t: 'buy', kind: 'skill', id: sk.id }), sk.known ? 'Apprise' : null);
+        const maxTxt = sk.max >= 9999 ? '∞' : sk.max;
+        const row = document.createElement('div');
+        row.className = 'shop-row';
+        row.innerHTML = `<span>🎖 ${sk.name} <b style="color:#ffd24a">${sk.pts}</b>/${maxTxt}<br>` +
+          `<span class="meta">${sk.desc}<br>Requis : ${sk.reqText}</span></span>`;
+        const btns = document.createElement('span');
+        if (!sk.known) {
+          const learn = document.createElement('button');
+          learn.textContent = `Apprendre ${sk.learnCost} 🟡`;
+          learn.disabled = !sk.reqMet || gold < sk.learnCost;
+          learn.onclick = () => this.net.send({ t: 'buy', kind: 'skill', id: sk.id });
+          btns.appendChild(learn);
+          if (!sk.reqMet) row.style.opacity = 0.55;
+        } else if (sk.pts < sk.max) {
+          const train = document.createElement('button');
+          train.textContent = `+1 pt (${sk.trainCost} 🟡)`;
+          train.disabled = !sk.reqMet || gold < sk.trainCost;
+          train.onclick = () => this.net.send({ t: 'buy', kind: 'train', id: sk.id });
+          btns.appendChild(train);
+        } else {
+          const max = document.createElement('button');
+          max.textContent = 'Maximum';
+          max.disabled = true;
+          btns.appendChild(max);
+        }
+        row.appendChild(btns);
+        div.appendChild(row);
       }
     } else {
       // vente : l'inventaire du joueur, au prix d'achat

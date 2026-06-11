@@ -145,7 +145,9 @@ export class Game {
       level: data.level, xp: data.xp, statPoints: data.statPoints,
       stats: data.stats, gold: data.gold,
       inventory: data.inventory || [], equip: data.equip || {},
-      spells: data.spells || [], skills: data.skills || [],
+      spells: data.spells || [],
+      // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
+      skills: (data.skills && !Array.isArray(data.skills)) ? data.skills : {},
       unlocked: data.unlocked || [0],
       x: data.x, z: data.z, dir: 0, state: C.ST.IDLE,
       path: null, moveDir: null, attackTarget: null, atkCd: 0, lastCombat: -99,
@@ -305,13 +307,15 @@ export class Game {
       defense += s.def;
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
-    // compétences passives
-    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, crit: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
-    for (const id of p.skills) {
+    // compétences T4C : points entraînés x effet par point
+    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
+    for (const [id, pts] of Object.entries(p.skills)) {
       const sk = content.skillById[id];
-      if (!sk) continue;
-      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v;
+      if (!sk || !pts) continue;
+      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v * pts;
     }
+    // un bouclier équipé améliore la parade de moitié (T4C)
+    if (p.equip.shield) fx.parry *= 1.5;
     // buffs temporaires (valeurs calculées au lancement, façon T4C)
     let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
     for (const b of p.buffs) {
@@ -705,7 +709,15 @@ export class Game {
         reqText: this.spellReqText(s),
       }));
     const skills = content.skills.filter(s => s.zone <= zid)
-      .map(s => ({ ...s, price: Math.round(s.price * disc), known: p.skills.includes(s.id) }));
+      .map(s => ({
+        ...s,
+        learnCost: Math.round(s.learnCost * disc),
+        trainCost: Math.round(s.trainCost * disc) || s.trainCost,
+        known: s.innate || p.skills[s.id] != null,
+        pts: p.skills[s.id] || 0,
+        reqMet: this.skillReqMet(p, s) === true,
+        reqText: this.skillReqText(s),
+      }));
     const line = content.npc.merchant.greetings[Math.floor(Math.random() * content.npc.merchant.greetings.length)];
     this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
     this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells, skills });
@@ -745,16 +757,50 @@ export class Game {
       p.spells.push(sp.id);
       this.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
     } else if (msg.kind === 'skill') {
+      // apprentissage d'une compétence (puis entraînement via 'train')
       const sk = content.skillById[msg.id];
-      if (!sk || sk.zone > zid || p.skills.includes(sk.id)) return;
-      const price = Math.round(sk.price * disc);
+      if (!sk || sk.zone > zid || sk.innate || p.skills[sk.id] != null) return;
+      const req = this.skillReqMet(p, sk);
+      if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
+      const price = Math.round(sk.learnCost * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
-      p.skills.push(sk.id);
+      p.skills[sk.id] = 1;
       this.recompute(p);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
+    } else if (msg.kind === 'train') {
+      // entraînement : +1 point, payé en or (système T4C)
+      const sk = content.skillById[msg.id];
+      if (!sk || sk.zone > zid) return;
+      const cur = p.skills[sk.id] ?? (sk.innate ? 0 : null);
+      if (cur == null) { this.send(p, { t: 'info', text: 'Apprenez d\'abord cette compétence.' }); return; }
+      if (cur >= sk.max) { this.send(p, { t: 'info', text: 'Compétence au maximum.' }); return; }
+      const req = this.skillReqMet(p, sk);
+      if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
+      const price = Math.max(1, Math.round(sk.trainCost * disc));
+      if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
+      p.gold -= price;
+      p.skills[sk.id] = cur + 1;
+      this.recompute(p);
     }
     this.sendSelf(p);
+  }
+
+  skillReqText(sk) {
+    const names = { str: 'For', end: 'End', agi: 'Agi', int: 'Int', wis: 'Sag' };
+    const parts = [];
+    if (sk.level > 1) parts.push(`niv. ${sk.level}`);
+    for (const [st, v] of Object.entries(sk.req || {})) parts.push(`${names[st] || st} ${v}`);
+    return parts.join(', ') || '—';
+  }
+
+  skillReqMet(p, sk) {
+    if (sk.level && p.level < sk.level) return `Niveau ${sk.level} requis.`;
+    const names = { str: 'Force', end: 'Endurance', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse' };
+    for (const [st, v] of Object.entries(sk.req || {})) {
+      if ((p.eff.stats[st] || 0) < v) return `${v} de ${names[st] || st} requis (vous : ${p.eff.stats[st] || 0}).`;
+    }
+    return true;
   }
 
   // Vente au marchand : même prix que l'achat (qualité et zone de l'objet comprises)
@@ -904,8 +950,14 @@ export class Game {
 
     let hitC = C.hitChance(aStats, dStats);
     if (attacker.kind === C.KIND.PLAYER) hitC = Math.min(0.98, hitC + (attacker.skillFx?.hit || 0));
+    if (defender.kind === C.KIND.PLAYER) hitC = Math.max(0.15, hitC - (defender.skillFx?.dodge || 0));
     if (Math.random() > hitC) {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
+      return;
+    }
+    // Parade T4C : annule totalement le coup (bouclier : +50 % d'efficacité)
+    if (defender.kind === C.KIND.PLAYER && Math.random() < (defender.skillFx?.parry || 0)) {
+      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, parry: true });
       return;
     }
     // joueur : tirage dans la fourchette de l'arme (T4C) ; monstre : variance
@@ -920,8 +972,16 @@ export class Game {
     if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (attacker.skillFx?.crit || 0)) {
       dmg = Math.round(dmg * 1.6); crit = true;
     }
-    const defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
+    let defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
+    // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
+    if (attacker.kind === C.KIND.PLAYER) defense *= 1 - (attacker.skillFx?.pierce || 0);
     dmg = C.mitigate(dmg, defense);
+    // Coup assommant : chance d'immobiliser brièvement le monstre
+    if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
+        && Math.random() < (attacker.skillFx?.stun || 0)) {
+      defender.stunnedUntil = this.now() + 0.8;
+      defender.path = null;
+    }
     this.applyDamage(attacker, defender, dmg, crit);
   }
 
@@ -978,7 +1038,7 @@ export class Game {
     p.manaAcc = C.maxMana(p.stats, 1);
     p.gold = data.gold;
     p.inventory = data.inventory; p.equip = data.equip;
-    p.spells = []; p.skills = []; p.unlocked = [0];
+    p.spells = []; p.skills = {}; p.unlocked = [0];
     p.buffs = []; p.spellCds = {};
     this.recompute(p);
     p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
@@ -1151,6 +1211,7 @@ export class Game {
       return;
     }
     m.atkCd = Math.max(0, m.atkCd - dt);
+    if (m.stunnedUntil && now < m.stunnedUntil) return; // assommé (Coup assommant)
 
     if (!m.target && (this.tickCount + m.id) % 5 === 0) {
       let best = null, bestD = m.def.aggro;
