@@ -240,6 +240,7 @@ export class Game {
     const old = p.zi;
     p.x = x; p.z = z;
     p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
+    this.interruptCast(p, true); // changement de zone : incantation annulée
     zi.add(p);
     zi.players++;
     this.maybeDestroyTrial(old);
@@ -341,6 +342,11 @@ export class Game {
       else if (b.stat === 'regen') buffRegen += b.power;
       else if (b.stat === 'maxhp') buffMaxHp += b.power;       // Bénédiction
       else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
+      else if (b.stat === 'int') stats.int += b.power;          // Pensée Claire
+      else if (b.stat === 'wis') stats.wis += b.power;          // Tranquillité
+      else if (b.stat === 'agi') stats.agi += b.power;          // Dextérité (Nimbleness)
+      // 'spellpow' (Poussée de Mana) est lu au lancer d'un sort,
+      // 'retort' (Boucliers de Feu/Glace/Électrique) à la riposte — rien ici.
     }
     p.skillFx = fx;
     const strBonus = Math.floor(stats.str / 3);
@@ -447,6 +453,7 @@ export class Game {
         if (p.dead) return;
         const x = +msg.x, z = +msg.z;
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+        this.interruptCast(p); // un déplacement volontaire interrompt l'incantation
         p.attackTarget = null; p.moveDir = null; p.pendingInteract = null; p.pendingCast = null;
         p.path = findPath(p.zi.world, p.x, p.z, x, z);
         break;
@@ -457,6 +464,7 @@ export class Game {
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
         const len = Math.hypot(x, z);
         if (len < 0.01) { p.moveDir = null; if (p.state === C.ST.WALK) p.state = C.ST.IDLE; return; }
+        this.interruptCast(p); // idem au clavier
         p.moveDir = { x: x / len, z: z / len };
         p.path = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
         break;
@@ -465,6 +473,7 @@ export class Game {
         if (p.dead) return;
         const target = p.zi.entities.get(msg.id | 0);
         if (target && target.kind === C.KIND.MOB && !target.dead) {
+          this.interruptCast(p); // passer à l'arme blanche interrompt le sort
           p.attackTarget = target.id;
           p.path = null; p.moveDir = null;
         }
@@ -828,7 +837,8 @@ export class Game {
           reqText: d.req ? Object.entries(d.req).map(([s, v]) => `${reqNames[s] || s} ${v}`).join(', ') : null,
         };
       });
-    const spells = content.spells.filter(s => s.zone <= zid)
+    // les sorts "todo" (mécanique non implémentée) ne sont pas proposés à la vente
+    const spells = content.spells.filter(s => !s.todo && s.zone <= zid)
       .map(s => ({
         ...s,
         price: Math.round(s.price * disc),
@@ -876,7 +886,7 @@ export class Game {
       this.send(p, { t: 'loot', text: `Acheté : ${itemLabel(item)}` });
     } else if (msg.kind === 'spell') {
       const sp = content.spellById[msg.id];
-      if (!sp || sp.zone > zid || p.spells.includes(sp.id)) return;
+      if (!sp || sp.todo || sp.zone > zid || p.spells.includes(sp.id)) return;
       const req = this.spellReqMet(p, sp);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const price = Math.round(sp.price * disc);
@@ -954,16 +964,19 @@ export class Game {
     this.sendSelf(p);
   }
 
-  // Prérequis T4C d'un sort : niveau, Sagesse, Intelligence, sort précédent.
+  // Prérequis T4C d'un sort : niveau, Sagesse, Intelligence, sort(s) précédent(s).
   // Retourne true, ou le message expliquant ce qui manque.
   spellReqMet(p, sp) {
     const wis = p.eff.stats.wis, intel = p.eff.stats.int;
     if (sp.level && p.level < sp.level) return `Niveau ${sp.level} requis.`;
     if (sp.wis && wis < sp.wis) return `${sp.wis} de Sagesse requis (vous : ${wis}).`;
     if (sp.int && intel < sp.int) return `${sp.int} d'Intelligence requis (vous : ${intel}).`;
-    if (sp.requires && !p.spells.includes(sp.requires)) {
-      const r = content.spellById[sp.requires];
-      return `Sort prérequis : ${r ? r.name : sp.requires}.`;
+    // la Bible admet plusieurs prérequis (ex : Météorite = Tempête de Feu ET Inferno)
+    for (const req of (Array.isArray(sp.requires) ? sp.requires : sp.requires ? [sp.requires] : [])) {
+      if (!p.spells.includes(req)) {
+        const r = content.spellById[req];
+        return `Sort prérequis : ${r ? r.name : req}.`;
+      }
     }
     return true;
   }
@@ -973,41 +986,66 @@ export class Game {
     if (sp.level) parts.push(`niv. ${sp.level}`);
     if (sp.wis) parts.push(`Sag ${sp.wis}`);
     if (sp.int) parts.push(`Int ${sp.int}`);
-    if (sp.requires) parts.push(content.spellById[sp.requires]?.name || sp.requires);
+    for (const req of (Array.isArray(sp.requires) ? sp.requires : sp.requires ? [sp.requires] : [])) {
+      parts.push(content.spellById[req]?.name || req);
+    }
     return parts.join(', ');
   }
 
   // ---------- Sorts ----------
+  // Vitesse d'incantation T4C (Bible, Spell Speed) : `cast` secondes au niveau
+  // du sort, qui diminue de `castStep` (20 ou 40 ms) par niveau au-delà,
+  // plancher `castMin`. Word of Recall/Gateway/Portal sont fixes (castStep 0).
+  castTimeMs(p, sp) {
+    const slow = (sp.cast ?? 1.5) * 1000;
+    const fast = (sp.castMin ?? 1) * 1000;
+    const step = (sp.castStep ?? 0.02) * 1000;
+    return Math.round(Math.max(fast, slow - Math.max(0, p.level - (sp.level || 1)) * step));
+  }
+
+  // Formule de la Bible : 1dN + base + Int/k + Sag/k (puissance élémentaire = 100)
+  rollSpellOutput(p, f) {
+    const s = p.eff.stats;
+    let v = f.base || 0;
+    if (f.dice) v += 1 + Math.floor(Math.random() * f.dice);
+    if (f.int) v += s.int / f.int;
+    if (f.wis) v += s.wis / f.wis;
+    return v;
+  }
+
+  // Multiplicateur de puissance : compétences + Poussée de Mana (Mana Surge)
+  spellPowerMul(p) {
+    let m = 1 + (p.skillFx?.spellMul || 0);
+    for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
+    return m;
+  }
+
+  // Interrompt l'incantation en cours (mouvement volontaire, attaque, mort)
+  interruptCast(p, silent = false) {
+    if (!p.casting) return;
+    p.casting = null;
+    if (!silent) this.send(p, { t: 'cast_break' });
+  }
+
+  // Validation + début d'incantation. L'effet part dans resolveCast() une fois
+  // le temps d'incantation écoulé (tick). L'approche automatique hors combat
+  // passe toujours par pendingCast : l'incantation démarre une fois à portée.
   castSpell(p, msg) {
     const sp = content.spellById[msg.spellId];
-    if (!sp || !p.spells.includes(sp.id)) return;
+    if (!sp || !p.spells.includes(sp.id) || sp.todo) return;
     const now = this.now();
+    if (p.casting) return; // déjà en train d'incanter
     if ((p.spellCds[sp.id] || 0) > now) return;
     if (p.mana < sp.mana) { this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
 
-    const spellMul = 1 + (p.skillFx?.spellMul || 0);
-    const intel = p.eff.stats.int, wis = p.eff.stats.wis;
-
-    if (sp.type === 'heal') {
-      const amount = Math.round(sp.power * (1 + wis * 0.05) * spellMul);
-      p.hp = Math.min(p.eff.maxHp, p.hp + amount);
-      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-      this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana - sp.mana) });
-    } else if (sp.type === 'buff') {
-      // puissance influencée par les stats, fidèle à T4C :
-      // Bénédiction ~ 1,2 x Sagesse ; Force de la Terre +25% de Force ;
-      // protections (CA) bonifiées par la Sagesse
-      let power = sp.power;
-      if (sp.stat === 'maxhp') power = Math.round(sp.power * wis);
-      else if (sp.stat === 'str') power = Math.max(1, Math.round(p.stats.str * sp.power));
-      else if (sp.stat === 'def') power = Math.round(sp.power * (1 + wis * 0.008));
-      p.buffs = p.buffs.filter(b => b.stat !== sp.stat);
-      p.buffs.push({ stat: sp.stat, power, until: now + sp.duration });
-      this.recompute(p);
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
-    } else if (sp.type === 'bolt') {
+    const cast = { spellId: sp.id };
+    if (sp.type === 'bolt') {
       const target = p.zi.entities.get(msg.target | 0);
       if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
+      if (sp.undeadOnly && !target.def.undead) {
+        this.send(p, { t: 'info', text: `${sp.name} n'affecte que les morts-vivants.` });
+        return;
+      }
       if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) {
         // hors mode combat : on s'approche puis on lance (à la T4C)
         if (msg.approach) { this.startApproachCast(p, msg, target.x, target.z); return; }
@@ -1015,19 +1053,9 @@ export class Game {
         return;
       }
       if (!lineOfSight(p.zi.world, p, target)) return;
-      // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
-      let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
-      const { dmg: final, mod } = this.applyResist(target, sp, dmg);
-      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
-      this.applyDamage(p, target, final, false, mod);
-      // drain de vie : inefficace sur les morts-vivants (T4C)
-      if (sp.leech && !target.def.undead) {
-        p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
-        this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-      }
+      cast.target = target.id;
       p.dir = Math.atan2(target.x - p.x, target.z - p.z);
-      p.lastCombat = now;
-    } else if (sp.type === 'aoe') {
+    } else if (sp.type === 'aoe' && !sp.centered) {
       const cx = +msg.x, cz = +msg.z;
       if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
       if (Math.hypot(cx - p.x, cz - p.z) > sp.range) {
@@ -1035,21 +1063,103 @@ export class Game {
         this.send(p, { t: 'info', text: 'Trop loin.' });
         return;
       }
+      cast.x = cx; cast.z = cz;
+      p.dir = Math.atan2(cx - p.x, cz - p.z);
+    }
+
+    const ms = this.castTimeMs(p, sp);
+    cast.until = now + ms / 1000;
+    p.casting = cast;
+    p.path = null; p.moveDir = null; p.attackTarget = null;
+    p.state = C.ST.ATTACK; // le personnage reste en posture de lancement
+    this.send(p, { t: 'cast_start', spellId: sp.id, name: sp.name, ms });
+  }
+
+  // L'incantation est terminée : applique l'effet du sort (formules de la Bible)
+  resolveCast(p) {
+    const c = p.casting;
+    p.casting = null;
+    const sp = content.spellById[c.spellId];
+    if (!sp || p.dead) return;
+    const now = this.now();
+    if (p.mana < sp.mana) { this.send(p, { t: 'cast_break' }); this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
+
+    const mul = this.spellPowerMul(p);
+    const wis = p.eff.stats.wis;
+
+    if (sp.type === 'heal') {
+      const amount = Math.max(1, Math.round(this.rollSpellOutput(p, sp.heal) * mul));
+      p.hp = Math.min(p.eff.maxHp, p.hp + amount);
+      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+    } else if (sp.type === 'buff') {
+      const b = sp.buff;
+      let power;
+      if (b.value != null) power = b.value;
+      else if (b.selfFrac) power = Math.max(1, Math.round((p.stats[b.stat] || 0) * b.selfFrac)); // % de la stat DE BASE (true_x de la Bible)
+      else if (b.stat === 'maxhp') power = Math.round(wis + Math.random() * (wis / 4)); // Bénédiction : Sag + 1d(Sag/4) PV
+      else if (b.stat === 'retort') power = Math.round((b.base || 0) + (b.dice || 0) / 2); // affichage : dégâts moyens de riposte
+      else power = Math.round(((b.base || 0) + (b.intDiv ? p.eff.stats.int / b.intDiv : 0) + (b.wisDiv ? wis / b.wisDiv : 0)) * 10) / 10;
+      p.buffs = p.buffs.filter(x => x.stat !== b.stat);
+      p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
+      this.recompute(p);
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
+    } else if (sp.type === 'bolt') {
+      const target = p.zi.entities.get(c.target | 0);
+      // la cible est morte ou s'est dérobée pendant l'incantation : le sort échoue sans coûter de mana
+      if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden
+          || Math.hypot(target.x - p.x, target.z - p.z) > sp.range + 2
+          || !lineOfSight(p.zi.world, p, target)) {
+        this.send(p, { t: 'cast_break' });
+        this.send(p, { t: 'info', text: 'La cible s\'est dérobée.' });
+        return;
+      }
+      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
+      if (sp.dmg) {
+        // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
+        let dmg = this.rollSpellOutput(p, sp.dmg) * mul;
+        // Renvoi des Morts-Vivants : multiplicateur Sag/(20+2×niveau) de la Bible
+        if (sp.turnUndead) dmg *= wis / (20 + 2 * p.level);
+        const { dmg: final, mod } = this.applyResist(target, sp, Math.max(1, Math.round(dmg)));
+        this.applyDamage(p, target, final, false, mod);
+        // drain de vie : rend au lanceur, inefficace sur les morts-vivants (T4C)
+        if (sp.leech && !target.def.undead) {
+          p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
+          this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+        }
+      }
+      // Enchevêtrement : immobilise la cible (5 s, version simplifiée de la Bible)
+      if (sp.stun && !target.dead) { target.stunnedUntil = now + sp.stun; target.path = null; }
+      // Poison / Flèche Empoisonnée : dégâts sur la durée
+      if (sp.dot && !target.dead) {
+        (target.dots = target.dots || []).push({
+          ...sp.dot, element: sp.element, from: p,
+          until: now + sp.dot.duration, nextAt: now + sp.dot.interval,
+        });
+      }
+      p.dir = Math.atan2(target.x - p.x, target.z - p.z);
+      p.lastCombat = now;
+    } else if (sp.type === 'aoe') {
+      // sorts centrés sur le lanceur (Vague de Flamme, Séisme) ou sur un point visé
+      const cx = sp.centered ? p.x : +c.x, cz = sp.centered ? p.z : +c.z;
       this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
-      for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
-        if (e.kind !== C.KIND.MOB || e.dead) continue;
-        let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
-        const { dmg: final, mod } = this.applyResist(e, sp, dmg);
+      const hits = [...p.zi.nearby(cx, cz, sp.radius)].filter(e => e.kind === C.KIND.MOB && !e.dead);
+      for (const e of hits) {
+        const dist = Math.hypot(e.x - cx, e.z - cz);
+        // dégâts pleins au centre, décroissants vers le bord ((20-r)/20 de la Bible)
+        let dmg = this.rollSpellOutput(p, sp.dmg) * mul * (1 - 0.5 * Math.min(1, dist / sp.radius));
+        if (hits.length === 1) dmg *= 2; // T4C : dégâts doublés sur cible unique
+        const { dmg: final, mod } = this.applyResist(e, sp, Math.max(1, Math.round(dmg)));
         this.applyDamage(p, e, final, false, mod);
       }
       p.lastCombat = now;
     }
 
     p.mana -= sp.mana;
-    p.spellCds[sp.id] = now + sp.cd;
+    p.spellCds[sp.id] = now + (sp.cd || 0);
     p.state = C.ST.ATTACK;
-    this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd, mana: Math.round(p.mana) });
+    this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd || 0, mana: Math.round(p.mana) });
     if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
+    else this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
   }
 
   // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
@@ -1134,6 +1244,17 @@ export class Game {
       defender.path = null;
     }
     this.applyDamage(attacker, defender, dmg, crit);
+    // Boucliers de Feu/Glace/Électrique (T4C) : riposte élémentaire à chaque
+    // coup physique encaissé — 1dN + base, modulé par la résistance du monstre
+    if (defender.kind === C.KIND.PLAYER && attacker.kind === C.KIND.MOB && !attacker.dead) {
+      for (const b of defender.buffs) {
+        if (b.stat !== 'retort') continue;
+        const raw = (b.base || 0) + 1 + Math.floor(Math.random() * (b.dice || 1));
+        const { dmg: rDmg, mod } = this.applyResist(attacker, { element: b.element }, raw);
+        this.applyDamage(defender, attacker, rDmg, false, mod);
+        if (attacker.dead) break;
+      }
+    }
   }
 
   killMob(m, killer) {
@@ -1156,6 +1277,7 @@ export class Game {
   killPlayer(p, killer) {
     p.dead = true; p.permadead = true; p.state = C.ST.DEAD; p.hp = 0;
     p.path = null; p.moveDir = null; p.attackTarget = null;
+    p.casting = null; p.pendingCast = null; // la mort interrompt l'incantation
     const who = killer.kind === C.KIND.MOB ? killer.def.name : killer.name;
     const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}` : this.zoneDef(p.zi.zoneId).name;
     db.recordDeath(p.name, p.level, zoneName, who);
@@ -1191,7 +1313,7 @@ export class Game {
     p.inventory = data.inventory; p.equip = data.equip;
     p.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     p.spells = []; p.skills = {}; p.unlocked = [0];
-    p.buffs = []; p.spellCds = {};
+    p.buffs = []; p.spellCds = {}; p.casting = null;
     this.recompute(p);
     p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
     this.movePlayerToZone(p, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
@@ -1319,6 +1441,8 @@ export class Game {
           p.pendingPickup = null;
         }
       }
+      // incantation en cours : l'effet part à la fin du temps d'incantation
+      if (p.casting && now >= p.casting.until) this.resolveCast(p);
       // sort en attente d'approche : lance dès qu'on est à portée
       if (p.pendingCast) {
         const pc = p.pendingCast;
@@ -1380,11 +1504,24 @@ export class Game {
       if (now >= m.respawnAt) {
         m.dead = false; m.hidden = false; m.hp = m.maxHp; m.state = C.ST.IDLE;
         m.x = m.home.x; m.z = m.home.z; m.target = null; m.path = null;
+        m.dots = null; // les poisons ne survivent pas à la réapparition
         zi.gridMove(m);
       }
       return;
     }
     m.atkCd = Math.max(0, m.atkCd - dt);
+    // poisons en cours (Poison, Flèche Empoisonnée) : dégâts sur la durée
+    if (m.dots && m.dots.length) {
+      for (const d of m.dots) {
+        if (now >= d.nextAt && now <= d.until) {
+          d.nextAt += d.interval;
+          const dmg = Math.max(1, Math.round(d.min + Math.random() * (d.max - d.min)));
+          this.applyDamage(d.from, m, dmg, false);
+          if (m.dead) return;
+        }
+      }
+      m.dots = m.dots.filter(d => now < d.until);
+    }
     if (m.stunnedUntil && now < m.stunnedUntil) return; // assommé (Coup assommant)
 
     if (!m.target && (this.tickCount + m.id) % 5 === 0) {
