@@ -2,6 +2,7 @@
 import { generateWorld, generateTrial } from '../../shared/worldgen.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { KIND, DAY_LENGTH } from '../../shared/constants.js';
+import { ITEMS } from '../../shared/defs.js';
 import { loadAssets } from './render2d/assets.js';
 import { buildDecor } from './render2d/decor.js';
 import { Renderer } from './render2d/renderer.js';
@@ -383,7 +384,7 @@ function processHover() {
         : v.kind === KIND.DROP ? '#d8d8d8' : '#8ac8ff',
     };
     const label = v.kind === KIND.DROP
-      ? (v.meta.gold ? `${v.meta.gold} pièces d'or` : 'Objet (clic pour ramasser)')
+      ? (v.meta.gold ? `${v.meta.gold} pièces d'or` : `${ITEMS[v.meta.defId]?.name || 'Objet'} (clic pour ramasser)`)
       : v.kind === KIND.NPC ? `${v.meta.name} (clic pour parler)`
       : `${v.meta.name} [niv. ${v.level || v.meta.level}]`;
     ui.showTooltip(label);
