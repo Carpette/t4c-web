@@ -569,12 +569,28 @@ export class UI {
     }
   }
 
-  addChat(from, text) {
+  addChat(from, text, channelOrKind) {
     const div = document.createElement('div');
     if (from === 'sys') {
       div.className = 'sys';
       div.textContent = `✦ ${text}`;
+    } else if (channelOrKind && channelOrKind !== 'local') {
+      // Message de canal public
+      div.className = `channel-${channelOrKind}`;
+      const prefixMap = {
+        general: '[Général]',
+        aide: '[Aide]',
+        ventes: '[Marché]',
+        roleplay: '[RP]',
+      };
+      const prefix = prefixMap[channelOrKind] || `[${channelOrKind.toUpperCase()}]`;
+      div.innerHTML = `<span class="prefix"></span> <span class="from"></span> : `;
+      div.querySelector('.prefix').textContent = prefix;
+      div.querySelector('.from').textContent = from;
+      div.appendChild(document.createTextNode(text));
     } else {
+      // Message local par défaut
+      div.className = 'local';
       div.innerHTML = `<span class="from"></span> : `;
       div.querySelector('.from').textContent = from;
       div.appendChild(document.createTextNode(text));

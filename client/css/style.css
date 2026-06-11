@@ -60,6 +60,11 @@ button.secondary { background: #2a2444; }
 }
 #chat-messages .sys { color: #c8b87a; font-style: italic; }
 #chat-messages .from { color: #8ac8ff; font-weight: bold; }
+#chat-messages .local { color: #e8e8e8; }
+#chat-messages .channel-general { color: #b8c8e8; }
+#chat-messages .channel-aide { color: #a8ffa8; }
+#chat-messages .channel-ventes { color: #ffccd8; }
+#chat-messages .channel-roleplay { color: #ffd8a8; }
 #chat-input {
   width: 100%; padding: 6px 10px; background: rgba(0,0,0,0.65); border: 1px solid #555;
   border-radius: 4px; color: #fff; font-size: 13px; opacity: 0.5;

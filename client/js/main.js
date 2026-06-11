@@ -73,7 +73,7 @@ net.on('self', (m) => {
 });
 net.on('vitals', (m) => ui.updateVitals(m.hp, m.mana));
 net.on('meta', (m) => { for (const meta of m.list) em.addMeta(meta); });
-net.on('chat', (m) => ui.addChat(m.from, m.text));
+net.on('chat', (m) => ui.addChat(m.from, m.text, m.channel || m.kind));
 net.on('info', (m) => ui.addChat('sys', m.text));
 net.on('loot', (m) => {
   ui.addChat('sys', m.text);
