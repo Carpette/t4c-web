@@ -168,6 +168,21 @@ button.secondary { background: #2a2444; }
   position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
   display: flex; gap: 6px; z-index: 11;
 }
+/* barre d'incantation, juste au-dessus de la barre de sorts */
+#castbar {
+  position: fixed; bottom: 66px; left: 50%; transform: translateX(-50%);
+  width: 220px; height: 14px; background: rgba(16, 12, 28, 0.9);
+  border: 1px solid #5a4a8a; border-radius: 4px; z-index: 11; overflow: hidden;
+}
+#castbar-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, #6a5acd, #b8a8ff);
+}
+#castbar span {
+  position: absolute; inset: 0; text-align: center; font-size: 10px;
+  color: #e8e2ff; line-height: 14px; text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
 .spell-slot {
   width: 46px; height: 46px; background: rgba(16, 12, 28, 0.9);
   border: 1px solid #5a4a8a; border-radius: 7px; position: relative;
