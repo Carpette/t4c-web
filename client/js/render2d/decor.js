@@ -93,7 +93,8 @@ export function buildDecor(world) {
   // --- décors (props worldgen -> tuiles Flare) + lumières ---
   const props = [];   // {tileId, x, z}
   const lights = [];  // {x, z, r, flicker}
-  const inCemetery = (x, z) => x > 84 && z < 48;
+  // arbres morts sur les tuiles de cimetière (quel que soit le tracé de la carte)
+  const inCemetery = (x, z) => world.tile[Math.floor(z) * N + Math.floor(x)] === TILE.GRAVE;
 
   for (const p of world.props) {
     const r = hash(Math.floor(p.x * 7), Math.floor(p.z * 7));
@@ -137,6 +138,10 @@ export function buildDecor(world) {
         // coffre clouté du tileset : la banque personnelle du village
         props.push({ tileId: 300, x: p.x, z: p.z, interact: 'bank' });
         lights.push({ x: p.x, z: p.z, r: 200, flicker: false, color: 'rgba(255, 200, 120, 0.10)' });
+        break;
+      case 'cave':
+        // entrée de grotte : pan de falaise sombre (intérieurs à venir)
+        props.push({ tileId: pick(CLIFF_IDS, r), x: p.x, z: p.z, interact: 'cave', name: p.name });
         break;
     }
   }

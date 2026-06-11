@@ -139,6 +139,7 @@ const TILE_NAMES = {
 const PROP_GLYPHS = {
   tree: ['🌲', '#7ac87a'], rock: ['●', '#aaa'], house: ['⌂', '#e8c890'], torch: ['✶', '#ffaa33'],
   grave: ['✝', '#ccc'], well: ['◎', '#9ad'], obelisk: ['▲', '#9af'], trialgate: ['◈', '#c9f'], exitgate: ['◈', '#9fd'],
+  bank: ['▣', '#fc6'], chest: ['▢', '#fa0'], cave: ['Ω', '#ff6'],
 };
 
 let zonesDef = [];
@@ -147,7 +148,7 @@ let baseWorld = null;   // monde regénéré sans overrides
 let world = null;       // monde avec overrides appliqués
 let ov = { tiles: [], props: { add: [], remove: [] } };
 let tool = { kind: 'tile', tile: TILE.GRASS };
-const SCALE = 6;
+let SCALE = 6; // recalculé par zone : 6 px/tuile en 128, 2 px/tuile en 384 (Arakas)
 const canvas = $('map-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -247,6 +248,7 @@ async function loadZone(id) {
   await new Promise(r => setTimeout(r, 20));
   const def = zonesDef.find(z => z.id === id);
   const w = generateWorld(def.seed, def.map);
+  SCALE = Math.max(1, Math.floor(768 / w.size));
   // structuredClone ne passe pas les fonctions : on garde un objet simple
   baseWorld = { size: w.size, tile: w.tile, walk: w.walk, props: w.props, height: w.height };
   try { ov = await api(`/api/admin/overrides/${id}`); } catch { ov = { tiles: [], props: { add: [], remove: [] } }; }

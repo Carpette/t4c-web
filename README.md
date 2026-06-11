@@ -32,10 +32,16 @@ Puis ouvrir **http://localhost:8080** — créez un compte et jouez. Pour jouer 
 ## Le jeu — roguelike T4C
 
 - **☠ Mort définitive.** Tout personnage qui meurt est effacé (Panthéon des morts). On renaît niveau 1.
-- **Arakas** (zone 0) : carte FIXE fidèle à la première île de T4C — Lighthaven au sud-est
-  (temple, fontaine, banque, cimetière et crypte), Windhowl à l'ouest et son marchand Ttayh Mark,
-  le pont gob et le camp gobelin entre les deux, les orcs solitaires au nord de WH, les monts
-  Righul et les grottes de Jarko au nord (portail de l'Épreuve), l'île de l'Ermite au large.
+- **Arakas** (zone 0) : carte FIXE de 384×384 tuiles, reconstituée d'après les vraies cartes
+  de T4C — monts Righul au nord-ouest (grottes A-E, caverne de Jarko et portail de l'Épreuve,
+  île d'Orkanis et son Troll), Asile et cryptes au nord, camp des Druides et Cité perdue des
+  nains au nord-est, camp Orc, île du Vieil Ermite au large, Cercle de transfert, Labyrinthe
+  et cratère de la Météorite au centre, lac des Kraanians à l'ouest, Ville des Voleurs et cave
+  des Brigands au sud, Ruines Émergées au sud-est. **Windhowl** fortifiée au sud-ouest (temple,
+  hôtel de ville, taverne, port, marchand Ttayh Mark) ; **Lighthaven** au sud-est (temple où
+  l'on apparaît, place de la fontaine, cimetière et crypte, village des métiers, quartier
+  résidentiel, tour des mages sur son îlot). Les entrées de grottes sont visibles (souterrains
+  à venir).
 - **8 zones** : niveaux 1-25, 25-50… jusqu'à 175-200. Monstres, butin et prix scalés.
 - **Échanges entre joueurs** : à la T4C — on pose un objet (ou de l'or) au sol, l'autre le ramasse.
 - **Musiques d'ambiance** : thème à l'écran de connexion, une musique en boucle par zone

@@ -46,9 +46,9 @@ await waitFor(() => S.self?.level === 120);
 ok('niveau 120 via admin', S.self?.level === 120);
 
 // téléport local près du portail de l'Épreuve (monts Righul, carte Arakas)
-send({ t: 'admin', cmd: 'goto', x: 52.5, z: 20.5 });
+send({ t: 'admin', cmd: 'goto', x: 114.5, z: 43.5 });
 await new Promise(r => setTimeout(r, 400));
-send({ t: 'interact', prop: 'trialgate', x: 52.5, z: 16.5 });
+send({ t: 'interact', prop: 'trialgate', x: 114.5, z: 45.5 });
 await waitFor(() => S.trial, 15000);
 ok('confirmation reçue', !!S.trial);
 send({ t: 'trial_enter' });

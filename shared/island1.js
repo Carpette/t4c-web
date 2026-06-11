@@ -1,320 +1,691 @@
-// Arakas — la première île de T4C, reconstituée d'après les cartes et
-// coordonnées du jeu original (t4cbible.com, wiki Fandom, winternun.blog) :
-//   - Lighthaven au sud-est : temple (apparition), fontaine, banque/HDV,
-//     village des métiers au sud, tour des mages au nord, cimetière et
-//     crypte au nord-est.
-//   - Windhowl à l'ouest : temple, maison de Lord Sunrock au nord, tour des
-//     mages, taverne (coffre personnel), maison du bourgmestre à l'ouest
-//     (et son fameux coffre au diamant).
-//   - Entre les deux : la rivière et le pont gob, le camp gobelin,
-//     la maison de Nilhem au nord du pont.
-//   - Au nord : les monts Righul, les grottes de Jarko (portail de
-//     l'Épreuve), la maison isolée de Lance Silversmith.
-//   - Au nord de Windhowl : le spot des orcs solitaires, près de la rivière.
-//   - Au sud-ouest de Lighthaven : les ogres ignobles.
-//   - Au nord-est : l'île de l'Ermite, reliée par un gué de sable
-//     (le passage des brigands).
-// Carte FIXE : aucune génération aléatoire de structure (seul l'habillage
-// — arbres, rochers — est tiré d'un seed constant, identique partout).
+// Arakas — la première île de T4C, reconstituée d'après les vraies cartes du
+// jeu (plans Vircom, cartes Yane / Neerya / prophetie.com / l'Héritage des
+// Dragons fournies en référence). Géographie encodée en coordonnées
+// normalisées (0..1) relevées sur les cartes, rastérisée en 384×384 tuiles :
+//   - Monts Righul au NORD-OUEST : grottes A-E, caverne de Jarko (portail de
+//     l'Épreuve), repaire du Troll sur l'île d'Orkanis au large.
+//   - Nord : Asile, crypte du Nomade, camp de la gitane.
+//   - Nord-est : camp des Druides, Cité perdue des nains, camp Orc et son lac,
+//     territoire Kobold, île du Vieil Ermite au large (gué de sable).
+//   - Centre : crypte d'Arakas, Cercle de transfert (obélisque), Labyrinthe,
+//     cratère de la Météorite, lac et cave des Kraaniens à l'ouest.
+//   - Sud : Ville des Voleurs, camps des brigands, forteresse souterraine,
+//     cave des Brigands sur la côte, Ruines Émergées au sud-est.
+//   - Sud-ouest : WINDHOWL, ville fortifiée en damier (temple, hôtel de ville
+//     de Lord Sunrock, tour des mages, échoppes, taverne, écuries, port).
+//   - Sud-est : LIGHTHAVEN (temple au nord où l'on apparaît, place de la
+//     fontaine, mairie, cimetière et crypte à l'ouest, champs au sud-est,
+//     village des métiers, quartier résidentiel, tour des mages sur son îlot
+//     au nord-est relié par un sentier sinueux).
+// Carte FIXE : seul l'habillage (arbres, rochers, touffes) est tiré d'un seed
+// constant, identique côté client et serveur.
 import { TILE, mulberry32 } from './worldgen.js';
 
-const N = 128;
+const N = 384;
 
-// Points d'intérêt (coordonnées tuiles, x vers l'est, z vers le sud)
-export const ARAKAS = {
-  LH: { x: 94, z: 84 },          // place de Lighthaven
-  WH: { x: 28, z: 78 },          // place de Windhowl
-  METIERS: { x: 94, z: 102 },    // village des métiers (sud de LH)
-  MAGE_LH: { x: 94, z: 66 },     // tour des mages d'Uranos (nord de LH)
-  CIMETIERE: { x: 109, z: 57 },  // cimetière (nord-est de LH)
-  LANCE: { x: 74, z: 44 },       // maison de Lance Silversmith
-  JARKO: { x: 52, z: 16 },       // grottes de Jarko (monts Righul)
-  NILHEM: { x: 60, z: 64 },      // maison de Nilhem (nord du pont gob)
-  CAMP_GOB: { x: 66, z: 71 },    // camp gobelin (est du pont)
-  ORCS: { x: 44, z: 39 },        // orcs solitaires (nord de WH)
-  OGRES: { x: 77, z: 105 },      // ogres ignobles (sud-ouest de LH)
-  ERMITE: { x: 112, z: 24 },     // île de l'Ermite (nord-est, au large)
-  PONT: { z: 80 },               // latitude du pont gob
-};
+// ---------------------------------------------------------------- utilitaires
+function makeNoise(rng, gridSize) {
+  const g = new Float32Array(gridSize * gridSize);
+  for (let i = 0; i < g.length; i++) g[i] = rng();
+  return function (x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf);
+    const i = (xx, yy) => g[((yy % gridSize + gridSize) % gridSize) * gridSize + ((xx % gridSize + gridSize) % gridSize)];
+    const a = i(xi, yi), b = i(xi + 1, yi), c = i(xi, yi + 1), d = i(xi + 1, yi + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+}
 
-// Zones d'apparition des monstres, fidèles aux spots d'Arakas.
-// Attention : aggro + errance permettent aux monstres de dériver de ~12 tuiles
-// autour de leur spot — les villes (LH, WH, métiers) doivent rester hors d'atteinte.
-const ARAKAS_SPAWNS = [
-  { mob: 'rat',       center: [84, 98],   radius: 7,  count: 12 }, // fourmilières au sud-ouest de LH
-  { mob: 'rat',       center: [102, 70],  radius: 5,  count: 6 },  // route du cimetière
-  { mob: 'serpent',   center: [90, 114],  radius: 7,  count: 9 },  // côte sud
-  { mob: 'gobelin',   center: [66, 71],   radius: 8,  count: 10 }, // camp gobelin
-  { mob: 'gobelin',   center: [16, 60],   radius: 7,  count: 7 },  // forêt ouest de WH
-  { mob: 'squelette', center: [109, 57],  radius: 8,  count: 10 }, // cimetière
-  { mob: 'zombie',    center: [114, 50],  radius: 5,  count: 5 },  // la crypte
-  { mob: 'orc',       center: [44, 39],   radius: 9,  count: 8 },  // orcs solitaires (nord de WH)
-  { mob: 'ogre',      center: [77, 105],  radius: 6,  count: 2 },  // ogres ignobles (SO de LH)
+function pointInPoly(u, v, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if ((yi > v) !== (yj > v) && u < ((xj - xi) * (v - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// ------------------------------------------------------------------ géographie
+// Côte de l'île principale (sens horaire, relevée sur la carte de référence)
+const COAST = [
+  [0.195, 0.135], [0.24, 0.085], [0.32, 0.062], [0.42, 0.072], [0.465, 0.105],
+  [0.475, 0.135], [0.488, 0.10], [0.52, 0.06], [0.58, 0.042], [0.64, 0.05],
+  [0.665, 0.032], [0.72, 0.028], [0.77, 0.05], [0.785, 0.095], [0.74, 0.13],
+  [0.705, 0.125], [0.688, 0.155], [0.718, 0.19], [0.728, 0.24], [0.703, 0.27],
+  [0.728, 0.31], [0.745, 0.37], [0.72, 0.42], [0.735, 0.47], [0.718, 0.52],
+  [0.74, 0.565], [0.728, 0.62], [0.69, 0.66], [0.668, 0.72], [0.62, 0.755],
+  [0.585, 0.82], [0.558, 0.90], [0.52, 0.935], [0.47, 0.915], [0.43, 0.855],
+  [0.37, 0.815], [0.345, 0.76], [0.30, 0.74], [0.27, 0.77], [0.20, 0.80],
+  [0.13, 0.77], [0.10, 0.70], [0.115, 0.62], [0.16, 0.575], [0.21, 0.555],
+  [0.178, 0.538], [0.163, 0.502], [0.185, 0.468], [0.215, 0.455],
+  [0.245, 0.40], [0.22, 0.34], [0.245, 0.27],
+  [0.21, 0.21],
+];
+// Lighthaven : masse principale + lobes des métiers (sud) et résidentiel (SO)
+const LH_COAST = [
+  [0.775, 0.60], [0.80, 0.565], [0.85, 0.548], [0.91, 0.558], [0.955, 0.60],
+  [0.97, 0.655], [0.95, 0.71], [0.915, 0.74], [0.878, 0.775], [0.875, 0.812],
+  [0.845, 0.835], [0.815, 0.80], [0.79, 0.78], [0.762, 0.755], [0.755, 0.715],
+  [0.775, 0.685], [0.785, 0.655], [0.768, 0.63],
+];
+// îles : [u, v, rayon, aplatissement vertical]
+const ISLANDS = [
+  { name: 'troll',    c: [0.105, 0.135], r: 0.055, sq: 0.85 }, // Orkanis, repaire du Troll
+  { name: 'hermit',   c: [0.80, 0.27],   r: 0.055, sq: 0.75 }, // île du Vieil Ermite
+  { name: 'mage',     c: [0.935, 0.50],  r: 0.022, sq: 0.9 },  // îlot de la tour des mages (LH)
+  { name: 'circleLH', c: [0.952, 0.452], r: 0.014, sq: 1 },    // cercle druidique de LH
+  { name: 'circleWH', c: [0.135, 0.475], r: 0.018, sq: 0.9 },  // cercle druidique de WH
+  { name: 'ruines1',  c: [0.665, 0.758], r: 0.022, sq: 0.8 },  // Ruines Émergées
+  { name: 'ruines2',  c: [0.692, 0.792], r: 0.014, sq: 0.9 },
+];
+// gués de sable (toujours praticables) : [de, à, largeur]
+const CAUSEWAYS = [
+  [[0.202, 0.158], [0.125, 0.142], 1.6],  // isthme d'Orkanis
+  [[0.708, 0.262], [0.768, 0.265], 1.4],  // gué de l'Ermite
+  [[0.732, 0.612], [0.788, 0.632], 1.8],  // pont de Lighthaven
+  [[0.908, 0.568], [0.926, 0.535], 1.2],  // sentier de la tour des mages…
+  [[0.926, 0.535], [0.935, 0.508], 1.2],
+  [[0.938, 0.488], [0.948, 0.462], 1.2],  // …puis vers le cercle druidique
+  [[0.168, 0.498], [0.142, 0.482], 1.2],  // cercle druidique de WH
+  [[0.622, 0.752], [0.655, 0.755], 1.2],  // Ruines Émergées
+  [[0.675, 0.772], [0.688, 0.785], 1.2],
+];
+// Monts Righul (roche infranchissable, sauf sentiers taillés)
+const MOUNTAINS = [
+  [0.205, 0.145], [0.26, 0.095], [0.33, 0.078], [0.42, 0.088], [0.455, 0.13],
+  [0.462, 0.21], [0.435, 0.28], [0.37, 0.315], [0.28, 0.31], [0.225, 0.25],
+  [0.208, 0.19],
+];
+// sentiers taillés dans la roche (relient l'entrée SE aux grottes, puis Orkanis)
+const MOUNTAIN_PATHS = [
+  [[0.445, 0.268], [0.38, 0.232], [0.34, 0.212], [0.305, 0.192]],   // entrée -> C
+  [[0.305, 0.192], [0.262, 0.168]],                                  // C -> B
+  [[0.262, 0.168], [0.246, 0.128]],                                  // B -> A
+  [[0.246, 0.128], [0.296, 0.114]],                                  // A -> Jarko
+  [[0.296, 0.114], [0.368, 0.092]],                                  // Jarko -> D
+  [[0.368, 0.092], [0.408, 0.106]],                                  // D -> E
+  [[0.246, 0.128], [0.208, 0.158]],                                  // A -> sortie ouest (Orkanis)
+];
+// amas rocheux secondaires : [u, v, r]
+const ROCK_CLUSTERS = [
+  [0.638, 0.168, 0.028], [0.708, 0.225, 0.022],                     // cité naine, kobolds
+  [0.438, 0.578, 0.030], [0.492, 0.628, 0.024],                     // remparts de la Ville des Voleurs
+  [0.42, 0.76, 0.026], [0.80, 0.262, 0.026], [0.108, 0.128, 0.022], // sud, Ermite, Orkanis
+];
+// forêts : [u, v, r]
+const FORESTS = [
+  [0.55, 0.12, 0.045], [0.625, 0.10, 0.04], [0.73, 0.072, 0.03],
+  [0.575, 0.225, 0.045], [0.665, 0.30, 0.05], [0.60, 0.36, 0.05],
+  [0.50, 0.50, 0.055], [0.42, 0.52, 0.05], [0.55, 0.55, 0.05],
+  [0.33, 0.45, 0.055], [0.30, 0.55, 0.045], [0.26, 0.63, 0.035],
+  [0.40, 0.68, 0.055], [0.52, 0.72, 0.055], [0.46, 0.82, 0.045],
+  [0.62, 0.645, 0.035], [0.355, 0.36, 0.04], [0.27, 0.38, 0.04],
+];
+// lacs : [u, v, r]
+const LAKES = [
+  [0.345, 0.36, 0.025],   // lac Kraanian
+  [0.662, 0.19, 0.014],   // lac du camp Orc
+  [0.452, 0.378, 0.015],  // étang du Labyrinthe
+  [0.50, 0.424, 0.009],   // mare du cratère de la Météorite
+  [0.598, 0.142, 0.009],  // étang du camp de la gitane
+];
+// rivières (polylignes, ~1,5 tuile de large) — les routes y posent des ponts
+const RIVERS = [
+  [[0.475, 0.125], [0.49, 0.17], [0.505, 0.225], [0.515, 0.27], [0.512, 0.315], [0.49, 0.345], [0.458, 0.372]],
+  [[0.458, 0.372], [0.468, 0.43], [0.488, 0.47], [0.51, 0.53], [0.545, 0.60], [0.565, 0.68], [0.578, 0.76], [0.563, 0.845]],
+  [[0.688, 0.30], [0.708, 0.38], [0.715, 0.46], [0.72, 0.52], [0.731, 0.578]],
+];
+// cimetières (tuiles GRAVE) : [u, v, r]
+const GRAVEYARDS = [
+  [0.515, 0.222, 0.013],  // crypte d'Arakas
+  [0.498, 0.108, 0.010],  // crypte du Nomade
+  [0.665, 0.758, 0.016],  // Ruines Émergées
+];
+// routes (polylignes) — suivent le réseau des cartes de référence
+const ROADS = [
+  // Windhowl -> Labyrinthe -> Cercle de transfert
+  [[0.245, 0.655], [0.29, 0.58], [0.33, 0.50], [0.38, 0.44], [0.43, 0.395], [0.458, 0.358], [0.49, 0.33], [0.515, 0.308]],
+  // Cercle de transfert -> Lance Silversmith -> camp gobelin -> Lighthaven
+  [[0.515, 0.305], [0.575, 0.282], [0.625, 0.275], [0.66, 0.30], [0.688, 0.36], [0.705, 0.45], [0.715, 0.52], [0.728, 0.585], [0.74, 0.618], [0.788, 0.635], [0.825, 0.648]],
+  // Cercle de transfert -> cryptes -> Asile
+  [[0.515, 0.302], [0.518, 0.255], [0.512, 0.222], [0.502, 0.16], [0.498, 0.112], [0.522, 0.085], [0.552, 0.072]],
+  // Asile -> camp des Druides
+  [[0.552, 0.072], [0.63, 0.058], [0.688, 0.072], [0.718, 0.085]],
+  // crypte d'Arakas -> camp de la gitane -> Cité naine -> camp Orc
+  [[0.512, 0.222], [0.548, 0.185], [0.585, 0.155], [0.638, 0.162], [0.652, 0.20]],
+  // Cercle de transfert -> entrée des monts Righul
+  [[0.508, 0.298], [0.472, 0.285], [0.445, 0.268]],
+  // Windhowl -> Ville des Voleurs -> camps des brigands -> route de Lighthaven
+  [[0.25, 0.688], [0.33, 0.645], [0.40, 0.618], [0.458, 0.605], [0.52, 0.648], [0.60, 0.625], [0.655, 0.598], [0.708, 0.555]],
+  // Ville des Voleurs -> forteresse souterraine -> cave des Brigands
+  [[0.462, 0.615], [0.472, 0.692], [0.462, 0.722], [0.478, 0.768], [0.49, 0.798]],
+  // Windhowl -> camp Kobold -> cercle druidique (sort par la porte est puis remonte)
+  [[0.252, 0.648], [0.235, 0.598], [0.205, 0.555], [0.188, 0.528], [0.183, 0.505], [0.170, 0.498]],
+  // route d'Orkanis (depuis la sortie ouest des monts, jusqu'au repaire du Troll)
+  [[0.206, 0.16], [0.168, 0.155], [0.128, 0.143], [0.106, 0.139]],
+  // gué de l'Ermite, jusqu'au camp
+  [[0.703, 0.268], [0.732, 0.258], [0.77, 0.266], [0.80, 0.271]],
+  // Lighthaven interne : pont -> place -> temple ; place -> métiers ; place -> champs
+  [[0.788, 0.635], [0.825, 0.648], [0.862, 0.655]],
+  [[0.862, 0.648], [0.864, 0.612]],
+  [[0.858, 0.668], [0.846, 0.74], [0.843, 0.79]],
+  [[0.80, 0.745], [0.815, 0.72], [0.83, 0.70], [0.852, 0.672]],
+  // sentier de la tour des mages (depuis le nord de LH)
+  [[0.885, 0.59], [0.908, 0.568], [0.926, 0.535], [0.935, 0.508]],
+  [[0.935, 0.502], [0.938, 0.488], [0.948, 0.462]],
 ];
 
+// Points d'intérêt (coordonnées tuiles, calculées depuis les cartes)
+const T = (u, v) => ({ x: Math.round(u * N), z: Math.round(v * N) });
+export const ARAKAS = {
+  LH: T(0.865, 0.655),          // place de la fontaine de Lighthaven
+  WH: T(0.205, 0.665),          // place de la fontaine de Windhowl
+  RST: T(0.518, 0.308),         // Cercle de transfert runique
+  JARKO: T(0.298, 0.118),       // caverne de Jarko (portail de l'Épreuve)
+  LABYRINTHE: T(0.452, 0.352),
+  CRYPTE: T(0.515, 0.218),      // crypte d'Arakas
+  NOMADE: T(0.498, 0.106),      // crypte du Nomade
+  ASILE: T(0.553, 0.068),
+  GITANE: T(0.585, 0.148),
+  CITE_NAINE: T(0.64, 0.162),
+  CAMP_ORC: T(0.655, 0.215),
+  CAMP_GOB: T(0.652, 0.282),
+  LANCE: T(0.578, 0.272),
+  MANOIR: T(0.625, 0.305),
+  NILHEM: T(0.722, 0.488),
+  DRUIDES: T(0.72, 0.085),
+  ERMITE: T(0.80, 0.27),
+  TROLL: T(0.105, 0.138),
+  KRAANIAN: T(0.302, 0.345),    // cave des Kraaniens
+  VOLEURS: T(0.46, 0.605),      // Ville des Voleurs
+  BRIGANDS: T(0.52, 0.652),     // camps des brigands
+  CAVE_BRIGANDS: T(0.49, 0.802),
+  FORTERESSE: T(0.462, 0.722),
+  CAVE_VOLEURS: T(0.38, 0.712),
+  MERCENAIRES: T(0.652, 0.595),
+  KOBOLD_WH: T(0.183, 0.502),   // camp Kobold au nord de WH
+  CORROMPUS: T(0.345, 0.548),   // gobelins corrompus
+  CRATERE: T(0.50, 0.42),
+  METIERS: T(0.845, 0.795),     // village des métiers (LH)
+  RESIDENTIEL: T(0.788, 0.748), // quartier résidentiel (LH)
+  MAGE_LH: T(0.935, 0.50),      // tour des mages (îlot)
+};
+
+// Spots de monstres, fidèles aux camps des cartes. La progression suit la
+// géographie : niveaux 1-5 autour de Lighthaven, 5-10 au centre, 12+ au nord
+// et dans la Ville des Voleurs, 18+ dans les monts Righul et sur Orkanis.
+// (aggro + errance ≈ 12 tuiles : les villes restent hors d'atteinte)
+const S = (u, v) => [Math.round(u * N), Math.round(v * N)];
+const ARAKAS_SPAWNS = [
+  { mob: 'rat',       center: S(0.722, 0.572), radius: 7,  count: 8 },  // abords du pont de LH
+  { mob: 'rat',       center: S(0.895, 0.722), radius: 6,  count: 6 },  // champs de LH
+  { mob: 'rat',       center: S(0.70, 0.50),   radius: 7,  count: 6 },  // route du nord de LH
+  { mob: 'serpent',   center: S(0.652, 0.595), radius: 9,  count: 8 },  // camp des mercenaires
+  { mob: 'serpent',   center: S(0.622, 0.652), radius: 7,  count: 5 },
+  { mob: 'serpent',   center: S(0.665, 0.758), radius: 5,  count: 4 },  // Ruines Émergées
+  { mob: 'gobelin',   center: S(0.652, 0.282), radius: 11, count: 12 }, // camp gobelin
+  { mob: 'gobelin',   center: S(0.345, 0.548), radius: 9,  count: 8 },  // gobelins corrompus
+  { mob: 'gobelin',   center: S(0.183, 0.502), radius: 7,  count: 6 },  // camp Kobold
+  { mob: 'squelette', center: S(0.498, 0.108), radius: 7,  count: 8 },  // crypte du Nomade
+  { mob: 'squelette', center: S(0.515, 0.222), radius: 8,  count: 8 },  // crypte d'Arakas
+  { mob: 'zombie',    center: S(0.553, 0.075), radius: 7,  count: 6 },  // l'Asile
+  { mob: 'zombie',    center: S(0.528, 0.208), radius: 6,  count: 4 },  // crypte d'Arakas
+  { mob: 'orc',       center: S(0.655, 0.215), radius: 9,  count: 10 }, // camp Orc
+  { mob: 'orc',       center: S(0.708, 0.242), radius: 7,  count: 5 },  // territoire Kobold
+  { mob: 'orc',       center: S(0.458, 0.602), radius: 9,  count: 8 },  // Ville des Voleurs
+  { mob: 'orc',       center: S(0.52, 0.655),  radius: 7,  count: 5 },  // camps des brigands
+  { mob: 'ogre',      center: S(0.388, 0.098), radius: 7,  count: 2 },  // fond des monts Righul
+  { mob: 'ogre',      center: S(0.105, 0.135), radius: 6,  count: 2 },  // Orkanis (le Troll)
+  { mob: 'ogre',      center: S(0.452, 0.342), radius: 4,  count: 1 },  // gardien du Labyrinthe
+];
+
+// ------------------------------------------------------------------ générateur
 export function generateIsland1() {
-  const rng = mulberry32(0xa7a4a5); // habillage : MÊME seed partout, toujours
+  const rng = mulberry32(0xa7a4a5);
+  const n1 = makeNoise(rng, 32), n2 = makeNoise(rng, 64);
   const height = new Float32Array(N * N);
   const tile = new Uint8Array(N * N);
   const walk = new Uint8Array(N * N);
+  const river = new Uint8Array(N * N); // eau douce (les routes y posent des ponts)
   const props = [];
   const idx = (x, z) => z * N + x;
   const inMap = (x, z) => x >= 0 && z >= 0 && x < N && z < N;
 
-  // tracé de la rivière : descend des monts Righul jusqu'à la côte sud
-  const riverX = (z) => 56 + Math.round(5 * Math.sin(z * 0.07) - (z - 64) * 0.05);
-
-  // --- 1. Altitude et masque de l'île ---
-  // Île principale (deux lobes : Windhowl à l'ouest, Lighthaven au sud-est)
-  // + île de l'Ermite au nord-est.
-  const noise = [];
-  for (let i = 0; i < 64; i++) noise.push(rng());
-  const edgeNoise = (x, z) => noise[((x >> 3) * 7 + (z >> 3) * 13) % 64] * 0.12;
+  // --- 1. terre / mer (polygones + bruit de côte) ---
   for (let z = 0; z < N; z++) {
     for (let x = 0; x < N; x++) {
-      const dx = (x - 62) / 56, dz = (z - 68) / 58;
-      const main = dx * dx + dz * dz + edgeNoise(x, z);
-      const eh = Math.hypot(x - ARAKAS.ERMITE.x, z - ARAKAS.ERMITE.z);
-      const isLand = main < 1 || eh < 7;
-      let h = 0.1; // mer
-      if (isLand) {
-        h = 0.3 + (1 - Math.min(1, main)) * 0.12 + edgeNoise(z, x) * 0.3;
-        if (z < 26) h += (26 - z) * 0.028;           // monts Righul au nord
-        if (eh < 7) h = 0.32 + (7 - eh) * 0.02;      // île de l'Ermite
-      }
-      height[idx(x, z)] = h;
-      tile[idx(x, z)] = isLand ? (h < 0.27 ? TILE.SAND : TILE.GRASS) : TILE.WATER;
-    }
-  }
-
-  // gué de sable vers l'île de l'Ermite (le passage des brigands)
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 12;
-    const gx = Math.round(104 + (ARAKAS.ERMITE.x - 104) * t);
-    const gz = Math.round(34 + (ARAKAS.ERMITE.z + 4 - 34) * t);
-    for (let d = -1; d <= 1; d++) {
-      if (!inMap(gx + d, gz)) continue;
-      tile[idx(gx + d, gz)] = TILE.SAND;
-      height[idx(gx + d, gz)] = 0.24;
-    }
-  }
-
-  // --- 2. La rivière (et sa vallée dans les monts) ---
-  for (let z = 0; z < N; z++) {
-    const rx = riverX(z);
-    for (let d = -1; d <= 1; d++) {
-      if (!inMap(rx + d, z)) continue;
-      if (tile[idx(rx + d, z)] === TILE.WATER && z < 120) continue;
-      tile[idx(rx + d, z)] = TILE.WATER;
-      height[idx(rx + d, z)] = 0.12;
-    }
-    // berges de sable
-    for (const d of [-2, 2]) {
-      const i2 = idx(rx + d, z);
-      if (inMap(rx + d, z) && tile[i2] !== TILE.WATER) tile[i2] = TILE.SAND;
-    }
-  }
-
-  // --- 3. Monts Righul : roche infranchissable, sauf la passe de Jarko ---
-  for (let z = 0; z < 24; z++) {
-    for (let x = 0; x < N; x++) {
-      const i2 = idx(x, z);
-      if (tile[i2] === TILE.WATER) continue;
-      const inPass = Math.abs(x - ARAKAS.JARKO.x) < 4 && z >= 12;        // passe d'accès
-      const inValley = Math.abs(x - riverX(z)) < 5;                      // vallée de la rivière
-      const pocket = Math.hypot(x - ARAKAS.JARKO.x, z - (ARAKAS.JARKO.z - 2)) < 5; // cirque de Jarko
-      if (!inPass && !inValley && !pocket && z < 18 + edgeNoise(x, z) * 40) tile[i2] = TILE.ROCK;
-    }
-  }
-
-  // --- 4. Forêts (patchs fixes, densité tirée du seed constant) ---
-  const forests = [
-    { x: 16, z: 60, r: 10 },  // grande forêt à l'ouest de Windhowl
-    { x: 70, z: 96, r: 11 },  // bois entre LH et les ogres
-    { x: 76, z: 40, r: 9 },   // bois de Lance Silversmith
-    { x: 56, z: 36, r: 8 },   // rive est, au sud des monts
-    { x: 36, z: 104, r: 9 },  // forêt côtière du sud-ouest
-  ];
-  for (const f of forests) {
-    for (let z = f.z - f.r; z <= f.z + f.r; z++) {
-      for (let x = f.x - f.r; x <= f.x + f.r; x++) {
-        if (!inMap(x, z)) continue;
-        const i2 = idx(x, z);
-        if (tile[i2] !== TILE.GRASS) continue;
-        if (Math.hypot(x - f.x, z - f.z) < f.r * (0.7 + rng() * 0.3)) tile[i2] = TILE.FOREST;
-      }
-    }
-  }
-
-  // --- 5. Cimetière de Lighthaven ---
-  for (let z = ARAKAS.CIMETIERE.z - 7; z <= ARAKAS.CIMETIERE.z + 7; z++) {
-    for (let x = ARAKAS.CIMETIERE.x - 8; x <= ARAKAS.CIMETIERE.x + 8; x++) {
-      if (!inMap(x, z)) continue;
-      const i2 = idx(x, z);
-      if (tile[i2] !== TILE.WATER && tile[i2] !== TILE.ROCK && rng() < 0.75) tile[i2] = TILE.GRAVE;
-    }
-  }
-
-  // --- 6. Places pavées et aplanissement des villes ---
-  const flatten = (cx, cz, r, flat) => {
-    for (let z = cz - r - 4; z <= cz + r + 4; z++) {
-      for (let x = cx - r - 4; x <= cx + r + 4; x++) {
-        if (!inMap(x, z)) continue;
-        const d = Math.hypot(x - cx, z - cz);
-        if (d < r + 4 && tile[idx(x, z)] !== TILE.WATER) {
-          const t = Math.min(1, d / (r + 4));
-          height[idx(x, z)] = flat * (1 - t * t) + height[idx(x, z)] * t * t;
+      // léger déplacement par bruit : côtes naturelles
+      const ju = (n1(x * 0.11, z * 0.11) - 0.5) * 0.012;
+      const jv = (n1(x * 0.11 + 40, z * 0.11 + 40) - 0.5) * 0.012;
+      const u = x / N + ju, v = z / N + jv;
+      let land = pointInPoly(u, v, COAST) || pointInPoly(u, v, LH_COAST);
+      if (!land) {
+        for (const isl of ISLANDS) {
+          const du = (u - isl.c[0]) / isl.r, dv = (v - isl.c[1]) / (isl.r * isl.sq);
+          if (du * du + dv * dv < 1) { land = true; break; }
         }
-        if (d < r && tile[idx(x, z)] !== TILE.WATER) tile[idx(x, z)] = TILE.COBBLE;
+      }
+      tile[idx(x, z)] = land ? TILE.GRASS : TILE.WATER;
+    }
+  }
+
+  // --- 2. gués de sable (relient les îles, jamais bloqués) ---
+  const stampLine = (pts, w, fn) => {
+    for (let i = 1; i < pts.length; i++) {
+      const [u0, v0] = pts[i - 1], [u1, v1] = pts[i];
+      const x0 = u0 * N, z0 = v0 * N, x1 = u1 * N, z1 = v1 * N;
+      const steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) * 1.5);
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;
+        const r = Math.ceil(w);
+        for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dz * dz > w * w + 0.5) continue;
+          const X = Math.round(px + dx), Z = Math.round(pz + dz);
+          if (inMap(X, Z)) fn(X, Z);
+        }
       }
     }
   };
-  flatten(ARAKAS.LH.x, ARAKAS.LH.z, 8, 0.34);
-  flatten(ARAKAS.WH.x, ARAKAS.WH.z, 7, 0.33);
-  flatten(ARAKAS.METIERS.x, ARAKAS.METIERS.z, 4, 0.33);
+  for (const [a, b, w] of CAUSEWAYS) {
+    stampLine([a, b], w, (X, Z) => { tile[idx(X, Z)] = TILE.SAND; });
+  }
 
-  // --- 7. Routes (et le pont gob sur la rivière) ---
-  const road = (x0, z0, x1, z1) => {
-    const steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) * 2);
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const px = Math.round(x0 + (x1 - x0) * t + Math.sin(t * 8) * 1.2);
-      const pz = Math.round(z0 + (z1 - z0) * t + Math.cos(t * 6) * 1.2);
-      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-        const X = px + dx, Z = pz + dz;
-        if (!inMap(X, Z)) continue;
-        const i2 = idx(X, Z);
-        const isRiver = Math.abs(X - riverX(Z)) <= 1;
-        if (tile[i2] === TILE.WATER && !isRiver) continue;   // pas de route en mer
-        if (tile[i2] === TILE.COBBLE) continue;
-        if (tile[i2] === TILE.WATER && isRiver) height[i2] = 0.3; // le pont
-        tile[i2] = TILE.PATH;
+  // --- 3. lacs et rivières (eau douce) ---
+  const stampWater = (X, Z) => {
+    if (tile[idx(X, Z)] !== TILE.WATER) { tile[idx(X, Z)] = TILE.WATER; river[idx(X, Z)] = 1; }
+  };
+  for (const [u, v, r] of LAKES) {
+    const cx = u * N, cz = v * N, rr = r * N;
+    for (let z = Math.floor(cz - rr); z <= cz + rr; z++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) {
+      if (inMap(x, z) && Math.hypot(x - cx, z - cz) < rr * (0.82 + n2(x * 0.2, z * 0.2) * 0.35)) stampWater(x, z);
+    }
+  }
+  for (const riv of RIVERS) stampLine(riv, 1.5, stampWater);
+
+  // --- 4. monts Righul + amas rocheux ---
+  const mountain = new Uint8Array(N * N); // le massif Righul : infranchissable aux routes
+  for (let z = 0; z < N; z++) {
+    for (let x = 0; x < N; x++) {
+      const i = idx(x, z);
+      if (tile[i] === TILE.WATER) continue;
+      const u = x / N, v = z / N;
+      if (pointInPoly(u + (n1(x * 0.15, z * 0.15) - 0.5) * 0.02, v + (n1(x * 0.15 + 9, z * 0.15 + 9) - 0.5) * 0.02, MOUNTAINS)) {
+        tile[i] = TILE.ROCK;
+        mountain[i] = 1;
       }
     }
-  };
-  road(ARAKAS.LH.x - 8, ARAKAS.LH.z, 60, ARAKAS.PONT.z);                       // LH -> pont gob
-  road(60, ARAKAS.PONT.z, ARAKAS.WH.x + 7, ARAKAS.WH.z);                       // pont -> Windhowl
-  road(ARAKAS.LH.x, ARAKAS.LH.z - 8, ARAKAS.MAGE_LH.x, ARAKAS.MAGE_LH.z);      // LH -> tour des mages
-  road(ARAKAS.MAGE_LH.x, ARAKAS.MAGE_LH.z, ARAKAS.CIMETIERE.x - 4, ARAKAS.CIMETIERE.z + 4); // -> cimetière
-  road(ARAKAS.MAGE_LH.x, ARAKAS.MAGE_LH.z, ARAKAS.LANCE.x, ARAKAS.LANCE.z);    // -> Lance Silversmith
-  road(ARAKAS.LANCE.x, ARAKAS.LANCE.z, ARAKAS.JARKO.x, ARAKAS.JARKO.z + 2);    // -> grottes de Jarko
-  road(ARAKAS.WH.x, ARAKAS.WH.z - 7, ARAKAS.ORCS.x, ARAKAS.ORCS.z + 4);        // WH -> orcs solitaires
-  road(ARAKAS.LH.x, ARAKAS.LH.z + 8, ARAKAS.METIERS.x, ARAKAS.METIERS.z - 3);  // LH -> village des métiers
-  road(ARAKAS.LH.x - 6, ARAKAS.LH.z + 6, ARAKAS.OGRES.x + 4, ARAKAS.OGRES.z - 4); // LH -> ogres
-  road(ARAKAS.MAGE_LH.x + 6, ARAKAS.MAGE_LH.z - 4, 104, 34);                   // -> gué de l'Ermite
+  }
+  for (const [u, v, r] of ROCK_CLUSTERS) {
+    const cx = u * N, cz = v * N, rr = r * N;
+    for (let z = Math.floor(cz - rr); z <= cz + rr; z++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) {
+      if (!inMap(x, z) || tile[idx(x, z)] === TILE.WATER) continue;
+      if (Math.hypot(x - cx, z - cz) < rr * (0.5 + n2(x * 0.3, z * 0.3) * 0.8)) tile[idx(x, z)] = TILE.ROCK;
+    }
+  }
+  // poches dégagées au cœur des amas (camps accessibles : Troll, Ermite, Cité naine)
+  for (const p of [ARAKAS.TROLL, ARAKAS.ERMITE, ARAKAS.CITE_NAINE, ARAKAS.VOLEURS]) {
+    for (let z = p.z - 6; z <= p.z + 6; z++) for (let x = p.x - 7; x <= p.x + 7; x++) {
+      if (inMap(x, z) && Math.hypot(x - p.x, z - p.z) < 6 && tile[idx(x, z)] === TILE.ROCK && !mountain[idx(x, z)]) {
+        tile[idx(x, z)] = TILE.GRASS;
+      }
+    }
+  }
+  // sentiers taillés dans la roche (praticables, posés après les monts)
+  for (const p of MOUNTAIN_PATHS) {
+    stampLine(p, 1.4, (X, Z) => { if (tile[idx(X, Z)] === TILE.ROCK) tile[idx(X, Z)] = TILE.PATH; });
+  }
+  // cirque de Jarko (poche dégagée autour du portail de l'Épreuve)
+  {
+    const { x: jx, z: jz } = ARAKAS.JARKO;
+    for (let z = jz - 5; z <= jz + 5; z++) for (let x = jx - 6; x <= jx + 6; x++) {
+      if (inMap(x, z) && Math.hypot(x - jx, z - jz) < 5.5 && tile[idx(x, z)] === TILE.ROCK) tile[idx(x, z)] = TILE.PATH;
+    }
+  }
+  // anneau du cratère de la Météorite (roche), mare au centre déjà posée
+  {
+    const { x: cx, z: cz } = ARAKAS.CRATERE;
+    const rr = 0.020 * N;
+    for (let a = 0; a < Math.PI * 2; a += 0.05) {
+      if (a > 5.0 && a < 5.8) continue; // brèche d'accès au nord-ouest
+      const x = Math.round(cx + Math.cos(a) * rr), z = Math.round(cz + Math.sin(a) * rr * 0.85);
+      if (inMap(x, z) && tile[idx(x, z)] !== TILE.WATER) tile[idx(x, z)] = TILE.ROCK;
+    }
+  }
 
-  // --- 8. Praticabilité ---
+  // --- 5. forêts ---
+  for (const [u, v, r] of FORESTS) {
+    const cx = u * N, cz = v * N, rr = r * N;
+    for (let z = Math.floor(cz - rr); z <= cz + rr; z++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) {
+      if (!inMap(x, z)) continue;
+      const i = idx(x, z);
+      if (tile[i] !== TILE.GRASS) continue;
+      if (Math.hypot(x - cx, z - cz) < rr * (0.55 + n2(x * 0.13, z * 0.13) * 0.65)) tile[i] = TILE.FOREST;
+    }
+  }
+
+  // --- 6. cimetières ---
+  for (const [u, v, r] of GRAVEYARDS) {
+    const cx = u * N, cz = v * N, rr = r * N;
+    for (let z = Math.floor(cz - rr); z <= cz + rr; z++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) {
+      if (!inMap(x, z)) continue;
+      const i = idx(x, z);
+      if (tile[i] !== TILE.WATER && tile[i] !== TILE.ROCK && Math.hypot(x - cx, z - cz) < rr && rng() < 0.8) tile[i] = TILE.GRAVE;
+    }
+  }
+
+  // --- 7. les villes (pavage ; les bâtiments suivent en props) ---
+  const flatten = []; // zones à aplatir pour le relief
+  const plaza = (cx, cz, r) => {
+    for (let z = cz - r; z <= cz + r; z++) for (let x = cx - r; x <= cx + r; x++) {
+      if (inMap(x, z) && Math.hypot(x - cx, z - cz) < r && tile[idx(x, z)] !== TILE.WATER) tile[idx(x, z)] = TILE.COBBLE;
+    }
+    flatten.push([cx, cz, r + 5]);
+  };
+  const cobbleRect = (x0, z0, x1, z1) => {
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      if (inMap(x, z) && tile[idx(x, z)] !== TILE.WATER) tile[idx(x, z)] = TILE.COBBLE;
+    }
+    flatten.push([(x0 + x1) >> 1, (z0 + z1) >> 1, Math.max(x1 - x0, z1 - z0) / 2 + 6]);
+  };
+  const { LH, WH } = ARAKAS;
+  // Lighthaven : place de la fontaine + parvis du temple
+  plaza(LH.x, LH.z, 7);
+  cobbleRect(LH.x - 3, LH.z - 14, LH.x + 3, LH.z - 7); // allée du temple
+  // Windhowl : ville fortifiée en damier, tout l'intérieur est pavé
+  const WHX0 = WH.x - 22, WHZ0 = WH.z - 15, WHX1 = WH.x + 22, WHZ1 = WH.z + 13;
+  cobbleRect(WHX0, WHZ0, WHX1, WHZ1);
+  // village des métiers et quartier résidentiel (LH)
+  plaza(ARAKAS.METIERS.x, ARAKAS.METIERS.z, 5);
+  plaza(ARAKAS.RESIDENTIEL.x, ARAKAS.RESIDENTIEL.z, 6);
+
+  // --- 8. routes (avec ponts automatiques sur l'eau douce) ---
+  for (const road of ROADS) {
+    stampLine(road, 1.2, (X, Z) => {
+      const i = idx(X, Z);
+      if (tile[i] === TILE.COBBLE) return;
+      if (tile[i] === TILE.WATER) {
+        if (river[i]) { tile[i] = TILE.PATH; river[i] = 0; } // pont
+        return; // jamais de route en mer
+      }
+      // le massif Righul a ses propres sentiers ; les amas rocheux isolés
+      // se laissent traverser (cols vers la Cité naine, Orkanis, l'Ermite...)
+      if (tile[i] === TILE.ROCK) {
+        if (!mountain[i]) tile[i] = TILE.PATH;
+        return;
+      }
+      tile[i] = TILE.PATH;
+    });
+  }
+
+  // --- 9. plages : sable en bord de mer ---
+  const isSea = (x, z) => !inMap(x, z) || (tile[idx(x, z)] === TILE.WATER && !river[idx(x, z)]);
+  for (let z = 0; z < N; z++) {
+    for (let x = 0; x < N; x++) {
+      const i = idx(x, z);
+      if (tile[i] !== TILE.GRASS && tile[i] !== TILE.FOREST) continue;
+      if (isSea(x + 1, z) || isSea(x - 1, z) || isSea(x, z + 1) || isSea(x, z - 1)
+        || isSea(x + 1, z + 1) || isSea(x - 1, z - 1) || isSea(x + 1, z - 1) || isSea(x - 1, z + 1)) {
+        tile[i] = TILE.SAND;
+      }
+    }
+  }
+
+  // --- 10. relief ---
+  for (let z = 0; z < N; z++) {
+    for (let x = 0; x < N; x++) {
+      const i = idx(x, z);
+      const t = tile[i];
+      if (t === TILE.WATER) { height[i] = river[i] ? 0.14 : 0.10; continue; }
+      let h = 0.30 + n2(x * 0.04, z * 0.04) * 0.08;
+      if (t === TILE.ROCK) h = 0.52 + n2(x * 0.08, z * 0.08) * 0.30;
+      height[i] = h;
+    }
+  }
+  for (const [cx, cz, r] of flatten) {
+    for (let z = cz - r; z <= cz + r; z++) for (let x = cx - r; x <= cx + r; x++) {
+      if (!inMap(x, z)) continue;
+      const d = Math.hypot(x - cx, z - cz);
+      if (d < r && tile[idx(x, z)] !== TILE.WATER) {
+        const t = Math.min(1, d / r);
+        height[idx(x, z)] = 0.32 * (1 - t * t) + height[idx(x, z)] * t * t;
+      }
+    }
+  }
+
+  // --- 11. praticabilité ---
   for (let i = 0; i < N * N; i++) {
     const t = tile[i];
     walk[i] = (t === TILE.WATER || t === TILE.ROCK) ? 0 : 1;
   }
   const block = (x, z) => { if (inMap(x, z)) walk[idx(x, z)] = 0; };
 
-  // --- 9. Bâtiments et décors ---
+  // --- 12. bâtiments et décors ---
   const house = (x, z, w = 5, d = 4) => {
     props.push({ type: 'house', x: x + w / 2, z: z + d / 2, w, d, rot: 0, s: 1 });
     for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) block(x + dx, z + dz);
   };
-  const { LH, WH } = ARAKAS;
-
-  // Lighthaven
-  house(LH.x - 3, LH.z - 10, 6, 5);   // le temple (l'apparition se fait devant)
-  house(LH.x + 6, LH.z - 6, 4, 4);    // la banque (à l'est du temple)
-  house(LH.x + 7, LH.z + 1, 4, 4);    // l'Hôtel des Ventes (au sud de la banque)
-  house(LH.x - 10, LH.z - 5, 4, 4);   // maison de Kalastor
-  house(LH.x - 10, LH.z + 3, 4, 4);   // maison d'Edgar
-  house(LH.x - 2, LH.z + 7, 5, 4);    // échoppe du marchand
-  props.push({ type: 'well', x: LH.x + 0.5, z: LH.z + 0.5, rot: 0, s: 1 }); // la fontaine du dragon
-  block(LH.x, LH.z);
-  house(ARAKAS.MAGE_LH.x - 2, ARAKAS.MAGE_LH.z - 2, 4, 4);  // tour des mages d'Uranos
-  house(ARAKAS.METIERS.x - 4, ARAKAS.METIERS.z - 2, 4, 4);  // village des métiers (Fulika)
-  house(ARAKAS.METIERS.x + 1, ARAKAS.METIERS.z + 1, 4, 4);
-
-  // Windhowl
-  house(WH.x - 2, WH.z - 9, 5, 4);    // le temple
-  house(WH.x - 4, WH.z - 15, 4, 4);   // maison de Lord Sunrock (au nord du temple)
-  house(WH.x - 10, WH.z - 4, 4, 4);   // tour des mages (Liurn Clar)
-  house(WH.x + 5, WH.z - 3, 5, 4);    // la taverne (coffres personnels)
-  house(WH.x - 11, WH.z + 3, 4, 4);   // maison du bourgmestre (à l'ouest)
-  house(WH.x + 2, WH.z + 6, 4, 4);    // échoppe de Ttayh Mark
-  props.push({ type: 'well', x: WH.x + 0.5, z: WH.z + 0.5, rot: 0, s: 1 });
-  block(WH.x, WH.z);
-
-  // Maisons isolées
-  house(ARAKAS.LANCE.x - 2, ARAKAS.LANCE.z - 2, 4, 4);   // Lance Silversmith
-  house(ARAKAS.NILHEM.x - 2, ARAKAS.NILHEM.z - 2, 4, 4); // Nilhem, au nord du pont gob
-
-  // Banques (coffre personnel) : LH près de l'HDV, WH devant la taverne
+  const bigHouse = (x, z) => { house(x, z, 5, 4); house(x + 5, z, 5, 4); }; // temple, etc.
+  const torch = (x, z) => props.push({ type: 'torch', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 });
   const bank = (x, z) => { props.push({ type: 'bank', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
-  bank(LH.x + 6, LH.z + 6);
-  bank(WH.x + 6, WH.z + 2);
-
-  // Obélisques de téléportation : à l'est de chaque place
   const obelisk = (x, z) => { props.push({ type: 'obelisk', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
-  obelisk(LH.x + 12, LH.z + 2);
-  obelisk(WH.x + 10, WH.z + 5);
+  const chest = (x, z) => {
+    let X = x, Z = z, tries = 0;
+    while (!walk[idx(X, Z)] && tries++ < 40) { X += (tries % 2 ? 1 : -1) * tries; if (!inMap(X, Z)) X = x; }
+    props.push({ type: 'chest', x: X + 0.5, z: Z + 0.5, rot: 0, s: 1 });
+  };
+  const cave = (x, z, name) => {
+    let X = x, Z = z, tries = 0;
+    // l'entrée se pose sur une case praticable (au bord de la roche)
+    while (!walk[idx(X, Z)] && tries++ < 40) { Z += 1; if (!inMap(X, Z)) Z = z; }
+    props.push({ type: 'cave', x: X + 0.5, z: Z + 0.5, rot: 0, s: 1, name });
+    block(X, Z);
+  };
+  const well = (x, z) => { props.push({ type: 'well', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
 
-  // Portail de l'Épreuve : devant les grottes de Jarko, dans les monts Righul
-  props.push({ type: 'trialgate', x: ARAKAS.JARKO.x + 0.5, z: ARAKAS.JARKO.z + 0.5, rot: 0, s: 1 });
-  block(ARAKAS.JARKO.x, ARAKAS.JARKO.z);
-
-  // Coffres au trésor (7) : les caches célèbres d'Arakas
-  const chests = [
-    [WH.x - 12, WH.z + 8],                          // le coffre au diamant du bourgmestre
-    [ARAKAS.ERMITE.x, ARAKAS.ERMITE.z],             // l'île de l'Ermite
-    [ARAKAS.JARKO.x - 3, ARAKAS.JARKO.z - 3],       // le trésor de Jarko
-    [ARAKAS.CIMETIERE.x + 5, ARAKAS.CIMETIERE.z - 6], // la crypte
-    [70, 110],                                      // la cache des brigands (côte sud)
-    [ARAKAS.LANCE.x + 5, ARAKAS.LANCE.z - 4],       // près de chez Lance
-    [12, 84],                                       // la côte ouest, au-delà de WH
-  ];
-  for (const [cx, cz] of chests) {
-    let x = cx, z = cz, tries = 0;
-    while (!walk[idx(x, z)] && tries++ < 30) { x += (tries % 2 ? 1 : -1) * tries; }
-    props.push({ type: 'chest', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 });
+  // ---------- LIGHTHAVEN ----------
+  {
+    const c = LH;
+    bigHouse(c.x - 5, c.z - 19);                  // le temple (l'apparition se fait sur le parvis)
+    house(c.x - 13, c.z - 16);                    // échoppe d'armes (Sigfried -> Maître Aldric)
+    house(c.x - 14, c.z - 9);                     // armures & potions
+    house(c.x - 2, c.z - 6, 6, 4);                // salle d'entraînement
+    house(c.x + 9, c.z - 6, 5, 4);                // l'hôtel de ville
+    house(c.x + 9, c.z + 2, 4, 4);                // la banque
+    bank(c.x + 8, c.z + 7);
+    house(c.x - 10, c.z + 2, 4, 4);               // maison de Kalastor
+    house(c.x - 10, c.z + 8, 4, 4);               // maison d'Edgar
+    house(c.x + 1, c.z + 8, 4, 4);                // maison sud
+    well(c.x, c.z);                               // la fontaine
+    obelisk(c.x + 13, c.z + 2);
+    // l'enclos de Darkfang (cercle de rochers, ouverture à l'est)
+    for (let a = 0.5; a < Math.PI * 2 - 0.5; a += 0.7) {
+      props.push({ type: 'rock', x: c.x - 16 + Math.cos(a) * 3 + 0.5, z: c.z - 10 + Math.sin(a) * 2.2 + 0.5, rot: 0, s: 1.1 });
+      block(Math.round(c.x - 16 + Math.cos(a) * 3), Math.round(c.z - 10 + Math.sin(a) * 2.2));
+    }
+    torch(c.x - 16, c.z - 10);
+    // cimetière + crypte à l'ouest
+    for (let z = c.z - 6; z <= c.z + 3; z++) for (let x = c.x - 24; x <= c.x - 16; x++) {
+      if (inMap(x, z) && tile[idx(x, z)] !== TILE.WATER && rng() < 0.8) tile[idx(x, z)] = TILE.GRAVE;
+    }
+    cave(c.x - 24, c.z - 3, 'Crypte de Lighthaven');
+    // champs au sud-est (carrés de terre retournée)
+    for (const [fx, fz] of [[c.x + 9, c.z + 10], [c.x + 15, c.z + 12], [c.x + 9, c.z + 16]]) {
+      for (let z = fz; z < fz + 5; z++) for (let x = fx; x < fx + 5; x++) {
+        if (inMap(x, z) && tile[idx(x, z)] === TILE.GRASS) tile[idx(x, z)] = TILE.SAND;
+      }
+    }
+    for (const [tx, tz] of [[c.x - 5, c.z - 5], [c.x + 5, c.z - 5], [c.x - 5, c.z + 5], [c.x + 5, c.z + 5], [c.x, c.z - 13]]) torch(tx, tz);
+    // village des métiers + quartier résidentiel
+    house(ARAKAS.METIERS.x - 5, ARAKAS.METIERS.z - 3);
+    house(ARAKAS.METIERS.x + 1, ARAKAS.METIERS.z + 1);
+    torch(ARAKAS.METIERS.x, ARAKAS.METIERS.z);
+    house(ARAKAS.RESIDENTIEL.x - 6, ARAKAS.RESIDENTIEL.z - 4);
+    house(ARAKAS.RESIDENTIEL.x + 1, ARAKAS.RESIDENTIEL.z - 4);
+    house(ARAKAS.RESIDENTIEL.x - 6, ARAKAS.RESIDENTIEL.z + 2);
+    house(ARAKAS.RESIDENTIEL.x + 1, ARAKAS.RESIDENTIEL.z + 2);
+    torch(ARAKAS.RESIDENTIEL.x - 1, ARAKAS.RESIDENTIEL.z);
+    // la tour des mages sur son îlot, et le cercle druidique au-delà
+    house(ARAKAS.MAGE_LH.x - 2, ARAKAS.MAGE_LH.z - 2, 4, 4);
+    torch(ARAKAS.MAGE_LH.x + 2, ARAKAS.MAGE_LH.z + 2);
+    const cd = T(0.952, 0.452);
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) torch(Math.round(cd.x + Math.cos(a) * 3), Math.round(cd.z + Math.sin(a) * 2.4));
   }
 
-  // Torches : places, routes, pont
-  const torches = [
-    [LH.x - 6, LH.z - 6], [LH.x + 6, LH.z - 6], [LH.x - 6, LH.z + 6], [LH.x + 5, LH.z + 5],
-    [WH.x - 5, WH.z - 5], [WH.x + 5, WH.z - 5], [WH.x - 5, WH.z + 5], [WH.x + 4, WH.z + 4],
-    [60, ARAKAS.PONT.z - 2], [60, ARAKAS.PONT.z + 2],            // le pont gob
-    [ARAKAS.MAGE_LH.x + 2, ARAKAS.MAGE_LH.z], [ARAKAS.LANCE.x + 2, ARAKAS.LANCE.z],
-    [ARAKAS.JARKO.x + 2, ARAKAS.JARKO.z + 2], [ARAKAS.METIERS.x + 3, ARAKAS.METIERS.z],
-  ];
-  for (const [tx, tz] of torches) props.push({ type: 'torch', x: tx + 0.5, z: tz + 0.5, rot: 0, s: 1 });
+  // ---------- WINDHOWL ----------
+  {
+    const c = WH;
+    // remparts : haie d'arbres serrés sur le périmètre, portes est et ouest
+    for (let x = WHX0; x <= WHX1; x++) {
+      for (const z of [WHZ0, WHZ1]) {
+        if (Math.abs(x - (WHX1 - 2)) < 3 && z === WHZ0) continue; // pas de porte au nord
+        props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * 6.3, s: 1 });
+        block(x, z);
+      }
+    }
+    for (let z = WHZ0; z <= WHZ1; z++) {
+      for (const x of [WHX0, WHX1]) {
+        const isGate = Math.abs(z - (c.z - 1)) < 2; // portes est (route) et ouest (port)
+        if (isGate) continue;
+        props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * 6.3, s: 1 });
+        block(x, z);
+      }
+    }
+    bigHouse(c.x - 5, c.z - 13);                  // le temple
+    house(c.x - 16, c.z - 13, 5, 4);              // hôtel de ville (Lord Sunrock)
+    chest(c.x - 17, c.z - 8);                     // le coffre du bourgmestre (au diamant !)
+    house(c.x - 20, c.z - 5, 4, 4);               // tour des mages (Liurn Clar)
+    house(c.x - 20, c.z + 2, 4, 4);               // la prison
+    house(c.x - 10, c.z - 7, 4, 4);               // magasin d'armures (Gwen)
+    house(c.x - 5, c.z - 7, 4, 4);                // magasin de potions (Yolak)
+    house(c.x + 1, c.z - 7, 4, 4);                // magasin d'armes (Ttayh Mark)
+    house(c.x + 7, c.z - 13, 5, 4);               // guilde des marchands
+    house(c.x + 14, c.z - 12, 4, 4);              // maison des guildes
+    house(c.x + 13, c.z - 5, 5, 4);               // la taverne (Gouly)
+    bank(c.x + 12, c.z);                          // coffres personnels de la taverne
+    house(c.x - 2, c.z + 4, 6, 4);                // centre d'entraînement
+    house(c.x + 7, c.z + 5, 6, 5);                // les écuries
+    house(c.x - 16, c.z + 6, 4, 4);               // maisons vides
+    house(c.x - 10, c.z + 6, 4, 4);
+    house(c.x + 17, c.z + 6, 4, 4);               // poste de gardes
+    well(c.x + 1, c.z - 1);                       // la fontaine (Sarah Meroippi)
+    obelisk(WHX1 + 3, c.z - 1);                   // devant la porte est
+    for (const [tx, tz] of [[WHX0 + 2, WHZ0 + 2], [WHX1 - 2, WHZ0 + 2], [WHX0 + 2, WHZ1 - 2], [WHX1 - 2, WHZ1 - 2], [c.x - 2, c.z - 1], [c.x + 4, c.z - 1]]) torch(tx, tz);
+    // le port à l'ouest : jetée de sable + capitainerie
+    stampLine([[(WHX0 - 8) / N, (c.z - 1) / N], [(WHX0 + 1) / N, (c.z - 1) / N]], 1.4, (X, Z) => {
+      tile[idx(X, Z)] = TILE.SAND; walk[idx(X, Z)] = 1;
+    });
+    house(WHX0 - 7, c.z - 7, 4, 4);
+    torch(WHX0 - 6, c.z + 1);
+  }
 
-  // --- 10. Arbres, rochers, tombes (habillage, seed constant) ---
+  // ---------- lieux du monde ----------
+  house(ARAKAS.LANCE.x - 2, ARAKAS.LANCE.z - 2, 4, 4);     // Lance Silversmith
+  torch(ARAKAS.LANCE.x + 2, ARAKAS.LANCE.z);
+  house(ARAKAS.NILHEM.x - 2, ARAKAS.NILHEM.z - 2, 4, 4);   // Nilhem
+  bigHouse(ARAKAS.MANOIR.x - 5, ARAKAS.MANOIR.z - 2);      // le Manoir / Citadelle
+  bigHouse(ARAKAS.ASILE.x - 5, ARAKAS.ASILE.z - 2);        // l'Asile
+  torch(ARAKAS.ASILE.x, ARAKAS.ASILE.z + 3);
+  house(ARAKAS.GITANE.x - 2, ARAKAS.GITANE.z - 2, 4, 4);   // camp de la gitane
+  torch(ARAKAS.GITANE.x + 2, ARAKAS.GITANE.z + 1);
+  // Cité perdue des nains : ruines
+  house(ARAKAS.CITE_NAINE.x - 6, ARAKAS.CITE_NAINE.z - 3, 4, 4);
+  house(ARAKAS.CITE_NAINE.x + 1, ARAKAS.CITE_NAINE.z - 5, 4, 4);
+  house(ARAKAS.CITE_NAINE.x - 1, ARAKAS.CITE_NAINE.z + 2, 4, 4);
+  for (let i = 0; i < 6; i++) {
+    props.push({ type: 'grave', x: ARAKAS.CITE_NAINE.x - 6 + rng() * 12, z: ARAKAS.CITE_NAINE.z - 6 + rng() * 10, rot: (rng() - 0.5) * 0.5, s: 1 });
+  }
+  // camp des Druides : cercle de feux autour d'un puits sacré
+  well(ARAKAS.DRUIDES.x, ARAKAS.DRUIDES.z);
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+    torch(Math.round(ARAKAS.DRUIDES.x + Math.cos(a) * 4), Math.round(ARAKAS.DRUIDES.z + Math.sin(a) * 3));
+  }
+  chest(ARAKAS.DRUIDES.x + 6, ARAKAS.DRUIDES.z + 2);
+  // cercle druidique de WH
+  {
+    const cd = T(0.135, 0.475);
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) torch(Math.round(cd.x + Math.cos(a) * 3), Math.round(cd.z + Math.sin(a) * 2.4));
+  }
+  // Ville des Voleurs : repaire entre les rochers
+  house(ARAKAS.VOLEURS.x - 6, ARAKAS.VOLEURS.z - 3, 4, 4);
+  house(ARAKAS.VOLEURS.x + 2, ARAKAS.VOLEURS.z - 5, 4, 4);
+  house(ARAKAS.VOLEURS.x + 1, ARAKAS.VOLEURS.z + 2, 4, 4);
+  torch(ARAKAS.VOLEURS.x - 1, ARAKAS.VOLEURS.z);
+  chest(ARAKAS.VOLEURS.x + 7, ARAKAS.VOLEURS.z - 1);
+  // camps des brigands
+  torch(ARAKAS.BRIGANDS.x, ARAKAS.BRIGANDS.z);
+  torch(ARAKAS.BRIGANDS.x + 4, ARAKAS.BRIGANDS.z + 3);
+  // camp des mercenaires
+  torch(ARAKAS.MERCENAIRES.x, ARAKAS.MERCENAIRES.z);
+  house(ARAKAS.MERCENAIRES.x + 2, ARAKAS.MERCENAIRES.z - 4, 4, 4);
+  // Orkanis : le repaire du Troll
+  chest(ARAKAS.TROLL.x, ARAKAS.TROLL.z + 3);
+  torch(ARAKAS.TROLL.x - 3, ARAKAS.TROLL.z);
+  // l'île du Vieil Ermite
+  house(ARAKAS.ERMITE.x - 1, ARAKAS.ERMITE.z - 1, 4, 4);
+  chest(ARAKAS.ERMITE.x + 4, ARAKAS.ERMITE.z + 3);
+  // autres coffres célèbres
+  chest(ARAKAS.JARKO.x - 4, ARAKAS.JARKO.z - 2);           // le trésor de Jarko
+  chest(ARAKAS.CRYPTE.x + 5, ARAKAS.CRYPTE.z + 2);         // la crypte d'Arakas
+  chest(ARAKAS.CRATERE.x, ARAKAS.CRATERE.z - 1);           // le cratère de la Météorite
+  chest(LH.x - 18, LH.z - 15);                             // le coffre surprise de LH
+  chest(ARAKAS.KOBOLD_WH.x + 3, ARAKAS.KOBOLD_WH.z - 2);   // camp Kobold
+
+  // entrées de grottes (intérieurs à venir)
+  cave(T(0.246, 0.128).x, T(0.246, 0.128).z, 'Grotte A');
+  cave(T(0.262, 0.168).x, T(0.262, 0.168).z, 'Grotte B');
+  cave(T(0.305, 0.192).x, T(0.305, 0.192).z, 'Grotte C');
+  cave(T(0.368, 0.092).x, T(0.368, 0.092).z, 'Grotte D');
+  cave(T(0.408, 0.106).x, T(0.408, 0.106).z, 'Grotte E');
+  cave(ARAKAS.JARKO.x - 2, ARAKAS.JARKO.z - 3, 'Caverne de Jarko');
+  cave(ARAKAS.KRAANIAN.x, ARAKAS.KRAANIAN.z, 'Cave des Kraanians');
+  cave(ARAKAS.LABYRINTHE.x, ARAKAS.LABYRINTHE.z, 'Le Labyrinthe');
+  cave(ARAKAS.CRYPTE.x, ARAKAS.CRYPTE.z, "Crypte d'Arakas");
+  cave(ARAKAS.NOMADE.x, ARAKAS.NOMADE.z, 'Crypte du Nomade');
+  cave(ARAKAS.CAVE_BRIGANDS.x, ARAKAS.CAVE_BRIGANDS.z, 'Cave des Brigands');
+  cave(ARAKAS.FORTERESSE.x, ARAKAS.FORTERESSE.z, 'Forteresse souterraine');
+  cave(ARAKAS.CAVE_VOLEURS.x, ARAKAS.CAVE_VOLEURS.z, 'Cave des Voleurs');
+
+  // le portail de l'Épreuve, dans le cirque de Jarko
+  props.push({ type: 'trialgate', x: ARAKAS.JARKO.x + 0.5, z: ARAKAS.JARKO.z + 0.5, rot: 0, s: 1 });
+  block(ARAKAS.JARKO.x, ARAKAS.JARKO.z);
+  // le Cercle de transfert runique : l'obélisque historique d'Arakas
+  obelisk(ARAKAS.RST.x, ARAKAS.RST.z);
+  torch(ARAKAS.RST.x - 2, ARAKAS.RST.z + 1);
+  torch(ARAKAS.RST.x + 2, ARAKAS.RST.z + 1);
+
+  // --- 13. habillage : arbres, rochers, tombes (seed constant) ---
   for (let z = 1; z < N - 1; z++) {
     for (let x = 1; x < N - 1; x++) {
-      const i2 = idx(x, z);
-      if (!walk[i2]) continue;
-      const t = tile[i2];
+      const i = idx(x, z);
+      if (!walk[i]) continue;
+      const t = tile[i];
       const r = rng();
-      if (t === TILE.FOREST && r < 0.16) {
+      if (t === TILE.FOREST && r < 0.13) {
         props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * Math.PI * 2, s: 0.8 + rng() * 0.7 });
-        walk[i2] = 0;
-      } else if (t === TILE.GRASS && r < 0.010) {
+        walk[i] = 0;
+      } else if (t === TILE.GRASS && r < 0.006) {
         props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * Math.PI * 2, s: 0.8 + rng() * 0.5 });
-        walk[i2] = 0;
-      } else if ((t === TILE.GRASS || t === TILE.SAND) && r >= 0.010 && r < 0.018) {
+        walk[i] = 0;
+      } else if ((t === TILE.GRASS || t === TILE.SAND) && r >= 0.006 && r < 0.011) {
         props.push({ type: 'rock', x: x + 0.5, z: z + 0.5, rot: rng() * Math.PI * 2, s: 0.5 + rng() * 0.8 });
-        walk[i2] = 0;
-      } else if (t === TILE.GRAVE && r < 0.10) {
+        walk[i] = 0;
+      } else if (t === TILE.GRAVE && r < 0.09) {
         props.push({ type: 'grave', x: x + 0.5, z: z + 0.5, rot: (rng() - 0.5) * 0.4, s: 1 });
-        walk[i2] = 0;
+        walk[i] = 0;
       }
     }
   }
 
   return {
     size: N, height, tile, walk, props, kind: 'island',
-    spawnPoint: { x: LH.x + 0.5, z: LH.z - 4.5 },   // devant le temple de Lighthaven
+    spawnPoint: { x: LH.x + 0.5, z: LH.z - 8.5 },   // le parvis du temple de Lighthaven
     village: { x: LH.x, z: LH.z },
     // les marchands : Maître Aldric à Lighthaven, Ttayh Mark à Windhowl
     npcSpots: [
-      { npcId: 'merchant', x: LH.x - 1.5, z: LH.z + 6.5 },
-      { npcId: 'merchant_wh', x: WH.x + 3.5, z: WH.z + 5.5 },
+      { npcId: 'merchant', x: LH.x - 7.5, z: LH.z - 11.5 },
+      { npcId: 'merchant_wh', x: WH.x + 3.5, z: WH.z - 2.5 },
     ],
     spawnZones: ARAKAS_SPAWNS,
     isWalkable(x, z) {
