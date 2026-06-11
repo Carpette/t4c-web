@@ -53,6 +53,22 @@ export const ITEMS = {
   epee_longue_acier:   { name: 'Épée longue en acier trempé', slot: 'weapon', zone: 1, fixed: true, dmgMin: 64, dmgMax: 87, speed: 1.6, weight: 5, req: { str: 126 },            layer: 'longsword',  loot: 'longsword',  price: 7411 },
   dague_qualite:       { name: 'Dague de qualité',        slot: 'weapon', zone: 1, fixed: true, dmgMin: 62, dmgMax: 84, speed: 1.1, weight: 1, req: { str: 126 },                layer: 'dagger',     loot: 'dagger',     price: 7411 },
 
+  // ================= ARCS T4C (l4p.fr VoirArcs) — ranged: true, range en tuiles =================
+  // Lighthaven : vendus par Sigfried (zone 0)
+  arc_droit_frene:     { name: 'Arc droit en frêne',      slot: 'weapon', zone: 0, fixed: true, ranged: true, range: 8, dmgMin: 1,  dmgMax: 3,  speed: 1.8, weight: 7, req: {},                          layer: 'shortbow', loot: 'shortbow', price: 6 },
+  grand_arc_frene:     { name: 'Grand arc en frêne',      slot: 'weapon', zone: 0, fixed: true, ranged: true, range: 9, dmgMin: 5,  dmgMax: 11, speed: 2.0, weight: 8, req: { str: 13, agi: 24 },        layer: 'longbow',  loot: 'longbow',  price: 121 },
+  arc_courbe_frene:    { name: 'Arc courbé en frêne',     slot: 'weapon', zone: 0, fixed: true, ranged: true, range: 9, dmgMin: 12, dmgMax: 18, speed: 2.1, weight: 8, req: { str: 17, agi: 39 },        layer: 'greatbow', loot: 'greatbow', price: 526 },
+  // Windhowl : vendus par Ttayh Mark (zone 1)
+  arc_droit_orme:      { name: 'Arc droit en orme',       slot: 'weapon', zone: 1, fixed: true, ranged: true, range: 8, dmgMin: 18, dmgMax: 26, speed: 1.8, weight: 8, req: { str: 15, agi: 53 },        layer: 'shortbow', loot: 'shortbow', price: 1053 },
+  grand_arc_orme:      { name: 'Grand arc en orme',       slot: 'weapon', zone: 1, fixed: true, ranged: true, range: 9, dmgMin: 28, dmgMax: 39, speed: 2.0, weight: 8, req: { str: 18, agi: 68 },        layer: 'longbow',  loot: 'longbow',  price: 1865 },
+  arc_courbe_orme:     { name: 'Arc courbé en orme',      slot: 'weapon', zone: 1, fixed: true, ranged: true, range: 9, dmgMin: 33, dmgMax: 50, speed: 2.1, weight: 9, req: { str: 22, agi: 82 },        layer: 'greatbow', loot: 'greatbow', price: 2906 },
+  arc_recourbe_orme:   { name: 'Arc recourbé en orme',    slot: 'weapon', zone: 1, fixed: true, ranged: true, range: 9, dmgMin: 42, dmgMax: 56, speed: 2.1, weight: 9, req: { str: 29, agi: 97 },        layer: 'greatbow', loot: 'greatbow', price: 4177 },
+  // Arcs en drop / quête / coffre du palier Arakas (LH/WH)
+  arc_en_os_du_desert: { name: 'Arc en os du désert',     slot: 'weapon', chest: 0, fixed: true, ranged: true, range: 8, dmgMin: 17, dmgMax: 27, speed: 1.8, weight: 7, req: { str: 17, agi: 39 },       layer: 'shortbow', loot: 'shortbow', price: 3148 },
+  arc_pourfendeur_centaures: { name: 'Arc pourfendeur des centaures', slot: 'weapon', chest: 1, fixed: true, ranged: true, range: 9, dmgMin: 64, dmgMax: 87, speed: 2.0, weight: 8, req: { str: 27, agi: 140 }, layer: 'longbow', loot: 'longbow', price: 15620 },
+  arc_des_arachnides:  { name: 'Arc des arachnides',      slot: 'weapon', chest: 1, fixed: true, ranged: true, range: 9, dmgMin: 86, dmgMax: 115, speed: 2.0, weight: 8, req: { str: 31, agi: 184 },     layer: 'greatbow', loot: 'greatbow', price: 23310 },
+  arc_primitif_skraugh:{ name: 'Arc primitif skraugh',    slot: 'weapon', drop: 'orc', fixed: true, ranged: true, range: 8, dmgMin: 78, dmgMax: 104, speed: 1.9, weight: 8, req: { str: 40, end: 35, agi: 169, wis: 25, int: 20 }, layer: 'shortbow', loot: 'shortbow', price: 23310 },
+
   // ================= ARMES T4C — en drop sur les monstres =================
   dague_du_crane:      { name: 'Dague du crâne',          slot: 'weapon', fixed: true, dmgMin: 5,  dmgMax: 11, speed: 1.1, weight: 1, req: { str: 12, wis: 15, int: 43 },        layer: 'dagger',     loot: 'dagger',     price: 415 },
   dague_perceuse:      { name: "Dague perceuse d'armure", slot: 'weapon', fixed: true, dmgMin: 12, dmgMax: 19, speed: 1.1, weight: 1, req: { str: 39, int: 19, wis: 21 },        layer: 'dagger',     loot: 'dagger',     price: 949 },
@@ -222,7 +238,7 @@ export const MOBS = {
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.8,
     resist: { air: -0.25, terre: 0.3 },
     sprite: 'hobgoblin', respawn: 35,
-    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
+    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['arc_primitif_skraugh', 0.01, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
   },
   ogre: {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,

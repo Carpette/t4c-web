@@ -14,6 +14,12 @@
       "effect": { "dodge": 0.001 }
     },
     {
+      "id": "archerie", "name": "Archerie", "innate": true, "max": 9999,
+      "level": 1, "req": {}, "learnCost": 0, "trainCost": 3, "zone": 0,
+      "desc": "Capacité à toucher sa cible à distance. +0,1 % de toucher par point, uniquement avec un arc (l'Attaque ne sert qu'en mêlée).",
+      "effect": { "rangedHit": 0.001 }
+    },
+    {
       "id": "coup_assommant", "name": "Coup assommant", "max": 100,
       "level": 3, "req": { "str": 25, "agi": 20 }, "learnCost": 30, "trainCost": 4, "zone": 0,
       "desc": "Chance d'immobiliser brièvement la cible à chaque coup réussi (0,15 %/pt). Influencée par l'agilité.",
