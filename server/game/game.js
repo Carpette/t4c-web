@@ -826,7 +826,9 @@ export class Game {
     attacker.lastCombat = this.now();
     defender.lastCombat = this.now();
 
-    let hitC = C.hitChance(aStats, dStats);
+    // la CA du défenseur fait rater les coups (jet de toucher T4C)
+    const defCA = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
+    let hitC = C.hitChance(aStats, dStats, defCA);
     if (attacker.kind === C.KIND.PLAYER) hitC = Math.min(0.98, hitC + (attacker.skillFx?.hit || 0));
     if (Math.random() > hitC) {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
