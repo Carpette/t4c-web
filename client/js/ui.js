@@ -78,6 +78,15 @@ export class UI {
 
     $('btn-respawn').onclick = () => net.send({ t: 'newchar' });
 
+    // poser de l'or au sol (échange entre joueurs)
+    $('btn-drop-gold').onclick = () => {
+      const max = this.self?.gold || 0;
+      if (!max) return;
+      const v = prompt(`Combien d'or poser au sol ? (vous : ${max})`, '');
+      const amount = Math.min(max, Math.max(0, parseInt(v, 10) || 0));
+      if (amount > 0) net.send({ t: 'drop', gold: amount });
+    };
+
     // ---- Menu de jeu (Échap) ----
     $('menu-resume').onclick = () => this.hideMenu();
     $('menu-settings').onclick = () => {
@@ -608,6 +617,12 @@ export class UI {
         if (item.slot === 'use') this.net.send({ t: 'use', iid: item.iid });
         else if (equippedIids.has(item.iid)) this.net.send({ t: 'unequip', slot: item.slot });
         else this.net.send({ t: 'equip', iid: item.iid });
+      };
+      // clic droit : poser l'objet au sol (échange entre joueurs, à la T4C)
+      div.oncontextmenu = (e) => {
+        e.preventDefault();
+        this.hideTooltip();
+        this.net.send({ t: 'drop', iid: item.iid });
       };
       this.bindTooltip(div, () => this.itemTooltip(item));
       grid.appendChild(div);

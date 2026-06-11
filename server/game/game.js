@@ -556,6 +556,11 @@ export class Game {
         if (p.equip[msg.slot]) { delete p.equip[msg.slot]; this.recompute(p); this.sendSelf(p); }
         break;
       }
+      case 'drop': {
+        if (p.dead) return;
+        this.dropItem(p, msg);
+        break;
+      }
       case 'use': {
         if (p.dead) return;
         const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
@@ -1238,7 +1243,7 @@ export class Game {
     this.sendSelf(p);
   }
 
-  spawnDrop(zi, x, z, payload) {
+  spawnDrop(zi, x, z, payload, ttl = C.ITEM_DESPAWN) {
     for (let tries = 0; tries < 8; tries++) {
       const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
       if (zi.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
@@ -1248,9 +1253,36 @@ export class Game {
       defId: payload.gold ? 'or' : payload.item.defId,
       gold: payload.gold || 0, item: payload.item || null,
       x, z, dir: 0, state: 0, hidden: false,
-      expiresAt: this.now() + C.ITEM_DESPAWN,
+      expiresAt: this.now() + ttl,
     };
     zi.add(d);
+  }
+
+  // Pose au sol — c'est ainsi que s'échangent objets et or entre joueurs
+  // (fidèle à T4C) : l'un pose, l'autre ramasse. L'objet reste visible par
+  // tous et disparaît au bout de PLAYER_DROP_DESPAWN secondes.
+  dropItem(p, msg) {
+    if (msg.gold != null) {
+      const amount = Math.min(p.gold, Math.max(0, msg.gold | 0));
+      if (!amount) return;
+      p.gold -= amount;
+      this.spawnDrop(p.zi, p.x, p.z, { gold: amount }, C.PLAYER_DROP_DESPAWN);
+      this.send(p, { t: 'loot', text: `Posé au sol : ${amount} or` });
+      this.sendSelf(p);
+      return;
+    }
+    const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
+    if (i < 0) return;
+    const item = p.inventory[i];
+    // déséquipe si nécessaire
+    for (const [slot, iid] of Object.entries(p.equip)) {
+      if (iid === item.iid) delete p.equip[slot];
+    }
+    p.inventory.splice(i, 1);
+    this.spawnDrop(p.zi, p.x, p.z, { item }, C.PLAYER_DROP_DESPAWN);
+    this.recompute(p);
+    this.send(p, { t: 'loot', text: `Posé au sol : ${itemLabel(item)}` });
+    this.sendSelf(p);
   }
 
   // ---------- Boucle ----------

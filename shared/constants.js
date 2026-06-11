@@ -7,6 +7,7 @@ export const AOI_RADIUS = 42;           // rayon d'intérêt (unités monde)
 export const MAX_PLAYERS = 256;
 export const DAY_LENGTH = 600;          // secondes pour un cycle jour/nuit complet
 export const ITEM_DESPAWN = 90;         // s avant disparition d'un objet au sol
+export const PLAYER_DROP_DESPAWN = 300; // s pour un objet posé par un joueur (échanges)
 export const PICKUP_RANGE = 2.2;
 export const CHAT_MAX = 200;
 export const LOCAL_CHAT_DISTANCE_MAX = 15.0; // Rayon maximal de proximité pour le chat local
