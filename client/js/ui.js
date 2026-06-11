@@ -2,7 +2,7 @@
 import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
-import { SETTING_DEFS, settings, setSetting } from './settings.js';
+import { SETTING_DEFS, SETTING_CHOICES, settings, setSetting } from './settings.js';
 import { refreshMusic } from './music.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
@@ -219,20 +219,49 @@ export class UI {
     }
   }
 
-  // ---- Paramètres d'affichage (menu Échap) ----
+  // ---- Paramètres (menu Échap) : libellé à gauche, contrôle aligné à droite ----
   renderSettings() {
     const div = $('settings-list');
     div.innerHTML = '';
-    for (const [key, label] of SETTING_DEFS) {
+    const onChanged = (key) => { if (key === 'musicOn' || key === 'musicPack') refreshMusic(); };
+    const addRow = (label, control) => {
       const row = document.createElement('label');
       row.className = 'setting-row';
+      const span = document.createElement('span');
+      span.textContent = label;
+      row.append(span, control);
+      div.appendChild(row);
+    };
+    const addSection = (title) => {
+      const h = document.createElement('div');
+      h.className = 'setting-section';
+      h.textContent = title;
+      div.appendChild(h);
+    };
+
+    addSection('Audio');
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn')) {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
-      cb.onchange = () => { setSetting(key, cb.checked); if (key === 'musicOn') refreshMusic(); };
-      row.appendChild(cb);
-      row.appendChild(document.createTextNode(label));
-      div.appendChild(row);
+      cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
+      addRow(label, cb);
+    }
+    for (const c of SETTING_CHOICES) {
+      const sel = document.createElement('select');
+      sel.innerHTML = c.options.map(([v, l]) =>
+        `<option value="${v}"${settings[c.key] === v ? ' selected' : ''}>${l}</option>`).join('');
+      sel.onchange = () => { setSetting(c.key, sel.value); onChanged(c.key); };
+      addRow(c.label, sel);
+    }
+
+    addSection('Affichage');
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn')) {
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = settings[key];
+      cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
+      addRow(label, cb);
     }
   }
 

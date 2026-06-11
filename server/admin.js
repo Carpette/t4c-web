@@ -101,15 +101,13 @@ export async function handleAdmin(req, res, url, game) {
       }
       if (req.method === 'PUT') {
         const map = JSON.parse(await readBody(req));
-        // ne garde que la structure attendue
-        const clean = {
-          login: typeof map.login === 'string' ? map.login : null,
-          trial: typeof map.trial === 'string' ? map.trial : null,
-          zones: {},
-        };
-        for (const [k, v] of Object.entries(map.zones || {})) {
-          if (typeof v === 'string' && v) clean.zones[k] = v;
-        }
+        // ne garde que la structure attendue : { legacy, new } par emplacement
+        const slot = (v) => ({
+          legacy: typeof v?.legacy === 'string' && v.legacy ? v.legacy : null,
+          new: typeof v?.new === 'string' && v.new ? v.new : null,
+        });
+        const clean = { login: slot(map.login), trial: slot(map.trial), zones: {} };
+        for (const [k, v] of Object.entries(map.zones || {})) clean.zones[k] = slot(v);
         saveContentFile('music', clean);
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
         return json(200, { ok: true });

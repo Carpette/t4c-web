@@ -17,10 +17,20 @@ export function loadContent() {
   content.skills = skills.skills;
   content.spellById = Object.fromEntries(content.spells.map(s => [s.id, s]));
   content.skillById = Object.fromEntries(content.skills.map(s => [s.id, s]));
-  // musiques (écran de connexion, Épreuve, zone -> fichier) : tolérant si absent
+  // musiques (écran de connexion, Épreuve, zone -> fichier) : tolérant si absent.
+  // Chaque emplacement a deux variantes { legacy, new } : le joueur choisit son
+  // pack dans les paramètres (nouvelles musiques par défaut). L'ancien format
+  // (fichier seul) est migré en variante legacy.
+  const slot = (v) => {
+    if (v == null) return { legacy: null, new: null };
+    if (typeof v === 'string') return { legacy: v, new: null };
+    return { legacy: v.legacy || null, new: v.new || null };
+  };
   try {
-    content.music = JSON.parse(fs.readFileSync(path.join(DIR, 'music.json'), 'utf8'));
-  } catch { content.music = { login: null, trial: null, zones: {} }; }
+    const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'music.json'), 'utf8'));
+    content.music = { login: slot(raw.login), trial: slot(raw.trial), zones: {} };
+    for (const [k, v] of Object.entries(raw.zones || {})) content.music.zones[k] = slot(v);
+  } catch { content.music = { login: slot(null), trial: slot(null), zones: {} }; }
   return content;
 }
 

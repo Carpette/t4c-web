@@ -1,12 +1,24 @@
 // Musique d'ambiance : un fichier en boucle, choisi par le serveur selon la
-// zone (content/music.json, administrable). Les navigateurs bloquent la
-// lecture automatique avant la première interaction : dans ce cas, la
-// lecture démarre au premier clic ou à la première touche.
+// zone (content/music.json, administrable). Chaque emplacement propose deux
+// variantes { legacy, new } : le joueur choisit son pack dans les paramètres
+// (nouvelles musiques par défaut), avec repli sur l'autre variante si le pack
+// choisi n'a rien pour cette zone.
+// Les navigateurs bloquent la lecture automatique avant la première
+// interaction : dans ce cas, la lecture démarre au premier clic ou touche.
 import { settings } from './settings.js';
 
 let audio = null;
-let currentFile = null;
+let currentSlot = null; // { legacy, new } | null
 let armed = false;
+
+// la variante à jouer selon le pack choisi (repli sur l'autre si absente)
+function pickFile() {
+  if (!currentSlot) return null;
+  if (typeof currentSlot === 'string') return currentSlot; // ancien format
+  return settings.musicPack === 'legacy'
+    ? (currentSlot.legacy || currentSlot.new)
+    : (currentSlot.new || currentSlot.legacy);
+}
 
 function startOnGesture() {
   if (armed) return;
@@ -27,21 +39,22 @@ function stop() {
 }
 
 function apply() {
-  if (!settings.musicOn || !currentFile) { stop(); return; }
-  if (audio && audio._file === currentFile) return; // déjà en cours
+  const file = settings.musicOn ? pickFile() : null;
+  if (!file) { stop(); return; }
+  if (audio && audio._file === file) return; // déjà en cours
   stop();
-  audio = new Audio(`/assets/music/${encodeURIComponent(currentFile)}`);
-  audio._file = currentFile;
+  audio = new Audio(`/assets/music/${encodeURIComponent(file)}`);
+  audio._file = file;
   audio.loop = true;
   audio.volume = 0.4;
   audio.play().catch(() => startOnGesture());
 }
 
-// Change la piste en cours (null = silence)
-export function playMusic(file) {
-  currentFile = file || null;
+// Change la piste en cours (slot { legacy, new }, fichier seul, ou null = silence)
+export function playMusic(slot) {
+  currentSlot = slot || null;
   apply();
 }
 
-// À appeler quand le réglage « Musique » change
+// À appeler quand un réglage musique change (activation, pack)
 export function refreshMusic() { apply(); }

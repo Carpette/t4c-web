@@ -56,39 +56,50 @@ async function loadMusic() {
   } catch (e) { $('music-msg').textContent = e.message; return; }
 
   const table = $('music-table');
-  table.innerHTML = '<tr><th>Zone</th><th>Musique (en boucle)</th><th></th></tr>';
-  const mkRow = (label, getVal, setVal) => {
-    const tr = document.createElement('tr');
-    const tdName = document.createElement('td');
-    tdName.textContent = label;
-    const tdSel = document.createElement('td');
+  table.innerHTML = '<tr><th>Zone</th><th>Nouvelle musique (défaut joueurs)</th><th>Musique ancienne (legacy)</th></tr>';
+  // chaque emplacement a deux variantes { legacy, new } : le joueur choisit
+  // son pack dans ses paramètres, avec repli sur l'autre variante si vide
+  const slotOf = (get) => {
+    let s = get();
+    if (s == null || typeof s === 'string') s = { legacy: s || null, new: null };
+    return s;
+  };
+  const mkCell = (slot, variant) => {
+    const td = document.createElement('td');
+    td.style.whiteSpace = 'nowrap';
     const sel = document.createElement('select');
     sel.innerHTML = '<option value="">— silence —</option>' +
-      files.map(f => `<option value="${f}"${getVal() === f ? ' selected' : ''}>${f}</option>`).join('');
-    sel.onchange = () => setVal(sel.value || null);
-    tdSel.appendChild(sel);
-    const tdPlay = document.createElement('td');
+      files.map(f => `<option value="${f}"${slot[variant] === f ? ' selected' : ''}>${f}</option>`).join('');
+    sel.onchange = () => { slot[variant] = sel.value || null; };
     const play = document.createElement('button');
     play.textContent = '▶';
     play.title = 'Pré-écouter';
+    play.style.marginLeft = '6px';
     play.onclick = () => {
-      const f = sel.value;
-      if (!f) return;
+      if (!sel.value) return;
       const a = $('music-preview');
-      a.src = `/assets/music/${encodeURIComponent(f)}`;
+      a.src = `/assets/music/${encodeURIComponent(sel.value)}`;
       a.play();
     };
-    tdPlay.appendChild(play);
-    tr.append(tdName, tdSel, tdPlay);
+    td.append(sel, play);
+    return td;
+  };
+  const mkRow = (label, getSlot, setSlot) => {
+    const slot = slotOf(getSlot);
+    setSlot(slot); // normalise dans musicMap (l'objet est partagé avec les selects)
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = label;
+    tr.append(tdName, mkCell(slot, 'new'), mkCell(slot, 'legacy'));
     table.appendChild(tr);
   };
 
-  mkRow('Écran de connexion', () => musicMap.login, v => { musicMap.login = v; });
-  mkRow("L'Épreuve", () => musicMap.trial, v => { musicMap.trial = v; });
+  mkRow('Écran de connexion', () => musicMap.login, s => { musicMap.login = s; });
+  mkRow("L'Épreuve", () => musicMap.trial, s => { musicMap.trial = s; });
   for (const z of zonesDef) {
     mkRow(`${z.id} — ${z.name} (${z.levels[0]}-${z.levels[1]})`,
-      () => musicMap.zones[String(z.id)] || null,
-      v => { if (v) musicMap.zones[String(z.id)] = v; else delete musicMap.zones[String(z.id)]; });
+      () => musicMap.zones[String(z.id)],
+      s => { musicMap.zones[String(z.id)] = s; });
   }
 }
 
