@@ -1,14 +1,44 @@
 {
-  "login": "theme.mp3",
-  "trial": null,
+  "login": {
+    "legacy": "theme.mp3",
+    "new": "Ombre de Bastion.mp3"
+  },
+  "trial": {
+    "legacy": null,
+    "new": null
+  },
   "zones": {
-    "0": "exterieur.mp3",
-    "1": "exterieur.mp3",
-    "2": "exterieur.mp3",
-    "3": "exterieur.mp3",
-    "4": "exterieur.mp3",
-    "5": "exterieur.mp3",
-    "6": "exterieur.mp3",
-    "7": "exterieur.mp3"
+    "0": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "1": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "2": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "3": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "4": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "5": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "6": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    },
+    "7": {
+      "legacy": "exterieur.mp3",
+      "new": null
+    }
   }
 }

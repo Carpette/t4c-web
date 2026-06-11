@@ -420,10 +420,12 @@ export class Game {
     });
   }
 
-  // Musique de la zone (mapping administrable dans content/music.json)
+  // Musique de la zone (mapping administrable dans content/music.json).
+  // Renvoie les deux variantes { legacy, new } : le client choisit selon
+  // le pack sélectionné dans ses paramètres.
   musicFor(zi) {
-    if (zi.isTrial) return content.music?.trial || null;
-    return content.music?.zones?.[String(zi.zoneId)] || null;
+    const s = zi.isTrial ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
+    return (s && (s.legacy || s.new)) ? s : null;
   }
 
   // Pousse la musique à jour à tous les joueurs connectés (après édition admin)

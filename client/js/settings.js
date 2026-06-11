@@ -1,8 +1,16 @@
-// Préférences d'affichage du client — persistées en localStorage.
-// Importé par l'UI (panneau Paramètres) et par le rendu (étiquettes des entités).
+// Préférences d'affichage et d'audio du client — persistées en localStorage.
+// Importé par l'UI (panneau Paramètres), le rendu (étiquettes) et la musique.
 const KEY = 't4c_settings';
 
-// [clé, libellé, valeur par défaut]
+// Réglages à choix : { key, label, options: [[valeur, libellé], ...], def }
+export const SETTING_CHOICES = [
+  {
+    key: 'musicPack', label: 'Pack de musiques', def: 'new',
+    options: [['new', 'Nouvelles'], ['legacy', 'Anciennes (legacy)']],
+  },
+];
+
+// Cases à cocher : [clé, libellé, valeur par défaut]
 export const SETTING_DEFS = [
   ['musicOn',          'Musique', true],
   ['showPlayerNames',  'Noms des autres joueurs', true],
@@ -17,12 +25,16 @@ export const SETTING_DEFS = [
 
 export const settings = {};
 for (const [k, , d] of SETTING_DEFS) settings[k] = d;
+for (const c of SETTING_CHOICES) settings[c.key] = c.def;
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-  for (const k of Object.keys(saved)) if (k in settings) settings[k] = !!saved[k];
+  for (const [k, , ] of SETTING_DEFS) if (k in saved) settings[k] = !!saved[k];
+  for (const c of SETTING_CHOICES) {
+    if (c.key in saved && c.options.some(([v]) => v === saved[c.key])) settings[c.key] = saved[c.key];
+  }
 } catch { /* préférences corrompues : on repart des défauts */ }
 
 export function setSetting(k, v) {
-  settings[k] = !!v;
+  settings[k] = v;
   localStorage.setItem(KEY, JSON.stringify(settings));
 }

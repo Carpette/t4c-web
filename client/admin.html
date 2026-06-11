@@ -90,8 +90,10 @@
         <button id="save-music">💾 Enregistrer</button>
       </div>
       <p class="hint">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
-      dans les listes. La correspondance « cette zone joue cette musique » s'applique à chaud
-      aux joueurs connectés. « — silence — » coupe la musique pour la zone.</p>
+      dans les listes. Chaque zone a deux variantes : la <b>nouvelle</b> musique (pack par défaut
+      des joueurs) et la musique <b>ancienne</b> (pack « legacy », choisi dans les paramètres en jeu) —
+      si la variante du pack choisi est vide, l'autre est jouée. Appliqué à chaud aux joueurs connectés.
+      « — silence — » coupe la musique.</p>
       <p id="music-msg" class="msg"></p>
       <table id="music-table"></table>
       <h2>Pré-écoute</h2>
