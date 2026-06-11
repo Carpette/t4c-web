@@ -236,7 +236,7 @@ export class Game {
     p.zi.remove(p);
     const old = p.zi;
     p.x = x; p.z = z;
-    p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null;
+    p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
     zi.add(p);
     zi.players++;
     this.maybeDestroyTrial(old);
@@ -444,7 +444,7 @@ export class Game {
         if (p.dead) return;
         const x = +msg.x, z = +msg.z;
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
-        p.attackTarget = null; p.moveDir = null; p.pendingInteract = null;
+        p.attackTarget = null; p.moveDir = null; p.pendingInteract = null; p.pendingCast = null;
         p.path = findPath(p.zi.world, p.x, p.z, x, z);
         break;
       }
@@ -455,7 +455,7 @@ export class Game {
         const len = Math.hypot(x, z);
         if (len < 0.01) { p.moveDir = null; if (p.state === C.ST.WALK) p.state = C.ST.IDLE; return; }
         p.moveDir = { x: x / len, z: z / len };
-        p.path = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null;
+        p.path = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
         break;
       }
       case 'attack': {
@@ -938,7 +938,12 @@ export class Game {
     } else if (sp.type === 'bolt') {
       const target = p.zi.entities.get(msg.target | 0);
       if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
-      if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
+      if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) {
+        // hors mode combat : on s'approche puis on lance (à la T4C)
+        if (msg.approach) { this.startApproachCast(p, msg, target.x, target.z); return; }
+        this.send(p, { t: 'info', text: 'Trop loin.' });
+        return;
+      }
       if (!lineOfSight(p.zi.world, p, target)) return;
       // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
       let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
@@ -955,7 +960,11 @@ export class Game {
     } else if (sp.type === 'aoe') {
       const cx = +msg.x, cz = +msg.z;
       if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
-      if (Math.hypot(cx - p.x, cz - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
+      if (Math.hypot(cx - p.x, cz - p.z) > sp.range) {
+        if (msg.approach) { this.startApproachCast(p, msg, cx, cz); return; }
+        this.send(p, { t: 'info', text: 'Trop loin.' });
+        return;
+      }
       this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
       for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
         if (e.kind !== C.KIND.MOB || e.dead) continue;
@@ -971,6 +980,14 @@ export class Game {
     p.state = C.ST.ATTACK;
     this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd, mana: Math.round(p.mana) });
     if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
+  }
+
+  // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
+  startApproachCast(p, msg, tx, tz) {
+    p.pendingCast = { ...msg, approach: false }; // une seule approche, pas de boucle
+    p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
+    p.moveDir = null;
+    p.attackTarget = null;
   }
 
   // Résistances élémentaires T4C : réduction (ou amplification si faiblesse)
@@ -1229,6 +1246,28 @@ export class Game {
         else if (Math.hypot(d.x - p.x, d.z - p.z) <= C.PICKUP_RANGE) {
           this.doPickup(p, d);
           p.pendingPickup = null;
+        }
+      }
+      // sort en attente d'approche : lance dès qu'on est à portée
+      if (p.pendingCast) {
+        const pc = p.pendingCast;
+        const spc = content.spellById[pc.spellId];
+        const tgt = pc.target != null ? p.zi.entities.get(pc.target) : null;
+        if (!spc || (pc.target != null && (!tgt || tgt.dead || tgt.hidden))) {
+          p.pendingCast = null;
+        } else {
+          const tx = tgt ? tgt.x : pc.x, tz = tgt ? tgt.z : pc.z;
+          // à portée ET en ligne de vue : sinon on continue d'avancer
+          if (Math.hypot(tx - p.x, tz - p.z) <= spc.range
+              && lineOfSight(p.zi.world, p, { x: tx, z: tz })) {
+            if ((p.spellCds[spc.id] || 0) <= now) {
+              p.pendingCast = null;
+              p.path = null;
+              this.castSpell(p, pc);
+            }
+          } else if (!p.path || this.tickCount % 5 === 0) {
+            p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
+          }
         }
       }
       if (p.pendingInteract) {
