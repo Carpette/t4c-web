@@ -106,6 +106,54 @@ export class UI {
   }
 
   setAssets(assets) { this.assets = assets; }
+
+  // ---- Icônes d'objets : vrais sprites loot (atlas Flare) plutôt qu'émojis ----
+  // Recadre le frame manifest.loot de l'objet dans un canvas size×size (contain),
+  // mis en cache en dataURL pour ne pas redessiner à chaque rendu.
+  itemIconUrl(defId, size = 34) {
+    if (!this.assets) return null;
+    if (!this._iconCache) this._iconCache = new Map();
+    const key = `${defId}:${size}`;
+    if (this._iconCache.has(key)) return this._iconCache.get(key);
+    const lootKey = ITEMS[defId]?.loot;
+    const entry = lootKey && this.assets.manifest.loot[lootKey];
+    const img = entry && this.assets.images.get(entry.image);
+    let url = null;
+    if (img) {
+      const [x, y, w, h] = entry.frame;
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const s = Math.min(size / w, size / h);
+      const dw = Math.max(1, Math.round(w * s)), dh = Math.max(1, Math.round(h * s));
+      ctx.drawImage(img, x, y, w, h, Math.round((size - dw) / 2), Math.round((size - dh) / 2), dw, dh);
+      url = c.toDataURL();
+    }
+    this._iconCache.set(key, url);
+    return url;
+  }
+
+  // élément DOM prêt à insérer ; émoji de secours si le sprite manque
+  itemIconEl(defId, fallback, size = 34) {
+    const url = this.itemIconUrl(defId, size);
+    if (!url) {
+      const span = document.createElement('span');
+      span.textContent = fallback || '❓';
+      return span;
+    }
+    const img = document.createElement('img');
+    img.className = 'item-icon';
+    img.src = url;
+    img.style.width = img.style.height = `${size}px`;
+    return img;
+  }
+
+  // version HTML inline (lignes de boutique/banque construites en innerHTML)
+  itemIconHtml(defId, fallback, size = 22) {
+    const url = this.itemIconUrl(defId, size);
+    return url ? `<img class="item-icon sm" src="${url}">` : (fallback || '');
+  }
   setSpellDefs(defs) { this.spellDefs = defs; }
   spellDef(id) { return this.spellDefs.find(s => s.id === id); }
   knownSpells() { return (this.self?.spells || []).map(id => this.spellDef(id)).filter(Boolean); }
@@ -207,7 +255,7 @@ export class UI {
           it.weight && `${it.weight} kg`,
           it.reqText && `requis : ${it.reqText}`,
         ].filter(Boolean).join(' — ') || '';
-        mk(`${SLOT_ICONS[it.slot] || ''} ${it.name}`, meta, it.price, false,
+        mk(`${this.itemIconHtml(it.defId, SLOT_ICONS[it.slot])} ${it.name}`, meta, it.price, false,
           () => this.net.send({ t: 'buy', kind: 'item', id: it.defId }));
       }
     } else if (this.shopTab === 'spells') {
@@ -257,7 +305,7 @@ export class UI {
       for (const it of inv) {
         const row = document.createElement('div');
         row.className = 'shop-row';
-        row.innerHTML = `<span>${SLOT_ICONS[it.slot] || ''} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}</span>`;
+        row.innerHTML = `<span>${this.itemIconHtml(it.defId, SLOT_ICONS[it.slot])} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}</span>`;
         const btn = document.createElement('button');
         btn.textContent = `Vendre ${it.price} 🟡`;
         btn.onclick = () => this.net.send({ t: 'sell', iid: it.iid });
@@ -294,7 +342,7 @@ export class UI {
     list.innerHTML = '';
     if (!this.bank.items.length) list.innerHTML = '<p class="hint">Votre coffre est vide.</p>';
     for (const it of this.bank.items) {
-      mkRow(list, `${SLOT_ICONS[it.slot] || ''} ${it.label}`, 'Retirer', false,
+      mkRow(list, `${this.itemIconHtml(it.defId, SLOT_ICONS[it.slot])} ${it.label}`, 'Retirer', false,
         () => this.net.send({ t: 'bank_withdraw', iid: it.iid }));
     }
     // inventaire -> Déposer
@@ -305,7 +353,7 @@ export class UI {
     if (!inv.length) invList.innerHTML = '<p class="hint">Votre inventaire est vide.</p>';
     for (const it of inv) {
       mkRow(invList,
-        `${SLOT_ICONS[it.slot] || ''} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}`,
+        `${this.itemIconHtml(it.defId, SLOT_ICONS[it.slot])} ${it.label}${equipped.has(it.iid) ? ' <span class="meta">(équipé)</span>' : ''}`,
         'Déposer', bankFull,
         () => this.net.send({ t: 'bank_deposit', iid: it.iid }));
     }
@@ -529,7 +577,8 @@ export class UI {
       if (item) {
         div.classList.add('filled');
         if (item.q) div.classList.add(`q${item.q}`);
-        div.textContent = SLOT_ICONS[slot] || '';
+        div.textContent = '';
+        div.appendChild(this.itemIconEl(item.defId, SLOT_ICONS[slot]));
         div.oncontextmenu = (e) => { e.preventDefault(); this.net.send({ t: 'unequip', slot }); };
         div.onclick = (e) => { e.preventDefault(); this.net.send({ t: 'unequip', slot }); };
         this.bindTooltip(div, () => this.itemTooltip(item));
@@ -554,7 +603,7 @@ export class UI {
     for (const item of s.inventory) {
       const div = document.createElement('div');
       div.className = 'inv-item' + (item.q ? ` q${item.q}` : '') + (equippedIids.has(item.iid) ? ' equipped' : '');
-      div.textContent = SLOT_ICONS[item.slot] || '❓';
+      div.appendChild(this.itemIconEl(item.defId, SLOT_ICONS[item.slot] || '❓'));
       div.onclick = () => {
         if (item.slot === 'use') this.net.send({ t: 'use', iid: item.iid });
         else if (equippedIids.has(item.iid)) this.net.send({ t: 'unequip', slot: item.slot });
