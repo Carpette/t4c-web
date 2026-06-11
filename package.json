@@ -6,7 +6,10 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "bots": "node tools/bots.js"
+    "bots": "node tools/bots.js",
+    "docker:build": "docker build -t t4c-web .",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
   },
   "engines": { "node": ">=22.5" },
   "dependencies": {
