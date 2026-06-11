@@ -786,7 +786,7 @@ export class Game {
       const cx = +msg.x, cz = +msg.z;
       if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
       if (Math.hypot(cx - p.x, cz - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
-      this.eventNear(p, { t: 'aoe', x: cx, z: cz, radius: sp.radius, color: sp.color });
+      this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
       for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
         if (e.kind !== C.KIND.MOB || e.dead) continue;
         // les sorts ignorent la CA (T4C : seules les résistances comptaient)
