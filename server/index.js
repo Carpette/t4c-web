@@ -94,13 +94,23 @@ server.listen(PORT, () => {
 });
 
 // Ctrl-C : arrêt gracieux avec décompte pour les joueurs (45 s par défaut).
-// Un second Ctrl-C force l'arrêt immédiat (avec sauvegarde).
-process.on('SIGINT', () => {
+// Un second Ctrl-C (volontaire) force l'arrêt immédiat, avec sauvegarde.
+//
+// Subtilité : lancé via `npm start`, un seul Ctrl-C délivre SIGINT à tout le
+// groupe de processus (npm + node), et npm peut re-signaler son enfant en
+// quittant. On ignore donc les signaux qui arrivent dans la foulée du premier
+// (< 1,5 s) : seul un Ctrl-C humain ultérieur force vraiment.
+let shutdownAskedAt = 0;
+const gracefulOrForce = (signal) => {
+  const now = Date.now();
   if (game.shuttingDown) {
-    console.log('Arrêt forcé.');
+    if (now - shutdownAskedAt < 1500) return; // doublon npm/groupe de processus
+    console.log(`Arrêt forcé (${signal}).`);
     game.saveAll();
     process.exit(0);
   }
+  shutdownAskedAt = now;
   game.beginShutdown(parseInt(process.env.T4C_SHUTDOWN_SECS || '45', 10));
-});
-process.on('SIGTERM', () => { game.saveAll(); process.exit(0); });
+};
+process.on('SIGINT', () => gracefulOrForce('SIGINT'));
+process.on('SIGTERM', () => gracefulOrForce('SIGTERM'));
