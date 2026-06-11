@@ -74,22 +74,29 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     if (!player) {
-      if (msg.t === 'register' || msg.t === 'login') {
-        const res = msg.t === 'register' ? db.register(msg.name, msg.pass) : db.login(msg.name, msg.pass);
-        if (res.error) { ws.send(JSON.stringify({ t: 'auth_error', error: res.error })); return; }
-        if (!db.loadCharacter(res.accountId)) {
-          // pas encore de personnage : le joueur répartit ses points (façon T4C)
-          pendingAuth = res;
-          ws.send(JSON.stringify({ t: 'create_char', ...game.creationInfo() }));
-          return;
+      // toute erreur d'authentification/création remonte au client (jamais de
+      // crash silencieux qui laisserait l'écran figé sans message)
+      try {
+        if (msg.t === 'register' || msg.t === 'login') {
+          const res = msg.t === 'register' ? db.register(msg.name, msg.pass) : db.login(msg.name, msg.pass);
+          if (res.error) { ws.send(JSON.stringify({ t: 'auth_error', error: res.error })); return; }
+          if (!db.loadCharacter(res.accountId)) {
+            // pas encore de personnage : le joueur répartit ses points (façon T4C)
+            pendingAuth = res;
+            ws.send(JSON.stringify({ t: 'create_char', ...game.creationInfo() }));
+            return;
+          }
+          join(res);
+        } else if (msg.t === 'create' && pendingAuth) {
+          const data = game.buildCharacter(pendingAuth.name, msg.stats, msg.sex === 'female' ? 'female' : 'male');
+          if (!data) { ws.send(JSON.stringify({ t: 'auth_error', error: 'Répartition de points invalide' })); return; }
+          db.saveCharacter(pendingAuth.accountId, data);
+          join(pendingAuth);
+          pendingAuth = null;
         }
-        join(res);
-      } else if (msg.t === 'create' && pendingAuth) {
-        const data = game.buildCharacter(pendingAuth.name, msg.stats, msg.sex === 'female' ? 'female' : 'male');
-        if (!data) { ws.send(JSON.stringify({ t: 'auth_error', error: 'Répartition de points invalide' })); return; }
-        db.saveCharacter(pendingAuth.accountId, data);
-        join(pendingAuth);
-        pendingAuth = null;
+      } catch (e) {
+        console.error('auth/création', e);
+        try { ws.send(JSON.stringify({ t: 'auth_error', error: 'Erreur serveur : ' + e.message })); } catch {}
       }
       return;
     }

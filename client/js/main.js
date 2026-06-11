@@ -51,8 +51,22 @@ try {
 
 await net.connect();
 
+// ---------- Erreurs visibles ----------
+// Une exception ou une erreur d'authentification ne doit JAMAIS laisser un
+// écran figé sans explication : on réaffiche l'écran de connexion avec le
+// message, quoi qu'il arrive.
+function fatal(text) {
+  document.getElementById('creation')?.classList.add('hidden');
+  document.getElementById('hud')?.classList.add('hidden');
+  const login = document.getElementById('login');
+  login?.classList.remove('hidden');
+  ui.loginError(text);
+}
+window.addEventListener('error', (e) => fatal(`Erreur du client : ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
+window.addEventListener('unhandledrejection', (e) => fatal(`Erreur du client : ${e.reason?.message || e.reason}`));
+
 // ---------- Réseau ----------
-net.on('auth_error', (m) => ui.loginError(m.error));
+net.on('auth_error', (m) => fatal(m.error));
 net.on('create_char', (m) => ui.showCreation(m));
 net.on('welcome', (m) => {
   selfId = m.id;
