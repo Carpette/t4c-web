@@ -157,30 +157,6 @@
       <div class="bar hp small"><div id="target-hp"></div></div>
     </div>
 
-    <div id="death-screen" class="overlay hidden">
-      <div class="login-box" style="max-width: 480px">
-        <h1>☠ Mort définitive</h1>
-        <p id="death-by" style="margin: 10px 0"></p>
-        <div id="pantheon"></div>
-        <button id="btn-respawn">Créer un nouveau personnage</button>
-      </div>
-    </div>
-
-    <!-- Création de personnage : répartition des points façon T4C -->
-    <div id="creation" class="overlay hidden">
-      <div class="login-box" style="min-width: 360px">
-        <h1>Création du personnage</h1>
-        <p class="subtitle">Répartissez vos points — choisissez votre voie</p>
-        <div id="creation-stats"></div>
-        <p id="creation-left" style="margin: 12px 0; color: #c8b87a"></p>
-        <p style="font-size: 11px; color: #8a80a8; margin-bottom: 12px">
-          Guerrier : Force/Endurance — Mage : Intelligence (Dard de Feu dès Int 21, Sag 15)<br>
-          Prêtre : Sagesse — Voleur : Agilité. ☠ Choisissez bien : la mort est définitive.
-        </p>
-        <button id="creation-confirm" disabled>Entrer dans le monde</button>
-      </div>
-    </div>
-
     <!-- Menu de jeu (Échap) -->
     <div id="game-menu" class="overlay hidden">
       <div class="login-box" style="min-width: 300px">
@@ -201,6 +177,32 @@
     <div id="buffs-display"></div>
     <div id="floaters"></div>
     <div id="tooltip" class="hidden"></div>
+  </div>
+
+  <!-- Écrans hors-jeu : DOIVENT rester hors de #hud (caché tant qu'on n'est
+       pas en jeu), sinon ils sont invisibles à la connexion. -->
+  <div id="death-screen" class="overlay hidden">
+    <div class="login-box" style="max-width: 480px">
+      <h1>☠ Mort définitive</h1>
+      <p id="death-by" style="margin: 10px 0"></p>
+      <div id="pantheon"></div>
+      <button id="btn-respawn">Créer un nouveau personnage</button>
+    </div>
+  </div>
+
+  <!-- Création de personnage : répartition des points façon T4C -->
+  <div id="creation" class="overlay hidden">
+    <div class="login-box" style="min-width: 360px">
+      <h1>Création du personnage</h1>
+      <p class="subtitle">Répartissez vos points — choisissez votre voie</p>
+      <div id="creation-stats"></div>
+      <p id="creation-left" style="margin: 12px 0; color: #c8b87a"></p>
+      <p style="font-size: 11px; color: #8a80a8; margin-bottom: 12px">
+        Guerrier : Force/Endurance — Mage : Intelligence (Dard de Feu dès Int 21, Sag 15)<br>
+        Prêtre : Sagesse — Voleur : Agilité. ☠ Choisissez bien : la mort est définitive.
+      </p>
+      <button id="creation-confirm" disabled>Entrer dans le monde</button>
+    </div>
   </div>
 
   <script type="module" src="/js/main.js"></script>
