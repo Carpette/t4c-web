@@ -772,8 +772,8 @@ export class Game {
       if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
       if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
       if (!lineOfSight(p.zi.world, p, target)) return;
-      let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
-      dmg = C.mitigate(dmg, target.sc.def);
+      // les sorts ignorent la CA (T4C : seules les résistances comptaient)
+      const dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
       this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
       this.applyDamage(p, target, dmg, false);
       if (sp.leech) {
@@ -789,8 +789,8 @@ export class Game {
       this.eventNear(p, { t: 'aoe', x: cx, z: cz, radius: sp.radius, color: sp.color });
       for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
         if (e.kind !== C.KIND.MOB || e.dead) continue;
-        let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
-        dmg = C.mitigate(dmg, e.sc.def);
+        // les sorts ignorent la CA (T4C : seules les résistances comptaient)
+        const dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
         this.applyDamage(p, e, dmg, false);
       }
       p.lastCombat = now;
@@ -826,9 +826,7 @@ export class Game {
     attacker.lastCombat = this.now();
     defender.lastCombat = this.now();
 
-    // la CA du défenseur fait rater les coups (jet de toucher T4C)
-    const defCA = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
-    let hitC = C.hitChance(aStats, dStats, defCA);
+    let hitC = C.hitChance(aStats, dStats);
     if (attacker.kind === C.KIND.PLAYER) hitC = Math.min(0.98, hitC + (attacker.skillFx?.hit || 0));
     if (Math.random() > hitC) {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
