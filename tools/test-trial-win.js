@@ -45,10 +45,10 @@ send({ t: 'admin', cmd: 'set', level: 120 });
 await waitFor(() => S.self?.level === 120);
 ok('niveau 120 via admin', S.self?.level === 120);
 
-// téléport local près du portail de l'Épreuve, puis interaction
-send({ t: 'admin', cmd: 'goto', x: 60.5, z: 30.5 });
+// téléport local près du portail de l'Épreuve (monts Righul, carte Arakas)
+send({ t: 'admin', cmd: 'goto', x: 52.5, z: 20.5 });
 await new Promise(r => setTimeout(r, 400));
-send({ t: 'interact', prop: 'trialgate', x: 60.5, z: 28.5 });
+send({ t: 'interact', prop: 'trialgate', x: 52.5, z: 16.5 });
 await waitFor(() => S.trial, 15000);
 ok('confirmation reçue', !!S.trial);
 send({ t: 'trial_enter' });

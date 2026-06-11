@@ -11,9 +11,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const NAME = 'Banquier_' + Math.floor(Math.random() * 1e6);
 const PASS = 'test1234';
-const BANK = { x: 52.5, z: 68.5 };       // position du coffre (worldgen zone 0)
-const NEAR_BANK = { x: 53.5, z: 68.5 };  // case praticable adjacente
-const NPC_POS = { x: 59.5, z: 66.5 };    // marchand du village
+const BANK = { x: 100.5, z: 90.5 };      // coffre de Lighthaven (carte Arakas)
+const NEAR_BANK = { x: 100.5, z: 91.5 }; // case praticable adjacente
+const NPC_POS = { x: 92.5, z: 89.5 };    // devant Maître Aldric (place de LH)
 
 // petite session WebSocket : état + helpers
 function session() {
@@ -73,7 +73,7 @@ await A.waitFor(() => A.self?.inventory.some(i => i.iid === weapon.iid));
 ok('poignard retiré de la banque', A.bank.items.length === 0 && A.self.inventory.some(i => i.iid === weapon.iid));
 
 // --- refus à distance (proximité du coffre obligatoire) ---
-A.send({ t: 'admin', cmd: 'goto', x: 64.5, z: 73.5 }); // place du village, loin du coffre
+A.send({ t: 'admin', cmd: 'goto', x: 95.5, z: 82.5 }); // place de Lighthaven, loin du coffre
 await sleep(400);
 const invCount = A.self.inventory.length;
 A.send({ t: 'bank_deposit', iid: weapon.iid });
@@ -87,7 +87,9 @@ const potion = A.self.inventory.find(i => i.defId === 'potion_vie');
 A.send({ t: 'bank_deposit', iid: potion.iid });
 await A.waitFor(() => A.bank?.items.some(i => i.iid === potion.iid));
 ok('potion déposée', A.bank.items.some(i => i.iid === potion.iid));
-// remplir l'inventaire à 24 chez le marchand
+// remplir l'inventaire à 24 chez le marchand (l'or de départ ne suffit pas :
+// on en donne via la commande admin — 1er compte de la base fraîche)
+A.send({ t: 'admin', cmd: 'set', gold: 500 });
 A.send({ t: 'admin', cmd: 'goto', x: NPC_POS.x, z: NPC_POS.z });
 await sleep(400);
 while (A.self.inventory.length < 24) {

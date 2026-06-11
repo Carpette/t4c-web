@@ -1,5 +1,8 @@
 // Génération déterministe du monde — même code côté serveur et client.
+// Les zones peuvent désigner une carte FIXE (champ `map` dans zones.json),
+// comme Arakas (île 1, fidèle à T4C) ; sinon, génération procédurale par seed.
 import { MAP_SIZE, WORLD_SEED } from './constants.js';
+import { generateIsland1 } from './island1.js';
 
 export const TILE = { WATER: 0, SAND: 1, GRASS: 2, FOREST: 3, ROCK: 4, COBBLE: 5, PATH: 6, GRAVE: 7 };
 
@@ -39,7 +42,8 @@ export const SPAWN_ZONES = [
   { mob: 'ogre',      center: [102, 70], radius: 6,  count: 2 },
 ];
 
-export function generateWorld(seed = WORLD_SEED) {
+export function generateWorld(seed = WORLD_SEED, map = null) {
+  if (map === 'arakas') return generateIsland1();
   const N = MAP_SIZE;
   const rng = mulberry32(seed);
   const n1 = makeNoise(rng, 16), n2 = makeNoise(rng, 32), n3 = makeNoise(rng, 64);

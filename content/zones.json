@@ -1,7 +1,8 @@
 {
   "zones": [
     {
-      "id": 0, "name": "Île du Lac Clair", "levels": [1, 25], "seed": 8281932,
+      "id": 0, "name": "Arakas", "levels": [1, 25], "seed": 8281932,
+      "map": "arakas",
       "tint": null,
       "mobs": ["rat", "serpent", "gobelin", "squelette", "zombie", "orc", "ogre"]
     },
@@ -49,6 +50,15 @@
         "Bienvenue, aventurier. Regarde ma marchandise, elle a fait ses preuves.",
         "Des armes, des sorts, du savoir... tout a un prix.",
         "Les épreuves ne pardonnent pas. Équipe-toi correctement."
+      ]
+    },
+    "merchant_wh": {
+      "name": "Ttayh Mark",
+      "look": { "chest": "leather_chest", "head": "leather_hood", "main": "dagger", "off": null },
+      "greetings": [
+        "Bienvenue à Windhowl, étranger. On trouve de tout, ici... si on sait demander.",
+        "Mes prix sont honnêtes. Enfin, presque.",
+        "Le marché noir ? Connais pas. Regarde plutôt mon étal."
       ]
     }
   }

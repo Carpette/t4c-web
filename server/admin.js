@@ -81,7 +81,7 @@ export async function handleAdmin(req, res, url, game) {
         // reconstruit le monde de la zone à chaud
         const def = content.zones[zoneId];
         if (def) {
-          const world = applyOverrides(generateWorld(def.seed), ov);
+          const world = applyOverrides(generateWorld(def.seed, def.map), ov);
           const zi = game.island(zoneId);
           if (zi) zi.world = world;
         }
