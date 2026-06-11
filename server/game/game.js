@@ -555,7 +555,11 @@ export class Game {
       }
       case 'chat': {
         const now = Date.now();
-        if (now - p.lastChat < 800) return;
+        if (now - p.lastChat < 800) {
+          // anti-spam : prévenir plutôt qu'avaler silencieusement le message
+          this.send(p, { t: 'info', text: 'Doucement... votre message n\'a pas été envoyé.' });
+          return;
+        }
         p.lastChat = now;
         const rawText = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
         if (!rawText) return;

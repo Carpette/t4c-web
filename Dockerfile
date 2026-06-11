@@ -37,5 +37,6 @@ ENV NODE_ENV=production
 
 EXPOSE 8080
 
-# Command to run the application
-CMD ["npm", "start"]
+# Lance node directement (pas via npm) : npm en PID 1 relaie mal les signaux,
+# or l'arrêt gracieux (décompte 45 s + sauvegarde) repose sur SIGTERM/SIGINT.
+CMD ["node", "server/index.js"]

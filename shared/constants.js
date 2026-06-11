@@ -61,7 +61,11 @@ export function maxMana(stats, level) {
   return manaGainPerLevel(stats) * level;
 }
 export function hpRegenPerSec(stats) { return 0.6 + stats.end * 0.06; }
-export function manaRegenPerSec(stats) { return 0.5 + stats.wis * 0.09; }
+// Régénération de mana façon T4C : lente — le mana est précieux, on compte
+// sur les potions et la compétence Méditer (qui peut la doubler).
+export function manaRegenPerSec(stats) {
+  return 0.25 + (stats.int + stats.wis) * 0.008;
+}
 
 export function enc(stats) {
   return Math.floor((stats.str * 500)/(stats.str + 100));
