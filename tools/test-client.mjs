@@ -153,9 +153,22 @@ btn.onclick();
 // l'écran de création apparaît à l'inscription, mais aussi à la connexion
 // d'un compte dont le personnage est mort (permadeath) : on gère les deux
 await new Promise(r => setTimeout(r, 1500));
+// visibilité RÉELLE : l'élément ET tous ses ancêtres doivent être visibles
+// (un panneau « affiché » dans un parent caché reste invisible à l'écran —
+// c'est exactement le bug de l'écran de création imbriqué dans #hud)
+const reallyVisible = (el) => {
+  for (let n = el; n && n.classList; n = n.parentNode) {
+    if (n.classList.contains('hidden')) return false;
+  }
+  return true;
+};
 if (!doc.getElementById('creation').classList.contains('hidden')) {
   const creation = doc.getElementById('creation');
-  console.log('écran de création visible :', !creation.classList.contains('hidden'));
+  if (!reallyVisible(creation)) {
+    console.error('✘ écran de création « affiché » mais invisible (un ancêtre est caché)');
+    process.exit(1);
+  }
+  console.log('écran de création visible :', reallyVisible(creation));
   for (let round = 0; round < 6; round++) {
     const rows = doc.getElementById('creation-stats').children;
     for (const row of rows) {
@@ -174,7 +187,7 @@ if (!doc.getElementById('creation').classList.contains('hidden')) {
 await new Promise(r => setTimeout(r, 6000));
 const hud = doc.getElementById('hud');
 const checks = [
-  ['HUD affiché après welcome', !hud.classList.contains('hidden')],
+  ['HUD affiché après welcome', reallyVisible(hud)],
   ['écran de connexion masqué', doc.getElementById('login').classList.contains('hidden')],
   ['barre de vie remplie', String(doc.getElementById('hp-text').textContent).includes('/')],
   ['bannière de zone (Arakas)', String(doc.getElementById('zone-banner').textContent).includes('Arakas')],
