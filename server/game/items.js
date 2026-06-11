@@ -70,7 +70,10 @@ export function itemPrice(item) {
 // Tire le butin d'un mob : retourne [{gold} | {item}]
 export function rollDrops(mobDef, rand = Math.random, zone = 0, lootBonus = 0) {
   const out = [];
-  const goldMul = 1 + zone * 12; // l'or suit l'économie des zones
+  // l'or suit exactement la courbe des prix du marchand (zoneMult^2.6) :
+  // le pouvoir d'achat par kill reste constant d'une zone à l'autre, et les
+  // sorts (prix fixes) deviennent relativement plus abordables en progressant
+  const goldMul = Math.pow(zoneMult(zone), 2.6);
   for (const [defId, chance, lo, hi] of mobDef.drops) {
     if (rand() < chance * (1 + lootBonus)) {
       if (defId === 'or') {
