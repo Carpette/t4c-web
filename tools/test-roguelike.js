@@ -139,7 +139,20 @@ send({ t: 'movedir', x: 0, z: 0 });
 const p1 = S.pos.get(S.id);
 ok('déplacement direct (flèches)', p1 && Math.abs(p1.x - p0.x) > 1);
 
+// téléportation admin à proximité d'un point (évite de longues marches qui
+// font dépasser le budget de temps du test ; les interactions restent réelles)
+async function jumpNear(x, z) {
+  for (const [dx, dz] of [[0, 0], [1.5, 1], [-1.5, 1.5], [2.5, -1], [-2.5, -2], [0, 3]]) {
+    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
+    await sleep(250);
+    const p = S.pos.get(S.id);
+    if (p && Math.hypot(p.x - x, p.z - z) < 4) return true;
+  }
+  return false;
+}
+
 // --- obélisque ---
+await jumpNear(77.5, 72.5);
 send({ t: 'interact', prop: 'obelisk', x: 77.5, z: 72.5 });
 await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
@@ -149,8 +162,9 @@ ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.z
 // l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
 send({ t: 'admin', cmd: 'set', level: 15 });
 await sleep(400);
+await jumpNear(60.5, 28.5);
 send({ t: 'interact', prop: 'trialgate', x: 60.5, z: 28.5 });
-await waitFor(() => S.trial, 25000); // longue marche vers le nord
+await waitFor(() => S.trial, 25000); // marche finale vers le portail
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
 send({ t: 'trial_enter' });
 await waitFor(() => S.zone?.kind === 'trial', 5000);
