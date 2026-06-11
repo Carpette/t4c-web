@@ -4,6 +4,7 @@
 // soin et buff de protection.
 // À lancer EN PREMIER sur une base FRAÎCHE (1er compte = admin).
 // Usage : node tools/test-spells.js [url ws]
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
@@ -103,7 +104,7 @@ async function castAndMeasure(spellId, mobId) {
 }
 
 await new Promise(r => ws.on('open', r));
-send({ t: 'register', name: 'Mage_' + Math.floor(Math.random() * 1e6), pass: 'test1234' });
+send({ t: 'register', v: PROTOCOL_VERSION, name: 'Mage_' + Math.floor(Math.random() * 1e6), pass: 'test1234' });
 await waitFor(() => S.self && S.id != null && me());
 ok('connexion', !!S.self);
 const home = { x: me().x, z: me().z }; // point de départ (sûr), pour s'y replier
@@ -198,12 +199,12 @@ async function sampleSpell(spellId, defId, n) {
   return out;
 }
 // Hobgobelin (orc) : aucune résistance au feu ; Squelette : aucune résistance terre
-await gotoNear(56, 24); // camp des Hobgobelins
+await gotoNear(250, 82); // camp des Hobgobelins au nord-est (Arakas 384)
 const feu = await sampleSpell('dard_de_feu', 'orc', 3);
 console.log('   échantillons Dard de Feu sur Hobgobelin :', feu.join(', '));
 ok('formule Dard de Feu respectée (1d17+6+Int/23 -> 11..27)',
   feu.length >= 2 && feu.every(v => v >= 10 && v <= 28));
-await gotoNear(94, 36); // champ des Squelettes
+await gotoNear(195, 63); // champ des Squelettes (Arakas 384)
 const terre = await sampleSpell('eclat_de_pierre', 'squelette', 3);
 console.log('   échantillons Éclat de Pierre sur Squelette :', terre.join(', '));
 ok('formule Éclat de Pierre respectée (1d9+11+Sag/22 -> 12..21)',

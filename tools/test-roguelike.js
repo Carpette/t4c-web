@@ -1,6 +1,7 @@
 // Test d'intégration roguelike : marchand, achat, équipement, sort, obélisque,
 // Épreuve (confirmation + entrée), permadeath, panthéon, nouveau personnage.
 // Usage : node tools/test-roguelike.js [url]
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
@@ -54,7 +55,7 @@ ws.on('message', (raw, bin) => {
 });
 
 await new Promise(r => ws.on('open', r));
-send({ t: 'register', name: 'Rogue_' + Math.floor(Math.random() * 1e6), pass: 'test1234' });
+send({ t: 'register', v: PROTOCOL_VERSION, name: 'Rogue_' + Math.floor(Math.random() * 1e6), pass: 'test1234' });
 
 await waitFor(() => S.self && S.zone);
 ok('connexion + zone reçue', S.zone?.zoneId === 0 && S.zone?.kind === 'island');

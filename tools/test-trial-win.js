@@ -1,5 +1,6 @@
 // Test : victoire de l'Épreuve → déblocage de la zone suivante.
 // Le 1er compte créé est admin : on s'en sert pour accélérer (niveau, téléport local).
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 
@@ -37,7 +38,7 @@ ws.on('message', (raw, bin) => {
 });
 
 await new Promise(r => ws.on('open', r));
-send({ t: 'register', name: 'Champion', pass: 'test1234' });
+send({ t: 'register', v: PROTOCOL_VERSION, name: 'Champion', pass: 'test1234' });
 await waitFor(() => S.self && S.zone);
 ok('admin (1er compte)', S.admin === true);
 

@@ -1,5 +1,6 @@
 // Bots de test : se connectent, explorent, combattent, ramassent.
 // Usage : node tools/bots.js [nb=3] [durée_s=20] [url=ws://localhost:8080]
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND, ST } from '../shared/constants.js';
@@ -21,7 +22,7 @@ function bot(n) {
       kills: 0, snapshots: 0, errors: [],
     };
 
-    ws.on('open', () => ws.send(JSON.stringify({ t: 'register', name, pass: 'test1234' })));
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'register', v: PROTOCOL_VERSION, name, pass: 'test1234' })));
     ws.on('error', (e) => { state.errors.push('ws: ' + e.message); });
     ws.on('message', (raw, isBinary) => {
       if (isBinary) {
