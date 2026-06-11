@@ -54,6 +54,8 @@ class EntityView2D {
     const want = {
       chest: look?.chest || 'default_chest',
       head: look?.head || defaultHead,
+      legs: look?.legs || 'cloth_pants',
+      hands: look?.hands || 'default_hands',
       feet: look?.feet || 'default_feet',
       main: look?.main || null,
       off: look?.off || null,

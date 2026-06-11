@@ -5,10 +5,11 @@
 // zone = vendu chez Aldric à partir de cette zone ; drop = monstre ; chest = butin de coffre
 // Sprites : projet Flare (CC-BY-SA 3.0), voir client/assets/CREDITS.txt
 
-export const SLOTS = ['weapon', 'shield', 'armor', 'helmet', 'boots', 'ring', 'amulet'];
+export const SLOTS = ['weapon', 'shield', 'armor', 'helmet', 'legs', 'gloves', 'belt', 'boots', 'ring', 'ring2', 'amulet'];
 export const SLOT_NAMES = {
   weapon: 'Arme', shield: 'Bouclier', armor: 'Armure', helmet: 'Casque',
-  boots: 'Bottes', ring: 'Anneau', amulet: 'Amulette',
+  legs: 'Jambières', gloves: 'Gants', belt: 'Ceinture',
+  boots: 'Bottes', ring: 'Anneau', ring2: 'Anneau 2', amulet: 'Amulette',
 };
 
 // Qualités (roll à la génération)
@@ -87,21 +88,70 @@ export const ITEMS = {
   lame_runique: { name: 'Lame runique',           slot: 'weapon', legacy: true, dmg: 19, speed: 1.7, weight: 6, layer: 'greatsword', loot: 'greatsword', price: 420 },
   baton_arcane: { name: 'Bâton des arcanes',      slot: 'weapon', legacy: true, dmg: 14, speed: 1.8, weight: 4, int: 8, wis: 5, layer: 'greatstaff', loot: 'greatstaff', price: 520 },
 
-  // ================= Boucliers / armures =================
+  // ================= ARMURES T4C (l4p.fr) — prérequis : ENDURANCE, malus d'esquive =================
+  veste_toile: { name: 'Veste en Toile', slot: 'armor', zone: 0, fixed: true, def: 0.0, malus: 0, weight: 1, layer: 'cloth_shirt', loot: 'clothes', price: 3 },
+  jambieres_toile: { name: 'Pantalon en Toile', slot: 'legs', zone: 0, fixed: true, def: 0.0, malus: 0, weight: 1, layer: 'cloth_pants', loot: 'clothes', price: 3 },
+  armure_cuir: { name: 'Armure de Cuir', slot: 'armor', zone: 0, fixed: true, def: 1.45, malus: 3, weight: 8, req: { end: 25 }, layer: 'leather_chest', loot: 'leather_armor', price: 121 },
+  ceinture_cuir: { name: 'Ceinture de Cuir', slot: 'belt', zone: 0, fixed: true, def: 0.3, malus: 1, weight: 1, req: { end: 25 }, loot: 'leather_armor', price: 42 },
+  bottes_cuir: { name: 'Bottes de Cuir', slot: 'boots', zone: 0, fixed: true, def: 0.405, malus: 1, weight: 2, req: { end: 25 }, layer: 'leather_boots', loot: 'leather_armor', price: 49 },
+  gants_cuir: { name: 'Gants de Cuir', slot: 'gloves', zone: 0, fixed: true, def: 0.405, malus: 1, weight: 1, req: { end: 25 }, layer: 'leather_gloves', loot: 'leather_armor', price: 50 },
+  casque_cuir: { name: 'Casque de Cuir', slot: 'helmet', zone: 0, fixed: true, def: 0.39, malus: 1, weight: 2, req: { end: 25 }, layer: 'leather_hood', loot: 'leather_armor', price: 52 },
+  jambieres_cuir: { name: 'Jambières de Cuir', slot: 'legs', zone: 0, fixed: true, def: 0.45, malus: 2, weight: 4, req: { end: 25 }, layer: 'leather_pants', loot: 'leather_armor', price: 54 },
+  armure_cuir_cloute: { name: 'Armure de Cuir Clouté', slot: 'armor', zone: 0, fixed: true, def: 2.8, malus: 7, weight: 10, req: { end: 45 }, layer: 'leather_chest', loot: 'leather_armor', price: 908 },
+  ceinture_cuir_cloute: { name: 'Ceinture de Cuir Clouté', slot: 'belt', zone: 0, fixed: true, def: 0.6, malus: 2, weight: 1, req: { end: 45 }, loot: 'leather_armor', price: 217 },
+  bottes_cuir_cloute: { name: 'Bottes de Cuir Clouté', slot: 'boots', zone: 0, fixed: true, def: 0.81, malus: 3, weight: 3, req: { end: 45 }, layer: 'leather_boots', loot: 'leather_armor', price: 274 },
+  gants_cuir_cloute: { name: 'Gants de Cuir Clouté', slot: 'gloves', zone: 0, fixed: true, def: 0.81, malus: 3, weight: 1, req: { end: 45 }, layer: 'leather_gloves', loot: 'leather_armor', price: 280 },
+  casque_cuir_cloute: { name: 'Casque de Cuir Clouté', slot: 'helmet', zone: 0, fixed: true, def: 0.78, malus: 3, weight: 2, req: { end: 45 }, layer: 'leather_hood', loot: 'leather_armor', price: 302 },
+  jambieres_cuir_cloute: { name: 'Jambières de Cuir Clouté', slot: 'legs', zone: 0, fixed: true, def: 0.9, malus: 5, weight: 5, req: { end: 45 }, layer: 'leather_pants', loot: 'leather_armor', price: 316 },
+  armure_anneaux: { name: 'Armure d\'Anneaux', slot: 'armor', zone: 1, fixed: true, def: 4.15, malus: 11, weight: 14, req: { end: 60 }, layer: 'chain_cuirass', loot: 'steel_armor', price: 2008 },
+  ceinture_anneaux: { name: 'Ceinture d\'Anneaux', slot: 'belt', zone: 1, fixed: true, def: 0.9, malus: 2, weight: 2, req: { end: 60 }, loot: 'steel_armor', price: 462 },
+  bottes_anneaux: { name: 'Bottes d\'Anneaux', slot: 'boots', zone: 1, fixed: true, def: 1.215, malus: 4, weight: 3, req: { end: 60 }, layer: 'chain_boots', loot: 'steel_armor', price: 590 },
+  gants_anneaux: { name: 'Gants d\'Anneaux', slot: 'gloves', zone: 1, fixed: true, def: 1.215, malus: 4, weight: 2, req: { end: 60 }, layer: 'chain_gloves', loot: 'steel_armor', price: 603 },
+  casque_anneaux: { name: 'Casque d\'Anneaux', slot: 'helmet', zone: 1, fixed: true, def: 1.17, malus: 4, weight: 3, req: { end: 60 }, layer: 'chain_coif', loot: 'steel_armor', price: 652 },
+  jambieres_anneaux: { name: 'Jambières d\'Anneaux', slot: 'legs', zone: 1, fixed: true, def: 1.35, malus: 7, weight: 6, req: { end: 60 }, layer: 'chain_greaves', loot: 'steel_armor', price: 683 },
+  armure_cuir_elfique: { name: 'Armure de Cuir Elfique', slot: 'armor', chest: 1, fixed: true, def: 5.5, malus: 5, weight: 6, req: { end: 75 }, layer: 'leather_chest', loot: 'leather_armor', price: 1182 },
+  ceinture_cuir_elfique: { name: 'Ceinture de Cuir Elfique', slot: 'belt', chest: 1, fixed: true, def: 1.2, malus: 1, weight: 1, req: { end: 75 }, loot: 'leather_armor', price: 268 },
+  bottes_cuir_elfique: { name: 'Bottes de Cuir Elfique', slot: 'boots', chest: 1, fixed: true, def: 1.62, malus: 2, weight: 2, req: { end: 75 }, layer: 'leather_boots', loot: 'leather_armor', price: 344 },
+  gants_cuir_elfique: { name: 'Gants de Cuir Elfique', slot: 'gloves', chest: 1, fixed: true, def: 1.62, malus: 2, weight: 1, req: { end: 75 }, layer: 'leather_gloves', loot: 'leather_armor', price: 351 },
+  casque_cuir_elfique: { name: 'Casque de Cuir Elfique', slot: 'helmet', chest: 1, fixed: true, def: 1.56, malus: 2, weight: 1, req: { end: 75 }, layer: 'leather_hood', loot: 'leather_armor', price: 380 },
+  jambieres_cuir_elfique: { name: 'Jambières de Cuir Elfique', slot: 'legs', chest: 1, fixed: true, def: 1.8, malus: 3, weight: 3, req: { end: 75 }, layer: 'leather_pants', loot: 'leather_armor', price: 398 },
+  armure_mailles: { name: 'Armure de Mailles', slot: 'armor', zone: 1, fixed: true, def: 5.95, malus: 13, weight: 18, req: { end: 80 }, layer: 'chain_cuirass', loot: 'steel_armor', price: 4155 },
+  ceinture_mailles: { name: 'Ceinture de Mailles', slot: 'belt', zone: 1, fixed: true, def: 1.3, malus: 3, weight: 2, req: { end: 80 }, loot: 'steel_armor', price: 939 },
+  bottes_mailles: { name: 'Bottes de Mailles', slot: 'boots', zone: 1, fixed: true, def: 1.755, malus: 5, weight: 4, req: { end: 80 }, layer: 'chain_boots', loot: 'steel_armor', price: 1214 },
+  gants_mailles: { name: 'Gants de Mailles', slot: 'gloves', zone: 1, fixed: true, def: 1.755, malus: 5, weight: 2, req: { end: 80 }, layer: 'chain_gloves', loot: 'steel_armor', price: 1233 },
+  casque_mailles: { name: 'Casque de Mailles', slot: 'helmet', zone: 1, fixed: true, def: 1.69, malus: 5, weight: 4, req: { end: 80 }, layer: 'chain_coif', loot: 'steel_armor', price: 1334 },
+  jambieres_mailles: { name: 'Jambières de Mailles', slot: 'legs', zone: 1, fixed: true, def: 1.95, malus: 9, weight: 8, req: { end: 80 }, layer: 'chain_greaves', loot: 'steel_armor', price: 1398 },
+  armure_ecailles: { name: 'Armure d\'Écailles', slot: 'armor', zone: 2, fixed: true, def: 8.65, malus: 11, weight: 22, req: { end: 100 }, layer: 'chain_cuirass', loot: 'steel_armor', price: 7081 },
+  ceinture_ecailles: { name: 'Ceinture d\'Écailles', slot: 'belt', zone: 2, fixed: true, def: 1.9, malus: 3, weight: 2, req: { end: 100 }, loot: 'steel_armor', price: 1589 },
+  bottes_ecailles: { name: 'Bottes d\'Écailles', slot: 'boots', zone: 2, fixed: true, def: 2.565, malus: 4, weight: 4, req: { end: 100 }, layer: 'chain_boots', loot: 'steel_armor', price: 2044 },
+  gants_ecailles: { name: 'Gants d\'Écailles', slot: 'gloves', zone: 2, fixed: true, def: 2.565, malus: 4, weight: 2, req: { end: 100 }, layer: 'chain_gloves', loot: 'steel_armor', price: 2091 },
+  casque_ecailles: { name: 'Casque d\'Écailles', slot: 'helmet', zone: 2, fixed: true, def: 2.47, malus: 4, weight: 4, req: { end: 100 }, layer: 'chain_coif', loot: 'steel_armor', price: 2264 },
+  jambieres_ecailles: { name: 'Jambières d\'Écailles', slot: 'legs', zone: 2, fixed: true, def: 2.85, malus: 7, weight: 9, req: { end: 100 }, layer: 'chain_greaves', loot: 'steel_armor', price: 2374 },
+  armure_mailles_elfique: { name: 'Armure de Mailles Elfique', slot: 'armor', chest: 2, fixed: true, def: 10.0, malus: 10, weight: 12, req: { end: 110 }, layer: 'chain_cuirass', loot: 'steel_armor', price: 2945 },
+  ceinture_mailles_elfique: { name: 'Ceinture de Mailles Elfique', slot: 'belt', chest: 2, fixed: true, def: 2.2, malus: 2, weight: 1, req: { end: 110 }, loot: 'steel_armor', price: 660 },
+  bottes_mailles_elfique: { name: 'Bottes de Mailles Elfique', slot: 'boots', chest: 2, fixed: true, def: 2.97, malus: 3, weight: 3, req: { end: 110 }, layer: 'chain_boots', loot: 'steel_armor', price: 849 },
+  gants_mailles_elfique: { name: 'Gants de Mailles Elfique', slot: 'gloves', chest: 2, fixed: true, def: 2.97, malus: 3, weight: 1, req: { end: 110 }, layer: 'chain_gloves', loot: 'steel_armor', price: 869 },
+  casque_mailles_elfique: { name: 'Casque de Mailles Elfique', slot: 'helmet', chest: 2, fixed: true, def: 2.86, malus: 3, weight: 2, req: { end: 110 }, layer: 'chain_coif', loot: 'steel_armor', price: 940 },
+  jambieres_mailles_elfique: { name: 'Jambières de Mailles Elfique', slot: 'legs', chest: 2, fixed: true, def: 3.3, malus: 6, weight: 5, req: { end: 110 }, layer: 'chain_greaves', loot: 'steel_armor', price: 986 },
+  armure_plaques: { name: 'Armure de Plaques', slot: 'armor', drop: 'orc', fixed: true, def: 12.25, malus: 21, weight: 35, req: { end: 125 }, layer: 'plate_cuirass', loot: 'steel_armor', price: 3944 },
+  ceinture_plaques: { name: 'Ceinture de Plaques', slot: 'belt', drop: 'orc', fixed: true, def: 2.7, malus: 5, weight: 3, req: { end: 125 }, loot: 'steel_armor', price: 881 },
+  bottes_plaques: { name: 'Bottes de Plaques', slot: 'boots', drop: 'orc', fixed: true, def: 3.645, malus: 7, weight: 6, req: { end: 125 }, layer: 'plate_boots', loot: 'steel_armor', price: 1135 },
+  gants_plaques: { name: 'Gants de Plaques', slot: 'gloves', drop: 'orc', fixed: true, def: 3.645, malus: 7, weight: 4, req: { end: 125 }, layer: 'plate_gauntlets', loot: 'steel_armor', price: 1162 },
+  casque_plaques: { name: 'Casque de Plaques', slot: 'helmet', drop: 'orc', fixed: true, def: 3.51, malus: 7, weight: 6, req: { end: 125 }, layer: 'plate_helm', loot: 'steel_armor', price: 1258 },
+  jambieres_plaques: { name: 'Jambières de Plaques', slot: 'legs', drop: 'orc', fixed: true, def: 4.05, malus: 14, weight: 12, req: { end: 125 }, layer: 'plate_greaves', loot: 'steel_armor', price: 1319 },
+
+  // ===== Boucliers / bijoux / armures héritées =====
   bouclier_bois:{ name: 'Bouclier en bois',     slot: 'shield', zone: 0, def: 3,  weight: 4,  layer: 'buckler',     loot: 'buckler', price: 12 },
   bouclier_fer: { name: 'Bouclier en fer',      slot: 'shield', zone: 2, def: 8,  weight: 9,  layer: 'kite_shield', loot: 'shield',  price: 130 },
-  tunique:      { name: 'Tunique de toile',     slot: 'armor',  zone: 0, def: 2,  weight: 3,  layer: 'cloth_shirt',   loot: 'clothes',       price: 10 },
-  robe_mage:    { name: 'Robe de mage',         slot: 'armor',  zone: 1, def: 4,  weight: 3,  int: 5, layer: 'mage_vest',  loot: 'clothes',  price: 90 },
-  cuir:         { name: 'Armure de cuir',       slot: 'armor',  zone: 1, def: 6,  weight: 8,  layer: 'leather_chest', loot: 'leather_armor', price: 60 },
-  mailles:      { name: 'Cotte de mailles',     slot: 'armor',  zone: 2, def: 11, weight: 18, layer: 'chain_cuirass', loot: 'steel_armor',   price: 190 },
-  plates:       { name: 'Armure de plates',     slot: 'armor',  zone: 3, def: 17, weight: 35, layer: 'plate_cuirass', loot: 'steel_armor',   price: 480 },
-  capuche:      { name: 'Capuche de cuir',      slot: 'helmet', zone: 1, def: 3,  weight: 1,  layer: 'leather_hood',  loot: 'clothes',       price: 40 },
-  capuche_mage: { name: 'Capuche de mage',      slot: 'helmet', zone: 1, def: 2,  weight: 1,  wis: 4, layer: 'mage_hood', loot: 'clothes',   price: 75 },
-  casque_fer:   { name: 'Casque de fer',        slot: 'helmet', zone: 2, def: 6,  weight: 4,  layer: 'plate_helm',    loot: 'steel_armor',   price: 150 },
-  bottes_cuir:  { name: 'Bottes de cuir',       slot: 'boots',  zone: 0, def: 2,  weight: 2,  layer: 'leather_boots', loot: 'boots', price: 25 },
-  bottes_mage:  { name: 'Bottes de mage',       slot: 'boots',  zone: 1, def: 2,  weight: 2,  wis: 3, layer: 'mage_boots', loot: 'boots', price: 80 },
-  bottes_mailles:{ name: 'Bottes de mailles',   slot: 'boots',  zone: 2, def: 5,  weight: 4,  layer: 'chain_boots',   loot: 'boots', price: 140 },
-  bottes_plates:{ name: 'Bottes de plates',     slot: 'boots',  zone: 3, def: 8,  weight: 5,  layer: 'plate_boots',   loot: 'boots', price: 320 },
+  tunique:      { name: 'Tunique de toile',     slot: 'armor', legacy: true, def: 2,  weight: 3,  layer: 'cloth_shirt',   loot: 'clothes',       price: 10 },
+  robe_mage:    { name: 'Robe de mage',         slot: 'armor', legacy: true, def: 4,  weight: 3,  int: 5, layer: 'mage_vest',  loot: 'clothes',  price: 90 },
+  cuir:         { name: 'Armure de cuir',       slot: 'armor', legacy: true, def: 6,  weight: 8,  layer: 'leather_chest', loot: 'leather_armor', price: 60 },
+  mailles:      { name: 'Cotte de mailles',     slot: 'armor', legacy: true, def: 11, weight: 18, layer: 'chain_cuirass', loot: 'steel_armor',   price: 190 },
+  plates:       { name: 'Armure de plates',     slot: 'armor', legacy: true, def: 17, weight: 35, layer: 'plate_cuirass', loot: 'steel_armor',   price: 480 },
+  capuche:      { name: 'Capuche de cuir',      slot: 'helmet', legacy: true, def: 3,  weight: 1,  layer: 'leather_hood',  loot: 'clothes',       price: 40 },
+  capuche_mage: { name: 'Capuche de mage',      slot: 'helmet', legacy: true, def: 2,  weight: 1,  wis: 4, layer: 'mage_hood', loot: 'clothes',   price: 75 },
+  casque_fer:   { name: 'Casque de fer',        slot: 'helmet', legacy: true, def: 6,  weight: 4,  layer: 'plate_helm',    loot: 'steel_armor',   price: 150 },
+  bottes_mage:  { name: 'Bottes de mage',       slot: 'boots', legacy: true, def: 2,  weight: 2,  wis: 3, layer: 'mage_boots', loot: 'boots', price: 80 },
   anneau_os:    { name: 'Anneau en os',         slot: 'ring',   zone: 1, def: 0,  weight: 0.1, loot: 'ring', price: 70 },
   anneau_saphir:{ name: 'Anneau de saphir',     slot: 'ring',   zone: 3, def: 1,  weight: 0.1, loot: 'ring', price: 350 },
   amulette_loup:{ name: 'Amulette du loup',     slot: 'amulet', zone: 1, weight: 0.2, str: 3, agi: 2, loot: 'ring', price: 120 },
@@ -124,7 +174,7 @@ export const CHESTS = {
   perIsland: 7,
 };
 export function chestPool(zoneId) {
-  const tier = Math.min(zoneId, 1);
+  const tier = Math.min(zoneId, 2);
   return Object.entries(ITEMS)
     .filter(([, d]) => d.chest === tier)
     .map(([id]) => id);
@@ -172,7 +222,7 @@ export const MOBS = {
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.8,
     resist: { air: -0.25, terre: 0.3 },
     sprite: 'hobgoblin', respawn: 35,
-    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['bouclier_fer', 0.06, 1, 1]],
+    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
   },
   ogre: {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,

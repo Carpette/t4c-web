@@ -296,7 +296,7 @@ export class Game {
   // ---------- Stats effectives ----------
   recompute(p) {
     const stats = { ...p.stats };
-    let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0;
+    let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0, dodgeMalus = 0;
     for (const slot of SLOTS) {
       const iid = p.equip[slot];
       if (!iid) continue;
@@ -305,6 +305,7 @@ export class Game {
       const s = itemStats(item);
       if (slot === 'weapon') { wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed; }
       defense += s.def;
+      dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C)
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
     // compétences T4C : points entraînés x effet par point
@@ -316,6 +317,8 @@ export class Game {
     }
     // un bouclier équipé améliore la parade de moitié (T4C)
     if (p.equip.shield) fx.parry *= 1.5;
+    // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
+    fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
     // buffs temporaires (valeurs calculées au lancement, façon T4C)
     let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
     for (const b of p.buffs) {
@@ -356,6 +359,7 @@ export class Game {
     const look = {
       sex: p.sex,
       chest: layerOf('armor'), head: layerOf('helmet'),
+      legs: layerOf('legs'), hands: layerOf('gloves'),
       main: layerOf('weapon'), off: layerOf('shield'), feet: layerOf('boots'),
     };
     const changed = JSON.stringify(look) !== JSON.stringify(p.look || null);
@@ -374,7 +378,8 @@ export class Game {
       hp: Math.round(p.hp), maxHp: p.eff.maxHp,
       mana: Math.round(p.mana), maxMana: p.eff.maxMana,
       enc: C.enc(p.stats),
-      dmg: p.eff.dmg, dmgMin: p.eff.dmgMin, dmgMax: p.eff.dmgMax, defense: p.eff.defense, gold: p.gold,
+      dmg: p.eff.dmg, dmgMin: p.eff.dmgMin, dmgMax: p.eff.dmgMax,
+      defense: Math.round(p.eff.defense * 100) / 100, gold: p.gold,
       weight: inventoryWeight(p.inventory), capacity: p.eff.capacity,
       look: p.look,
       inventory: p.inventory.map(it => ({
@@ -487,9 +492,9 @@ export class Game {
         const def = ITEMS[item.defId];
         const slot = def.slot;
         if (!SLOTS.includes(slot)) return;
-        // prérequis de stats T4C (For/Agi/Int/Sag) pour porter l'objet
+        // prérequis de stats T4C (For/End/Agi/Int/Sag) pour porter l'objet
         if (def.req) {
-          const names = { str: 'Force', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse' };
+          const names = { str: 'Force', end: 'Endurance', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse' };
           for (const [st, v] of Object.entries(def.req)) {
             if ((p.eff.stats[st] || 0) < v) {
               this.send(p, { t: 'info', text: `${def.name} : ${v} de ${names[st] || st} requis (vous : ${p.eff.stats[st] || 0}).` });
@@ -497,7 +502,10 @@ export class Game {
             }
           }
         }
-        p.equip[slot] = item.iid;
+        // deux anneaux : remplit le premier emplacement libre
+        let target = slot;
+        if (slot === 'ring' && p.equip.ring && p.equip.ring !== item.iid && !p.equip.ring2) target = 'ring2';
+        p.equip[target] = item.iid;
         this.recompute(p); this.sendSelf(p);
         break;
       }

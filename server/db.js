@@ -103,10 +103,10 @@ export function saveCharacter(accountId, data) {
 }
 
 export function newCharacterData(name, spawn, stats = null, sex = 'male') {
-  // équipement de départ : poignard rouillé (T4C), tunique, deux potions de vie
+  // équipement de départ : poignard rouillé et veste en toile (T4C), deux potions
   const inventory = [
     { iid: 1, defId: 'poignard_rouille', q: 0, z: 0, bonus: {} },
-    { iid: 2, defId: 'tunique', q: 0, z: 0, bonus: {} },
+    { iid: 2, defId: 'veste_toile', q: 0, z: 0, bonus: {} },
     { iid: 3, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
     { iid: 4, defId: 'potion_vie', q: 0, z: 0, bonus: {} },
   ];

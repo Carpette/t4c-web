@@ -3,7 +3,7 @@ import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
 
-const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', boots: '🥾', ring: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
+const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
 const $ = (id) => document.getElementById(id);
 
@@ -448,7 +448,9 @@ export class UI {
     if (!sheet) return;
     const defaultHead = sex === 'female' ? 'head_long' : 'head_short';
     const layers = {
-      feet: look.feet || 'default_feet', legs: 'cloth_pants', hands: 'default_hands',
+      feet: look.feet || 'default_feet',
+      legs: look.legs || 'cloth_pants',
+      hands: look.hands || 'default_hands',
       chest: look.chest || 'default_chest', head: look.head || defaultHead,
       main: look.main || null, off: look.off || null,
     };
