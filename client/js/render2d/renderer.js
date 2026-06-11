@@ -233,7 +233,13 @@ export class Renderer {
       const self = em.get(selfId);
       if (self) {
         const p = this.w2s(self.x, self.z);
-        punch(p.x, p.y - 40 * s, 230 * s, 0.8);
+        if (hl.selfLight) {
+          // sort Lumière : éclaire largement le lanceur, avec un léger halo doré
+          punch(p.x, p.y - 40 * s, 520 * s, 0.95);
+          this._lightPts.push({ x: p.x, y: p.y - 40 * s, r: 320 * s, color: 'rgba(255, 220, 130, 0.10)' });
+        } else {
+          punch(p.x, p.y - 40 * s, 230 * s, 0.8);
+        }
       }
       ctx.drawImage(this.lightCanvas, 0, 0);
 

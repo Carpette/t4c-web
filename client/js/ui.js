@@ -380,6 +380,7 @@ export class UI {
     const names = {
       def: '🛡 Protection', speed: '💨 Dextérité', dmg: '⚔ Instinct de Combat',
       regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la Terre',
+      light: '💡 Lumière',
     };
     $('buffs-display').innerHTML = (this.self?.buffs || [])
       .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');
