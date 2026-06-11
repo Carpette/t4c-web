@@ -79,17 +79,18 @@ const ISLANDS = [
   { name: 'ruines1',  c: [0.665, 0.758], r: 0.022, sq: 0.8 },  // Ruines Émergées
   { name: 'ruines2',  c: [0.692, 0.792], r: 0.014, sq: 0.9 },
 ];
-// gués de sable (toujours praticables) : [de, à, largeur]
+// passages au-dessus de l'eau : [de, à, largeur, style]
+// style 'sand' = gué/isthme de sable ; 'bridge' = pont de bois (platelage)
 const CAUSEWAYS = [
-  [[0.202, 0.158], [0.125, 0.142], 1.6],  // isthme d'Orkanis
-  [[0.708, 0.262], [0.768, 0.265], 1.4],  // gué de l'Ermite
-  [[0.734, 0.625], [0.788, 0.625], 1.0],  // le pont Gob (sortie ouest de Lighthaven)
-  [[0.908, 0.568], [0.926, 0.535], 1.2],  // sentier de la tour des mages…
-  [[0.926, 0.535], [0.935, 0.508], 1.2],
-  [[0.938, 0.488], [0.948, 0.462], 1.2],  // …puis vers le cercle druidique
-  [[0.168, 0.498], [0.142, 0.482], 1.2],  // cercle druidique de WH
-  [[0.622, 0.752], [0.655, 0.755], 1.2],  // Ruines Émergées
-  [[0.675, 0.772], [0.688, 0.785], 1.2],
+  [[0.202, 0.158], [0.125, 0.142], 1.6, 'sand'],    // isthme d'Orkanis
+  [[0.708, 0.262], [0.768, 0.265], 1.4, 'sand'],    // gué de l'Ermite
+  [[0.718, 0.625], [0.795, 0.625], 0.5, 'bridge'],  // le pont Gob (sortie ouest de LH)
+  [[0.908, 0.568], [0.926, 0.535], 1.0, 'bridge'],  // pont de la tour des mages…
+  [[0.926, 0.535], [0.935, 0.508], 1.0, 'bridge'],
+  [[0.938, 0.488], [0.948, 0.462], 1.0, 'bridge'],  // …puis vers le cercle druidique
+  [[0.168, 0.498], [0.142, 0.482], 1.0, 'bridge'],  // cercle druidique de WH
+  [[0.622, 0.752], [0.655, 0.755], 1.0, 'bridge'],  // Ruines Émergées
+  [[0.675, 0.772], [0.688, 0.785], 1.0, 'bridge'],
 ];
 // Monts Righul (roche infranchissable, sauf sentiers taillés)
 const MOUNTAINS = [
@@ -288,14 +289,17 @@ export function generateIsland1() {
       }
     }
   };
-  // sur la terre : sable ; au-dessus de la mer : PONT DE BOIS (le pont Gob à la
-  // sortie de Lighthaven, le sentier de la tour des mages, le gué de l'Ermite...)
+  // sur la terre : sable ; au-dessus de la mer : pont de bois ou gué de sable
   const bridgeTiles = [];
-  for (const [a, b, w] of CAUSEWAYS) {
+  for (const [a, b, w, style] of CAUSEWAYS) {
     stampLine([a, b], w, (X, Z) => {
       const i = idx(X, Z);
-      if (tile[i] === TILE.WATER) { tile[i] = TILE.PATH; bridgeTiles.push([X, Z]); }
-      else tile[i] = TILE.SAND;
+      if (tile[i] === TILE.WATER) {
+        if (style === 'bridge') { tile[i] = TILE.PATH; bridgeTiles.push([X, Z]); }
+        else tile[i] = TILE.SAND;
+      } else if (tile[i] !== TILE.PATH) {
+        tile[i] = TILE.SAND;
+      }
     });
   }
 
