@@ -132,6 +132,10 @@ if (mob) {
 ok('Dard de Feu a blessé un monstre', castWorked);
 
 // --- mouvement clavier (movedir) ---
+// retour sur la place de Lighthaven : position déterministe, dégagée,
+// loin des monstres (la chasse a pu nous emmener n'importe où)
+send({ t: 'admin', cmd: 'goto', x: 95.5, z: 82.5 });
+await sleep(500);
 const p0 = { ...(S.pos.get(S.id) || { x: 0, z: 0 }) };
 send({ t: 'movedir', x: 1, z: 0 });
 await sleep(800);

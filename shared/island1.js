@@ -37,11 +37,13 @@ export const ARAKAS = {
   PONT: { z: 80 },               // latitude du pont gob
 };
 
-// Zones d'apparition des monstres, fidèles aux spots d'Arakas
+// Zones d'apparition des monstres, fidèles aux spots d'Arakas.
+// Attention : aggro + errance permettent aux monstres de dériver de ~12 tuiles
+// autour de leur spot — les villes (LH, WH, métiers) doivent rester hors d'atteinte.
 const ARAKAS_SPAWNS = [
-  { mob: 'rat',       center: [88, 94],   radius: 8,  count: 12 }, // fourmilières au sud de LH
-  { mob: 'rat',       center: [100, 72],  radius: 6,  count: 6 },  // route du cimetière
-  { mob: 'serpent',   center: [108, 98],  radius: 8,  count: 9 },  // côte sud-est
+  { mob: 'rat',       center: [84, 98],   radius: 7,  count: 12 }, // fourmilières au sud-ouest de LH
+  { mob: 'rat',       center: [102, 70],  radius: 5,  count: 6 },  // route du cimetière
+  { mob: 'serpent',   center: [90, 114],  radius: 7,  count: 9 },  // côte sud
   { mob: 'gobelin',   center: [66, 71],   radius: 8,  count: 10 }, // camp gobelin
   { mob: 'gobelin',   center: [16, 60],   radius: 7,  count: 7 },  // forêt ouest de WH
   { mob: 'squelette', center: [109, 57],  radius: 8,  count: 10 }, // cimetière
