@@ -143,6 +143,31 @@ export function buildDecor(world) {
         // entrée de grotte : pan de falaise sombre (intérieurs à venir)
         props.push({ tileId: pick(CLIFF_IDS, r), x: p.x, z: p.z, interact: 'cave', name: p.name });
         break;
+      case 'wall': {
+        // palissade de bois (remparts de Windhowl) : pans pleins, angles
+        // coiffés d'un toit, montants de porte de part et d'autre des accès
+        const id = p.v === 'corner' ? 214 : p.v === 'gate' ? 212 : (hash(p.x * 3, p.z * 3) < 0.5 ? 215 : 208);
+        props.push({ tileId: id, x: p.x, z: p.z });
+        break;
+      }
+      case 'fence': {
+        // barrières de bois (enclos de Darkfang, champs, pâtures)
+        const id = p.v === 'z' ? 107 : p.v === 'corner' ? 108 : p.v === 'post' ? 106 : 104;
+        props.push({ tileId: id, x: p.x, z: p.z });
+        break;
+      }
+      case 'ruin':
+        // pan de mur effondré (Cité naine, Ruines Émergées...)
+        props.push({ tileId: pick([217, 219, 224, 225, 227, 228, 230, 231], r), x: p.x, z: p.z });
+        break;
+      case 'bridge':
+        // pont de bois : platelage + rambardes le long des bords donnant sur l'eau
+        props.push({ tileId: 232, x: p.x, z: p.z });
+        if (p.rails?.n) props.push({ tileId: 104, x: p.x, z: p.z - 0.42 });
+        if (p.rails?.s) props.push({ tileId: 104, x: p.x, z: p.z + 0.42 });
+        if (p.rails?.w) props.push({ tileId: 107, x: p.x - 0.42, z: p.z });
+        if (p.rails?.e) props.push({ tileId: 107, x: p.x + 0.42, z: p.z });
+        break;
     }
   }
 

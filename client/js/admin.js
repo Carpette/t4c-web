@@ -140,6 +140,7 @@ const PROP_GLYPHS = {
   tree: ['🌲', '#7ac87a'], rock: ['●', '#aaa'], house: ['⌂', '#e8c890'], torch: ['✶', '#ffaa33'],
   grave: ['✝', '#ccc'], well: ['◎', '#9ad'], obelisk: ['▲', '#9af'], trialgate: ['◈', '#c9f'], exitgate: ['◈', '#9fd'],
   bank: ['▣', '#fc6'], chest: ['▢', '#fa0'], cave: ['Ω', '#ff6'],
+  wall: ['▮', '#ca8'], fence: ['╪', '#b97'], ruin: ['⌐', '#987'], bridge: ['≡', '#a86'],
 };
 
 let zonesDef = [];

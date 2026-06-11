@@ -83,7 +83,7 @@ const ISLANDS = [
 const CAUSEWAYS = [
   [[0.202, 0.158], [0.125, 0.142], 1.6],  // isthme d'Orkanis
   [[0.708, 0.262], [0.768, 0.265], 1.4],  // gué de l'Ermite
-  [[0.732, 0.612], [0.788, 0.632], 1.8],  // pont de Lighthaven
+  [[0.734, 0.625], [0.788, 0.625], 1.0],  // le pont Gob (sortie ouest de Lighthaven)
   [[0.908, 0.568], [0.926, 0.535], 1.2],  // sentier de la tour des mages…
   [[0.926, 0.535], [0.935, 0.508], 1.2],
   [[0.938, 0.488], [0.948, 0.462], 1.2],  // …puis vers le cercle druidique
@@ -144,10 +144,10 @@ const GRAVEYARDS = [
 ];
 // routes (polylignes) — suivent le réseau des cartes de référence
 const ROADS = [
-  // Windhowl -> Labyrinthe -> Cercle de transfert
-  [[0.245, 0.655], [0.29, 0.58], [0.33, 0.50], [0.38, 0.44], [0.43, 0.395], [0.458, 0.358], [0.49, 0.33], [0.515, 0.308]],
-  // Cercle de transfert -> Lance Silversmith -> camp gobelin -> Lighthaven
-  [[0.515, 0.305], [0.575, 0.282], [0.625, 0.275], [0.66, 0.30], [0.688, 0.36], [0.705, 0.45], [0.715, 0.52], [0.728, 0.585], [0.74, 0.618], [0.788, 0.635], [0.825, 0.648]],
+  // Windhowl (porte est) -> Labyrinthe -> Cercle de transfert
+  [[0.262, 0.661], [0.285, 0.635], [0.30, 0.58], [0.33, 0.50], [0.38, 0.44], [0.43, 0.395], [0.458, 0.358], [0.49, 0.33], [0.515, 0.308]],
+  // Cercle de transfert -> Lance Silversmith -> camp gobelin -> le pont Gob -> Lighthaven
+  [[0.515, 0.305], [0.575, 0.282], [0.625, 0.275], [0.66, 0.30], [0.688, 0.36], [0.705, 0.45], [0.715, 0.52], [0.728, 0.585], [0.734, 0.625], [0.788, 0.625], [0.825, 0.648]],
   // Cercle de transfert -> cryptes -> Asile
   [[0.515, 0.302], [0.518, 0.255], [0.512, 0.222], [0.502, 0.16], [0.498, 0.112], [0.522, 0.085], [0.552, 0.072]],
   // Asile -> camp des Druides
@@ -156,18 +156,18 @@ const ROADS = [
   [[0.512, 0.222], [0.548, 0.185], [0.585, 0.155], [0.638, 0.162], [0.652, 0.20]],
   // Cercle de transfert -> entrée des monts Righul
   [[0.508, 0.298], [0.472, 0.285], [0.445, 0.268]],
-  // Windhowl -> Ville des Voleurs -> camps des brigands -> route de Lighthaven
-  [[0.25, 0.688], [0.33, 0.645], [0.40, 0.618], [0.458, 0.605], [0.52, 0.648], [0.60, 0.625], [0.655, 0.598], [0.708, 0.555]],
+  // Windhowl (porte est) -> Ville des Voleurs -> camps des brigands -> route de Lighthaven
+  [[0.262, 0.661], [0.295, 0.672], [0.33, 0.645], [0.40, 0.618], [0.458, 0.605], [0.52, 0.648], [0.60, 0.625], [0.655, 0.598], [0.708, 0.555]],
   // Ville des Voleurs -> forteresse souterraine -> cave des Brigands
   [[0.462, 0.615], [0.472, 0.692], [0.462, 0.722], [0.478, 0.768], [0.49, 0.798]],
   // Windhowl -> camp Kobold -> cercle druidique (sort par la porte est puis remonte)
-  [[0.252, 0.648], [0.235, 0.598], [0.205, 0.555], [0.188, 0.528], [0.183, 0.505], [0.170, 0.498]],
+  [[0.262, 0.661], [0.272, 0.63], [0.235, 0.598], [0.205, 0.555], [0.188, 0.528], [0.183, 0.505], [0.170, 0.498]],
   // route d'Orkanis (depuis la sortie ouest des monts, jusqu'au repaire du Troll)
   [[0.206, 0.16], [0.168, 0.155], [0.128, 0.143], [0.106, 0.139]],
   // gué de l'Ermite, jusqu'au camp
   [[0.703, 0.268], [0.732, 0.258], [0.77, 0.266], [0.80, 0.271]],
-  // Lighthaven interne : pont -> place -> temple ; place -> métiers ; place -> champs
-  [[0.788, 0.635], [0.825, 0.648], [0.862, 0.655]],
+  // Lighthaven interne : pont Gob -> place -> temple ; place -> métiers ; place -> champs
+  [[0.788, 0.625], [0.825, 0.648], [0.862, 0.655]],
   [[0.862, 0.648], [0.864, 0.612]],
   [[0.858, 0.668], [0.846, 0.74], [0.843, 0.79]],
   [[0.80, 0.745], [0.815, 0.72], [0.83, 0.70], [0.852, 0.672]],
@@ -288,8 +288,15 @@ export function generateIsland1() {
       }
     }
   };
+  // sur la terre : sable ; au-dessus de la mer : PONT DE BOIS (le pont Gob à la
+  // sortie de Lighthaven, le sentier de la tour des mages, le gué de l'Ermite...)
+  const bridgeTiles = [];
   for (const [a, b, w] of CAUSEWAYS) {
-    stampLine([a, b], w, (X, Z) => { tile[idx(X, Z)] = TILE.SAND; });
+    stampLine([a, b], w, (X, Z) => {
+      const i = idx(X, Z);
+      if (tile[i] === TILE.WATER) { tile[i] = TILE.PATH; bridgeTiles.push([X, Z]); }
+      else tile[i] = TILE.SAND;
+    });
   }
 
   // --- 3. lacs et rivières (eau douce) ---
@@ -406,7 +413,7 @@ export function generateIsland1() {
       const i = idx(X, Z);
       if (tile[i] === TILE.COBBLE) return;
       if (tile[i] === TILE.WATER) {
-        if (river[i]) { tile[i] = TILE.PATH; river[i] = 0; } // pont
+        if (river[i]) { tile[i] = TILE.PATH; river[i] = 0; bridgeTiles.push([X, Z]); } // pont de bois
         return; // jamais de route en mer
       }
       // le massif Righul a ses propres sentiers ; les amas rocheux isolés
@@ -483,6 +490,21 @@ export function generateIsland1() {
     block(X, Z);
   };
   const well = (x, z) => { props.push({ type: 'well', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
+  // remparts (palissade), clôtures et ruines
+  const wall = (x, z, v = 'seg') => { props.push({ type: 'wall', x: x + 0.5, z: z + 0.5, v, rot: 0, s: 1 }); block(x, z); };
+  const fence = (x, z, v = 'x') => { props.push({ type: 'fence', x: x + 0.5, z: z + 0.5, v, rot: 0, s: 1 }); block(x, z); };
+  const ruin = (x, z) => { props.push({ type: 'ruin', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
+  // enclos rectangulaire en barrières, avec une ouverture par côté indiqué
+  const paddock = (x0, z0, x1, z1, gates = []) => {
+    for (let x = x0; x <= x1; x++) {
+      if (!gates.includes('n') || Math.abs(x - (x0 + x1) / 2) > 1) fence(x, z0, 'x');
+      if (!gates.includes('s') || Math.abs(x - (x0 + x1) / 2) > 1) fence(x, z1, 'x');
+    }
+    for (let z = z0 + 1; z < z1; z++) {
+      if (!gates.includes('w') || Math.abs(z - (z0 + z1) / 2) > 1) fence(x0, z, 'z');
+      if (!gates.includes('e') || Math.abs(z - (z0 + z1) / 2) > 1) fence(x1, z, 'z');
+    }
+  };
 
   // ---------- LIGHTHAVEN ----------
   {
@@ -499,22 +521,20 @@ export function generateIsland1() {
     house(c.x + 1, c.z + 8, 4, 4);                // maison sud
     well(c.x, c.z);                               // la fontaine
     obelisk(c.x + 13, c.z + 2);
-    // l'enclos de Darkfang (cercle de rochers, ouverture à l'est)
-    for (let a = 0.5; a < Math.PI * 2 - 0.5; a += 0.7) {
-      props.push({ type: 'rock', x: c.x - 16 + Math.cos(a) * 3 + 0.5, z: c.z - 10 + Math.sin(a) * 2.2 + 0.5, rot: 0, s: 1.1 });
-      block(Math.round(c.x - 16 + Math.cos(a) * 3), Math.round(c.z - 10 + Math.sin(a) * 2.2));
-    }
+    // l'enclos de Darkfang (clôture de bois, ouverture à l'est)
+    paddock(c.x - 19, c.z - 12, c.x - 13, c.z - 8, ['e']);
     torch(c.x - 16, c.z - 10);
     // cimetière + crypte à l'ouest
     for (let z = c.z - 6; z <= c.z + 3; z++) for (let x = c.x - 24; x <= c.x - 16; x++) {
       if (inMap(x, z) && tile[idx(x, z)] !== TILE.WATER && rng() < 0.8) tile[idx(x, z)] = TILE.GRAVE;
     }
     cave(c.x - 24, c.z - 3, 'Crypte de Lighthaven');
-    // champs au sud-est (carrés de terre retournée)
-    for (const [fx, fz] of [[c.x + 9, c.z + 10], [c.x + 15, c.z + 12], [c.x + 9, c.z + 16]]) {
+    // champs au sud-est (terre retournée, clôturés de barrières)
+    for (const [fx, fz] of [[c.x + 9, c.z + 10], [c.x + 16, c.z + 13]]) {
       for (let z = fz; z < fz + 5; z++) for (let x = fx; x < fx + 5; x++) {
         if (inMap(x, z) && tile[idx(x, z)] === TILE.GRASS) tile[idx(x, z)] = TILE.SAND;
       }
+      paddock(fx - 1, fz - 1, fx + 5, fz + 5, ['n']);
     }
     for (const [tx, tz] of [[c.x - 5, c.z - 5], [c.x + 5, c.z - 5], [c.x - 5, c.z + 5], [c.x + 5, c.z + 5], [c.x, c.z - 13]]) torch(tx, tz);
     // village des métiers + quartier résidentiel
@@ -536,20 +556,19 @@ export function generateIsland1() {
   // ---------- WINDHOWL ----------
   {
     const c = WH;
-    // remparts : haie d'arbres serrés sur le périmètre, portes est et ouest
+    // remparts : palissade de bois sur le périmètre, portes est (route) et ouest (port)
     for (let x = WHX0; x <= WHX1; x++) {
       for (const z of [WHZ0, WHZ1]) {
-        if (Math.abs(x - (WHX1 - 2)) < 3 && z === WHZ0) continue; // pas de porte au nord
-        props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * 6.3, s: 1 });
-        block(x, z);
+        const corner = (x === WHX0 || x === WHX1);
+        wall(x, z, corner ? 'corner' : 'seg');
       }
     }
-    for (let z = WHZ0; z <= WHZ1; z++) {
+    for (let z = WHZ0 + 1; z < WHZ1; z++) {
       for (const x of [WHX0, WHX1]) {
-        const isGate = Math.abs(z - (c.z - 1)) < 2; // portes est (route) et ouest (port)
+        const isGate = Math.abs(z - (c.z - 1)) < 2; // portes est et ouest
         if (isGate) continue;
-        props.push({ type: 'tree', x: x + 0.5, z: z + 0.5, rot: rng() * 6.3, s: 1 });
-        block(x, z);
+        const gateEdge = Math.abs(z - (c.z - 1)) === 2; // pans de porte de part et d'autre
+        wall(x, z, gateEdge ? 'gate' : 'seg');
       }
     }
     bigHouse(c.x - 5, c.z - 13);                  // le temple
@@ -589,10 +608,10 @@ export function generateIsland1() {
   torch(ARAKAS.ASILE.x, ARAKAS.ASILE.z + 3);
   house(ARAKAS.GITANE.x - 2, ARAKAS.GITANE.z - 2, 4, 4);   // camp de la gitane
   torch(ARAKAS.GITANE.x + 2, ARAKAS.GITANE.z + 1);
-  // Cité perdue des nains : ruines
-  house(ARAKAS.CITE_NAINE.x - 6, ARAKAS.CITE_NAINE.z - 3, 4, 4);
-  house(ARAKAS.CITE_NAINE.x + 1, ARAKAS.CITE_NAINE.z - 5, 4, 4);
-  house(ARAKAS.CITE_NAINE.x - 1, ARAKAS.CITE_NAINE.z + 2, 4, 4);
+  // Cité perdue des nains : pans de murs effondrés et tombes
+  for (const [dx, dz] of [[-6, -3], [-3, -5], [1, -5], [4, -2], [3, 3], [-2, 4], [-6, 2], [0, -1]]) {
+    ruin(ARAKAS.CITE_NAINE.x + dx, ARAKAS.CITE_NAINE.z + dz);
+  }
   for (let i = 0; i < 6; i++) {
     props.push({ type: 'grave', x: ARAKAS.CITE_NAINE.x - 6 + rng() * 12, z: ARAKAS.CITE_NAINE.z - 6 + rng() * 10, rot: (rng() - 0.5) * 0.5, s: 1 });
   }
@@ -625,6 +644,14 @@ export function generateIsland1() {
   // l'île du Vieil Ermite
   house(ARAKAS.ERMITE.x - 1, ARAKAS.ERMITE.z - 1, 4, 4);
   chest(ARAKAS.ERMITE.x + 4, ARAKAS.ERMITE.z + 3);
+  // les Ruines Émergées : vestiges engloutis
+  for (const [dx, dz] of [[-3, -2], [1, -4], [3, 1], [-1, 3], [-5, 1]]) {
+    ruin(T(0.665, 0.758).x + dx, T(0.665, 0.758).z + dz);
+  }
+  ruin(T(0.692, 0.792).x, T(0.692, 0.792).z - 1);
+  // la Ville des Voleurs porte les cicatrices de ses rixes
+  ruin(ARAKAS.VOLEURS.x - 8, ARAKAS.VOLEURS.z + 1);
+  ruin(ARAKAS.VOLEURS.x + 6, ARAKAS.VOLEURS.z + 4);
   // autres coffres célèbres
   chest(ARAKAS.JARKO.x - 4, ARAKAS.JARKO.z - 2);           // le trésor de Jarko
   chest(ARAKAS.CRYPTE.x + 5, ARAKAS.CRYPTE.z + 2);         // la crypte d'Arakas
@@ -654,6 +681,19 @@ export function generateIsland1() {
   obelisk(ARAKAS.RST.x, ARAKAS.RST.z);
   torch(ARAKAS.RST.x - 2, ARAKAS.RST.z + 1);
   torch(ARAKAS.RST.x + 2, ARAKAS.RST.z + 1);
+
+  // --- 12 bis. ponts de bois : platelage + rambardes sur chaque traversée ---
+  const isWet = (x, z) => inMap(x, z) && tile[idx(x, z)] === TILE.WATER;
+  for (const [bx, bz] of bridgeTiles) {
+    // rambardes uniquement sur les côtés qui donnent sur l'eau
+    props.push({
+      type: 'bridge', x: bx + 0.5, z: bz + 0.5, rot: 0, s: 1,
+      rails: {
+        n: isWet(bx, bz - 1), s: isWet(bx, bz + 1),
+        w: isWet(bx - 1, bz), e: isWet(bx + 1, bz),
+      },
+    });
+  }
 
   // --- 13. habillage : arbres, rochers, tombes (seed constant) ---
   for (let z = 1; z < N - 1; z++) {
