@@ -298,19 +298,25 @@ export class Game {
   recompute(p) {
     const stats = { ...p.stats };
     let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0, dodgeMalus = 0;
+    let wRanged = false, wRange = 0;
     for (const slot of SLOTS) {
       const iid = p.equip[slot];
       if (!iid) continue;
       const item = p.inventory.find(i => i.iid === iid);
       if (!item) { delete p.equip[slot]; continue; }
       const s = itemStats(item);
-      if (slot === 'weapon') { wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed; }
+      if (slot === 'weapon') {
+        wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed;
+        // arc T4C : l'attaque normale porte à `range` tuiles (avec ligne de vue)
+        const wDef = ITEMS[item.defId];
+        wRanged = !!wDef.ranged; wRange = wDef.range || 0;
+      }
       defense += s.def;
       dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C)
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
     // compétences T4C : points entraînés x effet par point
-    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
+    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, rangedHit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
     for (const [id, pts] of Object.entries(p.skills)) {
       const sk = content.skillById[id];
       if (!sk || !pts) continue;
@@ -344,7 +350,9 @@ export class Game {
       atkCd: C.attackCooldown(stats, weaponSpeed),
       defense: defense + fx.def + buffDef,
       speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
-      atkRange: 1.8,
+      // arc équipé : portée de l'arme (tuiles), sinon mêlée
+      atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
+      ranged: wRanged,
       buffRegen,
       capacity: C.enc(stats),
     };
@@ -729,7 +737,7 @@ export class Game {
   openShop(p, npc) {
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
-    const reqNames = { str: 'For', agi: 'Agi', int: 'Int', wis: 'Sag' };
+    const reqNames = { str: 'For', end: 'End', agi: 'Agi', int: 'Int', wis: 'Sag' };
     const items = Object.entries(ITEMS)
       .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold' && !d.legacy)
       .map(([defId, d]) => {
@@ -996,7 +1004,11 @@ export class Game {
     defender.lastCombat = this.now();
 
     let hitC = C.hitChance(aStats, dStats);
-    if (attacker.kind === C.KIND.PLAYER) hitC = Math.min(0.98, hitC + (attacker.skillFx?.hit || 0));
+    // T4C : Attaque ne sert qu'en mêlée, Archerie qu'à l'arc — jamais les deux
+    const usesBow = attacker.kind === C.KIND.PLAYER && attacker.eff.ranged;
+    if (attacker.kind === C.KIND.PLAYER) {
+      hitC = Math.min(0.98, hitC + (usesBow ? (attacker.skillFx?.rangedHit || 0) : (attacker.skillFx?.hit || 0)));
+    }
     if (defender.kind === C.KIND.PLAYER) hitC = Math.max(0.15, hitC - (defender.skillFx?.dodge || 0));
     if (Math.random() > hitC) {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
@@ -1007,6 +1019,8 @@ export class Game {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, parry: true });
       return;
     }
+    // flèche : trace visuelle du tir à chaque coup réussi (système des projectiles de sorts)
+    if (usesBow) this.eventNear(defender, { t: 'proj', from: attacker.id, to: defender.id, color: '#d8c8a0' });
     // joueur : tirage dans la fourchette de l'arme (T4C) ; monstre : variance
     let dmg;
     if (attacker.kind === C.KIND.PLAYER) {
