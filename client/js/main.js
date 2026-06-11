@@ -100,7 +100,8 @@ net.on('events', (m) => {
       const v = em.get(ev.to);
       if (!v) continue;
       const pos = headPos(v);
-      if (ev.miss) ui.floater(pos, 'raté', 'miss');
+      if (ev.parry) ui.floater(pos, 'paré !', 'miss');
+      else if (ev.miss) ui.floater(pos, 'raté', 'miss');
       else {
         const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
         const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')

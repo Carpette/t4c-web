@@ -92,9 +92,17 @@ ok('Dard de Feu appris une fois les prérequis remplis', S.self?.spells.includes
 send({ t: 'buy', kind: 'spell', id: 'fleche_enflammee' });
 await sleep(600);
 ok('chaîne de prérequis respectée (Int 44 manquant)', !S.self?.spells.includes('fleche_enflammee'));
-send({ t: 'buy', kind: 'skill', id: 'peau_de_fer' });
-await waitFor(() => S.self?.skills.includes('peau_de_fer'));
-ok('compétence apprise', S.self?.skills.includes('peau_de_fer'));
+// compétences T4C : apprentissage (Coup assommant : For 25, Agi 20) puis entraînement
+send({ t: 'admin', cmd: 'stats', str: 30, agi: 22, wis: 20, int: 25 });
+await sleep(400);
+send({ t: 'buy', kind: 'skill', id: 'coup_assommant' });
+await waitFor(() => S.self?.skills?.coup_assommant >= 1);
+ok('Coup assommant appris', S.self?.skills?.coup_assommant === 1);
+send({ t: 'buy', kind: 'train', id: 'coup_assommant' });
+send({ t: 'buy', kind: 'train', id: 'attaque' }); // innée : entraînable directement
+await waitFor(() => S.self?.skills?.coup_assommant === 2 && S.self?.skills?.attaque === 1);
+ok('entraînement par points (assommant 2, attaque 1)',
+  S.self?.skills?.coup_assommant === 2 && S.self?.skills?.attaque === 1);
 
 // --- sort sur un monstre (niveau 10 pour survivre à l'approche : ~78 PV) ---
 send({ t: 'admin', cmd: 'set', level: 10 });
