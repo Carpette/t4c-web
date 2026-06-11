@@ -156,9 +156,19 @@ export const ITEMS = {
   casque_plaques: { name: 'Casque de Plaques', slot: 'helmet', drop: 'orc', fixed: true, def: 3.51, malus: 7, weight: 6, req: { end: 125 }, layer: 'plate_helm', loot: 'steel_armor', price: 1258 },
   jambieres_plaques: { name: 'Jambières de Plaques', slot: 'legs', drop: 'orc', fixed: true, def: 4.05, malus: 14, weight: 12, req: { end: 125 }, layer: 'plate_greaves', loot: 'steel_armor', price: 1319 },
 
+  // ================= BOUCLIERS T4C (l4p.fr VoirBoucliers) — prérequis END (sauf Écu : For/End/Agi) =================
+  // CA décimale, aucun malus d'esquive (tables l4p) ; malus négatif = BONUS d'esquive (Bouclier de Windhowl)
+  bouclier_en_bois:    { name: 'Bouclier en Bois',      slot: 'shield', zone: 0, fixed: true, def: 1.0,  weight: 8,  req: { end: 45 },                    layer: 'buckler',      loot: 'buckler', price: 671 },
+  bouclier_rond:       { name: 'Bouclier Rond',         slot: 'shield', zone: 1, fixed: true, def: 2.0,  weight: 8,  req: { end: 60 },                    layer: 'iron_buckler', loot: 'buckler', price: 1478 },
+  bouclier_de_windhowl:{ name: 'Bouclier de Windhowl',  slot: 'shield', chest: 1, fixed: true, def: 3.0, malus: -19, weight: 8, req: { end: 60, wis: 23, int: 26 }, layer: 'shield', loot: 'shield', price: 3920 },
+  bouclier_orque:      { name: 'Bouclier Orque',        slot: 'shield', drop: 'orc', fixed: true, def: 4.0, weight: 9, req: { end: 80 },                  layer: 'shield',       loot: 'shield',  price: 5088 },
+  grand_bouclier:      { name: 'Grand Bouclier',        slot: 'shield', zone: 2, fixed: true, def: 6.0,  weight: 10, req: { end: 100 },                   layer: 'kite_shield',  loot: 'shield',  price: 5198 },
+  bouclier_de_la_tour: { name: 'Bouclier de la Tour',   slot: 'shield', zone: 2, fixed: true, def: 8.0,  weight: 11, req: { end: 125 },                   layer: 'kite_shield',  loot: 'shield',  price: 7240 },
+  ecu_de_drachen:      { name: 'Écu de Drachen',        slot: 'shield', drop: 'ogre', fixed: true, def: 12.0, weight: 12, req: { str: 40, end: 125, agi: 30 }, att: 50, layer: 'kite_shield', loot: 'shield', price: 19100 },
+
   // ===== Boucliers / bijoux / armures héritées =====
-  bouclier_bois:{ name: 'Bouclier en bois',     slot: 'shield', zone: 0, def: 3,  weight: 4,  layer: 'buckler',     loot: 'buckler', price: 12 },
-  bouclier_fer: { name: 'Bouclier en fer',      slot: 'shield', zone: 2, def: 8,  weight: 9,  layer: 'kite_shield', loot: 'shield',  price: 130 },
+  bouclier_bois:{ name: 'Vieux bouclier de bois', slot: 'shield', legacy: true, def: 3,  weight: 4,  layer: 'buckler',     loot: 'buckler', price: 12 },
+  bouclier_fer: { name: 'Vieux bouclier de fer',  slot: 'shield', legacy: true, def: 8,  weight: 9,  layer: 'kite_shield', loot: 'shield',  price: 130 },
   tunique:      { name: 'Tunique de toile',     slot: 'armor', legacy: true, def: 2,  weight: 3,  layer: 'cloth_shirt',   loot: 'clothes',       price: 10 },
   robe_mage:    { name: 'Robe de mage',         slot: 'armor', legacy: true, def: 4,  weight: 3,  int: 5, layer: 'mage_vest',  loot: 'clothes',  price: 90 },
   cuir:         { name: 'Armure de cuir',       slot: 'armor', legacy: true, def: 6,  weight: 8,  layer: 'leather_chest', loot: 'leather_armor', price: 60 },
@@ -217,7 +227,7 @@ export const MOBS = {
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.5,
     resist: { terre: -0.5, arcane: 0.2 },
     sprite: 'goblin', respawn: 20,
-    drops: [['or', 0.95, 5, 16], ['potion_vie', 0.15, 1, 2], ['cuir', 0.08, 1, 1], ['lame_de_gobelin', 0.025, 1, 1], ['gourdin', 0.05, 1, 1], ['capuche', 0.06, 1, 1], ['bouclier_bois', 0.07, 1, 1]],
+    drops: [['or', 0.95, 5, 16], ['potion_vie', 0.15, 1, 2], ['cuir', 0.08, 1, 1], ['lame_de_gobelin', 0.025, 1, 1], ['gourdin', 0.05, 1, 1], ['capuche', 0.06, 1, 1], ['bouclier_en_bois', 0.07, 1, 1]],
   },
   squelette: {
     name: 'Squelette', level: 8, hp: 70, dmg: 8, def: 7, speed: 3.6,
@@ -238,14 +248,14 @@ export const MOBS = {
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.8,
     resist: { air: -0.25, terre: 0.3 },
     sprite: 'hobgoblin', respawn: 35,
-    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['arc_primitif_skraugh', 0.01, 1, 1], ['bouclier_fer', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
+    drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['arc_primitif_skraugh', 0.01, 1, 1], ['bouclier_orque', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
   },
   ogre: {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
     resist: { feu: 0.3, arcane: -0.25 },
     sprite: 'minotaur', respawn: 90,
-    drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1]],
+    drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1], ['ecu_de_drachen', 0.01, 1, 1]],
   },
 };
 
