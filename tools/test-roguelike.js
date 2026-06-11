@@ -139,8 +139,8 @@ send({ t: 'movedir', x: 0, z: 0 });
 const p1 = S.pos.get(S.id);
 ok('déplacement direct (flèches)', p1 && Math.abs(p1.x - p0.x) > 1);
 
-// --- obélisque ---
-send({ t: 'interact', prop: 'obelisk', x: 77.5, z: 72.5 });
+// --- obélisque (à l'est de la place de Lighthaven) ---
+send({ t: 'interact', prop: 'obelisk', x: 106.5, z: 86.5 });
 await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
 
@@ -149,8 +149,11 @@ ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.z
 // l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
 send({ t: 'admin', cmd: 'set', level: 15 });
 await sleep(400);
-send({ t: 'interact', prop: 'trialgate', x: 60.5, z: 28.5 });
-await waitFor(() => S.trial, 25000); // longue marche vers le nord
+// téléportation près du portail (la marche LH -> monts Righul serait trop longue)
+send({ t: 'admin', cmd: 'goto', x: 52.5, z: 20.5 });
+await sleep(400);
+send({ t: 'interact', prop: 'trialgate', x: 52.5, z: 16.5 });
+await waitFor(() => S.trial, 25000);
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
 send({ t: 'trial_enter' });
 await waitFor(() => S.zone?.kind === 'trial', 5000);

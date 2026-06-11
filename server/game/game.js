@@ -64,7 +64,7 @@ export class Game {
     this.tickCount = 0;
 
     for (const z of content.zones) {
-      const world = applyOverrides(generateWorld(z.seed), loadOverrides(z.id));
+      const world = applyOverrides(generateWorld(z.seed, z.map), loadOverrides(z.id));
       const zi = new ZoneInstance(`zone:${z.id}`, world, z.id);
       this.zones.set(zi.key, zi);
       this.populateIsland(zi);
@@ -81,7 +81,8 @@ export class Game {
   populateIsland(zi) {
     const rng = mulberry32((this.zoneDef(zi.zoneId).seed ^ 0xbeef) >>> 0);
     const base = this.zoneDef(zi.zoneId).levels[0] - 1;
-    for (const zone of SPAWN_ZONES) {
+    // une carte fixe (Arakas) définit ses propres spots ; sinon spots communs
+    for (const zone of zi.world.spawnZones || SPAWN_ZONES) {
       for (let i = 0; i < zone.count; i++) {
         let x, z, tries = 0;
         do {
@@ -113,18 +114,25 @@ export class Game {
   }
 
   spawnNpc(zi) {
-    const v = zi.world.village;
-    let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
-    while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-    const npc = {
-      id: this.nextId++, kind: C.KIND.NPC, npcId: 'merchant',
-      name: content.npc.merchant.name,
-      look: content.npc.merchant.look,
-      x, z, dir: Math.PI, state: C.ST.IDLE, level: 0,
-      hp: 1, dead: false, hidden: false,
-    };
-    zi.add(npc);
-    return npc;
+    // carte fixe : emplacements explicites (un marchand par ville sur Arakas)
+    const spots = zi.world.npcSpots || (() => {
+      const v = zi.world.village;
+      let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
+      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
+      return [{ npcId: 'merchant', x, z }];
+    })();
+    for (const spot of spots) {
+      const def = content.npc[spot.npcId] || content.npc.merchant;
+      let { x, z } = spot, tries = 0;
+      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
+      zi.add({
+        id: this.nextId++, kind: C.KIND.NPC, npcId: spot.npcId,
+        name: def.name,
+        look: def.look,
+        x, z, dir: Math.PI, state: C.ST.IDLE, level: 0,
+        hp: 1, dead: false, hidden: false,
+      });
+    }
   }
 
   // ---------- Joueurs ----------
@@ -226,6 +234,7 @@ export class Game {
       zoneId: zi.isTrial ? zi.trialTarget : zi.zoneId,
       name: zi.isTrial ? `L'Épreuve — vers ${def.name}` : def.name,
       seed: def.seed,
+      map: zi.isTrial ? null : def.map || null,
       tint: zi.isTrial ? 'rgba(40, 20, 60, 0.18)' : def.tint,
       levels: def.levels,
       x: p.x, z: p.z,
@@ -851,7 +860,8 @@ export class Game {
         reqMet: this.skillReqMet(p, s) === true,
         reqText: this.skillReqText(s),
       }));
-    const line = content.npc.merchant.greetings[Math.floor(Math.random() * content.npc.merchant.greetings.length)];
+    const npcDef = content.npc[npc.npcId] || content.npc.merchant;
+    const line = npcDef.greetings[Math.floor(Math.random() * npcDef.greetings.length)];
     this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
     this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells, skills });
   }

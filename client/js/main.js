@@ -55,7 +55,7 @@ net.on('welcome', (m) => {
 net.on('zone', async (m) => {
   cancelAim(); cancelAuto(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
-  const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed);
+  const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed, m.map);
   if (m.kind !== 'trial') {
     try {
       const r = await fetch(`/content/overrides_${m.zoneId}.json`);

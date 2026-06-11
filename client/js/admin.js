@@ -177,7 +177,7 @@ async function loadZone(id) {
   $('map-msg').textContent = 'Génération de la carte…';
   await new Promise(r => setTimeout(r, 20));
   const def = zonesDef.find(z => z.id === id);
-  const w = generateWorld(def.seed);
+  const w = generateWorld(def.seed, def.map);
   // structuredClone ne passe pas les fonctions : on garde un objet simple
   baseWorld = { size: w.size, tile: w.tile, walk: w.walk, props: w.props, height: w.height };
   try { ov = await api(`/api/admin/overrides/${id}`); } catch { ov = { tiles: [], props: { add: [], remove: [] } }; }
