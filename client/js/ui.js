@@ -308,6 +308,27 @@ export class UI {
     this.cds[spellId] = performance.now() / 1000 + dur;
   }
 
+  // ---- Barre d'incantation (vitesse de sort T4C) ----
+  // Remplissage linéaire en CSS pendant `ms` ; cachée à la fin ou si le
+  // serveur interrompt l'incantation (cast_break : mouvement, cible perdue).
+  startCastBar(name, ms) {
+    const bar = $('castbar'), fill = $('castbar-fill');
+    $('castbar-label').textContent = name;
+    bar.classList.remove('hidden');
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    void fill.offsetWidth; // force le reflow pour relancer la transition
+    fill.style.transition = `width ${ms}ms linear`;
+    fill.style.width = '100%';
+    clearTimeout(this._castTimer);
+    this._castTimer = setTimeout(() => bar.classList.add('hidden'), ms + 200);
+  }
+
+  endCastBar() {
+    clearTimeout(this._castTimer);
+    $('castbar').classList.add('hidden');
+  }
+
   tickCooldowns() {
     const now = performance.now() / 1000;
     // uniquement la barre de sorts : les cases de potions partagent la classe
@@ -574,9 +595,10 @@ export class UI {
 
   renderBuffs() {
     const names = {
-      def: '🛡 Protection', speed: '💨 Dextérité', dmg: '⚔ Instinct de Combat',
+      def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Instinct de Combat',
       regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la Terre',
-      light: '💡 Lumière',
+      light: '💡 Lumière', int: '🧠 Pensée Claire', wis: '🕊 Tranquillité',
+      agi: '🤸 Dextérité', spellpow: '🔮 Poussée de Mana', retort: '🔥 Bouclier élémentaire',
     };
     $('buffs-display').innerHTML = (this.self?.buffs || [])
       .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');

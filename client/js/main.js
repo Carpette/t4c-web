@@ -75,7 +75,7 @@ net.on('welcome', (m) => {
   ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
 });
 net.on('zone', async (m) => {
-  cancelAim(); cancelAuto(); targetId = null;
+  cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
   const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed, m.map);
   if (m.kind !== 'trial') {
@@ -105,15 +105,19 @@ net.on('loot', (m) => {
   const v = em.get(selfId);
   if (v) ui.floater(headPos(v), m.text, 'xp');
 });
-net.on('died', (m) => { cancelAim(); cancelAuto(); ui.showDeath(m); });
+net.on('died', (m) => { cancelAim(); cancelAuto(); ui.endCastBar(); ui.showDeath(m); });
 net.on('shop', (m) => ui.showShop(m));
 net.on('obelisk', (m) => ui.showObelisk(m));
 net.on('bank_open', (m) => ui.showBank(m));
 net.on('confirm_trial', (m) => ui.showTrialConfirm(m));
 net.on('cast_ok', (m) => {
+  ui.endCastBar(); // incantation aboutie
   ui.startCooldown(m.spellId, m.cd);
   if (ui.self) { ui.self.mana = m.mana; ui.renderBars(); }
 });
+// incantation T4C : barre de progression pendant le temps de lancement
+net.on('cast_start', (m) => ui.startCastBar(m.name, m.ms));
+net.on('cast_break', () => ui.endCastBar());
 net.on('snapshot', (snap) => {
   const now = performance.now() / 1000;
   worldTime = snap.worldTime;

@@ -132,10 +132,6 @@ if (mob) {
 ok('Dard de Feu a blessé un monstre', castWorked);
 
 // --- mouvement clavier (movedir) ---
-// retour sur la place de Lighthaven : position déterministe, dégagée,
-// loin des monstres (la chasse a pu nous emmener n'importe où)
-send({ t: 'admin', cmd: 'goto', x: 333.5, z: 250.5 });
-await sleep(500);
 const p0 = { ...(S.pos.get(S.id) || { x: 0, z: 0 }) };
 send({ t: 'movedir', x: 1, z: 0 });
 await sleep(800);
@@ -143,7 +139,20 @@ send({ t: 'movedir', x: 0, z: 0 });
 const p1 = S.pos.get(S.id);
 ok('déplacement direct (flèches)', p1 && Math.abs(p1.x - p0.x) > 1);
 
-// --- obélisque (à l'est de la place de Lighthaven) ---
+// téléportation admin à proximité d'un point (évite de longues marches qui
+// font dépasser le budget de temps du test ; les interactions restent réelles)
+async function jumpNear(x, z) {
+  for (const [dx, dz] of [[0, 0], [1.5, 1], [-1.5, 1.5], [2.5, -1], [-2.5, -2], [0, 3]]) {
+    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
+    await sleep(250);
+    const p = S.pos.get(S.id);
+    if (p && Math.hypot(p.x - x, p.z - z) < 4) return true;
+  }
+  return false;
+}
+
+// --- obélisque ---
+await jumpNear(345.5, 254.5);
 send({ t: 'interact', prop: 'obelisk', x: 345.5, z: 254.5 });
 await waitFor(() => S.obelisk, 15000);
 ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.zones[0].id === 0);
@@ -153,11 +162,9 @@ ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.z
 // l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
 send({ t: 'admin', cmd: 'set', level: 15 });
 await sleep(400);
-// téléportation près du portail (la marche LH -> monts Righul serait trop longue)
-send({ t: 'admin', cmd: 'goto', x: 114.5, z: 43.5 });
-await sleep(400);
+await jumpNear(114.5, 43.5);
 send({ t: 'interact', prop: 'trialgate', x: 114.5, z: 45.5 });
-await waitFor(() => S.trial, 25000);
+await waitFor(() => S.trial, 25000); // marche finale vers le portail
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
 send({ t: 'trial_enter' });
 await waitFor(() => S.zone?.kind === 'trial', 5000);
