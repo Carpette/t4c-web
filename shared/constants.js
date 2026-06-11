@@ -1,4 +1,8 @@
 // Constantes et formules de jeu — partagées serveur/client
+// Version du protocole client<->serveur : à incrémenter quand un client
+// périmé (en cache navigateur) deviendrait incompatible. Le serveur refuse
+// la connexion avec un message clair plutôt qu'un écran figé.
+export const PROTOCOL_VERSION = 2;
 export const TICK_RATE = 10;            // ticks serveur par seconde
 export const TICK_DT = 1 / TICK_RATE;
 export const MAP_SIZE = 128;            // tuiles

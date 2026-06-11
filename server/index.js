@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Game } from './game/game.js';
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import { handleAdmin } from './admin.js';
 import * as db from './db.js';
 
@@ -78,6 +79,15 @@ wss.on('connection', (ws) => {
       // crash silencieux qui laisserait l'écran figé sans message)
       try {
         if (msg.t === 'register' || msg.t === 'login') {
+          // client périmé (cache navigateur) : message clair sur l'écran de
+          // connexion plutôt qu'un comportement incohérent une fois en jeu
+          if (msg.v !== PROTOCOL_VERSION) {
+            ws.send(JSON.stringify({
+              t: 'auth_error',
+              error: 'Votre navigateur utilise une version périmée du jeu. Rechargez avec Ctrl+Shift+R (Cmd+Shift+R sur Mac).',
+            }));
+            return;
+          }
           const res = msg.t === 'register' ? db.register(msg.name, msg.pass) : db.login(msg.name, msg.pass);
           if (res.error) { ws.send(JSON.stringify({ t: 'auth_error', error: res.error })); return; }
           if (!db.loadCharacter(res.accountId)) {

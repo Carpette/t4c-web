@@ -116,10 +116,13 @@ globalThis.fetch = (url, opts) => realFetch(String(url).startsWith('/') ? BASE +
 globalThis.prompt = () => null;
 globalThis.alert = () => {};
 
-const MODE = process.argv[3] || 'register'; // register = inscription + écran de création ; login = compte existant
-const NAME = 'Headless_' + Math.floor(Math.random() * 1e6);
+const MODE = process.argv[3] || 'register'; // register = inscription ; login = compte existant
+// compte explicite (ex. rejouer un cas réel) : node tools/test-client.mjs url login Nom MotDePasse
+const FORCED = process.argv[4] ? { name: process.argv[4], pass: process.argv[5] || 'test1234' } : null;
+const NAME = FORCED?.name || ('Headless_' + Math.floor(Math.random() * 1e6));
+const PASS = FORCED?.pass || 'test1234';
 
-if (MODE === 'login') {
+if (MODE === 'login' && !FORCED) {
   // pré-crée un compte avec personnage (via WS brut)
   await new Promise((resolve, reject) => {
     const ws = new WebSocket(BASE.replace('http', 'ws'));
@@ -142,14 +145,15 @@ console.log('✔ main.js chargé (assets, monde initial, connexion)');
 
 // ---------- connexion via l'UI (comme un clic sur le bouton) ----------
 doc.getElementById('login-name').value = NAME;
-doc.getElementById('login-pass').value = 'test1234';
+doc.getElementById('login-pass').value = PASS;
 const btn = doc.getElementById(MODE === 'login' ? 'btn-login' : 'btn-register');
 if (typeof btn.onclick !== 'function') { console.error('✘ bouton non câblé'); process.exit(1); }
 btn.onclick();
 
-if (MODE === 'register') {
-  // attend l'écran de création, répartit les 30 points (6 par stat), confirme
-  await new Promise(r => setTimeout(r, 1500));
+// l'écran de création apparaît à l'inscription, mais aussi à la connexion
+// d'un compte dont le personnage est mort (permadeath) : on gère les deux
+await new Promise(r => setTimeout(r, 1500));
+if (!doc.getElementById('creation').classList.contains('hidden')) {
   const creation = doc.getElementById('creation');
   console.log('écran de création visible :', !creation.classList.contains('hidden'));
   for (let round = 0; round < 6; round++) {

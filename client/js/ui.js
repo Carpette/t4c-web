@@ -1,5 +1,5 @@
 // Interface : connexion, HUD, inventaire (poupée T4C), fiche perso, chat, dégâts flottants
-import { STAT_NAMES, STATS } from '../../shared/constants.js';
+import { STAT_NAMES, STATS, PROTOCOL_VERSION } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
 import { SETTING_DEFS, SETTING_CHOICES, settings, setSetting } from './settings.js';
@@ -57,7 +57,7 @@ export class UI {
       const name = $('login-name').value.trim();
       const pass = $('login-pass').value;
       if (!name || !pass) { this.loginError('Pseudo et mot de passe requis'); return; }
-      net.send({ t: type, name, pass });
+      net.send({ t: type, name, pass, v: PROTOCOL_VERSION });
     };
     $('btn-login').onclick = () => submit('login');
     $('btn-register').onclick = () => submit('register');
