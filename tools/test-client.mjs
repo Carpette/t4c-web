@@ -29,25 +29,50 @@ class FakeClassList {
   toggle(c, force) { const want = force ?? !this.set.has(c); want ? this.set.add(c) : this.set.delete(c); return want; }
   contains(c) { return this.set.has(c); }
 }
+const allElements = []; // registre : permet de vrais querySelectorAll
 class FakeElement {
   constructor(tag = 'div', id = '') {
     this.tagName = tag.toUpperCase(); this.id = id;
-    this.children = []; this.dataset = {}; this.style = {};
+    this.children = []; this.parent = null; this.dataset = {}; this.style = {};
     this.classList = new FakeClassList(this);
     this.value = ''; this.textContent = ''; this._innerHTML = '';
     this.width = 1280; this.height = 800;
     this.title = ''; this.disabled = false;
+    allElements.push(this);
   }
+  get className() { return [...this.classList.set].join(' '); }
+  set className(v) { this.classList.set = new Set(String(v).split(/\s+/).filter(Boolean)); }
   get innerHTML() { return this._innerHTML; }
   set innerHTML(v) { this._innerHTML = v; this.children = []; }
-  appendChild(c) { this.children.push(c); return c; }
-  append(...cs) { this.children.push(...cs); }
+  appendChild(c) { this.children.push(c); if (c instanceof FakeElement) c.parent = this; return c; }
+  append(...cs) { for (const c of cs) this.appendChild(c); }
   before(c) {}
   insertAdjacentHTML() {}
   addEventListener() {}
   removeEventListener() {}
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
+  // sélecteurs simples : '.classe', '#id', 'tag', et descendants 'a b'
+  _matches(part) {
+    if (part.startsWith('.')) return this.classList.contains(part.slice(1));
+    if (part.startsWith('#')) return this.id === part.slice(1);
+    return this.tagName === part.toUpperCase();
+  }
+  _matchesSel(sel) {
+    const parts = sel.trim().split(/\s+/);
+    if (!this._matches(parts[parts.length - 1])) return false;
+    let node = this.parent;
+    for (let i = parts.length - 2; i >= 0; i--) {
+      while (node && !node._matches(parts[i])) node = node.parent;
+      if (!node) return false;
+      node = node.parent;
+    }
+    return true;
+  }
+  _descendants(out = []) {
+    for (const c of this.children) if (c instanceof FakeElement) { out.push(c); c._descendants(out); }
+    return out;
+  }
+  querySelector(sel) { return this._descendants().find(e => e._matchesSel(sel)) || null; }
+  querySelectorAll(sel) { return this._descendants().filter(e => e._matchesSel(sel)); }
   getContext() { return ctxProxy(); }
   toDataURL() { return 'data:image/png;base64,'; }
   getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; }
@@ -66,7 +91,8 @@ const doc = {
     return elements.get(id);
   },
   createElement(tag) { return new FakeElement(tag); },
-  querySelectorAll() { return []; },
+  querySelector(sel) { return allElements.find(e => e._matchesSel(sel)) || null; },
+  querySelectorAll(sel) { return allElements.filter(e => e._matchesSel(sel)); },
   addEventListener() {},
   activeElement: null,
 };

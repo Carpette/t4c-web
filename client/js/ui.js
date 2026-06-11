@@ -310,8 +310,12 @@ export class UI {
 
   tickCooldowns() {
     const now = performance.now() / 1000;
-    document.querySelectorAll('.spell-slot').forEach(slot => {
+    // uniquement la barre de sorts : les cases de potions partagent la classe
+    // CSS .spell-slot mais n'ont pas d'indicateur de recharge (cd null -> crash
+    // qui tuait la boucle de rendu : jeu figé dès qu'on avait une potion)
+    document.querySelectorAll('#spellbar .spell-slot').forEach(slot => {
       const cd = slot.querySelector('.cd');
+      if (!cd) return;
       const left = (this.cds[slot.dataset.spell] || 0) - now;
       if (left > 0) { cd.classList.remove('hidden'); cd.textContent = Math.ceil(left); }
       else cd.classList.add('hidden');
