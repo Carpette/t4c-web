@@ -9,6 +9,7 @@ export const DAY_LENGTH = 600;          // secondes pour un cycle jour/nuit comp
 export const ITEM_DESPAWN = 90;         // s avant disparition d'un objet au sol
 export const PICKUP_RANGE = 2.2;
 export const CHAT_MAX = 200;
+export const LOCAL_CHAT_DISTANCE_MAX = 15.0; // Rayon maximal de proximité pour le chat local
 
 export const STATS = ['str', 'end', 'agi', 'int', 'wis'];
 export const STAT_NAMES = {
