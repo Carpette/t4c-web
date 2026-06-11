@@ -8,6 +8,7 @@ import * as db from './db.js';
 import { content, saveContentFile } from './content.js';
 import { generateWorld } from '../shared/worldgen.js';
 import { applyOverrides } from '../shared/overrides.js';
+import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 const tokens = new Map(); // token -> { accountId, expires }
@@ -113,11 +114,28 @@ export async function handleAdmin(req, res, url, game) {
         const patch = JSON.parse(await readBody(req));
         const data = db.loadCharacter(accountId);
         if (!data) return json(404, { error: 'Pas de personnage' });
-        for (const k of ['level', 'gold', 'zoneId', 'statPoints', 'x', 'z']) {
+        for (const k of ['gold', 'zoneId', 'statPoints', 'x', 'z']) {
           if (patch[k] != null && Number.isFinite(+patch[k])) data[k] = +patch[k];
         }
         if (patch.stats) for (const s of Object.keys(data.stats)) {
           if (Number.isFinite(+patch.stats[s])) data.stats[s] = +patch.stats[s];
+        }
+        // changer le niveau = un VRAI passage de niveau : XP correspondante,
+        // points de stats gagnés/repris, accumulation PV/mana recalculée
+        if (patch.level != null && Number.isFinite(+patch.level)) {
+          const oldLevel = data.level;
+          const newLevel = Math.max(1, Math.min(MAX_LEVEL, +patch.level | 0));
+          data.level = newLevel;
+          data.xp = xpForLevel(newLevel);
+          if (patch.statPoints == null) {
+            data.statPoints = Math.max(0, (data.statPoints || 0) + POINTS_PER_LEVEL * (newLevel - oldLevel));
+          }
+          data.hpAcc = maxHp(data.stats, newLevel);
+          data.manaAcc = maxMana(data.stats, newLevel);
+        } else if (patch.stats) {
+          // stats changées sans changement de niveau : réapproxime l'accumulation
+          data.hpAcc = maxHp(data.stats, data.level);
+          data.manaAcc = maxMana(data.stats, data.level);
         }
         if (Array.isArray(patch.unlocked)) data.unlocked = patch.unlocked.map(Number);
         data.hp = null; data.mana = null; // recalculés au chargement
