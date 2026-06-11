@@ -211,8 +211,9 @@ export class UI {
           () => this.net.send({ t: 'buy', kind: 'item', id: it.defId }));
       }
     } else if (this.shopTab === 'spells') {
+      const elems = { feu: '🔥', eau: '❄', air: '🌪', terre: '⛰', lumiere: '☀', arcane: '🌑' };
       for (const sp of this.shop.spells) {
-        const meta = `${sp.mana} mana — requis : ${sp.reqText || '—'}`;
+        const meta = `${elems[sp.element] || ''} ${sp.element || ''} — ${sp.mana} mana — requis : ${sp.reqText || '—'}`;
         const row = mk(`${SPELL_ICONS[sp.type] || '✨'} ${sp.name}`, meta, sp.price, !sp.reqMet,
           () => this.net.send({ t: 'buy', kind: 'spell', id: sp.id }), sp.known ? 'Appris' : null);
         if (!sp.known && !sp.reqMet) row.style.opacity = 0.55;
