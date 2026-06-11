@@ -95,6 +95,7 @@ net.on('snapshot', (snap) => {
 net.on('events', (m) => {
   for (const ev of m.list) {
     if (ev.t === 'dmg') {
+      em.get(ev.from)?.triggerSwing(); // l'attaquant rejoue son animation à chaque coup
       const v = em.get(ev.to);
       if (!v) continue;
       const pos = headPos(v);
@@ -116,8 +117,10 @@ net.on('events', (m) => {
       }
     } else if (ev.t === 'proj') {
       const a = em.get(ev.from), b = em.get(ev.to);
+      a?.triggerSwing(); // animation de lancement à chaque sort
       if (a && b) renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.3 });
     } else if (ev.t === 'aoe') {
+      em.get(ev.from)?.triggerSwing();
       renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, dur: 0.6 });
     }
   }

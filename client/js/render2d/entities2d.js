@@ -104,8 +104,15 @@ class EntityView2D {
 
     // machine d'animation
     let target;
+    let forceRestart = false;
     if (this.state === ST.DEAD) target = 'die';
-    else if (this.swingStart) { target = 'swing'; this.swinging = true; this.swingStart = false; }
+    else if (this.swingStart) {
+      // nouveau coup : l'animation repart du début, même si déjà en 'swing'
+      target = 'swing';
+      forceRestart = true;
+      this.swinging = true;
+      this.swingStart = false;
+    }
     else if (this.swinging) {
       let done = true;
       this.eachAnim(a => { if (a.name === 'swing' && !a.done) done = false; });
@@ -115,12 +122,17 @@ class EntityView2D {
     else if (this.state === ST.WALK) target = 'run';
     else target = 'stance';
 
-    this.eachAnim(a => a.set(target, target === 'swing' && a.name !== 'swing'));
+    this.eachAnim(a => a.set(target, target === 'swing' && (forceRestart || a.name !== 'swing')));
     this.eachAnim(a => a.tick(dt));
   }
 
   say(text) {
     this.bubble = { text, until: performance.now() / 1000 + Math.min(8, 2.5 + text.length * 0.06) };
+  }
+
+  // rejoue l'animation de coup (appelé à CHAQUE attaque/sort, événementiel)
+  triggerSwing() {
+    this.swingStart = true;
   }
 
   draw(ctx, assets, px, py, s) {
