@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { Game } from './game/game.js';
 import { handleAdmin } from './admin.js';
 import * as db from './db.js';
+import { initDiscord, sendToDiscord } from './discord.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -45,6 +46,17 @@ const server = http.createServer((req, res) => {
 });
 
 const game = new Game();
+
+// Hook Discord pour relayer tous les canaux publics
+game.onChannelChat = (channel, from, text) => {
+  if (!from.endsWith(' (Discord)')) {
+    sendToDiscord(channel, from, text);
+  }
+};
+
+// Initialisation du bot Discord
+initDiscord(game);
+
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
 
 wss.on('connection', (ws) => {
