@@ -158,7 +158,8 @@ function cancelAim() { aimSpell = null; canvas.style.cursor = ''; }
 function cancelAuto() { autoCast = null; }
 
 function castSpellAt(spellId, params) {
-  net.send({ t: 'cast', spellId, ...params });
+  // hors mode combat, le serveur rapproche le personnage si la cible est trop loin
+  net.send({ t: 'cast', spellId, ...params, approach: !combatMode });
   autoCast = { spellId, ...params };
 }
 
@@ -194,14 +195,14 @@ function tickAutoCast() {
   const now = performance.now() / 1000;
   if ((ui.cds[sp.id] || 0) > now) return;            // encore en recharge
   if ((ui.self?.mana ?? 0) < sp.mana) return;        // attend le mana
-  // attend que la cible/le point soit à portée (évite le spam « Trop loin »)
-  if (sp.range > 0) {
+  // en mode combat on attend d'être à portée ; sinon le serveur s'approche tout seul
+  if (sp.range > 0 && combatMode) {
     const me = em.get(selfId);
     const tx = autoCast.target != null ? em.get(autoCast.target)?.x : autoCast.x;
     const tz = autoCast.target != null ? em.get(autoCast.target)?.z : autoCast.z;
     if (me && tx != null && Math.hypot(tx - me.x, tz - me.z) > sp.range) return;
   }
-  net.send({ t: 'cast', spellId: sp.id, ...(autoCast.target != null ? { target: autoCast.target } : {}), ...(autoCast.x != null ? { x: autoCast.x, z: autoCast.z } : {}) });
+  net.send({ t: 'cast', spellId: sp.id, approach: !combatMode, ...(autoCast.target != null ? { target: autoCast.target } : {}), ...(autoCast.x != null ? { x: autoCast.x, z: autoCast.z } : {}) });
   ui.cds[sp.id] = now + 0.4; // anti-spam local en attendant le cast_ok serveur
 }
 
