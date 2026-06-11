@@ -2,6 +2,7 @@
 import { KIND, ST } from '../../../shared/constants.js';
 import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { Animator, flareDir, LAYER_ORDER } from './anim.js';
+import { settings } from '../settings.js';
 
 const BASE_LAYERS = { feet: 'default_feet', legs: 'cloth_pants', hands: 'default_hands' };
 const BUBBLE_FONT = '13px "Trebuchet MS", sans-serif';
@@ -197,19 +198,30 @@ class EntityView2D {
     if (this.kind === KIND.DROP || this.state === ST.DEAD) return;
     const top = (this.topY ?? (py - 100 * s)) - 8;
     const isNpc = this.kind === KIND.NPC;
-    const name = isNpc ? this.meta.name : `${this.meta.name} [${this.level || this.meta.level}]`;
-    ctx.font = `bold ${Math.max(11, 13 * s)}px "Trebuchet MS", sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-    ctx.strokeText(name, px, top - 6);
-    ctx.fillStyle = this.id === selfId ? '#a8e8a8'
-      : isNpc ? '#ffe48a'
-      : (this.kind === KIND.PLAYER ? '#a8d8ff' : '#ffd2a8');
-    ctx.fillText(name, px, top - 6);
+    const isPlayer = this.kind === KIND.PLAYER;
+    const isSelf = this.id === selfId;
+    // préférences d'affichage (panneau Paramètres)
+    const showName = isNpc ? true
+      : isPlayer ? (isSelf ? settings.showSelfName : settings.showPlayerNames)
+      : settings.showMobNames;
+    const showLevel = isPlayer ? settings.showPlayerLevels : settings.showMobLevels;
+    if (showName) {
+      const name = (isNpc || !showLevel)
+        ? this.meta.name
+        : `${this.meta.name} [${this.level || this.meta.level}]`;
+      ctx.font = `bold ${Math.max(11, 13 * s)}px "Trebuchet MS", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.strokeText(name, px, top - 6);
+      ctx.fillStyle = isSelf ? '#a8e8a8'
+        : isNpc ? '#ffe48a'
+        : (isPlayer ? '#a8d8ff' : '#ffd2a8');
+      ctx.fillText(name, px, top - 6);
+    }
     // barre de vie (pas pour les PNJ)
     let barTop = top;
-    if (!isNpc) {
+    if (!isNpc && settings.showHpBars) {
       const bw = 64 * s, bh = 5 * Math.max(0.8, s);
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(px - bw / 2 - 1, top - 2, bw + 2, bh + 2);
@@ -220,6 +232,7 @@ class EntityView2D {
     if (this.bubble) {
       const now = performance.now() / 1000;
       if (now > this.bubble.until) { this.bubble = null; return; }
+      if (!settings.showBubbles) return;
       ctx.font = BUBBLE_FONT;
       const words = this.bubble.text.split(' ');
       const lines = [];

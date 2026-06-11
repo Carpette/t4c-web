@@ -183,6 +183,20 @@ button.secondary { background: #2a2444; }
   position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex;
   align-items: center; justify-content: center; color: #fff; font-size: 13px;
 }
+#quickbar {
+  position: fixed; bottom: 66px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; z-index: 11;
+}
+.potion-slot .count {
+  position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: bold;
+  color: #ffd24a; text-shadow: 0 1px 2px #000;
+}
+.potion-slot.empty { opacity: 0.4; filter: grayscale(0.8); }
+.setting-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 2px;
+  font-size: 13px; color: #d8d0f0; cursor: pointer; text-align: left;
+}
+.setting-row input { accent-color: #8a78c8; cursor: pointer; }
 #shop-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
 #shop-tabs button { padding: 4px 10px; font-size: 12px; background: #2a2444; }
 #shop-tabs button.active { background: #4a3a7a; }
