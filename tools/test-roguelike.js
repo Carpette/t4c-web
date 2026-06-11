@@ -163,8 +163,8 @@ ok('obélisque : liste des zones', S.obelisk?.zones?.length === 1 && S.obelisk.z
 // l'Épreuve, niveau 18, restent largement mortels : le test de mort tient)
 send({ t: 'admin', cmd: 'set', level: 15 });
 await sleep(400);
-await jumpNear(114.5, 43.5);
-send({ t: 'interact', prop: 'trialgate', x: 114.5, z: 45.5 });
+await jumpNear(107.5, 75.5);
+send({ t: 'interact', prop: 'trialgate', x: 107.5, z: 77.5 });
 await waitFor(() => S.trial, 25000); // marche finale vers le portail
 ok('avertissement de l\'Épreuve reçu', !!S.trial && S.trial.text.includes('DÉFINITIVE'));
 send({ t: 'trial_enter' });

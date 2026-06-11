@@ -199,12 +199,12 @@ async function sampleSpell(spellId, defId, n) {
   return out;
 }
 // Hobgobelin (orc) : aucune résistance au feu ; Squelette : aucune résistance terre
-await gotoNear(250, 82); // camp des Hobgobelins au nord-est (Arakas 384)
+await gotoNear(280, 127); // le camp Orc de Roshnak Tul (carte Arakas Classic)
 const feu = await sampleSpell('dard_de_feu', 'orc', 3);
 console.log('   échantillons Dard de Feu sur Hobgobelin :', feu.join(', '));
 ok('formule Dard de Feu respectée (1d17+6+Int/23 -> 11..27)',
   feu.length >= 2 && feu.every(v => v >= 10 && v <= 28));
-await gotoNear(195, 63); // champ des Squelettes (Arakas 384)
+await gotoNear(219, 81); // la crypte du Nomade et ses squelettes (Arakas Classic)
 const terre = await sampleSpell('eclat_de_pierre', 'squelette', 3);
 console.log('   échantillons Éclat de Pierre sur Squelette :', terre.join(', '));
 ok('formule Éclat de Pierre respectée (1d9+11+Sag/22 -> 12..21)',
