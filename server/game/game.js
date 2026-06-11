@@ -150,6 +150,7 @@ export class Game {
       spellCds: {}, buffs: [],
       hp: 1, mana: 1, dead: false, hidden: false,
       known: new Set(), events: [], lastChat: 0,
+      channels: ['general', 'aide', 'ventes', 'roleplay'], // Abonnés par défaut
       pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
     };
     for (const it of p.inventory) setNextIid(it.iid + 1);
@@ -368,6 +369,24 @@ export class Game {
     const msg = JSON.stringify({ t: 'chat', from, text });
     for (const p of this.players.values()) if (p.ws.readyState === 1) p.ws.send(msg);
   }
+  sendLocalChat(sender, text) {
+    const msg = JSON.stringify({ t: 'chat', from: sender.name, fromId: sender.id, text, kind: 'local' });
+    for (const p of sender.zi.nearby(sender.x, sender.z, C.LOCAL_CHAT_DISTANCE_MAX)) {
+      if (p.kind === C.KIND.PLAYER && p.ws && p.ws.readyState === 1) {
+        if (Math.hypot(p.x - sender.x, p.z - sender.z) <= C.LOCAL_CHAT_DISTANCE_MAX) {
+          p.ws.send(msg);
+        }
+      }
+    }
+  }
+  broadcastChannelChat(channel, from, text) {
+    const msg = JSON.stringify({ t: 'chat', from, text, channel });
+    for (const p of this.players.values()) {
+      if (p.ws.readyState === 1 && p.channels && p.channels.includes(channel)) {
+        p.ws.send(msg);
+      }
+    }
+  }
   eventNear(ref, obj) {
     for (const e of ref.zi.nearby(ref.x, ref.z, C.AOI_RADIUS)) {
       if (e.kind === C.KIND.PLAYER) e.events.push(obj);
@@ -492,10 +511,26 @@ export class Game {
         const now = Date.now();
         if (now - p.lastChat < 800) return;
         p.lastChat = now;
-        const text = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
-        if (!text) return;
-        this.broadcastChat(p.name, text);
-        this.eventNear(p, { t: 'say', id: p.id, text }); // bulle au-dessus de la tête
+        const rawText = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
+        if (!rawText) return;
+
+        // Vérifier si c'est un message de canal public (ex: /general message)
+        const channelMatch = rawText.match(/^\/(\w+)\s+(.+)$/);
+        if (channelMatch) {
+          const channel = channelMatch[1].toLowerCase();
+          const text = channelMatch[2].trim();
+          
+          const validChannels = ['general', 'aide', 'ventes', 'roleplay'];
+          if (validChannels.includes(channel)) {
+            this.broadcastChannelChat(channel, p.name, text);
+          } else {
+            this.send(p, { t: 'info', text: `Canal /${channel} inconnu. Utilise: /general, /aide, /ventes, ou /roleplay.` });
+          }
+        } else {
+          // Chat local par défaut : envoie aux joueurs proches + bulle au-dessus de la tête
+          this.sendLocalChat(p, rawText);
+          this.eventNear(p, { t: 'say', id: p.id, text: rawText });
+        }
         break;
       }
       case 'newchar': {
