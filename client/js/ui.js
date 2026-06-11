@@ -1,6 +1,7 @@
-// Interface : connexion, HUD, inventaire, fiche perso, chat, dégâts flottants
+// Interface : connexion, HUD, inventaire (poupée T4C), fiche perso, chat, dégâts flottants
 import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
+import { LAYER_ORDER } from './render2d/anim.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', boots: '🥾', ring: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
@@ -104,6 +105,7 @@ export class UI {
     this.shopTab = 'items';
   }
 
+  setAssets(assets) { this.assets = assets; }
   setSpellDefs(defs) { this.spellDefs = defs; }
   spellDef(id) { return this.spellDefs.find(s => s.id === id); }
   knownSpells() { return (this.self?.spells || []).map(id => this.spellDef(id)).filter(Boolean); }
@@ -198,8 +200,13 @@ export class UI {
     };
     if (this.shopTab === 'items') {
       for (const it of this.shop.items) {
-        const meta = [it.dmg && `dégâts ${it.dmg}`, it.def && `défense ${it.def}`, it.heal && `+${it.heal} PV`, it.mana && `+${it.mana} mana`]
-          .filter(Boolean).join(' — ') || '';
+        const meta = [
+          it.dmgRange && `dégâts ${it.dmgRange}`,
+          it.def && `défense ${it.def}`,
+          it.heal && `+${it.heal} PV`, it.mana && `+${it.mana} mana`,
+          it.weight && `${it.weight} kg`,
+          it.reqText && `requis : ${it.reqText}`,
+        ].filter(Boolean).join(' — ') || '';
         mk(`${SLOT_ICONS[it.slot] || ''} ${it.name}`, meta, it.price, false,
           () => this.net.send({ t: 'buy', kind: 'item', id: it.defId }));
       }
@@ -271,8 +278,28 @@ export class UI {
     const alloc = {};
     for (const st of info.stats) alloc[st] = info.base;
     let left = info.pool;
+    let sex = 'male';
 
     const render = () => {
+      // choix du sexe
+      let sexRow = $('creation-sex');
+      if (!sexRow) {
+        sexRow = document.createElement('div');
+        sexRow.id = 'creation-sex';
+        sexRow.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-bottom:12px';
+        $('creation-stats').before(sexRow);
+      }
+      sexRow.innerHTML = '';
+      for (const [val, label] of [['male', '♂ Homme'], ['female', '♀ Femme']]) {
+        const b = document.createElement('button');
+        b.textContent = label;
+        if (sex !== val) b.classList.add('secondary');
+        b.onclick = () => { sex = val; render(); };
+        sexRow.appendChild(b);
+      }
+      renderStats();
+    };
+    const renderStats = () => {
       const div = $('creation-stats');
       div.innerHTML = '';
       for (const st of info.stats) {
@@ -302,7 +329,7 @@ export class UI {
     $('creation-confirm').onclick = () => {
       if (left !== 0) return;
       $('creation').classList.add('hidden');
-      this.net.send({ t: 'create', stats: alloc });
+      this.net.send({ t: 'create', stats: alloc, sex });
     };
     render();
     $('creation').classList.remove('hidden');
@@ -382,25 +409,69 @@ export class UI {
     if (this.shop) this.renderShop();
   }
 
+  // dessine le personnage avec son équipement dans l'inventaire (face caméra)
+  drawDoll() {
+    const canvas = $('doll-canvas');
+    if (!canvas || !this.assets || !this.self) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const look = this.self.look || {};
+    const sex = look.sex === 'female' ? 'female' : 'male';
+    const sheet = this.assets.manifest.avatar[sex];
+    if (!sheet) return;
+    const defaultHead = sex === 'female' ? 'head_long' : 'head_short';
+    const layers = {
+      feet: look.feet || 'default_feet', legs: 'cloth_pants', hands: 'default_hands',
+      chest: look.chest || 'default_chest', head: look.head || defaultHead,
+      main: look.main || null, off: look.off || null,
+    };
+    const DIR = 6; // face au joueur (sud)
+    for (const type of LAYER_ORDER[DIR]) {
+      const name = layers[type];
+      if (!name || !sheet[name]) continue;
+      const a = sheet[name].anims.stance;
+      const fr = (a.fr[DIR] || a.fr[0])?.[0];
+      if (!fr) continue;
+      const [x, y, w, h, ox, oy] = fr;
+      const img = this.assets.images.get(sheet[name].image);
+      if (!img) continue;
+      // ancre des pieds au bas du canvas, agrandi x1.4
+      const S = 1.4;
+      ctx.drawImage(img, x, y, w, h, canvas.width / 2 - ox * S, canvas.height - 14 - oy * S, w * S, h * S);
+    }
+  }
+
   renderInventory() {
     const s = this.self;
-    const eq = $('equip-slots');
-    eq.innerHTML = '';
-    for (const slot of SLOTS) {
-      const div = document.createElement('div');
-      div.className = 'equip-slot';
+    // --- poupée d'équipement ---
+    this.drawDoll();
+    document.querySelectorAll('.doll-slot').forEach(div => {
+      const slot = div.dataset.slot;
       const iid = s.equip[slot];
       const item = iid && s.inventory.find(i => i.iid === iid);
+      div.className = 'doll-slot';
+      div.onmouseenter = div.onmousemove = div.onmouseleave = null;
       if (item) {
         div.classList.add('filled');
-        div.innerHTML = `<span style="font-size:17px">${SLOT_ICONS[slot]}</span>`;
-        div.title = item.label;
+        if (item.q) div.classList.add(`q${item.q}`);
+        div.textContent = SLOT_ICONS[slot] || '';
         div.oncontextmenu = (e) => { e.preventDefault(); this.net.send({ t: 'unequip', slot }); };
+        div.onclick = (e) => { e.preventDefault(); this.net.send({ t: 'unequip', slot }); };
         this.bindTooltip(div, () => this.itemTooltip(item));
       } else {
-        div.textContent = SLOT_NAMES[slot];
+        div.textContent = '';
+        div.title = SLOT_NAMES[slot];
+        div.onclick = null;
+        div.oncontextmenu = (e) => e.preventDefault();
       }
-      eq.appendChild(div);
+    });
+    // --- jauge de poids (encombrement T4C) ---
+    if (s.capacity != null) {
+      const pct = Math.min(100, (s.weight / s.capacity) * 100);
+      const fill = $('weight-fill');
+      fill.style.width = `${pct}%`;
+      fill.classList.toggle('over', pct >= 95);
+      $('weight-text').textContent = `${s.weight} / ${s.capacity}`;
     }
     const grid = $('inv-grid');
     grid.innerHTML = '';
@@ -430,10 +501,16 @@ export class UI {
     const q = QUALITY[item.q || 0];
     const mult = q.mult;
     let lines = [item.label];
-    if (def.dmg) lines.push(`Dégâts : ${Math.round(def.dmg * mult)} (vitesse ${def.speed}s)`);
+    if (def.dmgMin != null) lines.push(`Dégâts : ${Math.round(def.dmgMin * mult)}-${Math.round(def.dmgMax * mult)} (vitesse ${def.speed}s)`);
+    else if (def.dmg) lines.push(`Dégâts : ${Math.round(def.dmg * mult)} (vitesse ${def.speed}s)`);
     if (def.def) lines.push(`Défense : ${Math.round(def.def * mult)}`);
     if (def.heal) lines.push(`Rend ${def.heal} PV`);
     if (def.mana) lines.push(`Rend ${def.mana} mana`);
+    if (def.weight) lines.push(`Poids : ${def.weight}`);
+    if (def.req) {
+      const names = { str: 'For', agi: 'Agi', int: 'Int', wis: 'Sag' };
+      lines.push('Requis : ' + Object.entries(def.req).map(([s, v]) => `${names[s] || s} ${v}`).join(', '));
+    }
     for (const [st, v] of Object.entries(item.bonus || {})) lines.push(`+${v} ${STAT_NAMES[st] || st}`);
     return lines.join('\n');
   }

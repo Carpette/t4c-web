@@ -60,17 +60,20 @@ const ENEMIES = [
   ['minotaur', 'minicore', 'minicore'],
 ];
 const AVATAR_LAYERS = [
-  'default_chest', 'default_feet', 'default_hands', 'default_legs', 'head_short',
+  'default_chest', 'default_feet', 'default_hands', 'default_legs', 'head_short', 'head_long',
   'cloth_shirt', 'cloth_pants', 'leather_chest', 'leather_hood',
   'chain_cuirass', 'plate_cuirass', 'plate_helm',
   'buckler', 'kite_shield',
   'dagger', 'shortsword', 'hand_axe', 'mace', 'longsword', 'greatsword',
   'mage_vest', 'mage_hood', 'staff', 'greatstaff',
   'leather_boots', 'plate_boots', 'mage_boots', 'chain_boots',
+  'club', 'reinforced_club', 'war_hammer', 'maul', 'battle_axe',
 ];
+const SEXES = ['male', 'female'];
 const LOOT = ['coins5', 'coins25', 'coins100', 'hp_potion', 'mp_potion', 'dagger', 'shortsword',
   'hand_axe', 'mace', 'longsword', 'greatsword', 'buckler', 'shield', 'clothes',
-  'leather_armor', 'steel_armor', 'boots', 'ring'];
+  'leather_armor', 'steel_armor', 'boots', 'ring',
+  'club', 'reinforced_club', 'war_hammer', 'maul', 'battle_axe', 'staff', 'greatstaff'];
 
 const tilesets = parseTilesetDef(path.join(FC, 'tilesetdefs', 'tileset_grassland.txt'));
 const manifest = {
@@ -91,10 +94,20 @@ for (const [e, animMod, imgMod] of ENEMIES) {
   fs.mkdirSync(path.join(OUT, 'enemies'), { recursive: true });
   fs.copyFileSync(path.join(FLARE, 'mods', imgMod, 'images', 'enemies', `${e}.png`), path.join(OUT, 'enemies', `${e}.png`));
 }
-for (const l of AVATAR_LAYERS) {
-  const { anims } = parseAnim(path.join(FC, 'animations', 'avatar', 'male', `${l}.txt`));
-  manifest.avatar[l] = { image: `avatar/${l}.png`, anims };
-  copies.push([`images/avatar/male/${l}.png`, `avatar/${l}.png`]);
+manifest.avatar = {};
+for (const sex of SEXES) {
+  manifest.avatar[sex] = {};
+  for (const l of AVATAR_LAYERS) {
+    const animFile = path.join(FC, 'animations', 'avatar', sex, `${l}.txt`);
+    const imgFile = path.join(FC, 'images', 'avatar', sex, `${l}.png`);
+    if (!fs.existsSync(animFile) || !fs.existsSync(imgFile)) {
+      console.warn(`  (absent : ${sex}/${l})`);
+      continue;
+    }
+    const { anims } = parseAnim(animFile);
+    manifest.avatar[sex][l] = { image: `avatar/${sex}/${l}.png`, anims };
+    copies.push([`images/avatar/${sex}/${l}.png`, `avatar/${sex}/${l}.png`]);
+  }
 }
 for (const l of LOOT) {
   const { anims } = parseAnim(path.join(FC, 'animations', 'loot', `${l}.txt`));

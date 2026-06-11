@@ -31,6 +31,7 @@ try {
   });
   const spellsJson = await (await fetch('/content/spells.json')).json();
   ui.setSpellDefs(spellsJson.spells);
+  ui.setAssets(assets); // pour la poupée d'inventaire
   errEl.textContent = '';
 } catch (e) {
   errEl.textContent = e.message;
@@ -385,7 +386,7 @@ function processHover() {
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
       canvas.style.cursor = 'pointer';
-      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve" };
+      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor' };
       ui.showTooltip(labels[prop.interact] || '');
       ui.moveTooltip(ev.clientX, ev.clientY);
     } else {

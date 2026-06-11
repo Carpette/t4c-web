@@ -1,9 +1,9 @@
 // Boucle de jeu autoritative multi-zones : îles, Épreuves solo, PNJ, sorts, permadeath.
 import * as C from '../../shared/constants.js';
-import { ITEMS, MOBS, SLOTS } from '../../shared/defs.js';
+import { ITEMS, MOBS, SLOTS, CHESTS, chestPool } from '../../shared/defs.js';
 import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
-import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, setNextIid, zoneMult } from './items.js';
+import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
 import { findPath, lineOfSight } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
@@ -129,6 +129,7 @@ export class Game {
 
   // ---------- Joueurs ----------
   addPlayer(ws, accountId, name, isAdmin) {
+    if (this.shuttingDown) return { error: 'Le serveur est en cours d\'arrêt, réessayez dans un instant.' };
     if (this.players.size >= C.MAX_PLAYERS) return { error: 'Serveur plein (256 joueurs max)' };
     for (const p of this.players.values()) {
       if (p.accountId === accountId) this.removePlayer(p, 'Connecté ailleurs');
@@ -140,7 +141,8 @@ export class Game {
     }
     const p = {
       id: this.nextId++, kind: C.KIND.PLAYER, ws, accountId, isAdmin: !!isAdmin,
-      name: data.name, level: data.level, xp: data.xp, statPoints: data.statPoints,
+      name: data.name, sex: data.sex || 'male',
+      level: data.level, xp: data.xp, statPoints: data.statPoints,
       stats: data.stats, gold: data.gold,
       inventory: data.inventory || [], equip: data.equip || {},
       spells: data.spells || [], skills: data.skills || [],
@@ -202,6 +204,7 @@ export class Game {
       gold: p.gold, inventory: p.inventory, equip: p.equip,
       hpAcc: p.hpAcc, manaAcc: p.manaAcc,
       spells: p.spells, skills: p.skills, unlocked: p.unlocked,
+      sex: p.sex,
       zoneId: p.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
       trialFor: p.zi.isTrial ? p.zi.trialTarget : null,
     });
@@ -291,14 +294,14 @@ export class Game {
   // ---------- Stats effectives ----------
   recompute(p) {
     const stats = { ...p.stats };
-    let weaponDmg = 0, weaponSpeed = null, defense = 0;
+    let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0;
     for (const slot of SLOTS) {
       const iid = p.equip[slot];
       if (!iid) continue;
       const item = p.inventory.find(i => i.iid === iid);
       if (!item) { delete p.equip[slot]; continue; }
       const s = itemStats(item);
-      if (slot === 'weapon') { weaponDmg = s.dmg; weaponSpeed = s.speed; }
+      if (slot === 'weapon') { wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed; }
       defense += s.def;
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
@@ -320,16 +323,22 @@ export class Game {
       else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
     }
     p.skillFx = fx;
+    const strBonus = Math.floor(stats.str / 3);
+    const dmgMult = 1 + fx.dmgMul + buffDmgMul;
     p.eff = {
       stats,
       maxHp: Math.floor((p.hpAcc ?? C.maxHp(stats, p.level)) * (1 + fx.hpMul)) + buffMaxHp,
       maxMana: Math.floor(p.manaAcc ?? C.maxMana(stats, p.level)),
-      dmg: Math.floor(C.meleeDamage(stats, weaponDmg) * (1 + fx.dmgMul + buffDmgMul)),
+      dmgMin: ((wMin || 2) + strBonus),
+      dmgMax: ((wMax || 3) + strBonus),
+      dmgMult,
+      dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
       atkCd: C.attackCooldown(stats, weaponSpeed),
       defense: defense + fx.def + buffDef,
       speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
       atkRange: 1.8,
       buffRegen,
+      capacity: C.enc(stats),
     };
     p.hp = Math.min(p.hp, p.eff.maxHp);
     p.mana = Math.min(p.mana, p.eff.maxMana);
@@ -341,6 +350,7 @@ export class Game {
       return item ? (ITEMS[item.defId].layer || null) : null;
     };
     const look = {
+      sex: p.sex,
       chest: layerOf('armor'), head: layerOf('helmet'),
       main: layerOf('weapon'), off: layerOf('shield'), feet: layerOf('boots'),
     };
@@ -360,8 +370,13 @@ export class Game {
       hp: Math.round(p.hp), maxHp: p.eff.maxHp,
       mana: Math.round(p.mana), maxMana: p.eff.maxMana,
       enc: C.enc(p.stats),
-      dmg: p.eff.dmg, defense: p.eff.defense, gold: p.gold,
-      inventory: p.inventory.map(it => ({ ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot, price: itemPrice(it) })),
+      dmg: p.eff.dmg, dmgMin: p.eff.dmgMin, dmgMax: p.eff.dmgMax, defense: p.eff.defense, gold: p.gold,
+      weight: inventoryWeight(p.inventory), capacity: p.eff.capacity,
+      look: p.look,
+      inventory: p.inventory.map(it => ({
+        ...it, label: itemLabel(it), slot: ITEMS[it.defId].slot, price: itemPrice(it),
+        weight: itemWeight(it), req: ITEMS[it.defId].req || null,
+      })),
       equip: p.equip,
       spells: p.spells, skills: p.skills,
       buffs: p.buffs.map(b => ({ stat: b.stat, power: b.power, left: Math.max(0, Math.round(b.until - this.now())) })),
@@ -465,8 +480,19 @@ export class Game {
       case 'equip': {
         const item = p.inventory.find(i => i.iid === (msg.iid | 0));
         if (!item) return;
-        const slot = ITEMS[item.defId].slot;
+        const def = ITEMS[item.defId];
+        const slot = def.slot;
         if (!SLOTS.includes(slot)) return;
+        // prérequis de stats T4C (For/Agi/Int/Sag) pour porter l'objet
+        if (def.req) {
+          const names = { str: 'Force', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse' };
+          for (const [st, v] of Object.entries(def.req)) {
+            if ((p.eff.stats[st] || 0) < v) {
+              this.send(p, { t: 'info', text: `${def.name} : ${v} de ${names[st] || st} requis (vous : ${p.eff.stats[st] || 0}).` });
+              return;
+            }
+          }
+        }
         p.equip[slot] = item.iid;
         this.recompute(p); this.sendSelf(p);
         break;
@@ -514,7 +540,7 @@ export class Game {
       case 'create': {
         if (!p.permadead) return;
         if (!C.validateCreationStats(msg.stats)) { this.send(p, { t: 'info', text: 'Répartition invalide.' }); return; }
-        this.reincarnate(p, msg.stats);
+        this.reincarnate(p, msg.stats, msg.sex === 'female' ? 'female' : 'male');
         break;
       }
       case 'admin': {
@@ -618,22 +644,58 @@ export class Game {
       });
     } else if (prop.type === 'exitgate' && p.zi.isTrial) {
       this.finishTrial(p);
+    } else if (prop.type === 'chest') {
+      this.openChest(p, prop);
     }
+  }
+
+  // Coffre au trésor : or généreux ou objet rare du palier, puis se referme un moment
+  openChest(p, prop) {
+    const zi = p.zi;
+    if (!zi.chestState) zi.chestState = new Map();
+    const key = `${Math.floor(prop.x)},${Math.floor(prop.z)}`;
+    const readyAt = zi.chestState.get(key) || 0;
+    const now = this.now();
+    if (now < readyAt) {
+      this.send(p, { t: 'info', text: 'Le coffre est vide. Quelqu\'un est passé avant vous...' });
+      return;
+    }
+    zi.chestState.set(key, now + CHESTS.respawn);
+    const zid = zi.zoneId;
+    const pool = chestPool(zid);
+    if (pool.length && Math.random() < CHESTS.itemChance) {
+      const defId = pool[Math.floor(Math.random() * pool.length)];
+      this.spawnDrop(zi, prop.x, prop.z, { item: makeItem(defId, Math.random, zid) });
+      this.eventNear(p, { t: 'say', id: p.id, text: 'Un trésor !' });
+    } else {
+      const goldMul = Math.pow(zoneMult(zid), 2.6);
+      const gold = Math.round((CHESTS.gold[0] + Math.random() * (CHESTS.gold[1] - CHESTS.gold[0])) * goldMul);
+      this.spawnDrop(zi, prop.x, prop.z, { gold });
+    }
+    this.send(p, { t: 'loot', text: 'Vous ouvrez le coffre...' });
   }
 
   openShop(p, npc) {
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
+    const reqNames = { str: 'For', agi: 'Agi', int: 'Int', wis: 'Sag' };
     const items = Object.entries(ITEMS)
-      .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold')
-      .map(([defId, d]) => ({
-        defId, name: d.name + (zid > 0 ? ` +${zid}` : ''), slot: d.slot,
-        price: Math.round(d.price * Math.pow(zoneMult(zid), 2.6) * disc),
-        dmg: d.dmg ? Math.round(d.dmg * zoneMult(zid)) : 0,
-        def: d.def ? Math.round(d.def * zoneMult(zid)) : 0,
-        heal: d.heal ? Math.round(d.heal * zoneMult(zid)) : 0,
-        mana: d.mana ? Math.round(d.mana * zoneMult(zid)) : 0,
-      }));
+      .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold' && !d.legacy)
+      .map(([defId, d]) => {
+        const fixed = !!d.fixed;
+        return {
+          defId,
+          name: d.name + (!fixed && zid > 0 ? ` +${zid}` : ''),
+          slot: d.slot,
+          price: Math.round(d.price * (fixed ? 1 : Math.pow(zoneMult(zid), 2.6)) * disc),
+          dmgRange: d.dmgMin != null ? `${d.dmgMin}-${d.dmgMax}` : (d.dmg ? `${Math.round(d.dmg * zoneMult(zid))}` : null),
+          def: d.def ? Math.round(d.def * (fixed ? 1 : zoneMult(zid))) : 0,
+          heal: d.heal ? Math.round(d.heal * (fixed ? 1 : zoneMult(zid))) : 0,
+          mana: d.mana ? Math.round(d.mana * (fixed ? 1 : zoneMult(zid))) : 0,
+          weight: d.weight || 0,
+          reqText: d.req ? Object.entries(d.req).map(([s, v]) => `${reqNames[s] || s} ${v}`).join(', ') : null,
+        };
+      });
     const spells = content.spells.filter(s => s.zone <= zid)
       .map(s => ({
         ...s,
@@ -661,10 +723,12 @@ export class Game {
 
     if (msg.kind === 'item') {
       const def = ITEMS[msg.id];
-      if (!def || def.zone == null || def.zone > Math.min(zid, 3)) return;
-      const price = Math.round(def.price * Math.pow(zoneMult(zid), 2.6) * disc);
+      if (!def || def.zone == null || def.zone > Math.min(zid, 3) || def.legacy) return;
+      const price = Math.round(def.price * (def.fixed ? 1 : Math.pow(zoneMult(zid), 2.6)) * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       if (p.inventory.length >= 24) { this.send(p, { t: 'info', text: 'Inventaire plein.' }); return; }
+      const w = inventoryWeight(p.inventory) + (def.weight || 0);
+      if (w > p.eff.capacity) { this.send(p, { t: 'info', text: `Trop lourd ! (${w.toFixed(1)} / ${p.eff.capacity})` }); return; }
       p.gold -= price;
       const item = makeItem(msg.id, Math.random, zid);
       item.q = 0; item.bonus = {}; // le marchand vend du standard ; le butin, lui, peut être magique
@@ -832,8 +896,14 @@ export class Game {
       this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
       return;
     }
-    let dmg = attacker.kind === C.KIND.PLAYER ? attacker.eff.dmg : attacker.sc.dmg;
-    dmg = Math.round(dmg * (0.85 + Math.random() * 0.3));
+    // joueur : tirage dans la fourchette de l'arme (T4C) ; monstre : variance
+    let dmg;
+    if (attacker.kind === C.KIND.PLAYER) {
+      const e = attacker.eff;
+      dmg = Math.round((e.dmgMin + Math.random() * (e.dmgMax - e.dmgMin)) * e.dmgMult);
+    } else {
+      dmg = Math.round(attacker.sc.dmg * (0.85 + Math.random() * 0.3));
+    }
     let crit = false;
     if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (attacker.skillFx?.crit || 0)) {
       dmg = Math.round(dmg * 1.6); crit = true;
@@ -877,16 +947,17 @@ export class Game {
   }
 
   // Construit les données d'un nouveau personnage (répartition validée)
-  buildCharacter(name, stats) {
+  buildCharacter(name, stats, sex) {
     if (!C.validateCreationStats(stats)) return null;
     const clean = {};
     for (const st of C.STATS) clean[st] = stats[st] | 0;
-    return db.newCharacterData(name, this.island(0).world.spawnPoint, clean);
+    return db.newCharacterData(name, this.island(0).world.spawnPoint, clean, sex);
   }
 
-  reincarnate(p, stats = null) {
+  reincarnate(p, stats = null, sex = null) {
     const zi0 = this.island(0);
-    const data = db.newCharacterData(p.name, zi0.world.spawnPoint, stats);
+    const data = db.newCharacterData(p.name, zi0.world.spawnPoint, stats, sex || p.sex);
+    p.sex = data.sex;
     db.saveCharacter(p.accountId, data);
     p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
     p.level = 1; p.xp = 0; p.statPoints = 0;
@@ -930,6 +1001,12 @@ export class Game {
       this.send(p, { t: 'loot', text: `+${d.gold} or` });
     } else if (d.item) {
       if (p.inventory.length >= 24) { this.send(p, { t: 'loot', text: 'Inventaire plein !' }); return; }
+      // encombrement T4C : capacité = 500×For/(For+100)
+      const w = inventoryWeight(p.inventory) + itemWeight(d.item);
+      if (w > p.eff.capacity) {
+        this.send(p, { t: 'info', text: `Trop lourd ! (${w.toFixed(1)} / ${p.eff.capacity} — montez la Force ou délestez-vous)` });
+        return;
+      }
       p.inventory.push(d.item);
       this.send(p, { t: 'loot', text: itemLabel(d.item) });
     }
@@ -1152,6 +1229,28 @@ export class Game {
       }
       p.ws.send(encodeSnapshot(this.worldTime, visible, gone));
     }
+  }
+
+  // ---------- Arrêt gracieux : décompte diffusé, sauvegarde, extinction ----------
+  beginShutdown(seconds = 45) {
+    if (this.shuttingDown) return;
+    this.shuttingDown = true;
+    console.log(`Arrêt du serveur dans ${seconds}s (Ctrl-C à nouveau pour forcer)`);
+    this.broadcastChat('sys', `⚠ ARRÊT DU SERVEUR DANS ${seconds} SECONDES — mettez-vous à l'abri !`);
+    const marks = [30, 15, 10, 5, 4, 3, 2, 1].filter(m => m < seconds);
+    for (const m of marks) {
+      setTimeout(() => this.broadcastChat('sys', `⚠ Arrêt du serveur dans ${m} seconde${m > 1 ? 's' : ''}…`),
+        (seconds - m) * 1000);
+    }
+    setTimeout(() => {
+      this.broadcastChat('sys', '⚠ Arrêt du serveur. À bientôt dans les Royaumes !');
+      this.saveAll();
+      console.log(`${this.players.size} personnage(s) sauvegardé(s). Extinction.`);
+      for (const p of this.players.values()) {
+        try { p.ws.close(1001, 'Arrêt du serveur'); } catch {}
+      }
+      setTimeout(() => process.exit(0), 300);
+    }, seconds * 1000);
   }
 
   metaFor(e) {

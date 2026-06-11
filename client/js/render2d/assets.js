@@ -3,7 +3,9 @@ export async function loadAssets(onProgress) {
   const manifest = await (await fetch('/assets/manifest.json')).json();
   const paths = new Set(['tilesets/tileset_grassland.png', 'tilesets/tileset_grassland_water.png']);
   for (const e of Object.values(manifest.enemies)) paths.add(e.image);
-  for (const l of Object.values(manifest.avatar)) paths.add(l.image);
+  for (const sex of Object.values(manifest.avatar)) {
+    for (const l of Object.values(sex)) paths.add(l.image);
+  }
   for (const l of Object.values(manifest.loot)) paths.add(l.image);
 
   const images = new Map();

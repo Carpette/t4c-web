@@ -19,9 +19,11 @@ class EntityView2D {
     this.bbox = null;
 
     if (meta.kind === KIND.PLAYER || meta.kind === KIND.NPC) {
+      this.sex = meta.look?.sex === 'female' ? 'female' : 'male';
       this.layers = {};
       for (const [type, name] of Object.entries(BASE_LAYERS)) {
-        this.layers[type] = { name, anim: new Animator(assets.manifest.avatar[name].anims) };
+        const def = this.avatarDef(name);
+        if (def) this.layers[type] = { name, anim: new Animator(def.anims) };
       }
       this.setLook(meta.look || {});
     } else if (meta.kind === KIND.MOB) {
@@ -38,19 +40,35 @@ class EntityView2D {
     }
   }
 
+  // couche d'avatar selon le sexe (têtes différentes : head_short / head_long)
+  avatarDef(name) {
+    return this.assets.manifest.avatar[this.sex || 'male']?.[name] || null;
+  }
+
   setLook(look) {
     if (this.kind !== KIND.PLAYER && this.kind !== KIND.NPC) return;
+    const newSex = look?.sex === 'female' ? 'female' : 'male';
+    const sexChanged = newSex !== this.sex;
+    this.sex = newSex;
+    const defaultHead = this.sex === 'female' ? 'head_long' : 'head_short';
     const want = {
       chest: look?.chest || 'default_chest',
-      head: look?.head || 'head_short',
+      head: look?.head || defaultHead,
       feet: look?.feet || 'default_feet',
       main: look?.main || null,
       off: look?.off || null,
     };
+    if (sexChanged) {
+      // re-crée aussi les couches de base avec le bon atlas
+      for (const [type, name] of Object.entries(BASE_LAYERS)) {
+        const def = this.avatarDef(name);
+        if (def) this.layers[type] = { name, anim: new Animator(def.anims) };
+      }
+    }
     for (const [type, name] of Object.entries(want)) {
       if (!name) { delete this.layers[type]; continue; }
-      if (this.layers[type]?.name === name) continue;
-      const def = this.assets.manifest.avatar[name];
+      if (!sexChanged && this.layers[type]?.name === name) continue;
+      const def = this.avatarDef(name);
       if (!def) { delete this.layers[type]; continue; }
       const anim = new Animator(def.anims);
       // garde la synchro avec les autres couches
@@ -160,7 +178,9 @@ class EntityView2D {
       const f = layer.anim.frame(d);
       if (!f) continue;
       const [x, y, w, h, ox, oy] = f;
-      const img = this.assets.images.get(this.assets.manifest.avatar[layer.name].image);
+      const def = this.avatarDef(layer.name);
+      if (!def) continue;
+      const img = this.assets.images.get(def.image);
       ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
       minX = Math.min(minX, px - ox * s); minY = Math.min(minY, py - oy * s);
       maxX = Math.max(maxX, px - ox * s + w * s); maxY = Math.max(maxY, py - oy * s + h * s);
