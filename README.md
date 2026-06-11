@@ -22,14 +22,24 @@ Puis ouvrir **http://localhost:8080** — créez un compte et jouez. Pour jouer 
 | Sort | Barre de sorts, ou `Ctrl`+touche assignée (panneau `S`) |
 | Parler à un PNJ / interagir | Clic (marchand, obélisque, portails) |
 | Ramasser | Clic sur un objet au sol |
+| Poser un objet au sol (échange entre joueurs) | Clic droit sur l'objet dans l'inventaire |
+| Potion de vie / de mana | `P` / `M` (barre de potions au-dessus des sorts) |
 | Zoom | Molette |
 | Inventaire / Personnage / Sorts / Aide | `I` / `C` / `S` / `H` |
 | Chat | `Entrée` |
+| Menu et paramètres (affichage des noms/niveaux/barres de vie, musique) | `Échap` |
 
 ## Le jeu — roguelike T4C
 
 - **☠ Mort définitive.** Tout personnage qui meurt est effacé (Panthéon des morts). On renaît niveau 1.
-- **8 zones** (anciennes îles) : niveaux 1-25, 25-50… jusqu'à 175-200. Monstres, butin et prix scalés.
+- **Arakas** (zone 0) : carte FIXE fidèle à la première île de T4C — Lighthaven au sud-est
+  (temple, fontaine, banque, cimetière et crypte), Windhowl à l'ouest et son marchand Ttayh Mark,
+  le pont gob et le camp gobelin entre les deux, les orcs solitaires au nord de WH, les monts
+  Righul et les grottes de Jarko au nord (portail de l'Épreuve), l'île de l'Ermite au large.
+- **8 zones** : niveaux 1-25, 25-50… jusqu'à 175-200. Monstres, butin et prix scalés.
+- **Échanges entre joueurs** : à la T4C — on pose un objet (ou de l'or) au sol, l'autre le ramasse.
+- **Musiques d'ambiance** : thème à l'écran de connexion, une musique en boucle par zone
+  (correspondance zone → musique éditable dans l'admin, fichiers dans `client/assets/music/`).
 - **L'Épreuve** : pour passer à la zone suivante, franchissez seul un labyrinthe suspendu au-dessus du vide, peuplé des monstres les plus puissants de la zone. Confirmation explicite à l'entrée — on n'en sort que victorieux ou mort.
 - **Obélisque** : à l'est de chaque village, téléportation vers les zones déjà conquises.
 - **Marchand** (Maître Aldric, sur chaque île) : équipement de la zone, rachat au prix d'achat, 20 sorts, 12 compétences passives.
@@ -41,7 +51,8 @@ Puis ouvrir **http://localhost:8080** — créez un compte et jouez. Pour jouer 
 
 `http://localhost:8080/admin` — le **premier compte créé** sur le serveur est administrateur.
 Éditeur de cartes (peinture de tuiles + décors, appliqué à chaud), édition du contenu JSON
-(zones, PNJ, sorts, compétences), gestion des personnages (niveau, or, zone, suppression), Panthéon.
+(zones, PNJ, sorts, compétences), musiques (correspondance zone → fichier, pré-écoute,
+appliqué à chaud), gestion des personnages (niveau, or, zone, suppression), Panthéon.
 En jeu, l'admin dispose aussi de commandes (`set`, `goto`, `zone`) via le protocole.
 
 ## Architecture

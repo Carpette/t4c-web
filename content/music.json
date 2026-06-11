@@ -1,0 +1,14 @@
+{
+  "login": "theme.mp3",
+  "trial": null,
+  "zones": {
+    "0": "exterieur.mp3",
+    "1": "exterieur.mp3",
+    "2": "exterieur.mp3",
+    "3": "exterieur.mp3",
+    "4": "exterieur.mp3",
+    "5": "exterieur.mp3",
+    "6": "exterieur.mp3",
+    "7": "exterieur.mp3"
+  }
+}

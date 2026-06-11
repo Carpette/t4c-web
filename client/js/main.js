@@ -9,6 +9,7 @@ import { Renderer } from './render2d/renderer.js';
 import { EntityManager2D } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
+import { playMusic } from './music.js';
 
 const INTERP_DELAY = 0.15;
 
@@ -41,6 +42,13 @@ try {
 world = generateWorld();
 renderer = new Renderer(canvas, assets, world, buildDecor(world));
 em = new EntityManager2D(assets);
+
+// thème de l'écran de connexion (content/music.json, clé `login`)
+try {
+  const musicCfg = await (await fetch('/content/music.json')).json();
+  playMusic(musicCfg.login);
+} catch { /* pas de musique configurée */ }
+
 await net.connect();
 
 // ---------- Réseau ----------
@@ -66,8 +74,10 @@ net.on('zone', async (m) => {
   renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
   ui.zoneBanner(m.name, m.kind === 'trial' ? null : m.levels);
+  playMusic(m.music); // musique de la zone (null = silence)
   if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');
 });
+net.on('music', (m) => playMusic(m.file)); // changement à chaud par l'admin
 net.on('self', (m) => {
   ui.updateSelf(m);
   if (m.hp > 0) ui.hideDeath();

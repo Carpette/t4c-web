@@ -3,6 +3,7 @@ import { STAT_NAMES, STATS } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
 import { SETTING_DEFS, settings, setSetting } from './settings.js';
+import { refreshMusic } from './music.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
@@ -228,7 +229,7 @@ export class UI {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
-      cb.onchange = () => setSetting(key, cb.checked);
+      cb.onchange = () => { setSetting(key, cb.checked); if (key === 'musicOn') refreshMusic(); };
       row.appendChild(cb);
       row.appendChild(document.createTextNode(label));
       div.appendChild(row);
