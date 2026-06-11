@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: t4c-web-config
+  namespace: t4c-web
+  labels:
+    app.kubernetes.io/name: t4c-web
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  T4C_DB: "/data/game.db"
+  T4C_START_GOLD: "25"
+  T4C_SHUTDOWN_SECS: "45" # Temps pour l'arrêt gracieux et les annonces aux joueurs
