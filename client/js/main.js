@@ -101,7 +101,12 @@ net.on('events', (m) => {
       if (!v) continue;
       const pos = headPos(v);
       if (ev.miss) ui.floater(pos, 'raté', 'miss');
-      else ui.floater(pos, `-${ev.amount}`, (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : ''));
+      else {
+        const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
+        const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')
+          + (ev.mod === 'resist' ? ' miss' : '') + (ev.mod === 'weak' ? ' heal' : '');
+        ui.floater(pos, `-${ev.amount}${suffix}`, cls);
+      }
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;

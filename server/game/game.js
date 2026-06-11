@@ -836,12 +836,14 @@ export class Game {
       if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
       if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) { this.send(p, { t: 'info', text: 'Trop loin.' }); return; }
       if (!lineOfSight(p.zi.world, p, target)) return;
-      // les sorts ignorent la CA (T4C : seules les résistances comptaient)
-      const dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
+      // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
+      let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
+      const { dmg: final, mod } = this.applyResist(target, sp, dmg);
       this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
-      this.applyDamage(p, target, dmg, false);
-      if (sp.leech) {
-        p.hp = Math.min(p.eff.maxHp, p.hp + dmg * sp.leech);
+      this.applyDamage(p, target, final, false, mod);
+      // drain de vie : inefficace sur les morts-vivants (T4C)
+      if (sp.leech && !target.def.undead) {
+        p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
         this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
       }
       p.dir = Math.atan2(target.x - p.x, target.z - p.z);
@@ -853,9 +855,9 @@ export class Game {
       this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
       for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
         if (e.kind !== C.KIND.MOB || e.dead) continue;
-        // les sorts ignorent la CA (T4C : seules les résistances comptaient)
-        const dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
-        this.applyDamage(p, e, dmg, false);
+        let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
+        const { dmg: final, mod } = this.applyResist(e, sp, dmg);
+        this.applyDamage(p, e, final, false, mod);
       }
       p.lastCombat = now;
     }
@@ -867,10 +869,20 @@ export class Game {
     if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
   }
 
-  applyDamage(attacker, defender, dmg, crit) {
+  // Résistances élémentaires T4C : réduction (ou amplification si faiblesse)
+  applyResist(target, sp, dmg) {
+    const resist = target.def?.resist?.[sp.element] || 0;
+    if (!resist) return { dmg, mod: null };
+    return {
+      dmg: Math.max(1, Math.round(dmg * (1 - resist))),
+      mod: resist > 0.05 ? 'resist' : (resist < -0.05 ? 'weak' : null),
+    };
+  }
+
+  applyDamage(attacker, defender, dmg, crit, mod = null) {
     defender.hp -= dmg;
     defender.lastCombat = this.now();
-    this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit });
+    this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit, mod });
     if (defender.hp <= 0) {
       if (defender.kind === C.KIND.MOB) this.killMob(defender, attacker);
       else this.killPlayer(defender, attacker);

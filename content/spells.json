@@ -15,7 +15,8 @@
       "type": "bolt",
       "power": 10,
       "range": 9,
-      "color": "#ff9040"
+      "color": "#ff9040",
+      "element": "feu"
     },
     {
       "id": "guerison_legere",
@@ -31,7 +32,8 @@
       "type": "heal",
       "power": 28,
       "range": 0,
-      "color": "#6ae86a"
+      "color": "#6ae86a",
+      "element": "lumiere"
     },
     {
       "id": "eclat_de_pierre",
@@ -47,7 +49,8 @@
       "type": "bolt",
       "power": 14,
       "range": 9,
-      "color": "#c8a878"
+      "color": "#c8a878",
+      "element": "terre"
     },
     {
       "id": "tourbillon",
@@ -63,7 +66,8 @@
       "type": "bolt",
       "power": 16,
       "range": 10,
-      "color": "#bfe4ff"
+      "color": "#bfe4ff",
+      "element": "air"
     },
     {
       "id": "protection",
@@ -80,7 +84,8 @@
       "stat": "def",
       "power": 10,
       "duration": 180,
-      "color": "#c8b87a"
+      "color": "#c8b87a",
+      "element": "terre"
     },
     {
       "id": "eclat_de_glace",
@@ -96,7 +101,8 @@
       "type": "bolt",
       "power": 22,
       "range": 10,
-      "color": "#bfeaff"
+      "color": "#bfeaff",
+      "element": "eau"
     },
     {
       "id": "fleche_enflammee",
@@ -112,7 +118,8 @@
       "type": "bolt",
       "power": 26,
       "range": 10,
-      "color": "#ff8030"
+      "color": "#ff8030",
+      "element": "feu"
     },
     {
       "id": "absorption_vie_mineure",
@@ -129,7 +136,8 @@
       "power": 24,
       "range": 8,
       "leech": 0.5,
-      "color": "#c050c0"
+      "color": "#c050c0",
+      "element": "arcane"
     },
     {
       "id": "guerison_importante",
@@ -145,7 +153,8 @@
       "type": "heal",
       "power": 70,
       "range": 0,
-      "color": "#6ae86a"
+      "color": "#6ae86a",
+      "element": "lumiere"
     },
     {
       "id": "eclair",
@@ -161,7 +170,8 @@
       "type": "bolt",
       "power": 38,
       "range": 11,
-      "color": "#9fe4ff"
+      "color": "#9fe4ff",
+      "element": "air"
     },
     {
       "id": "fracassement",
@@ -177,7 +187,8 @@
       "type": "bolt",
       "power": 46,
       "range": 9,
-      "color": "#b89868"
+      "color": "#b89868",
+      "element": "terre"
     },
     {
       "id": "gel",
@@ -193,7 +204,8 @@
       "type": "bolt",
       "power": 52,
       "range": 10,
-      "color": "#9fd4ff"
+      "color": "#9fd4ff",
+      "element": "eau"
     },
     {
       "id": "barriere_de_protection",
@@ -210,7 +222,8 @@
       "stat": "def",
       "power": 20,
       "duration": 120,
-      "color": "#8ab4ff"
+      "color": "#8ab4ff",
+      "element": "eau"
     },
     {
       "id": "eclair_de_feu",
@@ -226,7 +239,8 @@
       "type": "bolt",
       "power": 62,
       "range": 10,
-      "color": "#ff7020"
+      "color": "#ff7020",
+      "element": "feu"
     },
     {
       "id": "absorption_de_vie",
@@ -243,7 +257,8 @@
       "power": 64,
       "range": 8,
       "leech": 0.5,
-      "color": "#b040b0"
+      "color": "#b040b0",
+      "element": "arcane"
     },
     {
       "id": "force_de_la_terre",
@@ -260,7 +275,8 @@
       "stat": "str",
       "power": 0.25,
       "duration": 300,
-      "color": "#c8a878"
+      "color": "#c8a878",
+      "element": "terre"
     },
     {
       "id": "instinct_combat_mineur",
@@ -277,7 +293,8 @@
       "stat": "dmg",
       "power": 0.33,
       "duration": 60,
-      "color": "#e8c8ff"
+      "color": "#e8c8ff",
+      "element": "arcane"
     },
     {
       "id": "eclair_de_glace",
@@ -293,7 +310,8 @@
       "type": "bolt",
       "power": 74,
       "range": 11,
-      "color": "#bfeaff"
+      "color": "#bfeaff",
+      "element": "eau"
     },
     {
       "id": "invocation_de_la_foudre",
@@ -309,7 +327,8 @@
       "type": "bolt",
       "power": 80,
       "range": 12,
-      "color": "#e8f4ff"
+      "color": "#e8f4ff",
+      "element": "air"
     },
     {
       "id": "boule_de_feu",
@@ -326,7 +345,8 @@
       "power": 80,
       "range": 10,
       "radius": 3,
-      "color": "#ff6020"
+      "color": "#ff6020",
+      "element": "feu"
     },
     {
       "id": "guerison_critique",
@@ -342,7 +362,8 @@
       "type": "heal",
       "power": 160,
       "range": 0,
-      "color": "#6ae86a"
+      "color": "#6ae86a",
+      "element": "lumiere"
     },
     {
       "id": "chaine_eclairs",
@@ -359,7 +380,8 @@
       "power": 95,
       "range": 11,
       "radius": 3,
-      "color": "#cfeaff"
+      "color": "#cfeaff",
+      "element": "air"
     },
     {
       "id": "peau_de_pierre",
@@ -376,7 +398,8 @@
       "stat": "def",
       "power": 40,
       "duration": 300,
-      "color": "#a89878"
+      "color": "#a89878",
+      "element": "terre"
     },
     {
       "id": "vague_de_flamme",
@@ -393,7 +416,8 @@
       "power": 150,
       "range": 10,
       "radius": 4,
-      "color": "#ff5010"
+      "color": "#ff5010",
+      "element": "feu"
     },
     {
       "id": "absorption_vie_majeure",
@@ -410,7 +434,8 @@
       "power": 160,
       "range": 9,
       "leech": 0.5,
-      "color": "#a030a0"
+      "color": "#a030a0",
+      "element": "arcane"
     },
     {
       "id": "dexterite",
@@ -427,7 +452,8 @@
       "stat": "speed",
       "power": 1.0,
       "duration": 60,
-      "color": "#ffe48a"
+      "color": "#ffe48a",
+      "element": "air"
     },
     {
       "id": "boule_de_glace",
@@ -444,7 +470,8 @@
       "power": 170,
       "range": 10,
       "radius": 2,
-      "color": "#bfeaff"
+      "color": "#bfeaff",
+      "element": "eau"
     },
     {
       "id": "seisme",
@@ -461,7 +488,8 @@
       "power": 185,
       "range": 9,
       "radius": 4,
-      "color": "#b89868"
+      "color": "#b89868",
+      "element": "terre"
     },
     {
       "id": "pluie_etincelles",
@@ -478,7 +506,8 @@
       "power": 240,
       "range": 10,
       "radius": 4,
-      "color": "#ffa040"
+      "color": "#ffa040",
+      "element": "feu"
     },
     {
       "id": "glacier",
@@ -494,7 +523,8 @@
       "type": "bolt",
       "power": 280,
       "range": 11,
-      "color": "#9fd4ff"
+      "color": "#9fd4ff",
+      "element": "eau"
     },
     {
       "id": "guerison",
@@ -510,7 +540,8 @@
       "type": "heal",
       "power": 420,
       "range": 0,
-      "color": "#8af88a"
+      "color": "#8af88a",
+      "element": "lumiere"
     },
     {
       "id": "benediction",
@@ -527,7 +558,8 @@
       "stat": "maxhp",
       "power": 1.2,
       "duration": 1800,
-      "color": "#fff0b0"
+      "color": "#fff0b0",
+      "element": "lumiere"
     },
     {
       "id": "flamme",
@@ -543,7 +575,8 @@
       "type": "bolt",
       "power": 320,
       "range": 11,
-      "color": "#ff6830"
+      "color": "#ff6830",
+      "element": "feu"
     },
     {
       "id": "guerison_de_groupe",
@@ -559,7 +592,8 @@
       "type": "heal",
       "power": 520,
       "range": 0,
-      "color": "#8af88a"
+      "color": "#8af88a",
+      "element": "lumiere"
     },
     {
       "id": "tempete_de_glace",
@@ -576,7 +610,8 @@
       "power": 330,
       "range": 10,
       "radius": 4,
-      "color": "#bfeaff"
+      "color": "#bfeaff",
+      "element": "eau"
     },
     {
       "id": "instinct_combat_majeur",
@@ -593,7 +628,8 @@
       "stat": "dmg",
       "power": 0.5,
       "duration": 30,
-      "color": "#e8c8ff"
+      "color": "#e8c8ff",
+      "element": "arcane"
     },
     {
       "id": "eboulement",
@@ -610,7 +646,8 @@
       "power": 360,
       "range": 9,
       "radius": 4,
-      "color": "#a88858"
+      "color": "#a88858",
+      "element": "terre"
     },
     {
       "id": "vol_dame",
@@ -627,7 +664,8 @@
       "power": 450,
       "range": 9,
       "leech": 0.5,
-      "color": "#9020a0"
+      "color": "#9020a0",
+      "element": "arcane"
     },
     {
       "id": "blizzard",
@@ -644,7 +682,8 @@
       "power": 480,
       "range": 11,
       "radius": 5,
-      "color": "#dff4ff"
+      "color": "#dff4ff",
+      "element": "eau"
     },
     {
       "id": "aura_de_guerison",
@@ -660,7 +699,8 @@
       "type": "heal",
       "power": 750,
       "range": 0,
-      "color": "#aaffaa"
+      "color": "#aaffaa",
+      "element": "lumiere"
     },
     {
       "id": "tempete_de_feu",
@@ -677,7 +717,8 @@
       "power": 560,
       "range": 11,
       "radius": 5,
-      "color": "#ff4010"
+      "color": "#ff4010",
+      "element": "feu"
     },
     {
       "id": "tornade",
@@ -694,7 +735,8 @@
       "power": 600,
       "range": 11,
       "radius": 5,
-      "color": "#cfeaff"
+      "color": "#cfeaff",
+      "element": "air"
     },
     {
       "id": "avalanche",
@@ -711,7 +753,8 @@
       "power": 680,
       "range": 11,
       "radius": 5,
-      "color": "#e8f8ff"
+      "color": "#e8f8ff",
+      "element": "eau"
     },
     {
       "id": "inferno",
@@ -727,7 +770,8 @@
       "type": "bolt",
       "power": 800,
       "range": 11,
-      "color": "#ff3000"
+      "color": "#ff3000",
+      "element": "feu"
     },
     {
       "id": "ouragan",
@@ -744,7 +788,8 @@
       "power": 820,
       "range": 12,
       "radius": 6,
-      "color": "#dfeeff"
+      "color": "#dfeeff",
+      "element": "air"
     },
     {
       "id": "tsunami",
@@ -761,7 +806,8 @@
       "power": 1100,
       "range": 12,
       "radius": 6,
-      "color": "#9fd4ff"
+      "color": "#9fd4ff",
+      "element": "eau"
     },
     {
       "id": "meteorite",
@@ -777,7 +823,8 @@
       "type": "bolt",
       "power": 1800,
       "range": 13,
-      "color": "#ff8020"
+      "color": "#ff8020",
+      "element": "feu"
     }
   ]
 }
