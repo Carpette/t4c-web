@@ -69,13 +69,16 @@ class EntityView2D {
       const def = MOBS[meta.defId];
       // skin admin prioritaire (content/skins.json), repli sur le sprite du bestiaire
       const skinned = assets.skins?.mobs?.[meta.defId];
-      const sprite = (skinned && assets.manifest.enemies[skinned]) ? skinned : (def?.sprite || 'goblin');
+      const useSkin = !!(skinned && assets.manifest.enemies[skinned]);
+      const sprite = useSkin ? skinned : (def?.sprite || 'goblin');
       this.sprite = sprite;
-      this.spriteScale = def?.spriteScale || 1; // planches de résolutions inégales
+      // spriteScale compense la résolution de la planche PAR DÉFAUT : une
+      // planche fournie a sa propre taille de case, on l'affiche à l'échelle 1
+      this.spriteScale = useSkin ? 1 : (def?.spriteScale || 1);
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
       const base = assets.images.get(assets.manifest.enemies[sprite].image);
       // une planche fournie a ses propres couleurs : pas de recoloration
-      this.image = skinned ? base : tintedSheet(base, sprite, def?.tint);
+      this.image = useSkin ? base : tintedSheet(base, sprite, def?.tint);
     } else {
       // objet au sol : skin admin (image entière, ancrée bas-centre) prioritaire
       const skinImg = meta.defId !== 'or' && assets.skins?.items?.[meta.defId]
