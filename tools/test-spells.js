@@ -116,11 +116,13 @@ send({ t: 'interact', id: npc.id });
 await waitFor(() => S.shop, 15000);
 ok('boutique ouverte', !!S.shop);
 const npcPos = { ...(S.pos.get(npc.id) || home) }; // pour revenir au marchand plus tard
-ok('aucun sort "todo" en vente (Mot de Rappel, Malédiction, Guérison des Poisons...)',
+ok('aucun sort "todo" en vente (Mot de rappel, Antidote pour poison, Invisibilité...)',
   S.shop && S.shop.spells.length >= 10 && S.shop.spells.every(s => !s.todo
-    && !['mot_de_rappel', 'malediction', 'guerison_des_poisons'].includes(s.id)));
+    && !['mot_de_rappel', 'guerison_des_poisons', 'invisibilite'].includes(s.id)));
 const dard = S.shop?.spells.find(s => s.id === 'dard_de_feu');
-ok('Dard de Feu en vente au prix de la Bible (532 or ÷ 5 = 106)', dard?.price === 106);
+ok('Dard de feu en vente au prix de la référence (532 or ÷ 5 = 106)', dard?.price === 106);
+const male = S.shop?.spells.find(s => s.id === 'malediction');
+ok('Malédiction (sortie de todo) en vente à 17200 ÷ 5 = 3440', male?.price === 3440);
 
 // achat refusé sous prérequis (stats de départ : Int 11 < 21)
 send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
@@ -145,8 +147,9 @@ ok('chaîne de prérequis stricte (Protection : Sag 25 refusé à 20)',
   && !S.self?.spells.includes('protection'));
 
 // La suite complète dépasse le budget d'un appel sandbox (45 s) : on peut la
-// jouer par tiers. Usage : node tools/test-spells.js [url] [A|B|C|ABC]
-// A = récupération T4C ; B = formules de dégâts ; C = soin + buff.
+// jouer par tiers. Usage : node tools/test-spells.js [url] [A|B|C|D|ABCD]
+// A = récupération T4C ; B = formules de dégâts ; C = soin + buff ;
+// D = Malédiction, Bouclier de mana, Résistance au feu (DB fraîche requise).
 const PART = (process.argv[3] || 'ABC').toUpperCase();
 
 if (PART.includes('A')) {
@@ -265,6 +268,104 @@ const buff = S.self.buffs.find(b => b.stat === 'def');
 ok(`buff Protection conforme (+4.6 CA, mesuré ${buff?.power})`,
   buff && Math.abs(buff.power - 4.6) < 0.05 && S.self.defense >= defBase + 4.5);
 } // fin partie C
+
+if (PART.includes('D')) {
+// --- nouveautés : Bouclier de mana, Résistance au feu, Malédiction ---
+send({ t: 'admin', cmd: 'stats', int: 200, wis: 200, str: 25, end: 60, agi: 15 });
+send({ t: 'admin', cmd: 'set', level: 60, gold: 100000 });
+await sleep(400);
+for (const id of ['malediction', 'bouclier_de_mana', 'resistance_au_feu']) {
+  send({ t: 'admin', cmd: 'learn', spell: id });
+}
+await waitFor(() => ['malediction', 'bouclier_de_mana', 'resistance_au_feu']
+  .every(s => S.self?.spells.includes(s)));
+ok('sorts appris (admin learn)', S.self?.spells.includes('resistance_au_feu'));
+send({ t: 'unequip', slot: 'armor' }); // CA nulle : dégâts des monstres prévisibles
+await sleep(300);
+
+// La Fourmi de feu mord avec l'élément FEU : 3 dégâts pile sur un joueur sans CA.
+// On encaisse quelques morsures, puis on mesure l'effet des buffs de résistance.
+async function sampleHits(n, timeout = 9000) {
+  const out = [];
+  let seen = S.dmgEvents.length;
+  const t0 = Date.now();
+  while (out.length < n && Date.now() - t0 < timeout) {
+    await sleep(150);
+    for (const d of S.dmgEvents.slice(seen)) if (d.to === S.id) out.push(d.amount);
+    seen = S.dmgEvents.length;
+  }
+  return out;
+}
+await gotoNear(357, 237); // côte NE : les Fourmis de feu (carte Arakas Classic)
+const ant = await waitFor(() => nearestMob('serpent'), 5000);
+ok('Fourmi de feu trouvée', !!ant);
+if (ant) await approach(ant.id, 1.5);
+const temoin = await sampleHits(3);
+console.log('   morsures témoin (attendu 3,3,3) :', temoin.join(', '));
+ok('morsure de feu témoin = 3 dégâts (CA nulle)', temoin.length >= 2 && temoin.every(v => v === 3));
+
+send({ t: 'cast', spellId: 'bouclier_de_mana' });
+await waitFor(() => (S.self?.buffs || []).some(b => b.stat === 'resistAll'), 4000);
+const avecBouclier = await sampleHits(3);
+console.log('   morsures sous Bouclier de mana (attendu 2,2,2) :', avecBouclier.join(', '));
+ok('Bouclier de mana : dégâts magiques réduits de 33 % (3 -> 2)',
+  avecBouclier.length >= 2 && avecBouclier.every(v => v === 2));
+
+await sleep(1200); // récupération du sort précédent
+send({ t: 'cast', spellId: 'resistance_au_feu' });
+await waitFor(() => (S.self?.buffs || []).some(b => b.stat === 'resist_feu'), 4000);
+const avecResist = await sampleHits(3);
+console.log('   morsures sous Résistance au feu (attendu 0,0,0) :', avecResist.join(', '));
+ok('Résistance au feu : le feu est entièrement annulé (0 dégât)',
+  avecResist.length >= 2 && avecResist.every(v => v === 0));
+
+// --- Malédiction : sur un monstre, puis sur un joueur (le soin est bloqué) ---
+await sleep(1200);
+const okBefore = S.castOkCount;
+send({ t: 'cast', spellId: 'malediction', target: ant?.id });
+await waitFor(() => S.castOkCount > okBefore, 4000);
+ok('Malédiction lancée sur un monstre', S.castOkCount > okBefore);
+
+// second joueur : il se fait maudire, sa potion de vie reste alors sans effet
+const victim = await new Promise((resolve) => {
+  const w = new WebSocket(URL);
+  const st = { id: null, self: null, hp: 0, infos: [], pos: new Map() };
+  w.on('message', (raw, bin) => {
+    if (bin) {
+      const ab = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+      if (new DataView(ab).getUint8(0) !== BIN_SNAPSHOT) return;
+      const snap = decodeSnapshot(ab);
+      for (const e of snap.entities) st.pos.set(e.id, e);
+      return;
+    }
+    const m = JSON.parse(raw.toString());
+    if (m.t === 'create_char') w.send(JSON.stringify({ t: 'create', stats: { str: 14, end: 22, agi: 12, int: 11, wis: 11 }, sex: 'male' }));
+    else if (m.t === 'welcome') st.id = m.id;
+    else if (m.t === 'self') { st.self = m; st.hp = m.hp; }
+    else if (m.t === 'vitals') st.hp = m.hp;
+    else if (m.t === 'info') st.infos.push(m.text);
+  });
+  w.on('open', () => w.send(JSON.stringify({ t: 'register', v: PROTOCOL_VERSION, name: 'Maudit_' + Math.floor(Math.random() * 1e6), pass: 'test1234' })));
+  const iv = setInterval(() => {
+    if (st.id != null && st.self && st.pos.get(st.id)) { clearInterval(iv); resolve({ w, st, send: (o) => w.send(JSON.stringify(o)) }); }
+  }, 50);
+});
+const vpos = victim.st.pos.get(victim.st.id);
+await gotoNear(vpos.x, vpos.z); // à portée (9) de la victime
+await sleep(1200); // purge la récupération
+send({ t: 'cast', spellId: 'malediction', target: victim.st.id });
+await waitFor(() => (victim.st.self?.buffs || []).some(b => b.stat === 'maudit'), 5000);
+ok('Malédiction lancée sur un joueur (debuff visible)',
+  (victim.st.self?.buffs || []).some(b => b.stat === 'maudit'));
+const nPotions = victim.st.self.inventory.filter(i => i.defId === 'potion_vie').length;
+victim.send({ t: 'use', iid: victim.st.self.inventory.find(i => i.defId === 'potion_vie')?.iid });
+const blocked = await waitFor(() => victim.st.infos.some(t => t.includes('malédiction')), 4000);
+await sleep(300);
+const nApres = victim.st.self.inventory.filter(i => i.defId === 'potion_vie').length;
+ok('malédiction : la potion de vie est bloquée (message + potion conservée)',
+  !!blocked && nApres === nPotions);
+victim.w.close();
+} // fin partie D
 
 const failed = checks.filter(([, c]) => !c);
 console.log(failed.length === 0 ? '\nTOUT EST OK' : `\n${failed.length} ÉCHEC(S): ${failed.map(([n]) => n).join(', ')}`);
