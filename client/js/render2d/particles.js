@@ -148,6 +148,26 @@ export function emitBuff(P, x, z, color = '#ffe48a') {
   }
 }
 
+// Bulle de protection : sphère scintillante qui enveloppe la cible à
+// l'application d'un buff défensif, puis se dissipe (purement visuel, ~0,8 s)
+export function emitShield(P, x, z, color = '#9ad4ff') {
+  const R = 1.1;
+  for (let i = 0; i < 30; i++) {
+    // point sur la sphère : azimut + élévation -> coquille autour du buste
+    const a = Math.random() * Math.PI * 2;
+    const e = (Math.random() - 0.5) * Math.PI;
+    const r = R * Math.cos(e);
+    P.spawn({
+      x: x + Math.cos(a) * r, z: z + Math.sin(a) * r,
+      h: 30 + Math.sin(e) * 34,
+      // gonflement léger vers l'extérieur, aucune gravité : la bulle se dissout sur place
+      vx: Math.cos(a) * 0.35, vz: Math.sin(a) * 0.35, vh: Math.sin(e) * 10, g: 0,
+      life: 0.55 + Math.random() * 0.35, size: 2.4,
+      color: i % 4 ? color : '#ffffff',
+    });
+  }
+}
+
 // Volutes sombres qui s'accrochent à la cible (malédiction)
 export function emitCurse(P, x, z) {
   const st = FX_STYLES.drain;

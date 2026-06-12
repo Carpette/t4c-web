@@ -153,7 +153,13 @@ net.on('events', (m) => {
       renderer.fxAt(ev.kind, v.x, v.z, ev.color);
       if (ev.kind === 'levelup') { ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
       if (ev.kind === 'heal') { ui.floater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
-      if (ev.kind === 'buff') { ui.floater(headPos(v), '✨', 'heal'); if (ev.id === selfId) playSfx('buff'); }
+      if (ev.kind === 'buff') {
+        // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
+        const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
+        if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff');
+        ui.floater(headPos(v), '✨', 'heal');
+        if (ev.id === selfId) playSfx('buff');
+      }
       if (ev.kind === 'curse') { ui.floater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
       if (ev.kind === 'die') playSfx('mort');
     } else if (ev.t === 'look') {

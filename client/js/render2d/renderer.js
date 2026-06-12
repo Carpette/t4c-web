@@ -2,7 +2,7 @@
 // éclairage simulé (nuit teintée + halos de lumière), à la manière des RPG iso classiques.
 import { DAY_LENGTH } from '../../../shared/constants.js';
 import {
-  Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath,
+  Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
 } from './particles.js';
 
 export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
@@ -54,6 +54,7 @@ export class Renderer {
   fxAt(kind, x, z, color) {
     if (kind === 'heal') emitHeal(this.particles, x, z);
     else if (kind === 'buff') emitBuff(this.particles, x, z, color);
+    else if (kind === 'shield') emitShield(this.particles, x, z, color);
     else if (kind === 'curse') emitCurse(this.particles, x, z);
     else if (kind === 'die') emitDeath(this.particles, x, z);
     else if (kind === 'levelup') emitBuff(this.particles, x, z, '#ffd24a');

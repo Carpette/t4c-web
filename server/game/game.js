@@ -1184,7 +1184,7 @@ export class Game {
       p.buffs = p.buffs.filter(x => x.stat !== 'sanctuaire' && x.stat !== 'transe');
       p.buffs.push({ stat: 'sanctuaire', power: 1, until: p.sanctuaryUntil });
       p.buffs.push({ stat: 'transe', power: 1, until: p.pacifiedUntil });
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element });
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: 'sanctuaire' });
     } else if (sp.type === 'buff') {
       const b = sp.buff;
       let power;
@@ -1196,7 +1196,7 @@ export class Game {
       p.buffs = p.buffs.filter(x => x.stat !== b.stat);
       p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
       this.recompute(p);
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element });
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: b.stat });
     } else if (sp.type === 'bolt') {
       const target = p.zi.entities.get(c.target | 0);
       const curseOnly = sp.curse && !sp.dmg;
