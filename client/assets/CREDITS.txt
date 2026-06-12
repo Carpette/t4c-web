@@ -4,6 +4,12 @@ Crédits artistiques
 Les images de ce dossier (tuiles, monstres, avatars, butins) proviennent du projet
 Flare (Free Libre Action Roleplaying Engine) — https://flarerpg.org
 Dépôt : https://github.com/flareteam/flare-game
+Mods utilisés : fantasycore, empyrean_campaign, minicore et alpha_demo
+(planches d'ennemis : antlions, fourmis, gobelins, squelettes, zombies,
+hobgobelins, minotaure, wyvernes, grisbon, necromancer, scathelocke, vesuvvio,
+boulder, goblin_minecart). Plusieurs créatures du bestiaire sont des
+RECOLORATIONS de ces planches (champ `tint` des monstres, recoloration au
+chargement côté client) : ces variantes restent couvertes par la même licence.
 
 Licence : Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA 3.0)
 https://creativecommons.org/licenses/by-sa/3.0/

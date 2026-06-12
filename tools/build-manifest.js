@@ -50,14 +50,35 @@ function parseAnim(file) {
 }
 
 // [nom, mod des animations, mod de l'image]
+// Toutes les planches d'ennemis Flare exploitables chez nous : une image
+// dédiée + animations 8 directions (stance/run/swing/die). Les planches de
+// boss de fin de campagne (skeleton_knight_boss, antlion_armored...) pèsent
+// 8-12 Mo chacune : on les laissera de côté tant qu'aucun monstre ne les porte.
 const ENEMIES = [
+  ['antlion', 'fantasycore', 'fantasycore'],            // araignées, tarentules, fourmilion géant (teintes)
   ['antlion_small', 'fantasycore', 'fantasycore'],
   ['fire_ant', 'fantasycore', 'fantasycore'],
+  ['ice_ant', 'fantasycore', 'fantasycore'],            // kraanians
   ['goblin', 'fantasycore', 'fantasycore'],
+  ['goblin_elite', 'fantasycore', 'fantasycore'],       // vrais orcs, troll (teintes)
   ['skeleton', 'fantasycore', 'fantasycore'],
+  ['skeleton_mage', 'fantasycore', 'fantasycore'],      // liche mineure
   ['zombie', 'fantasycore', 'fantasycore'],
+  ['zombie_dark', 'empyrean_campaign', 'empyrean_campaign'], // goule
   ['hobgoblin', 'empyrean_campaign', 'fantasycore'],
+  ['hobgoblin_archer', 'empyrean_campaign', 'fantasycore'], // brigands, voleurs (teintes)
   ['minotaur', 'minicore', 'minicore'],
+  ['wyvern', 'minicore', 'minicore'],                   // serpents (teinte)
+  ['wyvern_adult', 'minicore', 'minicore'],             // guêpe géante (teinte)
+  ['wyvern_air', 'minicore', 'minicore'],
+  ['wyvern_fire', 'minicore', 'minicore'],
+  ['wyvern_water', 'minicore', 'minicore'],
+  ['boulder', 'empyrean_campaign', 'empyrean_campaign'],
+  ['goblin_minecart', 'empyrean_campaign', 'empyrean_campaign'],
+  ['grisbon', 'alpha_demo', 'alpha_demo'],              // bêtes : loups, ours, sanglier, rat (teintes)
+  ['necromancer', 'alpha_demo', 'alpha_demo'],          // chaman orc (teinte)
+  ['scathelocke', 'alpha_demo', 'alpha_demo'],
+  ['vesuvvio', 'alpha_demo', 'alpha_demo'],             // élémentaire de feu
 ];
 const AVATAR_LAYERS = [
   'default_chest', 'default_feet', 'default_hands', 'default_legs', 'head_short', 'head_long',
