@@ -30,6 +30,21 @@
       border: 1px solid #4a4070; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #cfc6ee; pointer-events: none; }
     #map-palette { width: 312px; max-height: 706px; overflow-y: auto; background: #181226;
       border: 1px solid #3a3158; border-radius: 6px; padding: 8px; }
+    /* fiche d'édition flottante (camps de monstres / PNJ) */
+    #edit-panel { display: none; position: absolute; right: 10px; top: 10px; width: 300px;
+      max-height: calc(100% - 20px); overflow-y: auto; background: #1a1428ee;
+      border: 1px solid #5a4a8a; border-radius: 8px; padding: 10px; font-size: 12px; }
+    #edit-panel h4 { color: #c8b87a; font-size: 12px; margin: 10px 0 4px; }
+    #edit-panel textarea { height: auto; }
+    .edit-panel-title { display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px; color: #c8b87a; }
+    .edit-row { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+    .edit-list { max-height: 140px; overflow-y: auto; background: #100c1e;
+      border: 1px solid #3a3158; border-radius: 5px; padding: 4px 6px; margin: 4px 0; }
+    .edit-check { display: block; margin: 2px 0; cursor: pointer; }
+    .edit-dlg { background: #100c1e; border: 1px solid #3a3158; border-radius: 5px;
+      padding: 6px; margin: 6px 0; }
+    .edit-dlg input, .edit-dlg textarea { margin: 3px 0; }
     .pal-search { width: 100%; margin-bottom: 8px; }
     .pal-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
       padding: 6px 8px; background: #100c1e; border-radius: 5px; font-size: 12px; }
@@ -87,6 +102,10 @@
         <input type="file" id="import-file" accept=".json,application/json" style="display:none">
         <button id="save-map">💾 Enregistrer</button>
         <button id="reset-map" class="danger">Réinitialiser la zone</button>
+        <label style="margin-left:10px"><input type="checkbox" id="layer-camps"> ⛺ Camps</label>
+        <button id="add-camp" title="Pose un nouveau camp de monstres (clic sur la carte)">➕ Camp</button>
+        <label><input type="checkbox" id="layer-npcs"> 👤 PNJ</label>
+        <button id="add-npc" title="Pose un nouveau PNJ (clic sur la carte)">➕ PNJ</button>
         <label style="margin-left:10px"><input type="checkbox" id="iso-view"> 🧭 Vue jeu (iso)</label>
         <label><input type="checkbox" id="show-players" checked> 🟢 Joueurs en direct</label>
         <label><input type="checkbox" id="show-player-names"> Afficher les noms</label>
@@ -102,6 +121,7 @@
           <canvas id="map-canvas" width="1000" height="704"></canvas>
           <canvas id="map-mini" width="168" height="168"></canvas>
           <div id="map-coords">—</div>
+          <div id="edit-panel"></div>
         </div>
         <div id="map-palette"></div>
       </div>

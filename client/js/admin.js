@@ -39,8 +39,12 @@ async function enter(name) {
   $('login-box').style.display = 'none';
   $('panel').style.display = 'block';
   $('who').textContent = name ? `connecté : ${name}` : '';
-  zonesDef = (await api('/api/admin/content/zones')).zones;
-  await initMapEditor({ api, zones: zonesDef });
+  const zonesContent = await api('/api/admin/content/zones');
+  zonesDef = zonesContent.zones;
+  // la liste des sorts alimente la fiche PNJ de l'éditeur (rôle enseignant)
+  let spells = [];
+  try { spells = (await api('/api/admin/content/spells')).spells || []; } catch { /* optionnel */ }
+  await initMapEditor({ api, zones: zonesDef, npcDefs: zonesContent.npc || {}, spells });
   loadMusic();
   loadChars();
   loadPantheon();
@@ -150,7 +154,7 @@ async function loadChars() {
   try {
     const { characters } = await api('/api/admin/characters');
     const tbl = $('chars-table');
-    tbl.innerHTML = '<tr><th>Compte</th><th>Perso</th><th>Niveau</th><th>Or</th><th>Zone</th><th>Admin</th><th>En ligne</th><th>Actions</th></tr>';
+    tbl.innerHTML = '<tr><th>Compte</th><th>Perso</th><th>Niveau</th><th>Or</th><th>Zone</th><th>Drapeaux</th><th>Admin</th><th>En ligne</th><th>Actions</th></tr>';
     for (const c of characters) {
       const tr = document.createElement('tr');
       const lvl = document.createElement('input'); lvl.style.width = '54px'; lvl.value = c.char?.level ?? '';
@@ -159,6 +163,12 @@ async function loadChars() {
       tr.innerHTML = `<td>${c.account}</td><td>${c.char?.name ?? '—'}</td>`;
       const tds = [lvl, gold, zone].map(el => { const td = document.createElement('td'); td.appendChild(el); return td; });
       tds.forEach(td => tr.appendChild(td));
+      // drapeaux de quête posés par les dialogues de PNJ (lecture seule)
+      const flags = Object.keys(c.char?.flags || {});
+      const tdFlags = document.createElement('td');
+      tdFlags.textContent = flags.length ? `${flags.length} ⚑` : '';
+      tdFlags.title = flags.join('\n');
+      tr.appendChild(tdFlags);
       tr.insertAdjacentHTML('beforeend', `<td>${c.isAdmin ? '✔' : ''}</td><td>${c.online ? '🟢' : ''}</td>`);
       const act = document.createElement('td');
       const apply = document.createElement('button');

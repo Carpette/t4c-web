@@ -7,8 +7,12 @@
 // — outils : pinceau de tuiles à taille réglable, rectangle (Maj), pipette
 //   (Alt+clic), gomme et déplacement de décors, annuler/rétablir (Ctrl+Z),
 //   export/import JSON des overrides de la zone ;
+// — calques d'édition : « Camps » (zones de spawn par mouvement : cercles
+//   colorés à déplacer/redimensionner/composer) et « PNJ » (vignettes à
+//   glisser, fiche d'édition : nom, look, rôle, étal, dialogues à mots-clés) ;
 // — la palette (palette.js) fournit la tuile ou le décor à poser.
-import { generateWorld, TILE } from '../../../shared/worldgen.js';
+import { generateWorld, TILE, defaultNpcSpots, SPAWN_ZONES } from '../../../shared/worldgen.js';
+import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { buildDecor } from '../render2d/decor.js';
 import { PROP_TYPES, propScale, propFlip } from '../render2d/decormap.js';
@@ -28,7 +32,11 @@ const ISO_MX = 2.5, ISO_MT = 6, ISO_MB = 1.5;
 const HISTORY_MAX = 100;   // pas d'annulation conservés
 const REBUILD_DELAY = 150; // ms après la fin d'un trait avant reconstruction complète
 
-export async function initMapEditor({ api, zones }) {
+// rayon par défaut d'un camp fraîchement posé (tuiles) et bornes d'édition
+const CAMP_DEFAULT_RADIUS = 8;
+const CAMP_RADIUS_MIN = 1, CAMP_RADIUS_MAX = 40;
+
+export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
   const ctx = canvas.getContext('2d');
@@ -58,6 +66,12 @@ export async function initMapEditor({ api, zones }) {
   // index des décors pour le rendu : par chunk (iso), triés (vue du dessus), gros sprites
   let chunkProps = new Map(), bigProps = [], propsByZ = [];
   let miniBase = null;   // fond de mini-carte (1 px par tuile)
+  // calques d'édition « Camps » (zones de spawn) et « PNJ »
+  let showCamps = false, showNpcs = false;
+  let pendingPlace = null;            // 'camp' | 'npc' : le prochain clic pose l'élément
+  let campsList = [], npcsList = [];  // listes effectives (overrides ou défauts du worldgen)
+  const NPC_ROLE_COLORS = { merchant: '#ffd24a', teacher: '#7ad1ff', bavard: '#8ae88a' };
+  const NPC_ROLE_NAMES = { merchant: 'marchand', teacher: 'enseignant', bavard: 'bavard' };
 
   // vue : z = px/tuile ; (cx, cz) = tuile au centre du canvas ; iso = vue jeu
   const view = { z: 4, cx: 64, cz: 64, iso: false };
@@ -65,10 +79,14 @@ export async function initMapEditor({ api, zones }) {
   function emptyOv() { return { tiles: [], props: { add: [], remove: [] } }; }
   function normalizeOv(o) {
     const n = o && typeof o === 'object' ? o : {};
-    return {
+    const out = {
       tiles: Array.isArray(n.tiles) ? n.tiles : [],
       props: { add: n.props?.add ?? [], remove: n.props?.remove ?? [] },
     };
+    // sections optionnelles : ABSENTES, les défauts du worldgen restent en vigueur
+    if (Array.isArray(n.camps)) out.camps = n.camps;
+    if (n.npcs && typeof n.npcs === 'object') out.npcs = n.npcs;
+    return out;
   }
 
   // ---------- assets Flare (manifest + tilesets) ; en cas d'échec : aplats ----------
@@ -385,6 +403,11 @@ export async function initMapEditor({ api, zones }) {
   // surimpressions de l'outil courant : brosse, rectangle, fantôme, gomme, déplacement
   function drawOverlays() {
     if (!hover) return;
+    // pose armée (➕ Camp / ➕ PNJ) : aperçu sous le curseur
+    if (pendingPlace) {
+      strokeRing(hover.x, hover.z, view.z * (pendingPlace === 'camp' ? CAMP_DEFAULT_RADIUS : 0.6), '#8ae88a');
+      return;
+    }
     const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
     if (gesture?.mode === 'rect') {
       const x0 = Math.min(gesture.x0, tx), x1 = Math.max(gesture.x0, tx);
@@ -471,6 +494,427 @@ export async function initMapEditor({ api, zones }) {
     ctx.fillText('N ↗', 10, 20);
   }
 
+  // ---------- calques d'édition : camps de spawn et PNJ ----------
+  // couleur stable par monstre (le cercle d'un camp prend celle du dominant)
+  const mobColorCache = {};
+  function mobColor(defId) {
+    if (!mobColorCache[defId]) {
+      let hash = 0;
+      for (const ch of String(defId)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+      mobColorCache[defId] = `hsl(${hash % 360}, 75%, 62%)`;
+    }
+    return mobColorCache[defId];
+  }
+  const isWalkableBase = (x, z) => {
+    const N = baseWorld.size, X = Math.floor(x), Z = Math.floor(z);
+    return X >= 0 && Z >= 0 && X < N && Z < N && baseWorld.walk[Z * N + X] === 1;
+  };
+
+  // camps par défaut du worldgen, au format des overrides {id, x, z, r, mobs}
+  function defaultCamps() {
+    return (baseWorld.spawnZones || SPAWN_ZONES).map((s, i) => ({
+      id: `defaut-${i}`,
+      x: s.center[0] + 0.5, z: s.center[1] + 0.5, r: s.radius,
+      mobs: { [s.mob]: s.count },
+    }));
+  }
+  // première retouche : matérialise les camps par défaut dans les overrides
+  // (déplacer ou supprimer un camp ne doit pas effacer les autres)
+  function materializeCamps() {
+    if (!Array.isArray(ov.camps)) ov.camps = defaultCamps().map(c => ({ ...c, mobs: { ...c.mobs } }));
+    return ov.camps;
+  }
+  function npcsOv() {
+    if (!ov.npcs || typeof ov.npcs !== 'object') ov.npcs = {};
+    ov.npcs.add ??= []; ov.npcs.remove ??= []; ov.npcs.move ??= []; ov.npcs.edit ??= {};
+    return ov.npcs;
+  }
+  const npcRole = (def) => def.role || (def.teacher ? 'teacher' : 'merchant');
+
+  // PNJ effectifs : défauts du worldgen (retirés/déplacés/édités) + ajouts
+  function effectiveNpcs() {
+    const o = ov.npcs || {};
+    const removed = new Set(o.remove || []);
+    const moved = new Map((o.move || []).map(m => [m.npcId, m]));
+    const out = [];
+    for (const spot of defaultNpcSpots(baseWorld, isWalkableBase)) {
+      if (removed.has(spot.npcId)) continue;
+      const base = npcDefs[spot.npcId] || npcDefs.merchant || { name: spot.npcId };
+      const at = moved.get(spot.npcId) || spot;
+      out.push({ npcId: spot.npcId, custom: false, def: { ...base, ...(o.edit?.[spot.npcId] || {}) }, x: at.x, z: at.z });
+    }
+    for (const a of o.add || []) out.push({ npcId: a.id, custom: true, def: a, x: a.x, z: a.z });
+    return out;
+  }
+  function refreshEditLayers() {
+    campsList = Array.isArray(ov.camps) ? ov.camps : defaultCamps();
+    npcsList = effectiveNpcs();
+    markDirty();
+  }
+
+  function campLabel(c) {
+    const parts = Object.entries(c.mobs || {}).map(([d, n]) => `${n}× ${MOBS[d]?.name || d}`);
+    return parts.join(', ') || '(vide)';
+  }
+  function dominantMob(c) {
+    let best = null, bn = -1;
+    for (const [d, n] of Object.entries(c.mobs || {})) if (n > bn) { bn = n; best = d; }
+    return best;
+  }
+  function labelText(x, y, label, color = '#fff') {
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(label, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(label, x, y);
+  }
+  function drawCamps() {
+    if (!showCamps) return;
+    for (const c of campsList) {
+      const color = mobColor(dominantMob(c) || '?');
+      const s = w2s(c.x, c.z);
+      const r = c.r * view.z;
+      ctx.beginPath();
+      if (view.iso) ctx.ellipse(s.x, s.y, r, r / 2, 0, 0, Math.PI * 2);
+      else ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+      // poignée centrale (déplacement) + étiquette de composition
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      labelText(s.x, s.y - (view.iso ? r / 2 : r) - 6, campLabel(c), color);
+    }
+  }
+  function drawNpcs() {
+    if (!showNpcs) return;
+    const r = Math.max(5, view.z * 0.4);
+    for (const n of npcsList) {
+      const s = w2s(n.x, n.z);
+      const color = NPC_ROLE_COLORS[npcRole(n.def)] || '#fff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#10202a';
+      ctx.stroke();
+      ctx.font = `${Math.max(9, r * 1.2)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#10202a';
+      ctx.fillText('☻', s.x, s.y + r * 0.45);
+      labelText(s.x, s.y - r - 5, n.def.name || n.npcId, color);
+    }
+  }
+
+  // sélection au pointeur : PNJ (cible ponctuelle), camp par le bord (rayon)
+  // ou par l'intérieur (déplacement / fiche)
+  function pickNpc(wx, wz) {
+    let best = null, bd = Math.max(1.2, 10 / view.z);
+    npcsList.forEach((n, index) => {
+      const d = Math.hypot(n.x - wx, n.z - wz);
+      if (d < bd) { bd = d; best = { npc: n, index }; }
+    });
+    return best;
+  }
+  function pickCamp(wx, wz) {
+    const tol = Math.max(0.8, 8 / view.z);
+    for (let i = campsList.length - 1; i >= 0; i--) {
+      const c = campsList[i];
+      if (Math.abs(Math.hypot(c.x - wx, c.z - wz) - c.r) <= tol) return { index: i, kind: 'edge' };
+    }
+    for (let i = campsList.length - 1; i >= 0; i--) {
+      const c = campsList[i];
+      if (Math.hypot(c.x - wx, c.z - wz) <= c.r) return { index: i, kind: 'center' };
+    }
+    return null;
+  }
+
+  function placeCampAt(tx, tz) {
+    pendingPlace = null;
+    pushHistory();
+    const camps = materializeCamps();
+    camps.push({
+      id: 'camp_' + Date.now().toString(36),
+      x: tx + 0.5, z: tz + 0.5, r: CAMP_DEFAULT_RADIUS,
+      mobs: { rat: 3 },
+    });
+    refreshEditLayers();
+    openCampPanel(camps.length - 1);
+  }
+  function placeNpcAt(tx, tz) {
+    pendingPlace = null;
+    pushHistory();
+    npcsOv().add.push({
+      id: 'pnj_' + Date.now().toString(36),
+      x: tx + 0.5, z: tz + 0.5,
+      name: 'Nouveau PNJ', role: 'bavard',
+      look: structuredClone(npcDefs.merchant?.look ?? null),
+      greetings: ['Bien le bonjour.'],
+      dialogues: [],
+    });
+    refreshEditLayers();
+    openNpcPanel(npcsList.length - 1);
+  }
+  // déplacement d'un PNJ : un ajout est déplacé sur place, un PNJ par défaut
+  // reçoit (ou met à jour) une entrée `move` des overrides
+  function moveNpcTo(index, x, z) {
+    const n = npcsList[index];
+    if (!n) return;
+    if (n.custom) {
+      const a = npcsOv().add.find(e => e.id === n.npcId);
+      if (a) { a.x = x; a.z = z; }
+    } else {
+      const o = npcsOv();
+      let mv = o.move.find(m => m.npcId === n.npcId);
+      if (!mv) o.move.push(mv = { npcId: n.npcId, x, z });
+      mv.x = x; mv.z = z;
+    }
+  }
+  // glisser en cours sur un camp (centre/bord) ou un PNJ ; un simple clic
+  // (sans mouvement) ouvre la fiche au relâchement (cf. pointerup)
+  function dragEditLayer(g) {
+    if (!g.moved && Math.hypot(hover.x - g.w0.x, hover.z - g.w0.z) < 0.35) return;
+    if (!g.pushed) {
+      pushHistory();
+      if (g.mode !== 'npcMove') materializeCamps();
+      g.pushed = true;
+    }
+    g.moved = true;
+    const snap = (v) => Math.round(v * 2) / 2; // pose à la demi-tuile
+    if (g.mode === 'npcMove') {
+      moveNpcTo(g.index, snap(hover.x), snap(hover.z));
+    } else {
+      const c = ov.camps[g.index];
+      if (!c) return;
+      if (g.mode === 'campMove') { c.x = snap(hover.x); c.z = snap(hover.z); }
+      else c.r = Math.max(CAMP_RADIUS_MIN, Math.min(CAMP_RADIUS_MAX, snap(Math.hypot(hover.x - c.x, hover.z - c.z))));
+    }
+    refreshEditLayers();
+  }
+
+  // ---------- panneaux d'édition (fiche camp / fiche PNJ) ----------
+  const panelEl = $('edit-panel');
+  function closePanel() { panelEl.style.display = 'none'; panelEl.innerHTML = ''; markDirty(); }
+  // petit constructeur de DOM : h('tag', props, ...enfants)
+  function h(tag, props = {}, ...kids) {
+    const e = document.createElement(tag);
+    const { style, ...rest } = props;
+    Object.assign(e, rest);
+    if (style) Object.assign(e.style, style);
+    for (const k of kids) if (k != null) e.append(k);
+    return e;
+  }
+  function panelTitle(text) {
+    return h('div', { className: 'edit-panel-title' },
+      h('b', { textContent: text }),
+      h('button', { textContent: '✕', onclick: closePanel }));
+  }
+
+  // fiche d'un camp : composition (monstre × quantité), rayon, suppression
+  function openCampPanel(index) {
+    const camp = campsList[index];
+    if (!camp) return;
+    closePanel();
+    const mobs = Object.entries(camp.mobs || {}); // état de travail [defId, n]
+    const mobOptions = (sel) => Object.entries(MOBS)
+      .map(([id, d]) => `<option value="${id}"${id === sel ? ' selected' : ''}>${d.name}</option>`).join('');
+    const rows = h('div');
+    const renderRows = () => {
+      rows.innerHTML = '';
+      mobs.forEach((m, i) => {
+        const sel = h('select', { innerHTML: mobOptions(m[0]) });
+        sel.onchange = () => { m[0] = sel.value; };
+        const num = h('input', { type: 'number', min: '1', max: '50', value: String(m[1]), style: { width: '54px' } });
+        num.onchange = () => { m[1] = Math.max(1, num.value | 0); };
+        rows.append(h('div', { className: 'edit-row' }, sel, num,
+          h('button', { textContent: '✕', onclick: () => { mobs.splice(i, 1); renderRows(); } })));
+      });
+    };
+    renderRows();
+    const rInput = h('input', { type: 'number', min: String(CAMP_RADIUS_MIN), max: String(CAMP_RADIUS_MAX), value: String(camp.r), style: { width: '60px' } });
+    panelEl.append(
+      panelTitle('Camp de monstres'),
+      h('div', { className: 'hint', textContent: 'Glissez le centre pour déplacer le camp, son bord pour le redimensionner.' }),
+      rows,
+      h('button', { textContent: '+ monstre', onclick: () => { mobs.push(['rat', 1]); renderRows(); } }),
+      h('div', { className: 'edit-row' }, 'Rayon : ', rInput),
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const real = materializeCamps()[index];
+            if (!real) return;
+            real.r = Math.max(CAMP_RADIUS_MIN, Math.min(CAMP_RADIUS_MAX, rInput.value | 0 || CAMP_RADIUS_MIN));
+            real.mobs = Object.fromEntries(mobs.filter(([d, n]) => MOBS[d] && n > 0));
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Camp modifié — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => {
+            pushHistory();
+            materializeCamps().splice(index, 1);
+            refreshEditLayers();
+            closePanel();
+          },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
+  // fiche d'un PNJ : identité, look, rôle, étal/répertoire, phrases, dialogues
+  function openNpcPanel(index) {
+    const n = npcsList[index];
+    if (!n) return;
+    closePanel();
+    const def = n.def;
+    const nameInput = h('input', { value: def.name || '', style: { width: '100%' } });
+    // look : repris d'un des PNJ existants (zones.json)
+    const curLook = JSON.stringify(def.look ?? null);
+    const lookSel = h('select', {
+      innerHTML: Object.keys(npcDefs).map(k =>
+        `<option value="${k}"${JSON.stringify(npcDefs[k].look ?? null) === curLook ? ' selected' : ''}>${npcDefs[k].name}</option>`).join(''),
+    });
+    const roleSel = h('select', {
+      innerHTML: ['merchant', 'teacher', 'bavard'].map(r =>
+        `<option value="${r}"${r === npcRole(def) ? ' selected' : ''}>${NPC_ROLE_NAMES[r]}</option>`).join(''),
+    });
+    // sorts enseignés (rôle enseignant) — vide : répertoire `vendor` historique
+    const teaches = new Set(Array.isArray(def.teaches) ? def.teaches : []);
+    const teachesBox = h('div', { className: 'edit-list' });
+    for (const sp of spells) {
+      const cb = h('input', { type: 'checkbox', checked: teaches.has(sp.id) });
+      cb.onchange = () => { cb.checked ? teaches.add(sp.id) : teaches.delete(sp.id); };
+      teachesBox.append(h('label', { className: 'edit-check' }, cb, ` ${sp.name}`));
+    }
+    // objets vendus (rôle marchand) — vide : étal standard de la zone
+    const sells = new Set(Array.isArray(def.sells) ? def.sells : []);
+    const sellSearch = h('input', { placeholder: '🔍 filtrer les objets', style: { width: '100%' } });
+    const sellBox = h('div', { className: 'edit-list' });
+    const itemDefs = Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy);
+    const renderSells = () => {
+      const q = sellSearch.value.trim().toLowerCase();
+      sellBox.innerHTML = '';
+      for (const [id, d] of itemDefs) {
+        if (q && !(`${id} ${d.name}`.toLowerCase().includes(q)) && !sells.has(id)) continue;
+        const cb = h('input', { type: 'checkbox', checked: sells.has(id) });
+        cb.onchange = () => { cb.checked ? sells.add(id) : sells.delete(id); };
+        sellBox.append(h('label', { className: 'edit-check' }, cb, ` ${d.name}`));
+      }
+    };
+    sellSearch.oninput = renderSells;
+    renderSells();
+    const teachesWrap = h('div', {}, h('h4', { textContent: 'Sorts enseignés (vide : répertoire attitré)' }), teachesBox);
+    const sellsWrap = h('div', {}, h('h4', { textContent: 'Objets vendus (vide : étal standard de la zone)' }), sellSearch, sellBox);
+    const syncRole = () => {
+      teachesWrap.style.display = roleSel.value === 'teacher' ? '' : 'none';
+      sellsWrap.style.display = roleSel.value === 'merchant' ? '' : 'none';
+    };
+    roleSel.onchange = syncRole;
+    syncRole();
+    // phrases d'ambiance (chat local au salut) : une par ligne
+    const greetArea = h('textarea', {
+      value: (def.greetings || []).join('\n'),
+      style: { width: '100%', height: '54px' },
+    });
+    // dialogues à mots-clés (cf. server/game/dialogues.js pour le format)
+    const dialogues = structuredClone(Array.isArray(def.dialogues) ? def.dialogues : []);
+    const dlgBox = h('div');
+    const jsonField = (dlg, key, placeholder) => {
+      const input = h('input', { value: dlg[key] ? JSON.stringify(dlg[key]) : '', placeholder, style: { width: '100%' } });
+      input.onchange = () => {
+        try {
+          dlg[key] = input.value.trim() ? JSON.parse(input.value) : undefined;
+          input.style.borderColor = '';
+        } catch { input.style.borderColor = '#e86a6a'; }
+      };
+      return input;
+    };
+    const renderDialogues = () => {
+      dlgBox.innerHTML = '';
+      dialogues.forEach((dlg, i) => {
+        const kw = h('input', { value: (dlg.keywords || []).join(', '), placeholder: 'mots-clés (séparés par des virgules)', style: { width: '100%' } });
+        kw.onchange = () => { dlg.keywords = kw.value.split(',').map(s => s.trim()).filter(Boolean); };
+        const rep = h('textarea', { value: dlg.reponse || '', placeholder: 'réponse du PNJ', style: { width: '100%', height: '36px' } });
+        rep.onchange = () => { dlg.reponse = rep.value; };
+        const rpt = h('input', { type: 'checkbox', checked: dlg.repeatable === true });
+        rpt.onchange = () => { dlg.repeatable = rpt.checked || undefined; };
+        dlgBox.append(h('div', { className: 'edit-dlg' },
+          h('div', { className: 'edit-row' }, h('b', { textContent: `Dialogue ${i + 1}` }),
+            h('button', { textContent: '✕', onclick: () => { dialogues.splice(i, 1); renderDialogues(); } })),
+          kw, rep,
+          jsonField(dlg, 'conditions', 'conditions JSON — ex {"flag":"clef"} {"item":"potion_vie","consume":true}'),
+          jsonField(dlg, 'reactions', 'réactions JSON — ex [{"type":"gold","amount":50},{"type":"flag","key":"clef"}]'),
+          h('label', { className: 'edit-check' }, rpt, ' récompenses répétables')));
+      });
+    };
+    renderDialogues();
+    panelEl.append(
+      panelTitle(`PNJ — ${def.name || n.npcId}`),
+      h('div', { className: 'hint', textContent: 'Glissez la vignette sur la carte pour déplacer le PNJ.' }),
+      h('div', { className: 'edit-row' }, 'Nom : ', nameInput),
+      h('div', { className: 'edit-row' }, 'Look : ', lookSel),
+      h('div', { className: 'edit-row' }, 'Rôle : ', roleSel),
+      teachesWrap, sellsWrap,
+      h('h4', { textContent: 'Phrases d\'ambiance (une par ligne)' }), greetArea,
+      h('h4', { textContent: 'Dialogues à mots-clés' }), dlgBox,
+      h('button', { textContent: '+ dialogue', onclick: () => { dialogues.push({ keywords: [], reponse: '' }); renderDialogues(); } }),
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const patch = {
+              name: nameInput.value.trim() || def.name || n.npcId,
+              look: structuredClone(npcDefs[lookSel.value]?.look ?? null),
+              role: roleSel.value,
+              greetings: greetArea.value.split('\n').map(s => s.trim()).filter(Boolean),
+              dialogues,
+            };
+            if (roleSel.value === 'teacher' && teaches.size) patch.teaches = [...teaches];
+            if (roleSel.value === 'merchant' && sells.size) patch.sells = [...sells];
+            if (n.custom) {
+              const a = npcsOv().add.find(e => e.id === n.npcId);
+              if (a) Object.assign(a, patch);
+            } else {
+              npcsOv().edit[n.npcId] = patch;
+            }
+            refreshEditLayers();
+            closePanel();
+            msg('✔ PNJ modifié — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => {
+            pushHistory();
+            const o = npcsOv();
+            if (n.custom) o.add = o.add.filter(e => e.id !== n.npcId);
+            else {
+              if (!o.remove.includes(n.npcId)) o.remove.push(n.npcId);
+              o.move = o.move.filter(m => m.npcId !== n.npcId);
+              delete o.edit[n.npcId];
+            }
+            refreshEditLayers();
+            closePanel();
+          },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
   // ---------- mini-carte ----------
   const TILE_RGB = {};
   for (const [t, hex] of Object.entries(TILE_COLORS)) {
@@ -530,6 +974,8 @@ export async function initMapEditor({ api, zones }) {
     if (!sprites) drawGlyphProps();
     drawGrid();
     drawOverlays();
+    drawCamps();
+    drawNpcs();
     drawPlayers();
     if (view.iso) drawCompass();
     drawMini();
@@ -553,6 +999,7 @@ export async function initMapEditor({ api, zones }) {
     redoStack.push(JSON.stringify(ov));
     ov = JSON.parse(history.pop());
     rebuildTileIndex();
+    closePanel(); // la fiche ouverte pourrait viser un élément disparu
     rebuild();
   }
   function redo() {
@@ -560,6 +1007,7 @@ export async function initMapEditor({ api, zones }) {
     history.push(JSON.stringify(ov));
     ov = JSON.parse(redoStack.pop());
     rebuildTileIndex();
+    closePanel();
     rebuild();
   }
 
@@ -660,6 +1108,7 @@ export async function initMapEditor({ api, zones }) {
     chunkCache.clear();
     pendingTiles = [];
     renderMiniBase();
+    refreshEditLayers(); // camps et PNJ suivent les overrides (undo/redo compris)
     markDirty();
   }
   // pendant un trait de pinceau : retour visuel immédiat (pendingTiles),
@@ -703,6 +1152,20 @@ export async function initMapEditor({ api, zones }) {
     if (e.altKey) { pipette(wpt); return; } // pipette
     const N = world.size, tx = Math.floor(wpt.x), tz = Math.floor(wpt.z);
     if (tx < 0 || tz < 0 || tx >= N || tz >= N) return;
+    // calques d'édition : pose armée (➕), puis saisie d'un PNJ ou d'un camp
+    if (pendingPlace === 'camp') { placeCampAt(tx, tz); return; }
+    if (pendingPlace === 'npc') { placeNpcAt(tx, tz); return; }
+    if (showNpcs) {
+      const hit = pickNpc(wpt.x, wpt.z);
+      if (hit) { gesture = { mode: 'npcMove', index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
+    }
+    if (showCamps) {
+      const hit = pickCamp(wpt.x, wpt.z);
+      if (hit) {
+        gesture = { mode: hit.kind === 'edge' ? 'campResize' : 'campMove', index: hit.index, w0: wpt, moved: false, pushed: false };
+        return;
+      }
+    }
     if (mode === 'erase') { pushHistory(); erasePropAt(tx, tz); return; }
     if (mode === 'move') {
       const p = pickWorldProp(wpt.x, wpt.z);
@@ -728,6 +1191,8 @@ export async function initMapEditor({ api, zones }) {
       anchorView(gesture.w0.x, gesture.w0.z, px, py); // le point saisi suit le curseur
     } else if (gesture?.mode === 'paint') {
       paintCells(Math.floor(hover.x), Math.floor(hover.z));
+    } else if (gesture?.mode === 'campMove' || gesture?.mode === 'campResize' || gesture?.mode === 'npcMove') {
+      dragEditLayer(gesture);
     }
     markDirty();
   });
@@ -753,6 +1218,10 @@ export async function initMapEditor({ api, zones }) {
         pushHistory();
         finishMove(gesture.prop, tx, tz);
       }
+    } else if (gesture.mode === 'npcMove' && !gesture.moved) {
+      openNpcPanel(gesture.index); // simple clic : la fiche du PNJ
+    } else if ((gesture.mode === 'campMove' || gesture.mode === 'campResize') && !gesture.moved) {
+      openCampPanel(gesture.index); // simple clic : la fiche du camp
     }
     gesture = null;
     markDirty();
@@ -786,6 +1255,19 @@ export async function initMapEditor({ api, zones }) {
   $('iso-view').onchange = () => { view.iso = $('iso-view').checked; markDirty(); };
   $('show-players').onchange = () => { $('players-info').textContent = ''; pollPlayers(); };
   $('show-player-names').onchange = () => markDirty();
+  // calques Camps / PNJ : affichage + pose armée (le prochain clic pose l'élément)
+  $('layer-camps').onchange = () => { showCamps = $('layer-camps').checked; markDirty(); };
+  $('layer-npcs').onchange = () => { showNpcs = $('layer-npcs').checked; markDirty(); };
+  $('add-camp').onclick = () => {
+    $('layer-camps').checked = true; showCamps = true;
+    pendingPlace = 'camp';
+    msg('Cliquez sur la carte pour poser le camp.');
+  };
+  $('add-npc').onclick = () => {
+    $('layer-npcs').checked = true; showNpcs = true;
+    pendingPlace = 'npc';
+    msg('Cliquez sur la carte pour poser le PNJ.');
+  };
 
   $('save-map').onclick = async () => {
     try {
@@ -855,7 +1337,13 @@ export async function initMapEditor({ api, zones }) {
     const def = zones.find(z => z.id === id);
     const w = generateWorld(def.seed, def.map);
     // structuredClone ne passe pas les fonctions : on garde un objet simple
-    baseWorld = { size: w.size, tile: w.tile, walk: w.walk, props: w.props, height: w.height, kind: w.kind };
+    // (avec les défauts de peuplement : camps du worldgen et spots de PNJ)
+    baseWorld = {
+      size: w.size, tile: w.tile, walk: w.walk, props: w.props, height: w.height, kind: w.kind,
+      spawnZones: w.spawnZones || null, npcSpots: w.npcSpots || null, village: w.village,
+    };
+    closePanel();
+    pendingPlace = null;
     try { ov = normalizeOv(await api(`/api/admin/overrides/${id}`)); } catch { ov = emptyOv(); }
     history = []; redoStack = [];
     rebuildTileIndex();
@@ -881,5 +1369,12 @@ export async function initMapEditor({ api, zones }) {
     paintAt: (x, z) => { pushHistory(); paintCells(x, z); },
     setTool: (t) => { palTool = t; setMode('paint'); },
     rebuildNow: rebuild,
+    // calques camps / PNJ
+    getCamps: () => campsList,
+    getNpcs: () => npcsList,
+    placeCampAt,
+    placeNpcAt,
+    openCampPanel,
+    openNpcPanel,
   };
 }
