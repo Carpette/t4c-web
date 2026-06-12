@@ -194,7 +194,17 @@
   "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
   "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
 }</textarea>
-          <div class="toolbar"><button id="skin-enemy-upload">⬆ Importer la planche</button></div>
+          <div class="toolbar">
+            <button id="skin-enemy-upload">⬆ Importer la planche</button>
+            <button id="skin-enemy-prompt">🧠 Prompt IA (planche)</button>
+          </div>
+
+          <h2>Prompt pour IA générative</h2>
+          <p class="hint">Généré depuis les paramètres ci-dessus (taille de case, ancrage, animations) :
+          collez-le dans votre générateur d'images, l'outil d'import attend exactement ce format.
+          Le bouton 📋 d'un objet (table ci-contre) génère le prompt pour cet objet.</p>
+          <textarea id="skin-prompt" spellcheck="false" style="height:200px" placeholder="Cliquez sur « 🧠 Prompt IA » ou sur le 📋 d'un objet…"></textarea>
+          <div class="toolbar"><button id="skin-prompt-copy">📋 Copier le prompt</button><span id="skin-prompt-msg" class="msg" style="margin:0"></span></div>
 
           <h2>Aperçu</h2>
           <img id="skin-preview" style="max-width:100%; max-height:300px; background:#0c0a16; border:1px solid #3a3158; border-radius:6px; display:none">
