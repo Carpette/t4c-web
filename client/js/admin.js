@@ -149,6 +149,7 @@ function renderSkinMobs() {
     };
     tdSel.appendChild(sel);
     const tdEye = document.createElement('td');
+    tdEye.style.whiteSpace = 'nowrap';
     const eye = document.createElement('button');
     eye.textContent = '👁';
     eye.title = 'Aperçu de la planche';
@@ -160,7 +161,20 @@ function renderSkinMobs() {
         if (img) skinPreview('/assets/' + img);
       } catch { /* aperçu indisponible */ }
     };
-    tdEye.appendChild(eye);
+    const pr = document.createElement('button');
+    pr.textContent = '📋';
+    pr.title = 'Prompt IA pour générer la planche de cette créature';
+    pr.style.marginLeft = '4px';
+    pr.onclick = () => {
+      const def = MOBS[id];
+      const flavor = [
+        `Niveau ${def.level} dans le jeu : silhouette ${def.level >= 15 ? 'massive et menaçante' : def.level >= 8 ? 'inquiétante' : 'modeste, créature de bas niveau'}.`,
+        def.undead ? 'Créature MORTE-VIVANTE : chairs putréfiées, os apparents, regard éteint.' : '',
+      ].filter(Boolean).join(' ');
+      $('skin-enemy-name').value = id; // pré-remplit l'import : sprite nommé comme la créature
+      showPrompt(enemyPrompt(def.name, flavor));
+    };
+    tdEye.append(eye, pr);
     tr.append(tdName, tdSel, tdEye);
     tbl.appendChild(tr);
   }
@@ -203,8 +217,8 @@ Contraintes techniques IMPÉRATIVES :
 ${STYLE_COMMUN}`;
 }
 
-function enemyPrompt() {
-  const name = $('skin-enemy-name').value.trim() || 'créature';
+function enemyPrompt(creatureName = null, flavor = '') {
+  const name = creatureName || $('skin-enemy-name').value.trim() || 'créature';
   const cw = parseInt($('skin-cell-w').value, 10) || 128;
   const ch = parseInt($('skin-cell-h').value, 10) || 128;
   const ax = parseInt($('skin-anchor-x').value, 10) || Math.floor(cw / 2);
@@ -225,7 +239,7 @@ function enemyPrompt() {
   return `Génère une PLANCHE DE SPRITES (sprite sheet) d'une créature pour un jeu vidéo RPG
 isométrique médiéval-fantastique.
 
-Créature : ${name}.
+Créature : ${name}.${flavor ? `\n${flavor}` : ''}
 
 Contraintes techniques IMPÉRATIVES — la planche est découpée par un programme :
 - UN SEUL fichier PNG avec fond 100 % TRANSPARENT, taille EXACTE ${cols * cw} x ${8 * ch} pixels ;
