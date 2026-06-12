@@ -30,6 +30,7 @@ const pick = (arr, r) => arr[Math.floor(r * arr.length) % arr.length];
 export function buildDecor(world) {
   const N = world.size;
   const voidMode = world.kind === 'trial'; // l'Épreuve : un chemin suspendu au-dessus du vide
+  const caveMode = world.kind === 'cave';  // caverne : parois rocheuses denses
   // --- id de tuile de sol par case ---
   const floor = new Int16Array(N * N);
   const isWater = new Uint8Array(N * N);
@@ -177,12 +178,14 @@ export function buildDecor(world) {
     }
   }
 
-  // falaises décoratives dans les montagnes (pas dans le vide de l'Épreuve)
+  // falaises décoratives dans les montagnes (pas dans le vide de l'Épreuve) ;
+  // en caverne elles sont bien plus denses : ce sont les parois elles-mêmes
   if (!voidMode) {
+    const cliffChance = caveMode ? 0.30 : 0.06;
     for (let z = 2; z < N - 2; z++) {
       for (let x = 2; x < N - 2; x++) {
         const i = z * N + x;
-        if (world.tile[i] === TILE.ROCK && hash(x + 31, z + 17) < 0.06) {
+        if (world.tile[i] === TILE.ROCK && hash(x + 31, z + 17) < cliffChance) {
           props.push({ tileId: pick(CLIFF_IDS, hash(x, z + 5)), x: x + 0.5, z: z + 0.5 });
         }
       }

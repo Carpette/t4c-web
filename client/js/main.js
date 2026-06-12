@@ -1,5 +1,6 @@
 // Point d'entrée client : assets Flare, rendu iso 2D, multi-zones, contrôles, sorts
 import { generateWorld, generateTrial } from '../../shared/worldgen.js';
+import { generateCave } from '../../shared/cave.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { KIND, DAY_LENGTH } from '../../shared/constants.js';
 import { ITEMS } from '../../shared/defs.js';
@@ -78,8 +79,12 @@ net.on('welcome', (m) => {
 net.on('zone', async (m) => {
   cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
-  const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed, m.map);
-  if (m.kind !== 'trial') {
+  // le client régénère le même monde que le serveur : île (seed/carte fixe),
+  // labyrinthe de l'Épreuve, ou intérieur de caverne (paramètres partagés)
+  const w = m.kind === 'trial' ? generateTrial(m.seed)
+    : m.kind === 'cave' ? generateCave(m.cave.seed, m.cave.size, m.cave.depth)
+    : generateWorld(m.seed, m.map);
+  if (m.kind === 'island') {
     try {
       const r = await fetch(`/content/overrides_${m.zoneId}.json`);
       if (r.ok) applyOverrides(w, await r.json());
@@ -88,7 +93,7 @@ net.on('zone', async (m) => {
   world = w;
   renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
-  ui.zoneBanner(m.name, m.kind === 'trial' ? null : m.levels);
+  ui.zoneBanner(m.name, m.levels || null);
   playMusic(m.music); // musique de la zone (null = silence)
   if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');
 });
@@ -461,7 +466,11 @@ function processHover() {
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
       canvas.style.cursor = 'pointer';
-      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)', cave: prop.name || 'Grotte' };
+      const labels = {
+        obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve",
+        exitgate: world.kind === 'cave' ? 'Sortie de la caverne' : "Sortie de l'Épreuve",
+        chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)', cave: prop.name || 'Grotte',
+      };
       ui.showTooltip(labels[prop.interact] || '');
       ui.moveTooltip(ev.clientX, ev.clientY);
     } else {

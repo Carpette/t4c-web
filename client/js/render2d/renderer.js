@@ -6,6 +6,9 @@ import {
 } from './particles.js';
 
 export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
+// pénombre minimale des cavernes : il y fait nuit quel que soit le soleil —
+// torches rares et sort Lumière deviennent indispensables
+const CAVE_DARKNESS = 0.72;
 
 export class Renderer {
   constructor(canvas, assets, world, decor) {
@@ -262,7 +265,8 @@ export class Renderer {
     }
 
     // --- Éclairage : obscurité + trous de lumière ---
-    const darkness = (1 - daylight) * 0.78;
+    const outdoorDarkness = (1 - daylight) * 0.78;
+    const darkness = this.world.kind === 'cave' ? Math.max(CAVE_DARKNESS, outdoorDarkness) : outdoorDarkness;
     if (darkness > 0.02) {
       const l = this.lctx;
       l.globalCompositeOperation = 'source-over';
