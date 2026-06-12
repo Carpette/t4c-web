@@ -4,42 +4,42 @@
       "id": 0, "name": "Arakas", "levels": [1, 25], "seed": 8281932,
       "map": "arakas",
       "tint": null,
-      "mobs": ["rat", "serpent", "gobelin", "squelette", "zombie", "orc", "ogre"]
+      "mobs": ["rat", "rat_caverne", "araignee_geante", "loup", "sanglier", "serpent", "momie", "loup_noir", "brigand", "voleur", "orc_eclaireur", "serpent_venimeux", "ours", "tarentule", "goule", "gobelin", "guepe", "orc_guerrier", "squelette", "kraanian", "fourmilion_geant", "orc_chaman", "zombie", "mille_pattes", "skraug_vert", "tarentule_geante", "elementaire_feu", "orc", "centaure", "necro_araignee", "skraug_rouge", "troll", "golem_pierre", "liche_mineure", "ogre"]
     },
     {
       "id": 1, "name": "Île de Lumière", "levels": [25, 50], "seed": 4471201,
       "tint": "rgba(255, 235, 180, 0.07)",
-      "mobs": ["serpent", "gobelin", "squelette", "zombie", "orc", "ogre", "rat"]
+      "mobs": ["rat", "loup", "sanglier", "araignee_geante", "brigand", "voleur", "serpent", "guepe", "tarentule", "kraanian", "ours", "gobelin", "orc_eclaireur", "orc_guerrier", "tarentule_geante", "skraug_vert", "ogre"]
     },
     {
       "id": 2, "name": "Brume-aux-Corbeaux", "levels": [50, 75], "seed": 9112873,
       "tint": "rgba(140, 160, 220, 0.10)",
-      "mobs": ["squelette", "zombie", "gobelin", "orc", "ogre", "serpent", "rat"]
+      "mobs": ["rat_caverne", "loup_noir", "voleur", "momie", "squelette", "zombie", "tarentule", "orc", "goule", "necro_araignee", "liche_mineure"]
     },
     {
       "id": 3, "name": "Sanctuaire des Anciens", "levels": [75, 100], "seed": 5523977,
       "tint": "rgba(190, 140, 230, 0.10)",
-      "mobs": ["zombie", "orc", "squelette", "ogre", "gobelin", "rat", "serpent"]
+      "mobs": ["momie", "squelette", "orc_chaman", "centaure", "skraug_rouge", "elementaire_feu", "golem_pierre", "liche_mineure"]
     },
     {
       "id": 4, "name": "Marais des Lamentations", "levels": [100, 125], "seed": 2289311,
       "tint": "rgba(120, 180, 120, 0.12)",
-      "mobs": ["serpent", "zombie", "ogre", "orc", "squelette", "gobelin", "rat"]
+      "mobs": ["serpent_venimeux", "guepe", "mille_pattes", "goule", "zombie", "tarentule_geante", "necro_araignee", "troll"]
     },
     {
       "id": 5, "name": "Terres Maudites", "levels": [125, 150], "seed": 7741552,
       "tint": "rgba(200, 90, 70, 0.12)",
-      "mobs": ["orc", "ogre", "zombie", "squelette", "gobelin", "serpent", "rat"]
+      "mobs": ["orc_guerrier", "orc_chaman", "skraug_vert", "skraug_rouge", "elementaire_feu", "golem_pierre", "ogre", "troll"]
     },
     {
       "id": 6, "name": "Forteresse du Crépuscule", "levels": [150, 175], "seed": 3317240,
       "tint": "rgba(90, 80, 140, 0.16)",
-      "mobs": ["ogre", "orc", "zombie", "squelette", "gobelin", "serpent", "rat"]
+      "mobs": ["orc", "orc_guerrier", "orc_chaman", "squelette", "liche_mineure", "golem_pierre", "ogre", "troll"]
     },
     {
       "id": 7, "name": "Royaume des Dieux", "levels": [175, 200], "seed": 6604180,
       "tint": "rgba(255, 215, 130, 0.13)",
-      "mobs": ["ogre", "orc", "zombie", "squelette", "gobelin", "serpent", "rat"]
+      "mobs": ["centaure", "necro_araignee", "skraug_rouge", "elementaire_feu", "golem_pierre", "liche_mineure", "troll", "ogre"]
     }
   ],
   "npc": {

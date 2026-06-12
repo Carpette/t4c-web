@@ -243,24 +243,64 @@ const ROADS = [
 // et au sud, 12+ au nord, 18+ dans le désert et sur Orkanis.
 // (aggro + errance ≈ 12 tuiles : les villes restent hors d'atteinte)
 const ARAKAS_SPAWNS = [
-  { mob: 'rat',       center: [343, 275], radius: 5,  count: 7 },  // au sud des champs de Lighthaven (hors enclos : ligne de vue dégagée)
-  { mob: 'rat',       center: [283, 245], radius: 6,  count: 6 },  // tête du pont ouest
-  { mob: 'rat',       center: [320, 205], radius: 5,  count: 5 },  // tête du pont nord
-  { mob: 'serpent',   center: [357, 237], radius: 5,  count: 4 },  // côte NE de LH (mercenaires)
-  { mob: 'serpent',   center: [273, 279], radius: 6,  count: 5 },  // ravisseurs du Grand Prêtre
-  { mob: 'serpent',   center: [296, 290], radius: 6,  count: 4 },  // côte sud-est
-  { mob: 'gobelin',   center: [186, 284], radius: 9,  count: 10 }, // Thieve's Town
-  { mob: 'gobelin',   center: [188, 320], radius: 6,  count: 5 },  // cave des Brigands
-  { mob: 'gobelin',   center: [118, 182], radius: 6,  count: 5 },  // cave des Kraaniens
-  { mob: 'squelette', center: [219, 81],  radius: 8,  count: 10 }, // crypte du Nomade
-  { mob: 'squelette', center: [219, 146], radius: 7,  count: 6 },  // le Temple Ancien
-  { mob: 'zombie',    center: [225, 88],  radius: 6,  count: 5 },  // crypte du Nomade
-  { mob: 'zombie',    center: [300, 108], radius: 6,  count: 4 },  // Cité en Ruines
-  { mob: 'orc',       center: [280, 127], radius: 9,  count: 10 }, // camp Orc (Roshnak Tul)
-  { mob: 'orc',       center: [353, 123], radius: 6,  count: 4 },  // Labyrinthe de Feylor Est
-  { mob: 'ogre',      center: [136, 54],  radius: 5,  count: 2 },  // hauts du désert (grotte D)
-  { mob: 'ogre',      center: [38, 84],   radius: 5,  count: 2 },  // Orkanis (le Troll)
-  { mob: 'ogre',      center: [210, 200], radius: 4,  count: 1 },  // gardien du Labyrinthe
+  // --- Île de Lighthaven (niveaux 1-5) ---
+  { mob: 'rat',             center: [343, 275], radius: 5, count: 7 },  // au sud des champs de Lighthaven (hors enclos : ligne de vue dégagée)
+  { mob: 'rat_caverne',     center: [355, 272], radius: 5, count: 5 },  // côte SE, près de la crypte
+  { mob: 'araignee_geante', center: [312, 240], radius: 5, count: 5 },  // ouest de la ville
+  { mob: 'serpent',         center: [357, 237], radius: 5, count: 4 },  // côte NE de LH (mercenaires)
+  { mob: 'serpent',         center: [296, 290], radius: 6, count: 4 },  // côte sud-est
+  { mob: 'rat',             center: [320, 205], radius: 5, count: 5 },  // tête du pont nord
+  // --- Têtes de pont et continent est (niveaux 4-10) — spots « Doggies / Puppies » ---
+  { mob: 'loup',            center: [283, 245], radius: 6, count: 6 },  // tête du pont ouest (Doggies)
+  { mob: 'loup',            center: [305, 222], radius: 6, count: 5 },  // sortie du pont nord (Puppies)
+  { mob: 'serpent',         center: [273, 279], radius: 6, count: 5 },  // ravisseurs du Grand Prêtre
+  // --- Sud et sud-ouest (niveaux 5-11) ---
+  { mob: 'gobelin',         center: [186, 284], radius: 9, count: 8 },  // Thieve's Town
+  { mob: 'voleur',          center: [180, 288], radius: 7, count: 6 },  // Thieve's Town : la pègre humaine
+  { mob: 'brigand',         center: [188, 322], radius: 6, count: 7 },  // abords de la cave des Brigands
+  { mob: 'loup_noir',       center: [150, 300], radius: 8, count: 6 },  // forêts du sud (woofies)
+  { mob: 'sanglier',        center: [120, 300], radius: 8, count: 6 },  // bois au SE de Windhowl
+  { mob: 'ours',            center: [95, 315],  radius: 7, count: 4 },  // lisière sud, loin des remparts
+  // --- Centre (niveaux 10-17) ---
+  { mob: 'tarentule',       center: [146, 222], radius: 8, count: 8 },  // t-field (le champ de tarentules, PNJ Evelyn)
+  { mob: 'tarentule_geante',center: [152, 230], radius: 5, count: 3 },  // heavy-t, au cœur du champ
+  { mob: 'tarentule',       center: [186, 134], radius: 6, count: 5 },  // t-lake, l'étang des tarentules
+  { mob: 'mille_pattes',    center: [170, 110], radius: 7, count: 6 },  // Millie lake : au nord du lac
+  { mob: 'kraanian',        center: [118, 182], radius: 7, count: 7 },  // abords de la caverne kraanienne
+  { mob: 'guepe',           center: [207, 186], radius: 6, count: 5 },  // Bug isle : au SO de l'ermite Antonian
+  { mob: 'serpent_venimeux',center: [213, 193], radius: 6, count: 5 },  // Bug isle : serpents
+  { mob: 'kraanian',        center: [200, 190], radius: 6, count: 4 },  // Bug isle : kraanians
+  { mob: 'ours',            center: [250, 160], radius: 7, count: 4 },  // bois du centre-est
+  // --- Crypte du Nomade, Temple Ancien, Cité en Ruines (morts-vivants, 6-15) ---
+  { mob: 'squelette',       center: [219, 81],  radius: 8, count: 8 },  // crypte du Nomade
+  { mob: 'momie',           center: [222, 86],  radius: 6, count: 5 },  // crypte du Nomade
+  { mob: 'zombie',          center: [225, 88],  radius: 6, count: 4 },  // crypte du Nomade
+  { mob: 'goule',           center: [213, 75],  radius: 6, count: 4 },  // crypte du Nomade
+  { mob: 'squelette',       center: [219, 146], radius: 7, count: 6 },  // le Temple Ancien
+  { mob: 'goule',           center: [215, 150], radius: 5, count: 3 },  // le Temple Ancien
+  { mob: 'zombie',          center: [300, 108], radius: 6, count: 4 },  // Cité en Ruines
+  { mob: 'momie',           center: [305, 112], radius: 5, count: 4 },  // Cité en Ruines
+  // --- Camp orc de Roshnak Tul et Feylor Est (9-15) ---
+  { mob: 'orc',             center: [280, 127], radius: 9, count: 6 },  // Hobgobelins (Roshnak Tul)
+  { mob: 'orc_guerrier',    center: [270, 117], radius: 6, count: 6 },  // vrais orcs du camp
+  { mob: 'orc_eclaireur',   center: [291, 136], radius: 6, count: 5 },  // patrouilles
+  { mob: 'orc_chaman',      center: [268, 110], radius: 4, count: 3 },  // le cercle des chamans
+  { mob: 'orc',             center: [353, 123], radius: 6, count: 4 },  // Labyrinthe de Feylor Est
+  // --- Désert du nord-ouest (14-23) ---
+  { mob: 'fourmilion_geant',center: [130, 90],  radius: 8, count: 6 },  // fosses du plateau aride
+  { mob: 'fourmilion_geant',center: [160, 75],  radius: 7, count: 5 },  // près des grottes D-E
+  { mob: 'golem_pierre',    center: [142, 58],  radius: 6, count: 2 },  // falaises du nord
+  { mob: 'elementaire_feu', center: [120, 65],  radius: 6, count: 3 },  // cœur incandescent du désert
+  { mob: 'ogre',            center: [136, 54],  radius: 5, count: 2 },  // hauts du désert (grotte D)
+  // --- Plaines du nord et skraugs (17-21) ---
+  { mob: 'skraug_vert',     center: [250, 95],  radius: 8, count: 6 },  // campement skraug vert
+  { mob: 'necro_araignee',  center: [252, 112], radius: 6, count: 4 },  // « Spiders » : au sud des skraugs verts
+  { mob: 'skraug_rouge',    center: [232, 60],  radius: 7, count: 5 },  // skraugs rouges, plus au nord
+  { mob: 'centaure',        center: [318, 88],  radius: 9, count: 5 },  // « Cents » : plaines du NE, près des druides
+  // --- Île d'Orkanis et gardiens (22-24) ---
+  { mob: 'troll',           center: [38, 84],   radius: 5, count: 2 },  // LE Troll du château d'Orkanis
+  { mob: 'ogre',            center: [210, 200], radius: 4, count: 1 },  // gardien du Labyrinthe
+  { mob: 'liche_mineure',   center: [212, 204], radius: 4, count: 1 },  // la maîtresse du Labyrinthe
 ];
 
 // ------------------------------------------------------------------ générateur
