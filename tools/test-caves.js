@@ -10,6 +10,7 @@ import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { generateWorld } from '../shared/worldgen.js';
 import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../shared/cave.js';
+import { MOBS } from '../shared/defs.js';
 import { wakeZone } from './test-helpers.js';
 
 const URL = process.argv[2] || 'ws://localhost:8090';
@@ -111,8 +112,9 @@ const mobs = await A.waitFor(() => {
   return list.length >= 3 ? list : null;
 }, 6000);
 ok('monstres apparus dans la caverne (réveillée en bougeant)', !!mobs);
-ok(`vermine au niveau zone parente +${CAVE_LEVEL_BONUS} (Fourmilion niv 3)`,
-  mobs && mobs.every(m => m.level === 1 + CAVE_LEVEL_BONUS));
+ok(`vermine au niveau zone parente +${CAVE_LEVEL_BONUS} (rats de la crypte)`,
+  mobs && mobs.every(m => CAVES.crypte_lh.mobs.includes(m.defId)
+    && m.level === MOBS[m.defId].level + CAVE_LEVEL_BONUS));
 
 // ---------- bot B (non admin) : rejoint la MÊME instance à pied ----------
 const B = session('Suiveur_' + Math.floor(Math.random() * 1e6));
