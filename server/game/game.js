@@ -566,7 +566,7 @@ export class Game {
       }
       case 'cast': {
         if (p.dead) return;
-        p.castSpell(msg, this);
+        this.castSpell(p, msg); // délégué au module sorts (pas une méthode de Player)
         break;
       }
       case 'pickup': {
