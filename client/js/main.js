@@ -111,13 +111,18 @@ net.on('obelisk', (m) => ui.showObelisk(m));
 net.on('bank_open', (m) => ui.showBank(m));
 net.on('confirm_trial', (m) => ui.showTrialConfirm(m));
 net.on('cast_ok', (m) => {
-  ui.endCastBar(); // incantation aboutie
   ui.startCooldown(m.spellId, m.cd);
   if (ui.self) { ui.self.mana = m.mana; ui.renderBars(); }
 });
-// incantation T4C : barre de progression pendant le temps de lancement
-net.on('cast_start', (m) => ui.startCastBar(m.name, m.ms));
+// T4C : le sort part immédiatement, la barre montre la RÉCUPÉRATION avant de
+// pouvoir relancer (vitesse du sort de la Bible)
+net.on('cast_start', (m) => {
+  spellReadyAt = performance.now() + m.ms;
+  ui.startCastBar(m.name, m.ms);
+});
 net.on('cast_break', () => ui.endCastBar());
+// relance trop tôt : le serveur indique le temps de récupération restant
+net.on('cast_cd', (m) => { spellReadyAt = performance.now() + m.ms; });
 net.on('snapshot', (snap) => {
   const now = performance.now() / 1000;
   worldTime = snap.worldTime;
@@ -183,6 +188,7 @@ const arrows = new Set();
 // du lanceur — partent immédiatement, sans visée.)
 let aimSpell = null;          // sort en cours de visée
 let autoCast = null;          // { spellId, targetId?, x?, z? }
+let spellReadyAt = 0;         // fin de la récupération globale (ms, performance.now)
 
 function cancelAim() { aimSpell = null; canvas.style.cursor = ''; }
 function cancelAuto() { autoCast = null; }
@@ -223,6 +229,7 @@ function tickAutoCast() {
     if (!v || v.isDead?.()) { cancelAuto(); return; }
   }
   const now = performance.now() / 1000;
+  if (performance.now() < spellReadyAt) return;      // récupération T4C en cours
   if ((ui.cds[sp.id] || 0) > now) return;            // encore en recharge
   if ((ui.self?.mana ?? 0) < sp.mana) return;        // attend le mana
   // en mode combat on attend d'être à portée ; sinon le serveur s'approche tout seul

@@ -313,7 +313,7 @@ export class UI {
   // serveur interrompt l'incantation (cast_break : mouvement, cible perdue).
   startCastBar(name, ms) {
     const bar = $('castbar'), fill = $('castbar-fill');
-    $('castbar-label').textContent = name;
+    $('castbar-label').textContent = `${name} — récupération`;
     bar.classList.remove('hidden');
     fill.style.transition = 'none';
     fill.style.width = '0%';

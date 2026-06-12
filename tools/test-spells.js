@@ -81,13 +81,14 @@ function nearestMob(defId = null) {
   return best;
 }
 // marche vers le monstre jusqu'à être à portée `range`
-async function approach(mobId, range = 7, tries = 14) {
+// (pas de 450 ms : sortie au plus tôt, le budget temps de la suite est serré)
+async function approach(mobId, range = 7, tries = 26) {
   for (let i = 0; i < tries; i++) {
     const a = me(), b = S.pos.get(mobId);
     if (!a || !b) return false;
     if (Math.hypot(b.x - a.x, b.z - a.z) <= range) return true;
-    send({ t: 'move', x: b.x, z: b.z });
-    await sleep(900);
+    if (i % 2 === 0) send({ t: 'move', x: b.x, z: b.z });
+    await sleep(450);
   }
   return false;
 }
@@ -143,39 +144,46 @@ ok('chaîne de prérequis stricte (Protection : Sag 25 refusé à 20)',
   S.self?.spells.includes('eclat_de_pierre') && S.self?.spells.includes('guerison_legere')
   && !S.self?.spells.includes('protection'));
 
-// --- incantation : le dégât n'arrive qu'après le temps de cast ---
-// niveau 10 : Dard de Feu = 1000 + (520 - 8x20) = 1360 ms (Bible)
+// La suite complète dépasse le budget d'un appel sandbox (45 s) : on peut la
+// jouer par tiers. Usage : node tools/test-spells.js [url] [A|B|C|ABC]
+// A = récupération T4C ; B = formules de dégâts ; C = soin + buff.
+const PART = (process.argv[3] || 'ABC').toUpperCase();
+
+if (PART.includes('A')) {
+// --- récupération T4C : l'effet part IMMÉDIATEMENT, le délai s'applique APRÈS ---
+// niveau 10 : Dard de Feu = 1000 + (520 - 8x20) = 1360 ms de récupération (Bible)
 let mob = await waitFor(() => nearestMob(), 5000);
 ok('monstre trouvé', !!mob);
 await approach(mob.id, 7);
 let r = await castAndMeasure('dard_de_feu', mob.id);
-ok('vitesse d\'incantation de la Bible (1360 ms au niveau 10)', r?.start?.ms === 1360);
+ok('récupération de la Bible annoncée (1360 ms au niveau 10)', r?.start?.ms === 1360);
 const delay = r?.hit ? r.hit.at - r.start.at : -1;
-ok(`le dégât n'arrive qu'après l'incantation (${delay} ms >= ~1360)`,
-  r?.hit && delay >= r.start.ms - 250);
+ok(`le dégât part immédiatement (${delay} ms, sans attendre la récupération)`,
+  r?.hit && delay <= 500);
 
-// --- interruption par mouvement volontaire ---
-mob = nearestMob();
+// --- relance pendant la récupération : refusée, puis acceptée à la fin ---
+// (on ne compte que MES dégâts : les monstres frappent aussi pendant le test)
+const mine = () => S.dmgEvents.filter(d => d.from === S.id).length;
+await sleep(1500); // purge la récupération du cast précédent
+mob = await waitFor(() => nearestMob(), 4000);
 await approach(mob.id, 7);
-S.castStart = null;
-const okBefore = S.castOkCount, dmgBefore = S.dmgEvents.length;
-send({ t: 'cast', spellId: 'dard_de_feu', target: mob.id });
-await waitFor(() => S.castStart, 3000);
-send({ t: 'movedir', x: 1, z: 0 }); // bouger volontairement = interrompre
-await waitFor(() => S.castBreakCount > 0, 2000);
-send({ t: 'movedir', x: 0, z: 0 });
-await sleep(1800);
-ok('incantation interrompue par le mouvement (cast_break, pas de dégât, pas de mana dépensé)',
-  S.castBreakCount > 0 && S.castOkCount === okBefore
-  && !S.dmgEvents.slice(dmgBefore).some(d => d.from === S.id));
+const dmgBefore = mine();
+send({ t: 'cast', spellId: 'dard_de_feu', target: mob.id }); // 1er : part tout de suite
+await waitFor(() => mine() > dmgBefore, 3000);
+const early = mine();
+send({ t: 'cast', spellId: 'dard_de_feu', target: mob.id }); // 2e : en pleine récupération
+await sleep(700); // < 1360 ms : rien ne doit partir
+const blocked = mine() === early;
+await sleep(900); // la récupération est finie
+// la cible a pu mourir entre-temps : on revient à portée d'un monstre vivant
+const t3 = await waitFor(() => nearestMob(), 4000);
+if (t3) await approach(t3.id, 7);
+send({ t: 'cast', spellId: 'dard_de_feu', target: t3?.id ?? mob.id });
+const relance = await waitFor(() => mine() > early, 4000);
+ok('relance bloquée pendant la récupération puis acceptée ensuite',
+  mine() > dmgBefore && blocked && !!relance);
+} // fin partie A
 
-// --- formules de la Bible à stats connues (Int 100, Sag 20, niveau 60) ---
-// Dard de Feu  : 1d17 + 6 + Int/23 -> [11..27] sur cible sans résistance au feu
-// Éclat de Pierre : 1d9 + 11 + Sag/22 -> [12..21] sur cible sans résistance terre
-send({ t: 'admin', cmd: 'stats', int: 100, wis: 20, str: 25, end: 30, agi: 15 });
-await sleep(300);
-send({ t: 'admin', cmd: 'set', level: 60 });
-await sleep(300);
 // téléportation admin près d'un point (essaie quelques cases marchables)
 async function gotoNear(x, z) {
   for (const [dx, dz] of [[0, 0], [2, 1], [-2, 2], [4, -2], [-4, -3], [1, 4], [6, 0], [0, -6]]) {
@@ -186,6 +194,15 @@ async function gotoNear(x, z) {
   }
   return false;
 }
+
+if (PART.includes('B')) {
+// --- formules de la Bible à stats connues (Int 100, Sag 20, niveau 60) ---
+// Dard de Feu  : 1d17 + 6 + Int/23 -> [11..27] sur cible sans résistance au feu
+// Éclat de Pierre : 1d9 + 11 + Sag/22 -> [12..21] sur cible sans résistance terre
+send({ t: 'admin', cmd: 'stats', int: 100, wis: 20, str: 25, end: 30, agi: 15 });
+await sleep(300);
+send({ t: 'admin', cmd: 'set', level: 60 });
+await sleep(300);
 async function sampleSpell(spellId, defId, n) {
   const out = [];
   for (let guard = 0; guard < n * 3 && out.length < n; guard++) {
@@ -200,22 +217,28 @@ async function sampleSpell(spellId, defId, n) {
 }
 // Hobgobelin (orc) : aucune résistance au feu ; Squelette : aucune résistance terre
 await gotoNear(280, 127); // le camp Orc de Roshnak Tul (carte Arakas Classic)
-const feu = await sampleSpell('dard_de_feu', 'orc', 3);
+const feu = await sampleSpell('dard_de_feu', 'orc', 2);
 console.log('   échantillons Dard de Feu sur Hobgobelin :', feu.join(', '));
 ok('formule Dard de Feu respectée (1d17+6+Int/23 -> 11..27)',
   feu.length >= 2 && feu.every(v => v >= 10 && v <= 28));
 await gotoNear(219, 81); // la crypte du Nomade et ses squelettes (Arakas Classic)
-const terre = await sampleSpell('eclat_de_pierre', 'squelette', 3);
+const terre = await sampleSpell('eclat_de_pierre', 'squelette', 2);
 console.log('   échantillons Éclat de Pierre sur Squelette :', terre.join(', '));
 ok('formule Éclat de Pierre respectée (1d9+11+Sag/22 -> 12..21)',
   terre.length >= 2 && terre.every(v => v >= 11 && v <= 22));
+} // fin partie B
 
+if (PART.includes('C')) {
+send({ t: 'admin', cmd: 'stats', int: 100, wis: 20, str: 25, end: 30, agi: 15 });
+send({ t: 'admin', cmd: 'set', level: 60, gold: 100000 });
+await sleep(400);
 // --- soin : Guérison Légère = 1d5 + 8 + Sag/23 -> ~10..14 PV ---
 // se faire blesser par le monstre le plus proche, puis se soigner
-const bully = nearestMob();
+await gotoNear(280, 127); // au camp Orc : il faut bien se faire taper dessus
+const bully = await waitFor(() => nearestMob(), 4000);
 if (bully) {
   await approach(bully.id, 2);
-  await waitFor(() => S.hp < S.self.maxHp - 20, 15000); // encaisser quelques coups
+  await waitFor(() => S.hp < S.self.maxHp - 12, 8000); // encaisser quelques coups
 }
 await gotoNear(home.x, home.z); // se replier à l'abri avant de se soigner
 await sleep(400);
@@ -241,6 +264,7 @@ const buff = S.self.buffs.find(b => b.stat === 'def');
 // Int 100 / Sag 30 : 3 + 1 + 0.6 = 4.6 de CA
 ok(`buff Protection conforme (+4.6 CA, mesuré ${buff?.power})`,
   buff && Math.abs(buff.power - 4.6) < 0.05 && S.self.defense >= defBase + 4.5);
+} // fin partie C
 
 const failed = checks.filter(([, c]) => !c);
 console.log(failed.length === 0 ? '\nTOUT EST OK' : `\n${failed.length} ÉCHEC(S): ${failed.map(([n]) => n).join(', ')}`);

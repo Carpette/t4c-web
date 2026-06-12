@@ -250,7 +250,6 @@ export class Game {
     const old = p.zi;
     p.x = x; p.z = z;
     p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
-    this.interruptCast(p, true); // changement de zone : incantation annulée
     zi.add(p);
     zi.players++;
     this.maybeDestroyTrial(old);
@@ -478,7 +477,6 @@ export class Game {
         if (p.dead) return;
         const x = +msg.x, z = +msg.z;
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
-        this.interruptCast(p); // un déplacement volontaire interrompt l'incantation
         p.attackTarget = null; p.moveDir = null; p.pendingInteract = null; p.pendingCast = null;
         p.path = findPath(p.zi.world, p.x, p.z, x, z);
         break;
@@ -489,7 +487,6 @@ export class Game {
         if (!Number.isFinite(x) || !Number.isFinite(z)) return;
         const len = Math.hypot(x, z);
         if (len < 0.01) { p.moveDir = null; if (p.state === C.ST.WALK) p.state = C.ST.IDLE; return; }
-        this.interruptCast(p); // idem au clavier
         p.moveDir = { x: x / len, z: z / len };
         p.path = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
         break;
@@ -498,7 +495,6 @@ export class Game {
         if (p.dead) return;
         const target = p.zi.entities.get(msg.id | 0);
         if (target && target.kind === C.KIND.MOB && !target.dead) {
-          this.interruptCast(p); // passer à l'arme blanche interrompt le sort
           p.attackTarget = target.id;
           p.path = null; p.moveDir = null;
         }
@@ -1056,13 +1052,6 @@ export class Game {
     return m;
   }
 
-  // Interrompt l'incantation en cours (mouvement volontaire, attaque, mort)
-  interruptCast(p, silent = false) {
-    if (!p.casting) return;
-    p.casting = null;
-    if (!silent) this.send(p, { t: 'cast_break' });
-  }
-
   // Validation + début d'incantation. L'effet part dans resolveCast() une fois
   // le temps d'incantation écoulé (tick). L'approche automatique hors combat
   // passe toujours par pendingCast : l'incantation démarre une fois à portée.
@@ -1103,22 +1092,31 @@ export class Game {
       p.dir = Math.atan2(cx - p.x, cz - p.z);
     }
 
-    const ms = this.castTimeMs(p, sp);
-    cast.until = now + ms / 1000;
+    // T4C : l'effet du sort part IMMÉDIATEMENT — la « vitesse du sort » de la
+    // Bible est le délai de RÉCUPÉRATION avant de pouvoir relancer, pas une
+    // incantation préalable (corrigé d'après l'expérience de jeu de Quentin)
+    if ((p.spellReadyAt || 0) > now) {
+      this.send(p, { t: 'cast_cd', ms: Math.max(0, Math.round((p.spellReadyAt - now) * 1000)) });
+      return;
+    }
     p.casting = cast;
-    p.path = null; p.moveDir = null; p.attackTarget = null;
-    p.state = C.ST.ATTACK; // le personnage reste en posture de lancement
-    this.send(p, { t: 'cast_start', spellId: sp.id, name: sp.name, ms });
+    if (this.resolveCast(p)) {
+      const ms = this.castTimeMs(p, sp);
+      p.spellReadyAt = now + ms / 1000;
+      p.state = C.ST.ATTACK; // posture de lancement
+      this.send(p, { t: 'cast_start', spellId: sp.id, name: sp.name, ms }); // barre de récupération
+    }
   }
 
-  // L'incantation est terminée : applique l'effet du sort (formules de la Bible)
+  // Applique l'effet du sort (formules de la Bible). Retourne true si le sort
+  // est réellement parti (la récupération ne s'applique qu'en cas de succès).
   resolveCast(p) {
     const c = p.casting;
     p.casting = null;
     const sp = content.spellById[c.spellId];
-    if (!sp || p.dead) return;
+    if (!sp || p.dead) return false;
     const now = this.now();
-    if (p.mana < sp.mana) { this.send(p, { t: 'cast_break' }); this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
+    if (p.mana < sp.mana) { this.send(p, { t: 'cast_break' }); this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return false; }
 
     const mul = this.spellPowerMul(p);
     const wis = p.eff.stats.wis;
@@ -1147,7 +1145,7 @@ export class Game {
           || !lineOfSight(p.zi.world, p, target)) {
         this.send(p, { t: 'cast_break' });
         this.send(p, { t: 'info', text: 'La cible s\'est dérobée.' });
-        return;
+        return false;
       }
       this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
       if (sp.dmg) {
@@ -1196,6 +1194,7 @@ export class Game {
     this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd || 0, mana: Math.round(p.mana) });
     if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
     else this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
+    return true;
   }
 
   // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
@@ -1504,8 +1503,6 @@ export class Game {
           p.pendingPickup = null;
         }
       }
-      // incantation en cours : l'effet part à la fin du temps d'incantation
-      if (p.casting && now >= p.casting.until) this.resolveCast(p);
       // sort en attente d'approche : lance dès qu'on est à portée
       if (p.pendingCast) {
         const pc = p.pendingCast;
