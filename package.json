@@ -11,8 +11,11 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "dependencies": {
+    "expr-eval-fork": "^3.0.3",
     "ws": "^8.18.0"
   }
 }
