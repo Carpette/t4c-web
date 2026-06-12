@@ -258,7 +258,9 @@ export const MOBS = {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
     resist: { feu: 0.3, arcane: -0.25 },
-    sprite: 'minotaur', respawn: 90,
+    // la planche Flare du minotaure est en ~25x42 px/frame (4x plus petite
+    // que les autres monstres) : on compense au rendu
+    sprite: 'minotaur', spriteScale: 3.2, respawn: 90,
     drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1], ['ecu_de_drachen', 0.01, 1, 1]],
   },
 };

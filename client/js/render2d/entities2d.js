@@ -28,8 +28,10 @@ class EntityView2D {
       }
       this.setLook(meta.look || {});
     } else if (meta.kind === KIND.MOB) {
-      const sprite = MOBS[meta.defId]?.sprite || 'goblin';
+      const def = MOBS[meta.defId];
+      const sprite = def?.sprite || 'goblin';
       this.sprite = sprite;
+      this.spriteScale = def?.spriteScale || 1; // planches de résolutions inégales
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
       this.image = assets.images.get(assets.manifest.enemies[sprite].image);
     } else {
@@ -168,9 +170,10 @@ class EntityView2D {
       const f = this.anim.frame(d);
       if (!f) return;
       const [x, y, w, h, ox, oy] = f;
-      ctx.drawImage(this.image, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
-      this.bbox = { x: px - ox * s, y: py - oy * s, w: w * s, h: h * s, sy: py };
-      this.topY = py - oy * s;
+      const ms = s * this.spriteScale;
+      ctx.drawImage(this.image, x, y, w, h, px - ox * ms, py - oy * ms, w * ms, h * ms);
+      this.bbox = { x: px - ox * ms, y: py - oy * ms, w: w * ms, h: h * ms, sy: py };
+      this.topY = py - oy * ms;
       return;
     }
     // joueur : couches dans l'ordre propre à la direction
