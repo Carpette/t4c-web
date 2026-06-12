@@ -51,9 +51,12 @@ try {
   playMusic(musicCfg.login);
 } catch { /* pas de musique configurée */ }
 
-// version déployée : en bas à gauche du login + menu À propos
+// version déployée : en bas à gauche du login + menu À propos.
+// Garde-fou : un serveur antérieur à cette feature répond « 404 » en texte,
+// que JSON.parse lit comme le nombre 404 — on n'affiche que du valide.
 try {
-  ui.setVersion(await (await fetch('/api/version')).json());
+  const v = await (await fetch('/api/version')).json();
+  if (v && typeof v.version === 'string') ui.setVersion(v);
 } catch { /* serveur sans version : on n'affiche rien */ }
 
 await net.connect();
