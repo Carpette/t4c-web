@@ -67,13 +67,24 @@ class EntityView2D {
       this.setLook(meta.look || {});
     } else if (meta.kind === KIND.MOB) {
       const def = MOBS[meta.defId];
-      const sprite = def?.sprite || 'goblin';
+      // skin admin prioritaire (content/skins.json), repli sur le sprite du bestiaire
+      const skinned = assets.skins?.mobs?.[meta.defId];
+      const sprite = (skinned && assets.manifest.enemies[skinned]) ? skinned : (def?.sprite || 'goblin');
       this.sprite = sprite;
       this.spriteScale = def?.spriteScale || 1; // planches de résolutions inégales
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
       const base = assets.images.get(assets.manifest.enemies[sprite].image);
-      this.image = tintedSheet(base, sprite, def?.tint); // recoloration en cache
+      // une planche fournie a ses propres couleurs : pas de recoloration
+      this.image = skinned ? base : tintedSheet(base, sprite, def?.tint);
     } else {
+      // objet au sol : skin admin (image entière, ancrée bas-centre) prioritaire
+      const skinImg = meta.defId !== 'or' && assets.skins?.items?.[meta.defId]
+        ? assets.images.get(assets.skins.items[meta.defId]) : null;
+      if (skinImg) {
+        this.loot = { image: null, frame: [0, 0, skinImg.width, skinImg.height, skinImg.width / 2, skinImg.height - 4] };
+        this.lootImage = skinImg;
+        return;
+      }
       const lootName = meta.defId === 'or'
         ? (meta.gold >= 50 ? 'coins100' : meta.gold >= 15 ? 'coins25' : 'coins5')
         : (ITEMS[meta.defId]?.loot || 'clothes');

@@ -82,6 +82,7 @@
       <button data-tab="map" class="active">🗺 Cartes</button>
       <button data-tab="content">📜 Contenu</button>
       <button data-tab="music">🎵 Musiques</button>
+      <button data-tab="skins">🎨 Skins</button>
       <button data-tab="chars">👤 Personnages</button>
       <button data-tab="pantheon">☠ Panthéon</button>
     </div>
@@ -155,6 +156,65 @@
       <table id="music-table"></table>
       <h2>Pré-écoute</h2>
       <audio id="music-preview" controls style="width: 360px"></audio>
+    </div>
+
+    <div id="tab-skins" class="tab-content">
+      <p class="hint">Appliquez vos propres images aux objets et aux créatures.
+      Les joueurs voient les skins au prochain rechargement de leur page (F5).</p>
+      <p id="skins-msg" class="msg"></p>
+
+      <div class="row">
+        <div style="flex:1; min-width: 380px">
+          <h2>1. Téléverser une image d'objet (PNG)</h2>
+          <p class="hint">Une seule image, fond transparent conseillé, ~48 à 96 px de haut.
+          Elle servira d'icône (inventaire, boutique) et d'apparence au sol.</p>
+          <div class="toolbar">
+            <input type="file" id="skin-item-file" accept="image/png">
+            <button id="skin-item-upload">⬆ Téléverser</button>
+          </div>
+
+          <h2>2. Téléverser une planche de créature (PNG)</h2>
+          <p class="hint">Grille régulière : 8 lignes = 8 directions (ordre Flare : O, NO, N, NE,
+          E, SE, S face caméra, SO), colonnes = frames. Renseignez la taille d'une case,
+          l'ancrage des pieds dans la case, et les colonnes de chaque animation
+          (stance, run, swing et die sont obligatoires).</p>
+          <div class="toolbar">
+            <input type="file" id="skin-enemy-file" accept="image/png">
+            <label>Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" style="width:120px"></label>
+          </div>
+          <div class="toolbar">
+            <label>Case : <input id="skin-cell-w" value="128" style="width:54px"> ×
+              <input id="skin-cell-h" value="128" style="width:54px"> px</label>
+            <label>Ancrage (pieds) : <input id="skin-anchor-x" value="64" style="width:54px">,
+              <input id="skin-anchor-y" value="110" style="width:54px"></label>
+          </div>
+          <textarea id="skin-enemy-anims" spellcheck="false" style="height:140px">{
+  "stance": { "from": 0, "to": 3, "duration": 800 },
+  "run":    { "from": 4, "to": 11, "duration": 660 },
+  "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
+  "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
+}</textarea>
+          <div class="toolbar"><button id="skin-enemy-upload">⬆ Importer la planche</button></div>
+
+          <h2>Aperçu</h2>
+          <img id="skin-preview" style="max-width:100%; max-height:300px; background:#0c0a16; border:1px solid #3a3158; border-radius:6px; display:none">
+        </div>
+
+        <div style="flex:1; min-width: 420px">
+          <h2>3. Assigner aux objets</h2>
+          <div class="toolbar">
+            <input id="skin-item-search" placeholder="Filtrer les objets…" style="width:220px">
+            <button id="save-skins">💾 Enregistrer les assignations</button>
+          </div>
+          <table id="skin-items-table"></table>
+
+          <h2>4. Assigner aux créatures</h2>
+          <div class="toolbar">
+            <input id="skin-mob-search" placeholder="Filtrer les créatures…" style="width:220px">
+          </div>
+          <table id="skin-mobs-table"></table>
+        </div>
+      </div>
     </div>
 
     <div id="tab-chars" class="tab-content">
