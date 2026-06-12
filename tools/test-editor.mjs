@@ -158,6 +158,24 @@ win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
 ok('Ctrl+Z ×2 : retour à l\'état initial', ed.getOverrides().tiles.length === 0
   && ed.getOverrides().props.add.length === 0);
 
+// calques camps / PNJ : lecture des défauts, pose, matérialisation, undo
+const campsBefore = ed.getCamps().length;
+ok(`camps par défaut du worldgen exposés en lecture (${campsBefore})`, campsBefore > 0);
+ed.placeCampAt(50, 50);
+ok('pose d\'un camp : défauts matérialisés dans les overrides + nouveau camp',
+  ed.getOverrides().camps?.length === campsBefore + 1
+  && ed.getCamps().length === campsBefore + 1);
+const npcsBefore = ed.getNpcs().length;
+ed.placeNpcAt(52, 52);
+ok('pose d\'un PNJ : entrée `npcs.add` dans les overrides',
+  ed.getOverrides().npcs?.add?.length === 1 && ed.getNpcs().length === npcsBefore + 1);
+win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+ok('Ctrl+Z ×2 : pose de camp et de PNJ annulées (retour aux défauts)',
+  ed.getOverrides().camps === undefined
+  && (ed.getOverrides().npcs?.add?.length ?? 0) === 0
+  && ed.getCamps().length === campsBefore);
+
 // laisse la boucle de rendu dessiner quelques frames en mode sprites (chunks)
 await new Promise(r => setTimeout(r, 400));
 ok('aucune exception (chargement, rendu chunks, outils)', failures.length === 0);
