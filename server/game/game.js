@@ -2,6 +2,7 @@
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS, SLOTS, CHESTS, BANK_SIZE, chestPool } from '../../shared/defs.js';
 import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
+import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../../shared/cave.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
 import { findPath, lineOfSight } from './pathfind.js';
@@ -11,6 +12,8 @@ import { loadOverrides } from '../admin.js';
 import * as db from '../db.js';
 
 const CELL = 16;
+// voile sombre des cavernes (la pénombre elle-même est rendue côté client)
+const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 
 // ---------- Une zone = un monde isolé (île ou instance d'Épreuve) ----------
 class ZoneInstance {
@@ -211,9 +214,12 @@ export class Game {
 
   savePlayer(p) {
     if (p.permadead) return;
+    // en caverne, on sauvegarde le point de retour à la surface : les
+    // coordonnées de la grotte n'auraient aucun sens sur la carte de l'île
+    const pos = p.zi.isCave ? p.zi.returnTo : p;
     db.saveCharacter(p.accountId, {
       name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
-      stats: p.stats, hp: p.hp, mana: p.mana, x: p.x, z: p.z,
+      stats: p.stats, hp: p.hp, mana: p.mana, x: pos.x, z: pos.z,
       gold: p.gold, inventory: p.inventory, equip: p.equip,
       bank: p.bank,
       hpAcc: p.hpAcc, manaAcc: p.manaAcc,
@@ -227,6 +233,24 @@ export class Game {
 
   sendZone(p) {
     const zi = p.zi;
+    if (zi.isCave) {
+      // caverne : le client régénère le même intérieur avec ces paramètres
+      const { seed, size, depth } = zi.caveDef;
+      this.send(p, {
+        t: 'zone',
+        kind: 'cave',
+        zoneId: zi.zoneId,
+        name: zi.caveName,
+        cave: { seed, size, depth },
+        music: this.musicFor(zi),
+        tint: CAVE_TINT,
+        levels: null,
+        x: p.x, z: p.z,
+        unlocked: p.unlocked,
+      });
+      p.known = new Set();
+      return;
+    }
     const def = zi.isTrial ? this.zoneDef(zi.trialTarget) : this.zoneDef(zi.zoneId);
     this.send(p, {
       t: 'zone',
@@ -304,6 +328,64 @@ export class Game {
     const dest = this.island(target);
     this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
     this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+    this.savePlayer(p);
+  }
+
+  // ---------- Cavernes (intérieurs instanciés, PARTAGÉS entre joueurs) ----------
+  // Contrairement à l'Épreuve (instance personnelle), chaque grotte n'a qu'UNE
+  // instance : créée au premier visiteur puis conservée — les joueurs s'y
+  // croisent, les monstres y réapparaissent normalement. Ni obélisque ni
+  // banque à l'intérieur : la seule issue est la sortie (ou la mort, définitive).
+  getCaveZone(prop, from) {
+    const def = CAVES[prop.caveId];
+    if (!def) return null;
+    const key = `cave:${prop.caveId}`;
+    let zi = this.zones.get(key);
+    if (zi) return zi;
+    zi = new ZoneInstance(key, generateCave(def.seed, def.size, def.depth), from.zoneId);
+    zi.isCave = true;
+    zi.caveDef = def;
+    zi.caveName = prop.name;
+    zi.returnTo = this.surfaceExit(from, prop);
+    this.zones.set(key, zi);
+    this.populateCave(zi, def);
+    return zi;
+  }
+
+  // case praticable devant l'entrée de la grotte : le point de retour à la surface
+  surfaceExit(zi, prop) {
+    for (const [dx, dz] of [[0, 1], [1, 0], [-1, 0], [0, 2], [1, 1], [-1, 1], [0, -1]]) {
+      if (zi.world.isWalkable(prop.x + dx, prop.z + dz)) {
+        return { zoneId: zi.zoneId, x: prop.x + dx, z: prop.z + dz };
+      }
+    }
+    return { zoneId: zi.zoneId, x: zi.world.spawnPoint.x, z: zi.world.spawnPoint.z };
+  }
+
+  populateCave(zi, def) {
+    // les monstres du thème de la grotte, un peu plus coriaces que la surface
+    const base = this.zoneDef(zi.zoneId).levels[0] - 1 + CAVE_LEVEL_BONUS;
+    const rng = mulberry32((def.seed ^ 0x9e37) >>> 0);
+    for (const spot of zi.world.mobSpots) {
+      this.spawnMob(zi, def.mobs[Math.floor(rng() * def.mobs.length)], spot.x, spot.z, base);
+    }
+  }
+
+  enterCave(p, prop) {
+    const zi = this.getCaveZone(prop, p.zi);
+    if (!zi) {
+      // grotte sans intérieur défini : l'entrée reste condamnée (contenu à venir)
+      this.send(p, { t: 'info', text: `${prop.name || 'La grotte'} : l'entrée est obstruée par des éboulis...` });
+      return;
+    }
+    this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
+    this.savePlayer(p);
+    this.send(p, { t: 'info', text: `Vous pénétrez dans ${zi.caveName}. L'obscurité vous enveloppe...` });
+  }
+
+  leaveCave(p) {
+    const back = p.zi.returnTo;
+    this.movePlayerToZone(p, this.island(back.zoneId), back.x, back.z);
     this.savePlayer(p);
   }
 
@@ -429,7 +511,8 @@ export class Game {
   // Renvoie les deux variantes { legacy, new } : le client choisit selon
   // le pack sélectionné dans ses paramètres.
   musicFor(zi) {
-    const s = zi.isTrial ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
+    // les cavernes partagent l'ambiance oppressante de l'Épreuve
+    const s = (zi.isTrial || zi.isCave) ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
     return (s && (s.legacy || s.new)) ? s : null;
   }
 
@@ -548,7 +631,7 @@ export class Game {
         break;
       }
       case 'teleport': {
-        if (p.dead || p.zi.isTrial) return;
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return; // pas d'obélisque sous terre
         const zid = msg.zoneId | 0;
         if (!p.unlocked.includes(zid) || !this.island(zid)) return;
         if (this.now() > p.obeliskUntil) { this.send(p, { t: 'info', text: 'Approchez-vous de l\'obélisque.' }); return; }
@@ -557,7 +640,7 @@ export class Game {
         break;
       }
       case 'trial_enter': {
-        if (p.dead || p.zi.isTrial) return;
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return;
         if (!p.trialOffer || this.now() > p.trialOffer) { this.send(p, { t: 'info', text: 'Retournez au portail de l\'Épreuve.' }); return; }
         p.trialOffer = null;
         this.startTrial(p);
@@ -769,15 +852,14 @@ export class Game {
       });
     } else if (prop.type === 'exitgate' && p.zi.isTrial) {
       this.finishTrial(p);
+    } else if (prop.type === 'exitgate' && p.zi.isCave) {
+      this.leaveCave(p);
     } else if (prop.type === 'chest') {
       this.openChest(p, prop);
     } else if (prop.type === 'bank') {
       this.openBank(p);
     } else if (prop.type === 'cave') {
-      this.send(p, {
-        t: 'info',
-        text: `${prop.name || 'La grotte'} : l'entrée est obstruée par des éboulis... (les souterrains arrivent dans une prochaine version)`,
-      });
+      this.enterCave(p, prop);
     }
   }
 
@@ -1414,7 +1496,9 @@ export class Game {
     p.path = null; p.moveDir = null; p.attackTarget = null;
     p.casting = null; p.pendingCast = null; // la mort interrompt l'incantation
     const who = killer.kind === C.KIND.MOB ? killer.def.name : killer.name;
-    const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}` : this.zoneDef(p.zi.zoneId).name;
+    const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}`
+      : p.zi.isCave ? p.zi.caveName
+      : this.zoneDef(p.zi.zoneId).name;
     db.recordDeath(p.name, p.level, zoneName, who);
     db.deleteCharacter(p.accountId);
     this.broadcastChat('sys', `☠ ${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
