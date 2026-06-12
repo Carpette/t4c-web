@@ -210,6 +210,13 @@ export function chestPool(zoneId) {
 }
 
 // sprite = clé du manifest d'animations Flare
+// tint = recoloration de la planche au chargement (variations d'une même
+//        silhouette : loup gris vs loup noir, skraug vert vs rouge...)
+// spriteScale = compensation des planches de résolutions inégales
+// Niveaux et hiérarchie fidèles à la Bible T4C (t4cfantasy.com, table Classic),
+// compressés sur l'échelle d'Arakas (zone 0 : niveaux 1-25) ; noms français
+// des sites communautaires (t4c.arp.free.fr). PV/dégâts suivent la courbe
+// maison (cf. monstres historiques), l'XP découle du niveau via mobXpReward.
 export const MOBS = {
   rat: {
     name: 'Fourmilion', level: 1, hp: 12, dmg: 2, def: 0, speed: 3.4,
@@ -262,6 +269,233 @@ export const MOBS = {
     // que les autres monstres) : on compense au rendu
     sprite: 'minotaur', spriteScale: 3.2,
     drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1], ['ecu_de_drachen', 0.01, 1, 1]],
+  },
+
+  // ================= Bêtes sauvages =================
+  rat_caverne: {
+    name: 'Rat des cavernes', level: 2, hp: 16, dmg: 2, def: 1, speed: 3.8,
+    aggro: 6, leash: 16, atkRange: 1.3, atkSpeed: 1.3,
+    resist: { lumiere: -0.25 },
+    sprite: 'grisbon', tint: '#8a7a5e', spriteScale: 1.2,
+    drops: [['or', 0.9, 2, 6], ['potion_vie', 0.08, 1, 1]],
+  },
+  loup: {
+    name: 'Loup', level: 4, hp: 30, dmg: 4, def: 2, speed: 4.6,
+    aggro: 8, leash: 20, atkRange: 1.4, atkSpeed: 1.2,
+    resist: { eau: 0.2, feu: -0.2 },
+    sprite: 'grisbon', tint: '#9aa4b2', spriteScale: 1.9,
+    drops: [['or', 0.9, 3, 9], ['potion_vie', 0.1, 1, 1], ['amulette_loup', 0.015, 1, 1]],
+  },
+  sanglier: {
+    name: 'Sanglier', level: 5, hp: 45, dmg: 5, def: 4, speed: 4.0,
+    aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.6,
+    resist: { terre: 0.2 },
+    sprite: 'grisbon', tint: '#7a4f2e', spriteScale: 1.7,
+    drops: [['or', 0.9, 4, 11], ['potion_vie', 0.12, 1, 1]],
+  },
+  loup_noir: {
+    name: 'Loup noir', level: 7, hp: 58, dmg: 7, def: 5, speed: 4.8,
+    aggro: 9, leash: 22, atkRange: 1.4, atkSpeed: 1.2,
+    resist: { eau: 0.2, lumiere: -0.25 },
+    sprite: 'grisbon', tint: '#3c4048', spriteScale: 2.1,
+    drops: [['or', 0.9, 5, 15], ['potion_vie', 0.1, 1, 1], ['amulette_loup', 0.025, 1, 1]],
+  },
+  ours: {
+    name: 'Ours brun', level: 10, hp: 120, dmg: 10, def: 8, speed: 3.6,
+    aggro: 8, leash: 22, atkRange: 1.7, atkSpeed: 2.0,
+    resist: { eau: 0.25, terre: 0.2 },
+    sprite: 'grisbon', spriteScale: 2.6,
+    drops: [['or', 0.9, 8, 26], ['potion_vie', 0.18, 1, 2], ['amulette_loup', 0.02, 1, 1]],
+  },
+  serpent_venimeux: {
+    // « Poisonous Snake » niveau 10 de la Bible
+    name: 'Serpent venimeux', level: 10, hp: 85, dmg: 11, def: 7, speed: 3.6,
+    aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.4,
+    resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
+    sprite: 'wyvern', tint: '#5fae4f', spriteScale: 2.0,
+    drops: [['or', 0.9, 8, 24], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.06, 1, 1]],
+  },
+
+  // ================= Arachnides et insectoïdes =================
+  araignee_geante: {
+    // « Giant Spider » niveau 4 de la Bible
+    name: 'Araignée géante', level: 3, hp: 20, dmg: 3, def: 1, speed: 4.0,
+    aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.3,
+    resist: { terre: 0.2, feu: -0.25 },
+    sprite: 'antlion', tint: '#6a5a8a', spriteScale: 0.65,
+    drops: [['or', 0.9, 2, 7], ['potion_vie', 0.08, 1, 1]],
+  },
+  tarentule: {
+    // le « t-field » près d'Evelyn — Bible : Tarantula
+    name: 'Tarentule', level: 11, hp: 100, dmg: 11, def: 9, speed: 4.2,
+    aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.4,
+    resist: { terre: 0.25, eau: -0.25 },
+    sprite: 'antlion', tint: '#8a5430', spriteScale: 0.85,
+    drops: [['or', 0.9, 9, 26], ['potion_vie', 0.12, 1, 1], ['potion_mana', 0.08, 1, 1]],
+  },
+  guepe: {
+    // « Giant Wasp » niveau 12 de la Bible — frêle mais véloce
+    name: 'Guêpe géante', level: 12, hp: 90, dmg: 12, def: 8, speed: 5.0,
+    aggro: 9, leash: 24, atkRange: 1.4, atkSpeed: 1.1,
+    resist: { air: 0.4, terre: -0.3 },
+    sprite: 'wyvern_adult', tint: '#e0c24a', spriteScale: 1.5,
+    drops: [['or', 0.9, 9, 26], ['potion_mana', 0.1, 1, 1], ['potion_vie', 0.1, 1, 1]],
+  },
+  kraanian: {
+    // « Kraanian Worker » niveau 14 — le peuple insecte de Bug isle
+    name: 'Ouvrier kraanien', level: 14, hp: 170, dmg: 14, def: 12, speed: 4.0,
+    aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.6,
+    resist: { eau: 0.3, terre: 0.2, feu: -0.3 },
+    sprite: 'ice_ant', spriteScale: 0.9,
+    drops: [['or', 0.95, 14, 38], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.1, 1, 1], ['baton_combat', 0.03, 1, 1]],
+  },
+  fourmilion_geant: {
+    name: 'Fourmilion géant', level: 14, hp: 190, dmg: 14, def: 14, speed: 3.2,
+    aggro: 9, leash: 22, atkRange: 1.7, atkSpeed: 1.9,
+    resist: { terre: 0.4, eau: -0.3 },
+    sprite: 'antlion', tint: '#c8a050', spriteScale: 1.3,
+    drops: [['or', 0.95, 14, 40], ['potion_vie', 0.15, 1, 2], ['arc_en_os_du_desert', 0.015, 1, 1]],
+  },
+  mille_pattes: {
+    // « Kraanian Milipede » — le lac aux mille-pattes (Millie lake)
+    name: 'Mille-pattes kraanien', level: 16, hp: 215, dmg: 16, def: 14, speed: 4.4,
+    aggro: 10, leash: 26, atkRange: 1.5, atkSpeed: 1.4,
+    resist: { eau: 0.3, terre: 0.3, feu: -0.3 },
+    sprite: 'ice_ant', tint: '#b06ad0', spriteScale: 1.15,
+    drops: [['or', 0.95, 15, 42], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.1, 1, 1]],
+  },
+  tarentule_geante: {
+    // le « heavy-t » du champ de tarentules
+    name: 'Tarentule géante', level: 17, hp: 250, dmg: 17, def: 14, speed: 3.8,
+    aggro: 10, leash: 26, atkRange: 1.7, atkSpeed: 1.6,
+    resist: { terre: 0.3, eau: -0.25 },
+    sprite: 'antlion', tint: '#a03c28', spriteScale: 1.2,
+    drops: [['or', 0.95, 16, 48], ['potion_mana', 0.12, 1, 1], ['potion_vie', 0.15, 1, 2], ['arc_des_arachnides', 0.008, 1, 1]],
+  },
+  necro_araignee: {
+    // « Necrospider » — au sud des skraugs verts (spot « Spiders »)
+    name: 'Nécro-araignée', level: 20, hp: 320, dmg: 20, def: 16, speed: 4.0,
+    aggro: 11, leash: 28, atkRange: 1.7, atkSpeed: 1.5,
+    resist: { lumiere: -0.5, feu: -0.25, arcane: 0.5, eau: 0.3 }, undead: true,
+    sprite: 'antlion', tint: '#8fd0a8', spriteScale: 1.0,
+    drops: [['or', 0.95, 18, 52], ['potion_mana', 0.15, 1, 2], ['anneau_saphir', 0.04, 1, 1], ['dague_du_crane', 0.03, 1, 1]],
+  },
+
+  // ================= Humains hors-la-loi =================
+  brigand: {
+    // Bible : Brigand niveau 7 — la cave des Brigands
+    name: 'Brigand', level: 7, hp: 60, dmg: 7, def: 6, speed: 4.0,
+    aggro: 9, leash: 24, atkRange: 1.5, atkSpeed: 1.5,
+    resist: {},
+    sprite: 'hobgoblin_archer', tint: '#c08a5a', spriteScale: 1.25,
+    drops: [['or', 0.95, 8, 22], ['potion_vie', 0.12, 1, 1], ['dague_rouillee', 0.05, 1, 1], ['arc_droit_frene', 0.04, 1, 1], ['cuir', 0.06, 1, 1]],
+  },
+  voleur: {
+    // Bible : Thief niveau 8 — il porte la bourse des autres
+    name: 'Voleur', level: 8, hp: 62, dmg: 8, def: 6, speed: 4.6,
+    aggro: 9, leash: 24, atkRange: 1.4, atkSpeed: 1.3,
+    resist: {},
+    sprite: 'hobgoblin_archer', tint: '#4a4a5e', spriteScale: 1.25,
+    drops: [['or', 1.0, 12, 30], ['potion_mana', 0.08, 1, 1], ['dague_perceuse', 0.02, 1, 1], ['anneau_os', 0.05, 1, 1]],
+  },
+
+  // ================= Peaux-vertes : vrais orcs et skraugs =================
+  orc_eclaireur: {
+    // Bible : Orc Scout niveau 9
+    name: 'Éclaireur orc', level: 9, hp: 80, dmg: 9, def: 7, speed: 4.4,
+    aggro: 10, leash: 26, atkRange: 1.5, atkSpeed: 1.5,
+    resist: { terre: 0.2, air: -0.2 },
+    sprite: 'goblin_elite', tint: '#6a7a3a', spriteScale: 0.8,
+    drops: [['or', 0.95, 8, 22], ['potion_vie', 0.12, 1, 1], ['arc_droit_frene', 0.05, 1, 1], ['capuche', 0.05, 1, 1]],
+  },
+  orc_guerrier: {
+    // Bible : Orc Warrior niveau 12 — distinct du Hobgobelin
+    name: 'Guerrier orc', level: 12, hp: 135, dmg: 12, def: 12, speed: 3.8,
+    aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.7,
+    resist: { terre: 0.3, air: -0.25 },
+    sprite: 'goblin_elite', spriteScale: 0.95,
+    drops: [['or', 0.95, 12, 32], ['potion_vie', 0.15, 1, 2], ['hachette_rouillee', 0.04, 1, 1], ['bouclier_orque', 0.03, 1, 1], ['gourdin_renforce', 0.03, 1, 1]],
+  },
+  orc_chaman: {
+    // Bible : Orc Shaman niveau 15 (Lightning Bolt) — frappe d'éclairs
+    name: 'Chaman orc', level: 15, hp: 160, dmg: 16, def: 11, speed: 3.6,
+    aggro: 11, leash: 26, atkRange: 1.8, atkSpeed: 1.8,
+    element: 'air',
+    resist: { air: 0.5, arcane: 0.3, terre: -0.25 },
+    sprite: 'necromancer', tint: '#5a8a4a', spriteScale: 2.2,
+    drops: [['or', 0.95, 14, 40], ['potion_mana', 0.15, 1, 2], ['sceptre_fer', 0.04, 1, 1], ['sceptre_epine', 0.025, 1, 1], ['amulette_sage', 0.01, 1, 1]],
+  },
+  skraug_vert: {
+    name: 'Skraug vert', level: 17, hp: 240, dmg: 17, def: 15, speed: 3.8,
+    aggro: 11, leash: 28, atkRange: 1.6, atkSpeed: 1.8,
+    resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
+    sprite: 'hobgoblin', tint: '#4a9a3a', spriteScale: 1.2,
+    drops: [['or', 0.95, 16, 46], ['potion_vie', 0.2, 1, 2], ['fleau_stabilite', 0.02, 1, 1], ['arc_primitif_skraugh', 0.012, 1, 1]],
+  },
+  skraug_rouge: {
+    name: 'Skraug rouge', level: 21, hp: 360, dmg: 21, def: 18, speed: 3.8,
+    aggro: 11, leash: 28, atkRange: 1.6, atkSpeed: 1.8,
+    resist: { feu: 0.4, terre: 0.3, eau: -0.3 },
+    sprite: 'hobgoblin', tint: '#b03a2a', spriteScale: 1.3,
+    drops: [['or', 0.95, 20, 58], ['potion_vie', 0.25, 1, 2], ['arc_primitif_skraugh', 0.02, 1, 1], ['bouclier_orque', 0.05, 1, 1], ['epee_de_fureur', 0.02, 1, 1]],
+  },
+  troll: {
+    // LE troll de l'île d'Orkanis
+    name: 'Troll', level: 22, hp: 420, dmg: 22, def: 18, speed: 3.4,
+    aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.2,
+    resist: { terre: 0.4, eau: 0.3, feu: -0.5 },
+    sprite: 'goblin_elite', tint: '#3a6a4a', spriteScale: 1.4,
+    drops: [['or', 1.0, 30, 90], ['potion_vie', 0.3, 2, 3], ['gourdin_du_troll', 0.04, 1, 1], ['plates', 0.04, 1, 1], ['anneau_saphir', 0.06, 1, 1]],
+  },
+
+  // ================= Morts-vivants =================
+  momie: {
+    name: 'Momie', level: 6, hp: 50, dmg: 6, def: 5, speed: 2.6,
+    aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.9,
+    resist: { feu: -0.5, lumiere: -0.5, eau: 0.3, arcane: 0.4 }, undead: true,
+    sprite: 'zombie', tint: '#d8c890', spriteScale: 1.0,
+    drops: [['or', 0.9, 5, 14], ['potion_vie', 0.1, 1, 1], ['anneau_os', 0.06, 1, 1], ['capuche', 0.05, 1, 1], ['dague_du_crane', 0.02, 1, 1]],
+  },
+  goule: {
+    name: 'Goule', level: 11, hp: 110, dmg: 11, def: 8, speed: 3.4,
+    aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.6,
+    resist: { feu: -0.3, lumiere: -0.5, eau: 0.3, arcane: 0.4 }, undead: true,
+    sprite: 'zombie_dark', spriteScale: 0.95,
+    drops: [['or', 0.95, 10, 28], ['potion_vie', 0.15, 1, 2], ['anneau_os', 0.07, 1, 1], ['mailles', 0.05, 1, 1], ['casque_fer', 0.04, 1, 1]],
+  },
+  liche_mineure: {
+    // écho lointain de la Liche (niveau 100 dans la Bible) — magie des arcanes
+    name: 'Liche mineure', level: 24, hp: 400, dmg: 26, def: 18, speed: 3.0,
+    aggro: 12, leash: 30, atkRange: 2.2, atkSpeed: 2.0,
+    element: 'arcane',
+    resist: { feu: -0.25, lumiere: -0.6, eau: 0.4, arcane: 0.7, air: 0.3 }, undead: true,
+    sprite: 'skeleton_mage',
+    drops: [['or', 1.0, 30, 85], ['potion_mana', 0.3, 1, 2], ['sceptre_drachen', 0.03, 1, 1], ['baton_langueur', 0.015, 1, 1], ['amulette_sage', 0.03, 1, 1], ['anneau_saphir', 0.07, 1, 1]],
+  },
+
+  // ================= Créatures magiques =================
+  elementaire_feu: {
+    name: 'Élémentaire de feu', level: 18, hp: 230, dmg: 19, def: 14, speed: 3.6,
+    aggro: 11, leash: 26, atkRange: 1.8, atkSpeed: 1.6,
+    element: 'feu',
+    resist: { feu: 0.9, eau: -0.75, arcane: 0.3 },
+    sprite: 'vesuvvio', tint: '#e07028', spriteScale: 2.5,
+    drops: [['or', 0.95, 16, 46], ['potion_mana', 0.2, 1, 2], ['sceptre_drachen', 0.012, 1, 1]],
+  },
+  golem_pierre: {
+    name: 'Golem de pierre', level: 23, hp: 460, dmg: 23, def: 26, speed: 2.4,
+    aggro: 9, leash: 24, atkRange: 1.9, atkSpeed: 2.4,
+    resist: { terre: 0.6, arcane: 0.4, feu: 0.3, eau: -0.4 },
+    sprite: 'minotaur', tint: '#7a8088', spriteScale: 3.4,
+    drops: [['or', 0.95, 25, 75], ['potion_vie', 0.2, 1, 2], ['anneau_saphir', 0.08, 1, 1], ['marteau_guerre_renforce', 0.03, 1, 1]],
+  },
+  centaure: {
+    // les plaines des centaures (spot « Cents »)
+    name: 'Centaure', level: 19, hp: 300, dmg: 19, def: 16, speed: 5.2,
+    aggro: 12, leash: 32, atkRange: 1.8, atkSpeed: 1.6,
+    resist: { air: 0.25, terre: 0.2 },
+    sprite: 'minotaur', tint: '#9a6a42', spriteScale: 2.9,
+    drops: [['or', 0.95, 18, 50], ['potion_vie', 0.2, 1, 2], ['grand_arc_frene', 0.05, 1, 1], ['arc_courbe_frene', 0.03, 1, 1], ['arc_pourfendeur_centaures', 0.01, 1, 1]],
   },
 };
 
