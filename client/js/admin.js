@@ -383,6 +383,96 @@ function realignSheet(src, cw, ch, ax, ay, inset = 3) {
   return out;
 }
 
+// Détection de la VRAIE grille dessinée par l'IA. Les générateurs tracent
+// leurs propres séparateurs, à un pas qui dérive (mesuré : ~140 px au lieu de
+// 128, et variable verticalement) : découper à l'aveugle mélange les cases.
+// Ici : 1) repère les lignes peintes (colonnes/rangées remplies sur >85 %),
+// 2) les efface PAR COULEUR dans toute l'image (médiane des lignes, plus la
+// dominante si la couleur est verte), 3) reconstruit une planche propre en
+// recadrant chaque vraie cellule sur l'ancrage. Retourne null si aucune
+// grille peinte n'est détectée (on retombe alors sur realignSheet).
+function regridSheet(src, cw, ch, ax, ay) {
+  const W = src.width, H = src.height;
+  const sctx = src.getContext('2d');
+  const d = sctx.getImageData(0, 0, W, H);
+  const px = d.data;
+  const vfill = new Float32Array(W), hfill = new Float32Array(H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (px[(y * W + x) * 4 + 3] > 24) { vfill[x] += 1 / H; hfill[y] += 1 / W; }
+    }
+  }
+  const vlines = [], hlines = [];
+  for (let x = 0; x < W; x++) if (vfill[x] > 0.85) vlines.push(x);
+  for (let y = 0; y < H; y++) if (hfill[y] > 0.85) hlines.push(y);
+  if (vlines.length < 2) return null;
+
+  // couleur médiane des lignes
+  const ch0 = [], ch1 = [], ch2 = [];
+  for (const x of vlines) {
+    for (let y = 0; y < H; y += 5) {
+      const i = (y * W + x) * 4;
+      if (px[i + 3] > 24) { ch0.push(px[i]); ch1.push(px[i + 1]); ch2.push(px[i + 2]); }
+    }
+  }
+  const med = (arr) => { arr.sort((a, b) => a - b); return arr[arr.length >> 1] || 0; };
+  const Lr = med(ch0), Lg = med(ch1), Lb = med(ch2);
+  const greenish = Lg > Lr + 20 && Lg > Lb + 20;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] <= 24) continue;
+    const dr = px[i] - Lr, dg = px[i + 1] - Lg, db = px[i + 2] - Lb;
+    if (dr * dr + dg * dg + db * db < 4900
+      || (greenish && px[i + 1] > px[i] + 30 && px[i + 1] > px[i + 2] + 30)) px[i + 3] = 0;
+  }
+  sctx.putImageData(d, 0, 0);
+
+  // frontières : centres des amas de lignes + bords de l'image
+  const centers = (idx, max) => {
+    const out = [];
+    let run = [];
+    for (const v of idx) {
+      if (run.length && v !== run[run.length - 1] + 1) { out.push(Math.round(run.reduce((a, b) => a + b) / run.length)); run = []; }
+      run.push(v);
+    }
+    if (run.length) out.push(Math.round(run.reduce((a, b) => a + b) / run.length));
+    return out.filter(c => c > 10 && c < max - 10);
+  };
+  const vb = [0, ...centers(vlines, W), W];
+  const hb = hlines.length ? [0, ...centers(hlines, H), H] : Array.from({ length: 9 }, (_, i) => Math.round(i * H / 8));
+  if (hb.length !== 9) return null; // pas 8 rangées : trop risqué
+  const cols = vb.length - 1;
+  if (cols < 2) return null;
+
+  // reconstruction : bbox de chaque vraie cellule -> case propre cw x ch
+  const out = document.createElement('canvas');
+  out.width = cols * cw; out.height = 8 * ch;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = 'high';
+  const d2 = sctx.getImageData(0, 0, W, H).data;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < cols; c++) {
+      let minX = Infinity, maxX = -1, minY = Infinity, maxY = -1;
+      for (let y = hb[r]; y < hb[r + 1]; y++) {
+        for (let x = vb[c]; x < vb[c + 1]; x++) {
+          if (d2[(y * W + x) * 4 + 3] > 24) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) continue;
+      let w2 = maxX - minX + 1, h2 = maxY - minY + 1;
+      const s = Math.min((cw - 6) / w2, (ch - 10) / h2, 1);
+      const dw = Math.max(1, Math.round(w2 * s)), dh = Math.max(1, Math.round(h2 * s));
+      const tx = Math.min(Math.max(c * cw + ax - (dw >> 1), c * cw), (c + 1) * cw - dw);
+      const ty = Math.min(Math.max(r * ch + ay - dh, r * ch), r * ch + ch - dh);
+      octx.drawImage(src, minX, minY, w2, h2, tx, ty, dw, dh);
+    }
+  }
+  return { canvas: out, cols };
+}
+
 $('skin-enemy-upload').onclick = async () => {
   const f = $('skin-enemy-file').files[0];
   if (!f) { $('skins-msg').textContent = '✘ Choisissez la planche.'; return; }
@@ -393,18 +483,35 @@ $('skin-enemy-upload').onclick = async () => {
       anchor: [parseInt($('skin-anchor-x').value, 10), parseInt($('skin-anchor-y').value, 10)],
       anims: JSON.parse($('skin-enemy-anims').value),
     };
-    // taille EXACTE attendue par la grille : colonnes x case, 8 lignes
-    const cols = Math.max(0, ...Object.values(cfg.anims).map(a => (a.to | 0) + 1));
-    let { data, canvas } = await prepareImage(f, {
-      targetW: cols * cfg.cell[0], targetH: 8 * cfg.cell[1], mode: 'stretch',
-    });
+    const declared = Math.max(0, ...Object.values(cfg.anims).map(a => (a.to | 0) + 1));
+    const [cw2, ch2] = cfg.cell, [ax2, ay2] = cfg.anchor;
+    let canvas, data, note = '';
     if ($('skin-realign').checked) {
-      canvas = realignSheet(canvas, cfg.cell[0], cfg.cell[1], cfg.anchor[0], cfg.anchor[1]);
+      // 1er choix : détecter la grille PEINTE par l'IA et reconstruire proprement
+      const native = await prepareImage(f, {}); // chroma seul, résolution d'origine
+      const grid = regridSheet(native.canvas, cw2, ch2, ax2, ay2);
+      if (grid) {
+        canvas = grid.canvas;
+        if (grid.cols !== declared) {
+          // borne les plages d'animations aux colonnes réellement dessinées
+          for (const a of Object.values(cfg.anims)) {
+            a.from = Math.min(a.from | 0, grid.cols - 1);
+            a.to = Math.min(a.to | 0, grid.cols - 1);
+          }
+          note = ` ⚠ grille réelle : ${grid.cols} colonnes (${declared} déclarées), animations bornées.`;
+        }
+      } else {
+        // pas de grille peinte : étire vers la grille déclarée puis recale par case
+        const prep = await prepareImage(f, { targetW: declared * cw2, targetH: 8 * ch2, mode: 'stretch' });
+        canvas = realignSheet(prep.canvas, cw2, ch2, ax2, ay2);
+      }
       data = canvas.toDataURL('image/png').split(',')[1];
+    } else {
+      ({ data, canvas } = await prepareImage(f, { targetW: declared * cw2, targetH: 8 * ch2, mode: 'stretch' }));
     }
     const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data });
     $('skins-msg').textContent = `✔ Planche « ${r.sprite} » ${r.existed ? 'remplacée' : 'importée'} `
-      + `(${canvas.width}×${canvas.height}, ${r.cols} colonnes, ${r.anims.join(', ')}) — assignez-la à une créature.`;
+      + `(${canvas.width}×${canvas.height}, ${r.cols} colonnes, ${r.anims.join(', ')}) — assignez-la à une créature.${note}`;
     skinPreview(canvas.toDataURL());
     await loadSkins();
   } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
