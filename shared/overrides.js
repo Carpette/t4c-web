@@ -1,10 +1,25 @@
 // Modifications de carte éditées par l'admin, appliquées par-dessus la génération.
 // Format : { tiles: [[x, z, type], ...],
-//            props: { add: [{type, x, z, v?, s?, rot?}], remove: [[x, z]] } }
+//            props: { add: [{type, x, z, v?, s?, rot?}], remove: [[x, z]] },
+//            camps?: [...], npcs?: {...} }
 // Champs optionnels d'un ajout (rétrocompatible : absents = comportement historique) :
 //   v   — variante explicite (index ou nom, voir PROP_TYPES de decormap.js)
 //   s   — échelle du sprite (bornée 0.25..3 ; honorée pour les props redimensionnables)
 //   rot — rotation (les sprites iso pré-rendus n'honorent que le miroir : cos(rot) < 0)
+//
+// Sections appliquées par le SERVEUR DE JEU (game.js), pas par cette fonction
+// (elles ne touchent pas à la géométrie du monde) — rétrocompatibles : absentes,
+// les défauts du worldgen restent en vigueur.
+//   camps — REMPLACE les camps de spawn par mouvement de la zone :
+//     [{ id, x, z, r, mobs: { defId: n, ... } }]  (centre + rayon + composition)
+//   npcs — retouches des PNJ de la zone :
+//     { remove: [npcId, ...],                       PNJ par défaut retirés
+//       move:   [{ npcId, x, z }, ...],             PNJ par défaut déplacés
+//       edit:   { npcId: { champs... } },           PNJ par défaut retouchés
+//       add:    [{ id, x, z, champs... }, ...] }    PNJ créés de toutes pièces
+//     champs éditables : name, look, role ('merchant'|'teacher'|'bavard'),
+//     greetings (phrases d'ambiance), sells (objets vendus, ids), teaches
+//     (sorts enseignés, ids), dialogues (mots-clés, cf. server/game/dialogues.js)
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);

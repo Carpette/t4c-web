@@ -179,6 +179,9 @@ export class Player extends Character {
     // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
     this.skills = (data.skills && !Array.isArray(data.skills)) ? data.skills : {};
     this.unlocked = data.unlocked || [0];
+    // drapeaux persistants posés par les dialogues de PNJ (quêtes, accès,
+    // récompenses déjà versées `dlg:<npc>:<index>`) — clef -> true
+    this.flags = data.flags || {};
     this.moveDir = null;
     this.attackTarget = null;
     this.spellCds = {};
@@ -329,6 +332,7 @@ export class Player extends Character {
       bank: this.bank,
       hpAcc: this.hpAcc, manaAcc: this.manaAcc,
       spells: this.spells, skills: this.skills, unlocked: this.unlocked,
+      flags: this.flags,
       sex: this.sex,
       zoneId: this.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
       trialFor: this.zi.isTrial ? this.zi.trialTarget : null,
@@ -350,6 +354,7 @@ export class Player extends Character {
     this.inventory = data.inventory; this.equip = data.equip;
     this.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     this.spells = []; this.skills = {}; this.unlocked = [0];
+    this.flags = {}; // les drapeaux de quête meurent avec le personnage
     this.buffs = []; this.spellCds = {}; this.casting = null;
     this.curseUntil = 0; this.sanctuaryUntil = 0; this.pacifiedUntil = 0;
     this.recompute(game);
@@ -545,6 +550,9 @@ export class NPC extends Entity {
   constructor(id, npcId, def, x, z) {
     super(id, C.KIND.NPC, x, z);
     this.npcId = npcId;
+    // définition EFFECTIVE (zones.json, éventuellement retouchée ou créée par
+    // les overrides de la zone) : rôle, étal, sorts enseignés, dialogues...
+    this.def = def;
     this.name = def.name;
     this.look = def.look;
     this.dir = Math.PI;

@@ -3,7 +3,7 @@
 // dans entities.js, le système de sorts dans spells.js, la grille dans zone.js.
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS, SLOTS, CHESTS, BANK_SIZE, chestPool } from '../../shared/defs.js';
-import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
+import { generateWorld, generateTrial, defaultNpcSpots, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
 import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../../shared/cave.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
@@ -15,6 +15,7 @@ import * as db from '../db.js';
 import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
 import * as spells from './spells.js';
+import { handleNpcKeywords, rootKeywordsHint } from './dialogues.js';
 
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
@@ -25,6 +26,13 @@ const SPAWN_INTERVAL_MS = Math.max(50,
   parseInt(process.env.T4C_SPAWN_MS, 10) || C.SPAWN_INTERVAL_DEFAULT_MS);
 const SPAWN_TRIES_PER_TICK = 12;  // essais de placement avant d'abandonner le tick
 const PARTY_VITALS_EVERY_TICKS = 10; // PV des membres du groupe : 1 envoi/s
+
+// Garde-fous des camps édités par l'admin (overrides `camps`)
+const CAMP_RADIUS_MIN = 1, CAMP_RADIUS_MAX = 40; // rayon d'un camp (tuiles)
+const CAMP_QUOTA_MAX = 50;                       // population max par monstre d'un camp
+
+// champs d'un PNJ que les overrides (`npcs.edit` / `npcs.add`) peuvent définir
+const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teaches', 'dialogues'];
 
 export class Game {
   constructor() {
@@ -50,22 +58,73 @@ export class Game {
 
   // ---------- Peuplement ----------
   // Spawn T4C déclenché par le MOUVEMENT : les zones démarrent VIDES de
-  // monstres. Les camps historiques (composition de l'ancien populateIsland)
-  // deviennent des BUDGETS : tant qu'un camp est sous sa capacité et qu'un
-  // joueur bouge dans la zone, le tick de spawn peut y faire apparaître un
-  // monstre — toujours hors champ (à SPAWN_MIN_PLAYER_DIST de tout joueur).
+  // monstres. Les camps (par défaut ceux du worldgen, sinon les overrides
+  // `camps` édités dans l'admin) sont des BUDGETS : tant qu'un camp est sous
+  // sa capacité et qu'un joueur bouge dans la zone, le tick de spawn peut y
+  // faire apparaître un monstre — toujours hors champ (SPAWN_MIN_PLAYER_DIST).
   populateIsland(zi) {
+    const ov = loadOverrides(zi.zoneId);
+    zi.camps = this.buildIslandCamps(zi, ov);
+    this.spawnNpc(zi, ov);
+  }
+
+  // Un camp = centre + rayon + quota de population PAR monstre. `aliveBy`
+  // décompte les vivants par defId (décrémenté à la mort), `cap`/`alive` la
+  // population globale (les camps de caverne, sans quota, n'utilisent qu'eux).
+  makeCamp(x, z, radius, mobs, base) {
+    const quota = {};
+    let cap = 0;
+    for (const [defId, n] of Object.entries(mobs || {})) {
+      if (!MOBS[defId] || !((n | 0) > 0)) continue;
+      quota[defId] = Math.min(CAMP_QUOTA_MAX, n | 0);
+      cap += quota[defId];
+    }
+    if (!cap || !Number.isFinite(+x) || !Number.isFinite(+z)) return null;
+    return {
+      x: +x, z: +z,
+      radius: Math.max(CAMP_RADIUS_MIN, Math.min(CAMP_RADIUS_MAX, +radius || CAMP_RADIUS_MIN)),
+      defIds: Object.keys(quota),
+      quota, aliveBy: {},
+      cap, alive: 0,
+      base, // niveau de base de la zone (scaling)
+    };
+  }
+
+  // Camps d'une île : les overrides `camps` (format {id, x, z, r, mobs}) s'ils
+  // existent — un tableau, même vide, REMPLACE tout — sinon les camps par
+  // défaut du worldgen (carte fixe ou camps communs procéduraux).
+  buildIslandCamps(zi, ov) {
     const base = this.zoneDef(zi.zoneId).levels[0] - 1;
-    // une carte fixe (Arakas) définit ses propres camps ; sinon camps communs
-    zi.camps = (zi.world.spawnZones || SPAWN_ZONES).map(zone => ({
-      x: zone.center[0] + 0.5, z: zone.center[1] + 0.5,
-      radius: zone.radius,
-      defIds: [zone.mob],   // composition du camp
-      cap: zone.count,      // population maximale
-      alive: 0,             // population actuelle (décomptée à la mort)
-      base,                 // niveau de base de la zone (scaling)
-    }));
-    this.spawnNpc(zi);
+    if (Array.isArray(ov?.camps)) {
+      return ov.camps.map(c => this.makeCamp(c.x, c.z, c.r, c.mobs, base)).filter(Boolean);
+    }
+    return (zi.world.spawnZones || SPAWN_ZONES)
+      .map(zone => this.makeCamp(zone.center[0] + 0.5, zone.center[1] + 0.5,
+        zone.radius, { [zone.mob]: zone.count }, base))
+      .filter(Boolean);
+  }
+
+  // Reconstruit les camps À CHAUD (PUT des overrides) : chaque monstre vivant
+  // est rattaché au nouveau camp qui le couvre (position + quota) ; l'orphelin
+  // d'un camp supprimé s'efface, sauf s'il est déjà au combat — « plus de
+  // spawn là » est effectif immédiatement.
+  refreshCamps(zi, ov) {
+    zi.camps = this.buildIslandCamps(zi, ov);
+    for (const e of [...zi.entities.values()]) {
+      if (e.kind !== C.KIND.MOB || e.dead) continue;
+      const wasCamped = !!e.camp;
+      e.camp = null;
+      const camp = zi.camps.find(c =>
+        (c.aliveBy[e.defId] || 0) < (c.quota[e.defId] || 0)
+        && Math.hypot(c.x - e.x, c.z - e.z) <= c.radius + 2);
+      if (camp) {
+        e.camp = camp;
+        camp.alive++;
+        camp.aliveBy[e.defId] = (camp.aliveBy[e.defId] || 0) + 1;
+      } else if (wasCamped && !e.target) {
+        zi.remove(e);
+      }
+    }
   }
 
   // un joueur a réellement bougé : la zone devient « chaude » quelques secondes
@@ -94,12 +153,25 @@ export class Game {
       const x = camp.x + Math.cos(a) * d, z = camp.z + Math.sin(a) * d;
       if (!zi.world.isWalkable(x, z)) continue;
       if (players.some(p => Math.hypot(p.x - x, p.z - z) < minDist)) continue;
-      const defId = camp.defIds[Math.floor(Math.random() * camp.defIds.length)];
+      const defId = this.pickCampMob(camp);
+      if (!defId) continue;
       const m = this.spawnMob(zi, defId, x, z, camp.base);
       m.camp = camp;
       camp.alive++;
+      if (camp.aliveBy) camp.aliveBy[defId] = (camp.aliveBy[defId] || 0) + 1;
       return;
     }
+  }
+
+  // Quel monstre faire apparaître dans ce camp ? Avec quota (camps d'île,
+  // édités ou par défaut) : tirage parmi les monstres sous leur quota. Sans
+  // quota (camps de caverne, capacité globale) : tirage libre dans le thème.
+  pickCampMob(camp) {
+    if (camp.quota) {
+      const open = camp.defIds.filter(d => (camp.aliveBy[d] || 0) < camp.quota[d]);
+      return open.length ? open[Math.floor(Math.random() * open.length)] : null;
+    }
+    return camp.defIds[Math.floor(Math.random() * camp.defIds.length)];
   }
 
   spawnMob(zi, defId, x, z, zoneBase) {
@@ -110,20 +182,56 @@ export class Game {
     return m;
   }
 
-  spawnNpc(zi) {
-    // carte fixe : emplacements explicites (un marchand par ville sur Arakas)
-    const spots = zi.world.npcSpots || (() => {
-      const v = zi.world.village;
-      let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
-      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      return [{ npcId: 'merchant', x, z }];
-    })();
-    for (const spot of spots) {
-      const def = content.npc[spot.npcId] || content.npc.merchant;
-      let { x, z } = spot, tries = 0;
-      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      zi.add(new NPC(this.nextId++, spot.npcId, def, x, z));
+  // Peuple la zone en PNJ : les emplacements par défaut du worldgen (carte
+  // fixe ou marchand du village), retouchés par les overrides `npcs` —
+  // remove (retirés), move (déplacés), edit (définition retouchée) — plus les
+  // PNJ créés de toutes pièces (add). Rétrocompatible : sans overrides, les
+  // PNJ de zones.json restent tels quels.
+  spawnNpc(zi, ov = null) {
+    const o = ov?.npcs || {};
+    const removed = new Set(Array.isArray(o.remove) ? o.remove : []);
+    const moved = new Map((Array.isArray(o.move) ? o.move : []).map(m => [m.npcId, m]));
+    const edits = o.edit || {};
+    const list = [];
+    for (const spot of defaultNpcSpots(zi.world)) {
+      if (removed.has(spot.npcId)) continue;
+      const base = content.npc[spot.npcId] || content.npc.merchant;
+      const at = moved.get(spot.npcId) || spot;
+      list.push({ npcId: spot.npcId, def: this.npcDefWithPatch(base, edits[spot.npcId]), x: +at.x, z: +at.z });
     }
+    for (const a of Array.isArray(o.add) ? o.add : []) {
+      if (!a || !a.id || !Number.isFinite(+a.x) || !Number.isFinite(+a.z)) continue;
+      list.push({ npcId: String(a.id), def: this.npcDefWithPatch(content.npc.merchant, a), x: +a.x, z: +a.z });
+    }
+    for (const e of list) {
+      let { x, z } = e, tries = 0;
+      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
+      zi.add(new NPC(this.nextId++, e.npcId, e.def, x, z));
+    }
+  }
+
+  // définition effective d'un PNJ : base de zones.json + champs édités
+  npcDefWithPatch(base, patch) {
+    if (!patch) return base;
+    const def = { ...base };
+    for (const f of NPC_EDITABLE_FIELDS) {
+      if (patch[f] != null) def[f] = patch[f];
+    }
+    return def;
+  }
+
+  // Applique les overrides d'une zone À CHAUD (PUT de l'admin) : le monde est
+  // reconstruit (tuiles/décors), les camps rebranchés, les PNJ respawnés.
+  applyZoneEdits(zoneId, ov) {
+    const def = content.zones[zoneId];
+    const zi = this.island(zoneId);
+    if (!def || !zi) return;
+    zi.world = applyOverrides(generateWorld(def.seed, def.map), ov);
+    this.refreshCamps(zi, ov);
+    for (const e of [...zi.entities.values()]) {
+      if (e.kind === C.KIND.NPC) zi.remove(e);
+    }
+    this.spawnNpc(zi, ov);
   }
 
   // ---------- Joueurs ----------
@@ -620,6 +728,8 @@ export class Game {
           // Chat local par défaut : envoie aux joueurs proches + bulle au-dessus de la tête
           this.sendLocalChat(p, rawText);
           this.eventNear(p, { t: 'say', id: p.id, text: rawText });
+          // un PNJ à portée d'oreille peut réagir aux mots-clés (quêtes T4C)
+          handleNpcKeywords(this, p, rawText);
         }
         break;
       }
@@ -881,31 +991,62 @@ export class Game {
     return null;
   }
 
-  // marchand généraliste (objets, compétences, rachat) — pas un enseignant
+  // marchand généraliste (objets, compétences, rachat) — ni enseignant ni bavard
   nearbyMerchant(p) {
-    return this.nearbyNpc(p, n => !this.isTeacher(n));
+    return this.nearbyNpc(p, n => !this.isTeacher(n) && !this.isTalker(n));
   }
 
+  // Le rôle d'un PNJ : `role` explicite des overrides ('merchant' | 'teacher'
+  // | 'bavard'), sinon le drapeau historique `teacher` de zones.json.
   isTeacher(npc) {
-    return !!(content.npc[npc.npcId]?.teacher);
+    return npc.def.role ? npc.def.role === 'teacher' : !!npc.def.teacher;
   }
 
-  // Qui enseigne quoi : un sort avec `vendor` n'est vendu QUE par ce PNJ ;
-  // les autres sorts restent vendus par les marchands généralistes de leur zone.
+  // un bavard ne tient pas boutique : il salue, et réagit aux mots-clés
+  isTalker(npc) {
+    return npc.def.role === 'bavard';
+  }
+
+  // Qui enseigne quoi : un répertoire `teaches` édité fait foi ; sinon un sort
+  // avec `vendor` n'est vendu QUE par ce PNJ, et les autres sorts restent
+  // vendus par les marchands généralistes de leur zone.
   npcSellsSpell(p, npc, sp) {
     if (sp.todo) return false;
+    if (Array.isArray(npc.def.teaches)) return npc.def.teaches.includes(sp.id);
     if (sp.vendor) return sp.vendor === npc.npcId;
-    return !this.isTeacher(npc) && sp.zone <= p.zi.zoneId;
+    return !this.isTeacher(npc) && !this.isTalker(npc) && sp.zone <= p.zi.zoneId;
+  }
+
+  // Quels objets ce PNJ vend-il ? Un étal `sells` édité fait foi ; sinon la
+  // règle historique : tout marchand généraliste vend le standard de la zone.
+  npcSellsItem(npc, defId, zid) {
+    const d = ITEMS[defId];
+    if (!d || d.slot === 'gold' || d.legacy) return false;
+    if (Array.isArray(npc.def.sells)) return npc.def.sells.includes(defId);
+    if (this.isTeacher(npc) || this.isTalker(npc)) return false;
+    return d.zone != null && d.zone <= Math.min(zid, 3);
+  }
+
+  // salut du PNJ : phrase d'ambiance + indice des mots-clés racine (T4C)
+  npcGreet(p, npc) {
+    const lines = Array.isArray(npc.def.greetings) && npc.def.greetings.length
+      ? npc.def.greetings : ['...'];
+    let line = lines[Math.floor(Math.random() * lines.length)];
+    const hint = rootKeywordsHint(npc.def);
+    if (hint) line += ' ' + hint;
+    this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
   }
 
   openShop(p, npc) {
+    // un bavard ne tient pas boutique : il salue (et ses mots-clés font le reste)
+    if (this.isTalker(npc)) { this.npcGreet(p, npc); return; }
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
     const reqNames = { str: 'For', end: 'End', agi: 'Agi', int: 'Int', wis: 'Sag' };
     // un enseignant ne tient pas d'étal : ni objets ni compétences, ses sorts seulement
     const teacher = this.isTeacher(npc);
     const items = teacher ? [] : Object.entries(ITEMS)
-      .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold' && !d.legacy)
+      .filter(([defId]) => this.npcSellsItem(npc, defId, zid))
       .map(([defId, d]) => {
         const fixed = !!d.fixed;
         return {
@@ -940,9 +1081,7 @@ export class Game {
         reqMet: this.skillReqMet(p, s) === true,
         reqText: this.skillReqText(s),
       }));
-    const npcDef = content.npc[npc.npcId] || content.npc.merchant;
-    const line = npcDef.greetings[Math.floor(Math.random() * npcDef.greetings.length)];
-    this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
+    this.npcGreet(p, npc);
     this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells: spellList, skills });
   }
 
@@ -960,9 +1099,13 @@ export class Game {
     const disc = 1 - (p.skillFx?.discount || 0);
 
     if (msg.kind === 'item') {
-      if (!needMerchant()) return;
       const def = ITEMS[msg.id];
-      if (!def || def.zone == null || def.zone > Math.min(zid, 3) || def.legacy) return;
+      if (!def) return;
+      // un PNJ proche doit avoir cet article à son étal (édité ou standard de zone)
+      if (!this.nearbyNpc(p, n => this.npcSellsItem(n, msg.id, zid))) {
+        this.send(p, { t: 'info', text: 'Personne ici ne vend cet article.' });
+        return;
+      }
       const price = Math.round(def.price * (def.fixed ? 1 : Math.pow(zoneMult(zid), 2.6)) * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       if (p.inventory.length >= 24) { this.send(p, { t: 'info', text: 'Inventaire plein.' }); return; }
@@ -1074,7 +1217,11 @@ export class Game {
     this.eventNear(m, { t: 'fx', kind: 'die', id: m.id }); // râle + poussière côté client
     m.hideAt = this.now() + 6;
     // la place se libère au camp : le spawn par mouvement pourra la repourvoir
-    if (m.camp) { m.camp.alive--; m.camp = null; }
+    if (m.camp) {
+      m.camp.alive--;
+      if (m.camp.aliveBy) m.camp.aliveBy[m.defId] = Math.max(0, (m.camp.aliveBy[m.defId] || 0) - 1);
+      m.camp = null;
+    }
     // l'XP a déjà été versée COUP PAR COUP (applyDamage) : rien à la mort
     if (killer.kind === C.KIND.PLAYER) {
       if (killer.attackTarget === m.id) killer.attackTarget = null;

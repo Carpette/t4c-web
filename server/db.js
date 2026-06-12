@@ -125,6 +125,7 @@ export function newCharacterData(name, spawn, stats = null, sex = 'male') {
     unlocked: [0],
     spells: [],    // ids de sorts appris
     skills: [],    // ids de compétences apprises
+    flags: {},     // drapeaux de quête posés par les dialogues de PNJ
     trialFor: null, // zone cible si le joueur est piégé dans une Épreuve
   };
 }

@@ -42,6 +42,18 @@ export const SPAWN_ZONES = [
   { mob: 'ogre',      center: [102, 70], radius: 6,  count: 2 },
 ];
 
+// Emplacements de PNJ par défaut d'une zone : une carte fixe les fournit
+// (npcSpots, cf. island1.js) ; sinon un marchand généraliste près du village,
+// décalé jusqu'à la première case praticable. Partagé entre le serveur (spawn)
+// et l'éditeur admin (affichage du calque PNJ) pour éviter toute divergence.
+export function defaultNpcSpots(world, isWalkable = (x, z) => world.isWalkable(x, z)) {
+  if (world.npcSpots) return world.npcSpots;
+  const v = world.village;
+  let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
+  while (!isWalkable(x, z) && tries++ < 30) x += 0.7;
+  return [{ npcId: 'merchant', x, z }];
+}
+
 export function generateWorld(seed = WORLD_SEED, map = null) {
   if (map === 'arakas') return generateIsland1();
   const N = MAP_SIZE;

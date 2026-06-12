@@ -6,8 +6,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
 import { content, saveContentFile } from './content.js';
-import { generateWorld } from '../shared/worldgen.js';
-import { applyOverrides } from '../shared/overrides.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
@@ -78,13 +76,8 @@ export async function handleAdmin(req, res, url, game) {
       if (req.method === 'PUT') {
         const ov = JSON.parse(await readBody(req));
         fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
-        // reconstruit le monde de la zone à chaud
-        const def = content.zones[zoneId];
-        if (def) {
-          const world = applyOverrides(generateWorld(def.seed, def.map), ov);
-          const zi = game.island(zoneId);
-          if (zi) zi.world = world;
-        }
+        // applique à chaud : monde reconstruit, camps rebranchés, PNJ respawnés
+        game.applyZoneEdits(zoneId, ov);
         return json(200, { ok: true });
       }
     }
@@ -122,7 +115,11 @@ export async function handleAdmin(req, res, url, game) {
         return {
           accountId: r.id, account: r.name, isAdmin: !!r.is_admin,
           online: [...game.players.values()].some(p => p.accountId === r.id),
-          char: d && { name: d.name, level: d.level, gold: d.gold, zoneId: d.zoneId, hp: d.hp, stats: d.stats, x: d.x, z: d.z },
+          char: d && {
+            name: d.name, level: d.level, gold: d.gold, zoneId: d.zoneId,
+            hp: d.hp, stats: d.stats, x: d.x, z: d.z,
+            flags: d.flags || {}, // drapeaux de quête (dialogues de PNJ)
+          },
         };
       });
       return json(200, { characters: rows });
