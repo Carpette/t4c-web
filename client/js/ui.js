@@ -142,12 +142,20 @@ export class UI {
     if (!this._iconCache) this._iconCache = new Map();
     const key = `${defId}:${size}`;
     if (this._iconCache.has(key)) return this._iconCache.get(key);
-    const lootKey = ITEMS[defId]?.loot;
-    const entry = lootKey && this.assets.manifest.loot[lootKey];
-    const img = entry && this.assets.images.get(entry.image);
+    // skin admin prioritaire (content/skins.json), repli sur le sprite loot Flare
+    let img = null, x = 0, y = 0, w = 0, h = 0;
+    const skinPath = this.assets.skins?.items?.[defId];
+    const skinImg = skinPath ? this.assets.images.get(skinPath) : null;
+    if (skinImg) {
+      img = skinImg; w = skinImg.width; h = skinImg.height;
+    } else {
+      const lootKey = ITEMS[defId]?.loot;
+      const entry = lootKey && this.assets.manifest.loot[lootKey];
+      img = entry && this.assets.images.get(entry.image);
+      if (img) [x, y, w, h] = entry.frame;
+    }
     let url = null;
     if (img) {
-      const [x, y, w, h] = entry.frame;
       const c = document.createElement('canvas');
       c.width = size; c.height = size;
       const ctx = c.getContext('2d');

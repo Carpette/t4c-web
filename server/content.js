@@ -6,7 +6,7 @@ import { FormulaEngine } from '../shared/formula-engine.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} } };
+export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} }, skins: { items: {}, mobs: {} } };
 
 const engine = new FormulaEngine();
 
@@ -58,11 +58,16 @@ export function loadContent() {
     content.music = { login: slot(raw.login), trial: slot(raw.trial), zones: {} };
     for (const [k, v] of Object.entries(raw.zones || {})) content.music.zones[k] = slot(v);
   } catch { content.music = { login: slot(null), trial: slot(null), zones: {} }; }
+  // skins (onglet admin) : { items: { defId: 'skins/x.png' }, mobs: { defId: spriteName } }
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'skins.json'), 'utf8'));
+    content.skins = { items: raw.items || {}, mobs: raw.mobs || {} };
+  } catch { content.skins = { items: {}, mobs: {} }; }
   return content;
 }
 
 export function saveContentFile(name, data) {
-  if (!['zones', 'spells', 'skills', 'music'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'spells', 'skills', 'music', 'skins'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }

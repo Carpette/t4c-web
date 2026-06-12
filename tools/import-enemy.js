@@ -1,4 +1,5 @@
 // Import d'une planche de monstre FOURNIE PAR L'UTILISATEUR vers le manifest.
+// (La même chose est possible sans terminal : admin -> onglet 🎨 Skins.)
 //
 // Convention attendue (bien plus simple que l'atlas Flare compacté) :
 //   - un PNG en GRILLE RÉGULIÈRE : 8 lignes = 8 directions (ordre Flare :
@@ -27,11 +28,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildEnemyEntry, pngSize } from '../server/enemy-import.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const REQUIRED_ANIMS = ['stance', 'run', 'swing', 'die'];
-const DIRECTIONS = 8;
 
 const pngPath = process.argv[2];
 if (!pngPath) {
@@ -44,67 +44,26 @@ if (!fs.existsSync(pngPath) || !fs.existsSync(cfgPath)) {
   process.exit(1);
 }
 
-// dimensions du PNG sans dépendance (en-tête IHDR)
-function pngSize(file) {
-  const d = fs.readFileSync(file);
-  if (d.readUInt32BE(12) !== 0x49484452) throw new Error('PNG invalide (IHDR manquant)');
-  return { w: d.readUInt32BE(16), h: d.readUInt32BE(20) };
-}
-
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-for (const k of ['name', 'cell', 'anchor', 'anims']) {
-  if (!cfg[k]) { console.error(`Champ manquant dans le JSON : "${k}"`); process.exit(1); }
-}
-for (const a of REQUIRED_ANIMS) {
-  if (!cfg.anims[a]) { console.error(`Animation obligatoire manquante : "${a}"`); process.exit(1); }
-}
-
-const { w: imgW, h: imgH } = pngSize(pngPath);
-const [cw, ch] = cfg.cell;
-const [ox, oy] = cfg.anchor;
-const cols = Math.floor(imgW / cw);
-if (imgH < ch * DIRECTIONS) {
-  console.error(`Le PNG fait ${imgH}px de haut : il faut 8 lignes de ${ch}px (${ch * DIRECTIONS}px).`);
+const buf = fs.readFileSync(pngPath);
+let entry;
+try {
+  const { w, h } = pngSize(buf);
+  entry = buildEnemyEntry(cfg, w, h);
+} catch (e) {
+  console.error('✘ ' + e.message);
   process.exit(1);
-}
-if (ox < 0 || ox > cw || oy < 0 || oy > ch) {
-  console.error(`Ancrage (${ox}, ${oy}) hors de la case ${cw}x${ch}.`);
-  process.exit(1);
-}
-
-// construit l'entrée manifest : pour chaque animation, 8 directions de frames
-// [x, y, w, h, ox, oy] découpées dans la grille
-const anims = {};
-for (const [name, a] of Object.entries(cfg.anims)) {
-  if (!(a.from >= 0) || !(a.to >= a.from) || a.to >= cols) {
-    console.error(`Animation "${name}" : colonnes ${a.from}..${a.to} hors de la grille (${cols} colonnes).`);
-    process.exit(1);
-  }
-  const fr = {};
-  for (let d = 0; d < DIRECTIONS; d++) {
-    fr[String(d)] = [];
-    for (let c = a.from; c <= a.to; c++) {
-      fr[String(d)].push([c * cw, d * ch, cw, ch, ox, oy]);
-    }
-  }
-  anims[name] = {
-    frames: a.to - a.from + 1,
-    duration: a.duration || 800,
-    type: a.type || 'looped',
-    fr,
-  };
 }
 
 // copie du PNG + fusion dans le manifest
-const destRel = `enemies/${cfg.name}.png`;
-fs.copyFileSync(pngPath, path.join(ROOT, 'client/assets', destRel));
+fs.copyFileSync(pngPath, path.join(ROOT, 'client/assets', entry.image));
 const manifestPath = path.join(ROOT, 'client/assets/manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const existed = !!manifest.enemies[cfg.name];
-manifest.enemies[cfg.name] = { image: destRel, anims };
+manifest.enemies[cfg.name] = { image: entry.image, anims: entry.anims };
 fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 
-console.log(`✔ ${cfg.name} ${existed ? 'remplacé' : 'ajouté'} : ${cols} colonnes, `
-  + `${Object.keys(anims).length} animations (${Object.keys(anims).join(', ')})`);
-console.log(`  Utilisation : sprite: '${cfg.name}' dans shared/defs.js (MOBS), `
-  + 'puis rechargez le client (Ctrl+Shift+R).');
+console.log(`✔ ${cfg.name} ${existed ? 'remplacé' : 'ajouté'} : ${entry.cols} colonnes, `
+  + `${Object.keys(entry.anims).length} animations (${Object.keys(entry.anims).join(', ')})`);
+console.log(`  Utilisation : sprite: '${cfg.name}' dans shared/defs.js (MOBS), ou onglet`
+  + ' admin 🎨 Skins -> assigner à une créature, puis rechargez le client (Ctrl+Shift+R).');

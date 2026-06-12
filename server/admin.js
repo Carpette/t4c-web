@@ -6,9 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
 import { content, saveContentFile } from './content.js';
+import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
+const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
 const tokens = new Map(); // token -> { accountId, expires }
 
 export function overridesPath(zoneId) {
@@ -18,13 +20,20 @@ export function loadOverrides(zoneId) {
   try { return JSON.parse(fs.readFileSync(overridesPath(zoneId), 'utf8')); } catch { return null; }
 }
 
-function readBody(req) {
+function readBody(req, max = 5e6) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', c => { data += c; if (data.length > 5e6) reject(new Error('trop gros')); });
+    req.on('data', c => { data += c; if (data.length > max) reject(new Error('trop gros')); });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
+}
+
+// nom de fichier sûr pour les téléversements (pas de traversée de chemin)
+function safeName(name) {
+  const clean = String(name || '').replace(/\.png$/i, '').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48);
+  if (!clean) throw new Error('nom de fichier invalide');
+  return clean;
 }
 
 function auth(req) {
@@ -105,6 +114,66 @@ export async function handleAdmin(req, res, url, game) {
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
         return json(200, { ok: true });
       }
+    }
+
+    // ---- skins : images d'objets et planches de créatures fournies ----
+    if (url === '/api/admin/skins') {
+      if (req.method === 'GET') {
+        const skinsDir = path.join(ASSETS_DIR, 'skins');
+        let files = [];
+        try { files = fs.readdirSync(skinsDir).filter(f => /\.png$/i.test(f)).sort(); } catch { /* pas encore de skins */ }
+        const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
+        return json(200, { files, sprites: Object.keys(manifest.enemies).sort(), map: content.skins });
+      }
+      if (req.method === 'PUT') {
+        const map = JSON.parse(await readBody(req));
+        const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
+        const clean = { items: {}, mobs: {} };
+        for (const [defId, file] of Object.entries(map.items || {})) {
+          if (typeof file !== 'string' || !file) continue;
+          const rel = file.startsWith('skins/') ? file : `skins/${file}`;
+          if (!fs.existsSync(path.join(ASSETS_DIR, rel))) return json(400, { error: `image introuvable : ${rel}` });
+          clean.items[defId] = rel;
+        }
+        for (const [defId, sprite] of Object.entries(map.mobs || {})) {
+          if (typeof sprite !== 'string' || !sprite) continue;
+          if (!manifest.enemies[sprite]) return json(400, { error: `sprite inconnu : ${sprite}` });
+          clean.mobs[defId] = sprite;
+        }
+        saveContentFile('skins', clean);
+        return json(200, { ok: true, note: 'Appliqué au prochain rechargement du client (F5).' });
+      }
+    }
+
+    // téléversement d'une image d'objet (icône + objet au sol) : PNG en base64
+    if (url === '/api/admin/skins/upload' && req.method === 'POST') {
+      const { name, data } = JSON.parse(await readBody(req, 16e6));
+      const buf = Buffer.from(String(data || ''), 'base64');
+      pngSize(buf); // valide que c'est bien un PNG
+      const skinsDir = path.join(ASSETS_DIR, 'skins');
+      fs.mkdirSync(skinsDir, { recursive: true });
+      const file = `${safeName(name)}.png`;
+      fs.writeFileSync(path.join(skinsDir, file), buf);
+      return json(200, { ok: true, file: `skins/${file}` });
+    }
+
+    // téléversement d'une planche de créature (grille 8 directions) + description
+    if (url === '/api/admin/skins/enemy' && req.method === 'POST') {
+      const { cfg, data } = JSON.parse(await readBody(req, 16e6));
+      const buf = Buffer.from(String(data || ''), 'base64');
+      const { w, h } = pngSize(buf);
+      const entry = buildEnemyEntry(cfg, w, h); // valide grille + animations
+      fs.writeFileSync(path.join(ASSETS_DIR, 'enemies', `${cfg.name}.png`), buf);
+      const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const existed = !!manifest.enemies[cfg.name];
+      manifest.enemies[cfg.name] = { image: entry.image, anims: entry.anims };
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      return json(200, {
+        ok: true, sprite: cfg.name, existed, cols: entry.cols,
+        anims: Object.keys(entry.anims),
+        note: 'Assignez ce sprite à une créature ci-dessous, puis rechargez le client (F5).',
+      });
     }
 
     // ---- personnages ----
