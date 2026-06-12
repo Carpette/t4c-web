@@ -22,6 +22,7 @@
       </div>
       <p id="login-error"></p>
     </div>
+    <div id="game-version" title="Version déployée"></div>
   </div>
 
   <!-- HUD -->
@@ -185,12 +186,25 @@
         <div id="menu-buttons">
           <button id="menu-resume">Reprendre</button>
           <button id="menu-settings" class="secondary">Paramètres</button>
+          <button id="menu-about" class="secondary">À propos</button>
           <button id="menu-quit" class="danger-btn">Quitter la partie</button>
         </div>
         <div id="menu-settings-panel" class="hidden">
           <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Affichage</h2>
           <div id="settings-list"></div>
           <button id="menu-back" class="secondary" style="margin-top:10px">Retour</button>
+        </div>
+        <div id="menu-about-panel" class="hidden">
+          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">À propos</h2>
+          <p style="font-size:14px;margin-bottom:6px">La Quatrième Prophétie — Hommage web</p>
+          <p id="about-version" style="font-size:13px;color:#ffd24a;margin-bottom:10px"></p>
+          <p class="hint" style="font-size:11px;color:#8a80a8;line-height:1.6">
+            Hommage non officiel à <i>The 4th Coming</i> (Vircom / Dialsoft).<br>
+            Graphismes : projet <a href="https://flarerpg.org" target="_blank" style="color:#8ac8ff">Flare</a>
+            (CC-BY-SA) et contributions originales.<br>
+            La version s'incrémente automatiquement à chaque commit.
+          </p>
+          <button id="about-back" class="secondary" style="margin-top:10px">Retour</button>
         </div>
       </div>
     </div>

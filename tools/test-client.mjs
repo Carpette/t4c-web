@@ -188,6 +188,7 @@ if (!doc.getElementById('creation').classList.contains('hidden')) {
 await new Promise(r => setTimeout(r, 6000));
 const hud = doc.getElementById('hud');
 const checks = [
+  ['version affichée au login (bas gauche)', String(doc.getElementById('game-version').textContent).startsWith('v')],
   ['HUD affiché après welcome', reallyVisible(hud)],
   ['écran de connexion masqué', doc.getElementById('login').classList.contains('hidden')],
   ['barre de vie remplie', String(doc.getElementById('hp-text').textContent).includes('/')],
