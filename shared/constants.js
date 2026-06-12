@@ -132,3 +132,5 @@ export const ST = { IDLE: 0, WALK: 1, ATTACK: 2, DEAD: 3, HURT: 4 };
 // Genres d'entité
 export const KIND = { PLAYER: 0, MOB: 1, DROP: 2, NPC: 3 };
 export const INTERACT_RANGE = 3.2;
+// Voyage entre les obélisques d'une même zone (réseau local) : coût fixe en or
+export const OBELISK_TRAVEL_COST = 10;

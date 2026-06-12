@@ -15,6 +15,20 @@ const CELL = 16;
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 
+// Première case praticable en spirale autour de (x, z) — pour déposer un
+// joueur au pied d'un prop bloquant (obélisque...) sans l'enfermer dedans.
+function walkableNear(world, x, z, maxR = 4) {
+  for (let r = 0; r <= maxR; r++) {
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; // anneau seulement
+        if (world.isWalkable(x + dx, z + dz)) return { x: x + dx, z: z + dz };
+      }
+    }
+  }
+  return { x: world.spawnPoint.x, z: world.spawnPoint.z };
+}
+
 // ---------- Une zone = un monde isolé (île ou instance d'Épreuve) ----------
 class ZoneInstance {
   constructor(key, world, zoneId, isTrial = false, owner = null) {
@@ -639,6 +653,26 @@ export class Game {
         this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
         break;
       }
+      case 'teleport_local': {
+        // voyage entre obélisques de la MÊME zone : 10 po, accès déjà acquis
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return;
+        if (this.now() > p.obeliskUntil) { this.send(p, { t: 'info', text: 'Approchez-vous de l\'obélisque.' }); return; }
+        const dest = this.zoneObelisks(p.zi).find(o => o.i === (msg.i | 0));
+        if (!dest || Math.hypot(dest.x - p.x, dest.z - p.z) <= C.INTERACT_RANGE) return;
+        if (p.gold < C.OBELISK_TRAVEL_COST) {
+          this.send(p, { t: 'info', text: `Il vous faut ${C.OBELISK_TRAVEL_COST} pièces d'or pour ce voyage.` });
+          return;
+        }
+        p.gold -= C.OBELISK_TRAVEL_COST;
+        const spot = walkableNear(p.zi.world, dest.x, dest.z + 1.5);
+        p.x = spot.x; p.z = spot.z;
+        p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingCast = null;
+        p.zi.gridMove(p);
+        p.obeliskUntil = this.now() + 30; // on arrive au pied d'un obélisque : panneau réutilisable
+        this.send(p, { t: 'info', text: `L'obélisque vous transporte : ${dest.name} (−${C.OBELISK_TRAVEL_COST} or).` });
+        this.sendSelf(p);
+        break;
+      }
       case 'trial_enter': {
         if (p.dead || p.zi.isTrial || p.zi.isCave) return;
         if (!p.trialOffer || this.now() > p.trialOffer) { this.send(p, { t: 'info', text: 'Retournez au portail de l\'Épreuve.' }); return; }
@@ -828,6 +862,15 @@ export class Game {
     this.interactProp(p, prop);
   }
 
+  // Les obélisques d'une zone forment un réseau de voyage local : on peut
+  // rejoindre n'importe lequel des autres pour OBELISK_TRAVEL_COST pièces d'or
+  // (l'accès à la zone suffit — c'est le réseau d'Arakas demandé par Quentin).
+  zoneObelisks(zi) {
+    return zi.world.props
+      .filter(pr => pr.type === 'obelisk')
+      .map((pr, i) => ({ i, name: pr.name || `Obélisque ${i + 1}`, x: pr.x, z: pr.z }));
+  }
+
   interactProp(p, prop) {
     if (prop.type === 'obelisk') {
       p.obeliskUntil = this.now() + 30;
@@ -836,6 +879,11 @@ export class Game {
         zones: p.unlocked.map(id => ({ id, name: this.zoneDef(id).name, levels: this.zoneDef(id).levels }))
           .sort((a, b) => a.id - b.id),
         current: p.zi.zoneId,
+        // réseau local : les autres obélisques de la zone (celui-ci exclu)
+        local: this.zoneObelisks(p.zi)
+          .filter(o => Math.hypot(o.x - prop.x, o.z - prop.z) > 1)
+          .map(({ i, name }) => ({ i, name })),
+        cost: C.OBELISK_TRAVEL_COST,
       });
     } else if (prop.type === 'trialgate') {
       const target = p.zi.zoneId + 1;

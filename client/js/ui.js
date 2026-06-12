@@ -504,6 +504,26 @@ export class UI {
   showObelisk(msg) {
     const div = $('obelisk-list');
     div.innerHTML = '';
+    // réseau LOCAL : les autres obélisques de la zone, pour quelques pièces d'or
+    if (msg.local?.length) {
+      const h = document.createElement('h3');
+      h.className = 'bank-section';
+      h.textContent = `Voyages locaux (${msg.cost} or)`;
+      div.appendChild(h);
+      const broke = (this.self?.gold ?? 0) < msg.cost;
+      for (const o of msg.local) {
+        const btn = document.createElement('button');
+        btn.textContent = `${o.name} — ${msg.cost} or`;
+        btn.disabled = broke;
+        btn.title = broke ? `Il vous faut ${msg.cost} pièces d'or.` : '';
+        btn.onclick = () => { $('obelisk-panel').classList.add('hidden'); this.net.send({ t: 'teleport_local', i: o.i }); };
+        div.appendChild(btn);
+      }
+      const h2 = document.createElement('h3');
+      h2.className = 'bank-section';
+      h2.textContent = 'Autres zones';
+      div.appendChild(h2);
+    }
     for (const z of msg.zones) {
       const btn = document.createElement('button');
       btn.textContent = `${z.name} (niv. ${z.levels[0]}-${z.levels[1]})` + (z.id === msg.current ? ' — ici' : '');

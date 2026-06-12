@@ -532,7 +532,8 @@ export function generateIsland1() {
   const bigHouse = (x, z) => { house(x, z, 5, 4); house(x + 5, z, 5, 4); }; // temple, etc.
   const torch = (x, z) => props.push({ type: 'torch', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 });
   const bank = (x, z) => { props.push({ type: 'bank', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
-  const obelisk = (x, z) => { props.push({ type: 'obelisk', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
+  // `name` identifie l'obélisque dans le réseau de voyage local de la zone
+  const obelisk = (x, z, name) => { props.push({ type: 'obelisk', x: x + 0.5, z: z + 0.5, rot: 0, s: 1, name }); block(x, z); };
   const chest = (x, z) => {
     let X = x, Z = z, tries = 0;
     while (!walk[idx(X, Z)] && tries++ < 40) { X += (tries % 2 ? 1 : -1) * tries; if (!inMap(X, Z)) X = x; }
@@ -578,7 +579,7 @@ export function generateIsland1() {
     house(c.x - 10, c.z + 8, 4, 4);               // maison d'Edgar
     house(c.x + 1, c.z + 8, 4, 4);                // maison sud
     well(c.x, c.z);                               // la fontaine
-    obelisk(c.x + 13, c.z + 2);
+    obelisk(c.x + 13, c.z + 2, 'Lighthaven');
     // l'enclos de Darkfang (clôture de bois, ouverture à l'est)
     paddock(c.x - 19, c.z - 12, c.x - 13, c.z - 8, ['e']);
     torch(c.x - 16, c.z - 10);
@@ -644,7 +645,7 @@ export function generateIsland1() {
     house(c.x - 10, c.z + 6, 4, 4);
     house(c.x + 17, c.z + 6, 4, 4);               // poste de gardes
     well(c.x + 1, c.z - 1);                       // la fontaine (Sarah Meroippi)
-    obelisk(WHX1 + 3, c.z - 1);                   // devant la porte est
+    obelisk(WHX1 + 3, c.z - 1, 'Windhowl');      // devant la porte est
     for (const [tx, tz] of [[WHX0 + 2, WHZ0 + 2], [WHX1 - 2, WHZ0 + 2], [WHX0 + 2, WHZ1 - 2], [WHX1 - 2, WHZ1 - 2], [c.x - 2, c.z - 1], [c.x + 4, c.z - 1]]) torch(tx, tz);
     // le port à l'ouest : jetée de sable sur la mer
     stampLine([[WHX0 - 14, c.z - 1], [WHX0 + 1, c.z - 1]], 1.4, (X, Z) => {
@@ -710,7 +711,7 @@ export function generateIsland1() {
   torch(ARAKAS.CAMP_ORC.x + 5, ARAKAS.CAMP_ORC.z + 3);
   torch(ARAKAS.CAMP_ORC.x - 5, ARAKAS.CAMP_ORC.z - 3);
   // la Tablette de pierre runique : le cercle de transfert historique d'Arakas
-  obelisk(ARAKAS.TABLET.x, ARAKAS.TABLET.z);
+  obelisk(ARAKAS.TABLET.x, ARAKAS.TABLET.z, 'Tablette runique');
   torch(ARAKAS.TABLET.x - 2, ARAKAS.TABLET.z + 1);
   torch(ARAKAS.TABLET.x + 2, ARAKAS.TABLET.z + 1);
 
