@@ -1,4 +1,6 @@
 {
   "items": {},
-  "mobs": {}
+  "mobs": {
+    "loup": "loup"
+  }
 }
