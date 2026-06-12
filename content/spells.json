@@ -68,7 +68,16 @@
       "power": 14,
       "range": 9,
       "color": "#c8a878",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1540 - (self.level - spell.level) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "type": "physical",
+          "target": "target",
+          "formula": "(1d9 + 11 + self.buff_stats.wisdom/22) * self.buff_power.earth / target.buff_power.earth"
+        }
+      ]
     },
     {
       "id": "tourbillon",
