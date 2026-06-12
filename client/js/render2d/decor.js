@@ -1,31 +1,10 @@
-// Habillage de la carte : choix des tuiles Flare et des décors depuis le worldgen partagé
-import { TILE, mulberry32 } from '../../../shared/worldgen.js';
-
-const GRASS_IDS = [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
-const FOREST_IDS = [20, 21, 24, 25, 28, 29];
-const COBBLE_IDS = [32, 33, 34, 35, 36, 37, 38];
-const PATH_IDS = [39, 40, 41, 42, 43, 44];
-const DIRT_IDS = [45, 46, 47];
-const ROCKY_IDS = [34, 37, 38];
-const WATER_IDS = [176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191];
-
-const TUFT_IDS = [114, 115, 122, 123, 124, 125, 126, 127];
-const FERN_IDS = [112, 113, 116, 117, 120, 121];
-const TREE_IDS = [240, 241, 242, 243, 244];
-const DEAD_TREE_IDS = [250, 251, 252, 253, 254];
-const GRAVE_IDS = [140, 141, 142, 143];
-const ROCKPROP_IDS = [136, 100, 101, 128];
-const CLIFF_IDS = [48, 52, 56];
-const CAMPFIRE_ID = 102;
-const HOUSE_ID = 296;
-const WELL_ID = 264; // dalle de pierre circulaire au centre du village
-
-function hash(x, z) {
-  let h = (x * 374761393 + z * 668265263) ^ 0x5bf03635;
-  h = (h ^ (h >> 13)) * 1274126177;
-  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
-}
-const pick = (arr, r) => arr[Math.floor(r * arr.length) % arr.length];
+// Habillage de la carte : choix des tuiles Flare et des décors depuis le worldgen partagé.
+// Le mapping type/variante -> tuile vit dans decormap.js (partagé avec l'éditeur admin).
+import { TILE } from '../../../shared/worldgen.js';
+import {
+  FLOOR_IDS, WATER_IDS, TUFT_IDS, FERN_IDS, CLIFF_IDS,
+  hash, pick, propSprites, propScale, propFlip,
+} from './decormap.js';
 
 export function buildDecor(world) {
   const N = world.size;
@@ -39,22 +18,10 @@ export function buildDecor(world) {
       const i = z * N + x;
       const t = world.tile[i];
       const r = hash(x, z);
-      let id;
-      switch (t) {
-        case TILE.WATER: id = pick(WATER_IDS, r); isWater[i] = 1; break;
-        case TILE.SAND: id = pick(DIRT_IDS, r); break;
-        case TILE.GRASS: id = pick(GRASS_IDS, r); break;
-        case TILE.FOREST: id = pick(FOREST_IDS, r); break;
-        case TILE.ROCK:
-          if (voidMode) { id = pick(WATER_IDS, r); isWater[i] = 1; }
-          else id = pick(ROCKY_IDS, r);
-          break;
-        case TILE.COBBLE: id = pick(COBBLE_IDS, r); break;
-        case TILE.PATH: id = pick(PATH_IDS, r); break;
-        case TILE.GRAVE: id = pick(DIRT_IDS, r); break;
-        default: id = 16;
-      }
-      floor[i] = id;
+      // en mode « vide » (Épreuve), la roche devient l'abîme aquatique
+      const ids = (voidMode && t === TILE.ROCK) ? WATER_IDS : (FLOOR_IDS[t] || FLOOR_IDS[TILE.GRASS]);
+      floor[i] = pick(ids, r);
+      if (t === TILE.WATER || (voidMode && t === TILE.ROCK)) isWater[i] = 1;
     }
   }
 
@@ -92,90 +59,17 @@ export function buildDecor(world) {
   for (let i = 0; i < N * N; i++) if (cliffFloor[i]) floor[i] = cliffFloor[i];
 
   // --- décors (props worldgen -> tuiles Flare) + lumières ---
-  const props = [];   // {tileId, x, z}
+  const props = [];   // {tileId, x, z, s?, flip?}
   const lights = [];  // {x, z, r, flicker}
   // arbres morts sur les tuiles de cimetière (quel que soit le tracé de la carte)
   const inCemetery = (x, z) => world.tile[Math.floor(z) * N + Math.floor(x)] === TILE.GRAVE;
 
   for (const p of world.props) {
-    const r = hash(Math.floor(p.x * 7), Math.floor(p.z * 7));
-    switch (p.type) {
-      case 'tree':
-        props.push({ tileId: inCemetery(p.x, p.z) ? pick(DEAD_TREE_IDS, r) : pick(TREE_IDS, r), x: p.x, z: p.z });
-        break;
-      case 'rock':
-        props.push({ tileId: pick(ROCKPROP_IDS, r), x: p.x, z: p.z });
-        break;
-      case 'grave':
-        props.push({ tileId: pick(GRAVE_IDS, r), x: p.x, z: p.z });
-        break;
-      case 'torch':
-        props.push({ tileId: CAMPFIRE_ID, x: p.x, z: p.z });
-        lights.push({ x: p.x, z: p.z, r: 330, flicker: true });
-        break;
-      case 'house':
-        // ancrage calibré : la base visuelle couvre l'empreinte bloquée
-        props.push({ tileId: HOUSE_ID, x: p.x - 1.5, z: p.z + 2.5, big: true });
-        break;
-      case 'well':
-        props.push({ tileId: WELL_ID, x: p.x, z: p.z });
-        break;
-      case 'obelisk':
-        props.push({ tileId: 143, x: p.x, z: p.z, interact: 'obelisk' });
-        lights.push({ x: p.x, z: p.z, r: 240, flicker: false, color: 'rgba(120, 160, 255, 0.14)' });
-        break;
-      case 'trialgate':
-        props.push({ tileId: 265, x: p.x, z: p.z + 1, interact: 'trialgate' });
-        lights.push({ x: p.x, z: p.z, r: 300, flicker: true, color: 'rgba(160, 120, 255, 0.16)' });
-        break;
-      case 'exitgate':
-        props.push({ tileId: 265, x: p.x, z: p.z + 1, interact: 'exitgate' });
-        lights.push({ x: p.x, z: p.z, r: 320, flicker: true, color: 'rgba(120, 200, 255, 0.18)' });
-        break;
-      case 'chest':
-        props.push({ tileId: 298, x: p.x, z: p.z, interact: 'chest' });
-        break;
-      case 'bank':
-        // coffre clouté du tileset : la banque personnelle du village
-        props.push({ tileId: 300, x: p.x, z: p.z, interact: 'bank' });
-        lights.push({ x: p.x, z: p.z, r: 200, flicker: false, color: 'rgba(255, 200, 120, 0.10)' });
-        break;
-      case 'cave':
-        // entrée de grotte : pan de falaise sombre (intérieurs à venir)
-        props.push({ tileId: pick(CLIFF_IDS, r), x: p.x, z: p.z, interact: 'cave', name: p.name });
-        break;
-      case 'wall': {
-        // palissade de bois (remparts de Windhowl) : pans pleins, angles
-        // coiffés d'un toit, montants de porte de part et d'autre des accès
-        const id = p.v === 'corner' ? 214 : p.v === 'gate' ? 212 : (hash(p.x * 3, p.z * 3) < 0.5 ? 215 : 208);
-        props.push({ tileId: id, x: p.x, z: p.z });
-        break;
-      }
-      case 'fence': {
-        // barrières de bois (enclos de Darkfang, champs, pâtures)
-        const id = p.v === 'z' ? 107 : p.v === 'corner' ? 108 : p.v === 'post' ? 106 : 104;
-        props.push({ tileId: id, x: p.x, z: p.z });
-        break;
-      }
-      case 'ruin':
-        // pan de mur effondré (Cité naine, Ruines Émergées...)
-        props.push({ tileId: pick([217, 219, 224, 225, 227, 228, 230, 231], r), x: p.x, z: p.z });
-        break;
-      case 'bridge': {
-        // pont de bois : tuile de planches pleine (312 : pont le long de x,
-        // 313 : le long de z) + poteaux espacés côté eau
-        const alongX = (p.rails?.n || p.rails?.s) && !(p.rails?.w || p.rails?.e) ? true
-          : (p.rails?.w || p.rails?.e) && !(p.rails?.n || p.rails?.s) ? false : true;
-        props.push({ tileId: alongX ? 312 : 313, x: p.x, z: p.z });
-        if ((Math.floor(p.x) + Math.floor(p.z)) % 2 === 0) {
-          if (p.rails?.n) props.push({ tileId: 106, x: p.x + 0.3, z: p.z - 0.38 });
-          if (p.rails?.s) props.push({ tileId: 106, x: p.x - 0.3, z: p.z + 0.38 });
-          if (p.rails?.w) props.push({ tileId: 106, x: p.x - 0.38, z: p.z + 0.3 });
-          if (p.rails?.e) props.push({ tileId: 106, x: p.x + 0.38, z: p.z - 0.3 });
-        }
-        break;
-      }
-    }
+    const { sprites, lights: ls } = propSprites(p, { inCemetery: inCemetery(p.x, p.z) });
+    // échelle et miroir du prop (posés par le worldgen ou un override d'admin)
+    const s = propScale(p), flip = propFlip(p);
+    for (const sp of sprites) props.push((s !== 1 || flip) ? { ...sp, s, flip } : sp);
+    lights.push(...ls);
   }
 
   // falaises décoratives dans les montagnes (pas dans le vide de l'Épreuve) ;

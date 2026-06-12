@@ -95,14 +95,26 @@ export class Renderer {
     return { x: (a + b) / 2, z: (b - a) / 2 };
   }
 
-  drawTile(id, px, py) {
+  // dessine une tuile/un sprite du tileset à l'ancrage (px, py).
+  // k : échelle propre au prop (1 par défaut) ; flip : miroir horizontal
+  // autour de l'ancrage (la « rotation » des sprites iso pré-rendus).
+  drawTile(id, px, py, k = 1, flip = false) {
     const m = this.assets.manifest;
     let rect = m.tiles[id], img = this.grass;
     if (!rect) { rect = m.waterTiles[id]; img = this.water; }
     if (!rect) return;
     const [x, y, w, h, ox, oy] = rect;
-    const s = this.scale;
-    this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+    const s = this.scale * k;
+    if (flip) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.translate(px, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, x, y, w, h, -ox * s, py - oy * s, w * s, h * s);
+      ctx.restore();
+    } else {
+      this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+    }
   }
 
   // cercle de sélection au sol (sous les pieds d'une entité)
@@ -174,7 +186,7 @@ export class Renderer {
     for (const d of drawables) {
       if (d.prop) {
         const p = this.w2s(d.prop.x, d.prop.z);
-        this.drawTile(d.prop.tileId, p.x, p.y);
+        this.drawTile(d.prop.tileId, p.x, p.y, d.prop.s || 1, d.prop.flip);
       } else {
         const p = this.w2s(d.view.x, d.view.z);
         // surlignement : cible en cours (pulsant) ou entité survolée

@@ -1,6 +1,10 @@
 // Modifications de carte éditées par l'admin, appliquées par-dessus la génération.
 // Format : { tiles: [[x, z, type], ...],
-//            props: { add: [{type, x, z}], remove: [[x, z]] } }
+//            props: { add: [{type, x, z, v?, s?, rot?}], remove: [[x, z]] } }
+// Champs optionnels d'un ajout (rétrocompatible : absents = comportement historique) :
+//   v   — variante explicite (index ou nom, voir PROP_TYPES de decormap.js)
+//   s   — échelle du sprite (bornée 0.25..3 ; honorée pour les props redimensionnables)
+//   rot — rotation (les sprites iso pré-rendus n'honorent que le miroir : cos(rot) < 0)
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
@@ -35,7 +39,12 @@ export function applyOverrides(world, ov) {
   for (const p of ov.props?.add || []) {
     const x = Math.floor(p.x), z = Math.floor(p.z);
     if (x < 0 || z < 0 || x >= N || z >= N) continue;
-    const prop = { type: p.type, x: x + 0.5, z: z + 0.5, rot: 0, s: 1 };
+    const prop = {
+      type: p.type, x: x + 0.5, z: z + 0.5,
+      rot: Number.isFinite(+p.rot) ? +p.rot : 0,
+      s: Number.isFinite(+p.s) ? Math.min(3, Math.max(0.25, +p.s)) : 1,
+    };
+    if (p.v != null) prop.v = p.v; // variante explicite (sinon : choix par hachage)
     if (p.type === 'house') { prop.w = HOUSE_SIZE.w; prop.d = HOUSE_SIZE.d; }
     world.props.push(prop);
     if (BLOCKING_PROPS.has(p.type)) {
