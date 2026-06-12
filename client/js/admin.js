@@ -310,10 +310,19 @@ découpée par un programme :
   (à l'échelle du ratio) ;
 - AUCUN espace, marge ou gouttière entre les cases ; rien ne déborde d'une case sur l'autre ;
 - chaque LIGNE est la même animation vue dans une direction différente, dans CET ordre
-  de haut en bas : 1) ouest (profil gauche), 2) nord-ouest (dos 3/4 gauche), 3) nord (dos),
-  4) nord-est (dos 3/4 droit), 5) est (profil droit), 6) sud-est (face 3/4 droite),
-  7) sud (face caméra), 8) sud-ouest (face 3/4 gauche) ;
-- chaque COLONNE est une frame d'animation :
+  de haut en bas — ATTENTION, les 8 lignes doivent être 8 vues DISTINCTES, n'en duplique
+  jamais une :
+  1) OUEST : profil, museau pointant vers la GAUCHE de l'image (miroir exact de la ligne 5) ;
+  2) NORD-OUEST : vu de dos 3/4, tête vers la gauche ;
+  3) NORD : vu de DOS (queue vers la caméra, tête masquée) ;
+  4) NORD-EST : vu de dos 3/4, tête vers la droite ;
+  5) EST : profil, museau pointant vers la DROITE de l'image ;
+  6) SUD-EST : vu de face 3/4, tête vers la droite ;
+  7) SUD : de FACE (regard vers la caméra) ;
+  8) SUD-OUEST : vu de face 3/4, tête vers la gauche ;
+- chaque COLONNE est une frame d'animation, et le MOUVEMENT doit être très lisible
+  d'une colonne à l'autre (pour la course : phases franches du cycle — pattes étendues,
+  regroupées sous le corps, appui — pas huit poses quasi identiques) :
 ${animLines}
 - la créature garde la MÊME taille, le même style et la même palette dans toutes les cases ;
 - dans chaque case, les pieds (point de contact au sol) sont au pixel (${ax}, ${ay})
