@@ -493,6 +493,10 @@ export class Game {
       }
       case 'attack': {
         if (p.dead) return;
+        if (this.isPacified(p)) {
+          this.send(p, { t: 'info', text: 'La transe du Sanctuaire vous empêche d\'attaquer.' });
+          return;
+        }
         const target = p.zi.entities.get(msg.id | 0);
         if (target && target.kind === C.KIND.MOB && !target.dead) {
           p.attackTarget = target.id;
@@ -597,6 +601,11 @@ export class Game {
         if (i < 0) return;
         const st = itemStats(p.inventory[i]);
         if (ITEMS[p.inventory[i].defId].slot !== 'use') return;
+        // Malédiction : les potions de vie n'ont plus aucun effet (non consommées)
+        if (st.heal && this.isCursed(p)) {
+          this.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : la potion reste sans effet.' });
+          return;
+        }
         if (st.heal) p.hp = Math.min(p.eff.maxHp, p.hp + st.heal);
         if (st.mana) p.mana = Math.min(p.eff.maxMana, p.mana + st.mana);
         p.inventory.splice(i, 1);
@@ -703,6 +712,12 @@ export class Game {
         if (!dest) return;
         if (!p.unlocked.includes(zid)) p.unlocked.push(zid);
         this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+        break;
+      }
+      case 'learn': {
+        // apprend un sort directement (outillage admin/tests, sans marchand)
+        const sp = content.spellById[msg.spell];
+        if (sp && !p.spells.includes(sp.id)) { p.spells.push(sp.id); this.sendSelf(p); }
         break;
       }
     }
@@ -1045,11 +1060,31 @@ export class Game {
     return v;
   }
 
-  // Multiplicateur de puissance : compétences + Poussée de Mana (Mana Surge)
-  spellPowerMul(p) {
+  // Multiplicateur de puissance : compétences + Afflux de Mana (+33 %).
+  // L'Afflux ne s'applique PAS aux sorts d'arcane (réf. t4c.arp.free.fr).
+  spellPowerMul(p, element = null) {
     let m = 1 + (p.skillFx?.spellMul || 0);
-    for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
+    if (element !== 'arcane') {
+      for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
+    }
     return m;
+  }
+
+  // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
+  isUntouchable(e) { return (e.sanctuaryUntil || 0) > this.now(); }
+
+  // Le joueur est-il en transe (Sanctuaire) : ni attaque ni sort pendant 2x la durée
+  isPacified(p) { return (p.pacifiedUntil || 0) > this.now(); }
+
+  // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
+  isCursed(e) { return (e.curseUntil || 0) > this.now(); }
+
+  // Style visuel/sonore d'un sort pour le client : poison (vert), drain (sombre)
+  // ou simplement son élément
+  spellStyle(sp) {
+    if (sp.leech) return 'drain';
+    if (sp.dot) return 'poison';
+    return sp.element || null;
   }
 
   // Validation + début d'incantation. L'effet part dans resolveCast() une fois
@@ -1059,6 +1094,10 @@ export class Game {
     const sp = content.spellById[msg.spellId];
     if (!sp || !p.spells.includes(sp.id) || sp.todo) return;
     const now = this.now();
+    if (this.isPacified(p)) {
+      this.send(p, { t: 'info', text: 'La transe du Sanctuaire vous empêche de lancer le moindre sort.' });
+      return;
+    }
     if (p.casting) return; // déjà en train d'incanter
     if ((p.spellCds[sp.id] || 0) > now) return;
     if (p.mana < sp.mana) { this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
@@ -1066,8 +1105,13 @@ export class Game {
     const cast = { spellId: sp.id };
     if (sp.type === 'bolt') {
       const target = p.zi.entities.get(msg.target | 0);
-      if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
-      if (sp.undeadOnly && !target.def.undead) {
+      // les sorts purement maudissants (Malédiction) peuvent viser un joueur (T4C)
+      const curseOnly = sp.curse && !sp.dmg;
+      const validTarget = target && !target.dead && !target.hidden
+        && (target.kind === C.KIND.MOB
+          || (curseOnly && target.kind === C.KIND.PLAYER && target.id !== p.id && !this.isUntouchable(target)));
+      if (!validTarget) return;
+      if (sp.undeadOnly && !target.def?.undead) {
         this.send(p, { t: 'info', text: `${sp.name} n'affecte que les morts-vivants.` });
         return;
       }
@@ -1118,13 +1162,29 @@ export class Game {
     const now = this.now();
     if (p.mana < sp.mana) { this.send(p, { t: 'cast_break' }); this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return false; }
 
-    const mul = this.spellPowerMul(p);
+    const mul = this.spellPowerMul(p, sp.element);
     const wis = p.eff.stats.wis;
 
     if (sp.type === 'heal') {
+      // Malédiction : aucun soin ne peut atteindre la cible
+      if (this.isCursed(p)) {
+        this.send(p, { t: 'cast_break' });
+        this.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : le soin échoue.' });
+        return false;
+      }
       const amount = Math.max(1, Math.round(this.rollSpellOutput(p, sp.heal) * mul));
       p.hp = Math.min(p.eff.maxHp, p.hp + amount);
       this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+    } else if (sp.type === 'buff' && sp.buff.stat === 'sanctuaire') {
+      // Sanctuaire : intouchable pendant la durée, mais incapable d'attaquer
+      // ou de lancer un sort pendant LE DOUBLE de la durée (T4C)
+      p.sanctuaryUntil = now + sp.duration;
+      p.pacifiedUntil = now + sp.duration * 2;
+      p.attackTarget = null; p.pendingCast = null;
+      p.buffs = p.buffs.filter(x => x.stat !== 'sanctuaire' && x.stat !== 'transe');
+      p.buffs.push({ stat: 'sanctuaire', power: 1, until: p.sanctuaryUntil });
+      p.buffs.push({ stat: 'transe', power: 1, until: p.pacifiedUntil });
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element });
     } else if (sp.type === 'buff') {
       const b = sp.buff;
       let power;
@@ -1136,18 +1196,20 @@ export class Game {
       p.buffs = p.buffs.filter(x => x.stat !== b.stat);
       p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
       this.recompute(p);
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
+      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element });
     } else if (sp.type === 'bolt') {
       const target = p.zi.entities.get(c.target | 0);
+      const curseOnly = sp.curse && !sp.dmg;
       // la cible est morte ou s'est dérobée pendant l'incantation : le sort échoue sans coûter de mana
-      if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden
+      if (!target || target.dead || target.hidden
+          || !(target.kind === C.KIND.MOB || (curseOnly && target.kind === C.KIND.PLAYER && target.id !== p.id && !this.isUntouchable(target)))
           || Math.hypot(target.x - p.x, target.z - p.z) > sp.range + 2
           || !lineOfSight(p.zi.world, p, target)) {
         this.send(p, { t: 'cast_break' });
         this.send(p, { t: 'info', text: 'La cible s\'est dérobée.' });
         return false;
       }
-      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
+      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: this.spellStyle(sp) });
       if (sp.dmg) {
         // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
         let dmg = this.rollSpellOutput(p, sp.dmg) * mul;
@@ -1156,14 +1218,31 @@ export class Game {
         const { dmg: final, mod } = this.applyResist(target, sp, Math.max(1, Math.round(dmg)));
         this.applyDamage(p, target, final, false, mod);
         // drain de vie : rend au lanceur, inefficace sur les morts-vivants (T4C)
-        if (sp.leech && !target.def.undead) {
+        // et bloqué si le lanceur est lui-même maudit (aucun soin ne l'atteint)
+        if (sp.leech && !target.def.undead && !this.isCursed(p)) {
           p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
+          // filet sombre de la cible vers le lanceur
+          this.eventNear(p, { t: 'proj', from: target.id, to: p.id, color: '#5a1a6a', element: 'drain' });
           this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
         }
       }
-      // Enchevêtrement : immobilise la cible (5 s, version simplifiée de la Bible)
-      if (sp.stun && !target.dead) { target.stunnedUntil = now + sp.stun; target.path = null; }
-      // Poison / Flèche Empoisonnée : dégâts sur la durée
+      // Enchevêtrement : RALENTIT la cible (malus de vitesse, fidèle au site français)
+      if (sp.slow && !target.dead) {
+        target.slowUntil = now + sp.slow.duration;
+        target.slowFactor = sp.slow.factor;
+      }
+      // Malédiction / Peste : la cible (joueur OU monstre) ne peut plus être soignée
+      if (sp.curse && !target.dead) {
+        target.curseUntil = now + sp.curse;
+        this.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
+        if (target.kind === C.KIND.PLAYER) {
+          target.buffs = target.buffs.filter(x => x.stat !== 'maudit');
+          target.buffs.push({ stat: 'maudit', power: 1, until: target.curseUntil });
+          this.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
+          this.sendSelf(target);
+        }
+      }
+      // Poison / Flèche empoisonnée / Peste : dégâts sur la durée
       if (sp.dot && !target.dead) {
         (target.dots = target.dots || []).push({
           ...sp.dot, element: sp.element, from: p,
@@ -1175,7 +1254,7 @@ export class Game {
     } else if (sp.type === 'aoe') {
       // sorts centrés sur le lanceur (Vague de Flamme, Séisme) ou sur un point visé
       const cx = sp.centered ? p.x : +c.x, cz = sp.centered ? p.z : +c.z;
-      this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
+      this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color, element: this.spellStyle(sp) });
       const hits = [...p.zi.nearby(cx, cz, sp.radius)].filter(e => e.kind === C.KIND.MOB && !e.dead);
       for (const e of hits) {
         const dist = Math.hypot(e.x - cx, e.z - cz);
@@ -1205,12 +1284,22 @@ export class Game {
     p.attackTarget = null;
   }
 
-  // Résistances élémentaires T4C : réduction (ou amplification si faiblesse)
+  // Résistances élémentaires T4C : réduction (ou amplification si faiblesse).
+  // Pour un joueur, les buffs s'ajoutent : Bouclier de mana (+33 % contre toutes
+  // les magies SAUF arcanes) et Résistance au feu / à la glace (+100 % à l'élément).
+  // À 100 % ou plus, le sort est entièrement annulé (0 dégât).
   applyResist(target, sp, dmg) {
-    const resist = target.def?.resist?.[sp.element] || 0;
+    let resist = target.def?.resist?.[sp.element] || 0;
+    if (target.kind === C.KIND.PLAYER && sp.element) {
+      for (const b of target.buffs) {
+        if (b.stat === 'resistAll' && sp.element !== 'arcane') resist += b.power;
+        else if (b.stat === 'resist_' + sp.element) resist += b.power;
+      }
+    }
     if (!resist) return { dmg, mod: null };
+    resist = Math.min(1, resist);
     return {
-      dmg: Math.max(1, Math.round(dmg * (1 - resist))),
+      dmg: resist >= 1 ? 0 : Math.max(1, Math.round(dmg * (1 - resist))),
       mod: resist > 0.05 ? 'resist' : (resist < -0.05 ? 'weak' : null),
     };
   }
@@ -1229,6 +1318,9 @@ export class Game {
 
   // ---------- Combat ----------
   attack(attacker, defender) {
+    // Sanctuaire : la cible est intouchable ; l'attaquant en transe ne frappe pas
+    if (this.isUntouchable(defender)) return;
+    if (attacker.kind === C.KIND.PLAYER && this.isPacified(attacker)) { attacker.attackTarget = null; return; }
     const aStats = attacker.kind === C.KIND.PLAYER ? attacker.eff.stats
       : { str: 0, agi: 10 + attacker.level * 1.8, end: 0, int: 0, wis: 0 };
     const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
@@ -1272,13 +1364,19 @@ export class Game {
     // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
     if (attacker.kind === C.KIND.PLAYER) defense *= 1 - (attacker.skillFx?.pierce || 0);
     dmg = C.mitigate(dmg, defense);
+    // attaque élémentaire d'un monstre (ex. Fourmi de feu) : les résistances
+    // du défenseur s'appliquent (Bouclier de mana, Résistance au feu/à la glace...)
+    let elemMod = null;
+    if (attacker.kind === C.KIND.MOB && attacker.def.element) {
+      ({ dmg, mod: elemMod } = this.applyResist(defender, { element: attacker.def.element }, dmg));
+    }
     // Coup assommant : chance d'immobiliser brièvement le monstre
     if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
         && Math.random() < (attacker.skillFx?.stun || 0)) {
       defender.stunnedUntil = this.now() + 0.8;
       defender.path = null;
     }
-    this.applyDamage(attacker, defender, dmg, crit);
+    this.applyDamage(attacker, defender, dmg, crit, elemMod);
     // Boucliers de Feu/Glace/Électrique (T4C) : riposte élémentaire à chaque
     // coup physique encaissé — 1dN + base, modulé par la résistance du monstre
     if (defender.kind === C.KIND.PLAYER && attacker.kind === C.KIND.MOB && !attacker.dead) {
@@ -1294,6 +1392,8 @@ export class Game {
 
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
+    m.curseUntil = 0; m.slowUntil = 0;
+    this.eventNear(m, { t: 'fx', kind: 'die', id: m.id }); // râle + poussière côté client
     m.hideAt = this.now() + 6;
     m.respawnAt = m.noRespawn ? Infinity : this.now() + m.def.respawn;
     if (killer.kind === C.KIND.PLAYER) {
@@ -1349,6 +1449,7 @@ export class Game {
     p.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     p.spells = []; p.skills = {}; p.unlocked = [0];
     p.buffs = []; p.spellCds = {}; p.casting = null;
+    p.curseUntil = 0; p.sanctuaryUntil = 0; p.pacifiedUntil = 0;
     this.recompute(p);
     p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
     this.movePlayerToZone(p, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
@@ -1587,7 +1688,7 @@ export class Game {
     if (!m.target && (this.tickCount + m.id) % 5 === 0) {
       let best = null, bestD = m.def.aggro;
       for (const e of zi.nearby(m.x, m.z, m.def.aggro)) {
-        if (e.kind !== C.KIND.PLAYER || e.dead) continue;
+        if (e.kind !== C.KIND.PLAYER || e.dead || this.isUntouchable(e)) continue;
         const d = Math.hypot(e.x - m.x, e.z - m.z);
         if (d < bestD) { bestD = d; best = e; }
       }
@@ -1597,7 +1698,7 @@ export class Game {
     if (m.target) {
       const tgt = zi.entities.get(m.target);
       const leashed = Math.hypot(m.x - m.home.x, m.z - m.home.z) > m.def.leash;
-      if (!tgt || tgt.dead || leashed || Math.hypot(tgt.x - m.x, tgt.z - m.z) > m.def.leash) {
+      if (!tgt || tgt.dead || this.isUntouchable(tgt) || leashed || Math.hypot(tgt.x - m.x, tgt.z - m.z) > m.def.leash) {
         m.target = null;
         m.path = findPath(zi.world, m.x, m.z, m.home.x, m.home.z);
       } else {
@@ -1616,7 +1717,9 @@ export class Game {
       if (zi.world.isWalkable(wx, wz)) m.path = findPath(zi.world, m.x, m.z, wx, wz);
     }
 
-    this.stepAlong(m, m.def.speed, dt);
+    // Enchevêtrement : vitesse réduite tant que le ralentissement court
+    const speed = (m.slowUntil && now < m.slowUntil) ? m.def.speed * (m.slowFactor ?? 0.5) : m.def.speed;
+    this.stepAlong(m, speed, dt);
   }
 
   stepAlong(e, speed, dt) {

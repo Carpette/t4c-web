@@ -221,6 +221,7 @@ export const MOBS = {
   serpent: {
     name: 'Fourmi de feu', level: 3, hp: 22, dmg: 3, def: 2, speed: 3.8,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.2,
+    element: 'feu', // morsure brûlante : les résistances au feu du joueur s'appliquent
     resist: { feu: 0.75, eau: -0.5 },
     sprite: 'fire_ant', respawn: 16,
     drops: [['or', 0.9, 3, 9], ['potion_vie', 0.12, 1, 1], ['tunique', 0.08, 1, 1], ['epee_courte_rouillee', 0.05, 1, 1]],
