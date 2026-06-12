@@ -1,8 +1,14 @@
 // Rendu isométrique 2D : sols, décors, entités triées en profondeur,
 // éclairage simulé (nuit teintée + halos de lumière), à la manière des RPG iso classiques.
 import { DAY_LENGTH } from '../../../shared/constants.js';
+import {
+  Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
+} from './particles.js';
 
 export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
+// pénombre minimale des cavernes : il y fait nuit quel que soit le soleil —
+// torches rares et sort Lumière deviennent indispensables
+const CAVE_DARKNESS = 0.72;
 
 export class Renderer {
   constructor(canvas, assets, world, decor) {
@@ -22,6 +28,8 @@ export class Renderer {
 
     this.tint = null;   // voile coloré propre à la zone
     this.fx = [];       // effets éphémères (projectiles, zones d'effet)
+    this.particles = new Particles(); // flammèches, éclats, bulles... (pool fixe)
+    this._fxClock = 0;  // horloge des particules (dt borné)
     this.setWorld(world, decor);
 
     window.addEventListener('resize', () => this.resize());
@@ -43,6 +51,16 @@ export class Renderer {
 
   addFx(fx) {
     this.fx.push({ ...fx, start: performance.now() / 1000 });
+  }
+
+  // Effet ponctuel sur une entité (soin, buff, malédiction, mort) : particules
+  fxAt(kind, x, z, color) {
+    if (kind === 'heal') emitHeal(this.particles, x, z);
+    else if (kind === 'buff') emitBuff(this.particles, x, z, color);
+    else if (kind === 'shield') emitShield(this.particles, x, z, color);
+    else if (kind === 'curse') emitCurse(this.particles, x, z);
+    else if (kind === 'die') emitDeath(this.particles, x, z);
+    else if (kind === 'levelup') emitBuff(this.particles, x, z, '#ffd24a');
   }
 
   resize() {
@@ -77,14 +95,26 @@ export class Renderer {
     return { x: (a + b) / 2, z: (b - a) / 2 };
   }
 
-  drawTile(id, px, py) {
+  // dessine une tuile/un sprite du tileset à l'ancrage (px, py).
+  // k : échelle propre au prop (1 par défaut) ; flip : miroir horizontal
+  // autour de l'ancrage (la « rotation » des sprites iso pré-rendus).
+  drawTile(id, px, py, k = 1, flip = false) {
     const m = this.assets.manifest;
     let rect = m.tiles[id], img = this.grass;
     if (!rect) { rect = m.waterTiles[id]; img = this.water; }
     if (!rect) return;
     const [x, y, w, h, ox, oy] = rect;
-    const s = this.scale;
-    this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+    const s = this.scale * k;
+    if (flip) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.translate(px, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, x, y, w, h, -ox * s, py - oy * s, w * s, h * s);
+      ctx.restore();
+    } else {
+      this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+    }
   }
 
   // cercle de sélection au sol (sous les pieds d'une entité)
@@ -156,7 +186,7 @@ export class Renderer {
     for (const d of drawables) {
       if (d.prop) {
         const p = this.w2s(d.prop.x, d.prop.z);
-        this.drawTile(d.prop.tileId, p.x, p.y);
+        this.drawTile(d.prop.tileId, p.x, p.y, d.prop.s || 1, d.prop.flip);
       } else {
         const p = this.w2s(d.view.x, d.view.z);
         // surlignement : cible en cours (pulsant) ou entité survolée
@@ -169,14 +199,28 @@ export class Renderer {
       }
     }
 
-    // --- Effets de sorts (projectiles, zones d'effet) ---
+    // --- Effets de sorts (projectiles, éclairs, zones d'effet) + particules ---
     const fnow = performance.now() / 1000;
-    this.fx = this.fx.filter(f => fnow - f.start < (f.dur || 0.45));
+    const fdt = Math.min(0.05, this._fxClock ? fnow - this._fxClock : 0.016);
+    this._fxClock = fnow;
+    const keep = [];
+    for (const f of this.fx) {
+      if (fnow - f.start >= (f.dur || 0.45)) {
+        // l'impact d'un projectile éclate en gerbe à l'arrivée
+        if (f.type === 'proj') emitImpact(this.particles, f.element, f.x1, f.z1);
+        continue;
+      }
+      keep.push(f);
+    }
+    this.fx = keep;
     for (const f of this.fx) {
       const t = (fnow - f.start) / (f.dur || 0.45);
       if (f.type === 'proj') {
         const a = this.w2s(f.x0, f.z0), b = this.w2s(f.x1, f.z1);
         const px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t - 40 * s;
+        // traînée de particules à la position courante de la tête
+        const wx = f.x0 + (f.x1 - f.x0) * t, wz = f.z0 + (f.z1 - f.z0) * t;
+        emitTrail(this.particles, f.element, wx, wz);
         ctx.globalCompositeOperation = 'lighter';
         const g = ctx.createRadialGradient(px, py, 0, px, py, 14 * s);
         g.addColorStop(0, f.color || '#aaddff');
@@ -184,7 +228,32 @@ export class Renderer {
         ctx.fillStyle = g;
         ctx.fillRect(px - 16 * s, py - 16 * s, 32 * s, 32 * s);
         ctx.globalCompositeOperation = 'source-over';
+      } else if (f.type === 'zap') {
+        // éclair : zigzag lumineux bref entre lanceur et cible (pas un projectile)
+        const a = this.w2s(f.x0, f.z0), b = this.w2s(f.x1, f.z1);
+        const ax = a.x, ay = a.y - 50 * s, bx = b.x, by = b.y - 40 * s;
+        const segs = 7;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 1 - t;
+        for (const [w, col] of [[5 * s, f.color || '#9fe4ff'], [2 * s, '#ffffff']]) {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          for (let i = 1; i < segs; i++) {
+            const tt = i / segs;
+            // zigzag pseudo-aléatoire qui scintille avec le temps
+            const j = Math.sin(i * 12.9898 + Math.floor(fnow * 30) * 78.233) * 0.5;
+            ctx.lineTo(ax + (bx - ax) * tt + j * 26 * s, ay + (by - ay) * tt + j * 16 * s);
+          }
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+        ctx.restore();
+        if (!f._sparked) { f._sparked = true; emitImpact(this.particles, 'air', f.x1, f.z1); }
       } else if (f.type === 'aoe') {
+        if (!f._burst) { f._burst = true; emitGround(this.particles, f.element, f.x, f.z, f.radius || 3); }
         const c = this.w2s(f.x, f.z);
         const r = (f.radius || 3) * HW * s * Math.min(1, t * 1.6);
         ctx.globalCompositeOperation = 'lighter';
@@ -198,6 +267,8 @@ export class Renderer {
         ctx.globalCompositeOperation = 'source-over';
       }
     }
+    this.particles.update(fdt);
+    this.particles.draw(ctx, (x, z) => this.w2s(x, z), s);
 
     // --- Voile coloré de la zone ---
     if (this.tint) {
@@ -206,7 +277,8 @@ export class Renderer {
     }
 
     // --- Éclairage : obscurité + trous de lumière ---
-    const darkness = (1 - daylight) * 0.78;
+    const outdoorDarkness = (1 - daylight) * 0.78;
+    const darkness = this.world.kind === 'cave' ? Math.max(CAVE_DARKNESS, outdoorDarkness) : outdoorDarkness;
     if (darkness > 0.02) {
       const l = this.lctx;
       l.globalCompositeOperation = 'source-over';

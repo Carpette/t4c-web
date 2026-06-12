@@ -1,15 +1,17 @@
 // Point d'entrée client : assets Flare, rendu iso 2D, multi-zones, contrôles, sorts
 import { generateWorld, generateTrial } from '../../shared/worldgen.js';
+import { generateCave } from '../../shared/cave.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { KIND, DAY_LENGTH } from '../../shared/constants.js';
 import { ITEMS } from '../../shared/defs.js';
 import { loadAssets } from './render2d/assets.js';
 import { buildDecor } from './render2d/decor.js';
 import { Renderer } from './render2d/renderer.js';
-import { EntityManager2D } from './render2d/entities2d.js';
+import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
 import { playMusic } from './music.js';
+import { play as playSfx, playCast, playImpact } from './sfx.js';
 
 const INTERP_DELAY = 0.15;
 
@@ -70,15 +72,20 @@ net.on('auth_error', (m) => fatal(m.error));
 net.on('create_char', (m) => ui.showCreation(m));
 net.on('welcome', (m) => {
   selfId = m.id;
+  ui.selfId = m.id;
   worldTime = m.time;
   ui.enterGame();
   ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
 });
 net.on('zone', async (m) => {
-  cancelAim(); cancelAuto(); targetId = null;
+  cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
-  const w = m.kind === 'trial' ? generateTrial(m.seed) : generateWorld(m.seed, m.map);
-  if (m.kind !== 'trial') {
+  // le client régénère le même monde que le serveur : île (seed/carte fixe),
+  // labyrinthe de l'Épreuve, ou intérieur de caverne (paramètres partagés)
+  const w = m.kind === 'trial' ? generateTrial(m.seed)
+    : m.kind === 'cave' ? generateCave(m.cave.seed, m.cave.size, m.cave.depth)
+    : generateWorld(m.seed, m.map);
+  if (m.kind === 'island') {
     try {
       const r = await fetch(`/content/overrides_${m.zoneId}.json`);
       if (r.ok) applyOverrides(w, await r.json());
@@ -87,7 +94,7 @@ net.on('zone', async (m) => {
   world = w;
   renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
-  ui.zoneBanner(m.name, m.kind === 'trial' ? null : m.levels);
+  ui.zoneBanner(m.name, m.levels || null);
   playMusic(m.music); // musique de la zone (null = silence)
   if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');
 });
@@ -102,10 +109,26 @@ net.on('chat', (m) => ui.addChat(m.from, m.text, m.channel || m.kind));
 net.on('info', (m) => ui.addChat('sys', m.text));
 net.on('loot', (m) => {
   ui.addChat('sys', m.text);
+  if (/^\+\d+ or$/.test(m.text)) playSfx('or');           // pièces ramassées
+  else if (m.text.startsWith('Vous ouvrez le coffre')) playSfx('coffre');
   const v = em.get(selfId);
   if (v) ui.floater(headPos(v), m.text, 'xp');
 });
-net.on('died', (m) => { cancelAim(); cancelAuto(); ui.showDeath(m); });
+net.on('died', (m) => { cancelAim(); cancelAuto(); ui.endCastBar(); ui.showDeath(m); });
+// XP par coup : gains regroupés par le serveur -> un flotteur lisible + la barre
+net.on('xp', (m) => {
+  ui.applyXp(m);
+  const v = em.get(selfId);
+  if (v) ui.floater(headPos(v), `+${m.gain} XP`, 'xp');
+});
+// ---- Groupe ----
+net.on('party_update', (m) => {
+  ui.setParty(m);
+  // surlignage des noms des membres au-dessus des têtes
+  setPartyIds(m.members.map(x => x.id));
+});
+net.on('party_invite', (m) => ui.showPartyInvite(m));
+net.on('party_vitals', (m) => ui.updatePartyVitals(m));
 net.on('shop', (m) => ui.showShop(m));
 net.on('obelisk', (m) => ui.showObelisk(m));
 net.on('bank_open', (m) => ui.showBank(m));
@@ -114,6 +137,15 @@ net.on('cast_ok', (m) => {
   ui.startCooldown(m.spellId, m.cd);
   if (ui.self) { ui.self.mana = m.mana; ui.renderBars(); }
 });
+// T4C : le sort part immédiatement, la barre montre la RÉCUPÉRATION avant de
+// pouvoir relancer (vitesse du sort de la Bible)
+net.on('cast_start', (m) => {
+  spellReadyAt = performance.now() + m.ms;
+  ui.startCastBar(m.name, m.ms);
+});
+net.on('cast_break', () => ui.endCastBar());
+// relance trop tôt : le serveur indique le temps de récupération restant
+net.on('cast_cd', (m) => { spellReadyAt = performance.now() + m.ms; });
 net.on('snapshot', (snap) => {
   const now = performance.now() / 1000;
   worldTime = snap.worldTime;
@@ -126,20 +158,30 @@ net.on('events', (m) => {
       const v = em.get(ev.to);
       if (!v) continue;
       const pos = headPos(v);
-      if (ev.parry) ui.floater(pos, 'paré !', 'miss');
+      if (ev.parry) { ui.floater(pos, 'paré !', 'miss'); playSfx('parade'); }
       else if (ev.miss) ui.floater(pos, 'raté', 'miss');
       else {
         const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
         const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')
           + (ev.mod === 'resist' ? ' miss' : '') + (ev.mod === 'weak' ? ' heal' : '');
         ui.floater(pos, `-${ev.amount}${suffix}`, cls);
+        if (ev.from === selfId || ev.to === selfId) playSfx('coup');
       }
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;
-      if (ev.kind === 'levelup') ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit');
-      if (ev.kind === 'heal') ui.floater(headPos(v), '+ soin', 'heal');
-      if (ev.kind === 'buff') ui.floater(headPos(v), '✨', 'heal');
+      renderer.fxAt(ev.kind, v.x, v.z, ev.color);
+      if (ev.kind === 'levelup') { ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
+      if (ev.kind === 'heal') { ui.floater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
+      if (ev.kind === 'buff') {
+        // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
+        const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
+        if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff');
+        ui.floater(headPos(v), '✨', 'heal');
+        if (ev.id === selfId) playSfx('buff');
+      }
+      if (ev.kind === 'curse') { ui.floater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
+      if (ev.kind === 'die') playSfx('mort');
     } else if (ev.t === 'look') {
       em.get(ev.id)?.setLook(ev.look);
     } else if (ev.t === 'say') {
@@ -151,10 +193,20 @@ net.on('events', (m) => {
     } else if (ev.t === 'proj') {
       const a = em.get(ev.from), b = em.get(ev.to);
       a?.triggerSwing(); // animation de lancement à chaque sort
-      if (a && b) renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.3 });
+      if (a && b) {
+        if (ev.element === 'air') {
+          // éclair : zigzag instantané entre lanceur et cible, pas un projectile lent
+          renderer.addFx({ type: 'zap', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.22 });
+          playImpact('air');
+        } else {
+          renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, element: ev.element, dur: 0.3 });
+          if (ev.element) { playCast(ev.element); playImpact(ev.element, 0.3); }
+        }
+      }
     } else if (ev.t === 'aoe') {
       em.get(ev.from)?.triggerSwing();
-      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, dur: 0.6 });
+      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, element: ev.element, dur: 0.6 });
+      playImpact(ev.element || 'neutre');
     }
   }
 });
@@ -179,6 +231,7 @@ const arrows = new Set();
 // du lanceur — partent immédiatement, sans visée.)
 let aimSpell = null;          // sort en cours de visée
 let autoCast = null;          // { spellId, targetId?, x?, z? }
+let spellReadyAt = 0;         // fin de la récupération globale (ms, performance.now)
 
 function cancelAim() { aimSpell = null; canvas.style.cursor = ''; }
 function cancelAuto() { autoCast = null; }
@@ -189,6 +242,14 @@ function castSpellAt(spellId, params) {
   autoCast = { spellId, ...params };
 }
 
+// une vue est-elle une cible valide pour ce sort ? (monstre, ou joueur pour
+// les sorts purement maudissants comme Malédiction)
+function validSpellTarget(sp, v) {
+  if (!v || v.isDead?.()) return false;
+  if (v.kind === KIND.MOB) return true;
+  return v.kind === KIND.PLAYER && v.id !== selfId && !!sp.curse && !sp.dmg;
+}
+
 // clic de visée : détermine la cible selon le type du sort
 function aimClick(spellId, ev) {
   const sp = ui.spellDef(spellId);
@@ -196,7 +257,7 @@ function aimClick(spellId, ev) {
   cancelAuto();
   if (sp.type === 'bolt') {
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
-    if (!v || v.kind !== KIND.MOB || v.isDead?.()) { ui.addChat('sys', 'Cible invalide.'); return; }
+    if (!validSpellTarget(sp, v)) { ui.addChat('sys', 'Cible invalide.'); return; }
     targetId = v.id;
     updateTargetFrame();
     castSpellAt(spellId, { target: v.id });
@@ -219,6 +280,7 @@ function tickAutoCast() {
     if (!v || v.isDead?.()) { cancelAuto(); return; }
   }
   const now = performance.now() / 1000;
+  if (performance.now() < spellReadyAt) return;      // récupération T4C en cours
   if ((ui.cds[sp.id] || 0) > now) return;            // encore en recharge
   if ((ui.self?.mana ?? 0) < sp.mana) return;        // attend le mana
   // en mode combat on attend d'être à portée ; sinon le serveur s'approche tout seul
@@ -293,7 +355,7 @@ function castActive(spellId, ev) {
   // bolt : cible sous le curseur, sinon cible courante
   let tid = null;
   const v = ev ? renderer.pickEntity(em, ev.clientX, ev.clientY) : null;
-  if (v && v.kind === KIND.MOB && !v.isDead?.()) tid = v.id;
+  if (validSpellTarget(sp, v)) tid = v.id;
   else if (targetId != null) tid = targetId;
   if (tid == null) { ui.addChat('sys', 'Aucune cible pour ' + sp.name + '.'); return false; }
   castSpellAt(spellId, { target: tid });
@@ -392,7 +454,7 @@ function processHover() {
     // en visée : surligne la cible potentielle avec la couleur du sort
     const sp = ui.spellDef(aimSpell);
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
-    if (sp?.type === 'bolt' && v && v.kind === KIND.MOB && !v.isDead?.()) {
+    if (sp?.type === 'bolt' && validSpellTarget(sp, v)) {
       hover = { id: v.id, color: sp.color || '#aaddff' };
     } else {
       hover = { id: null, color: null };
@@ -419,7 +481,11 @@ function processHover() {
     const prop = renderer.props.find(p => p.interact && Math.hypot(p.x - w.x, p.z - w.z) < 1.6);
     if (prop) {
       canvas.style.cursor = 'pointer';
-      const labels = { obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve", exitgate: "Sortie de l'Épreuve", chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)', cave: prop.name || 'Grotte' };
+      const labels = {
+        obelisk: 'Obélisque des voyages', trialgate: "Portail de l'Épreuve",
+        exitgate: world.kind === 'cave' ? 'Sortie de la caverne' : "Sortie de l'Épreuve",
+        chest: 'Coffre au trésor', bank: 'Coffre personnel (banque)', cave: prop.name || 'Grotte',
+      };
       ui.showTooltip(labels[prop.interact] || '');
       ui.moveTooltip(ev.clientX, ev.clientY);
     } else {
@@ -494,7 +560,9 @@ window.addEventListener('blur', () => {
 function updateTargetFrame() {
   const v = targetId != null ? em.get(targetId) : null;
   if (!v || v.isDead?.()) { targetId = null; ui.setTarget(null); return; }
-  ui.setTarget(`${v.meta.name} [${v.level || v.meta.level}]`, v.hpPct);
+  // cible joueur : son id permet le bouton « Inviter dans le groupe »
+  const playerId = (v.kind === KIND.PLAYER && v.id !== selfId) ? v.id : null;
+  ui.setTarget(`${v.meta.name} [${v.level || v.meta.level}]`, v.hpPct, playerId);
 }
 
 // ---------- Boucle de rendu ----------

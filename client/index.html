@@ -47,6 +47,9 @@
     </div>
 
     <div id="zone-banner"></div>
+    <div id="compass" title="Le nord du monde part vers le haut-droite de l'écran">N&nbsp;↗</div>
+    <!-- barre d'incantation : se remplit pendant le temps de lancement du sort -->
+    <div id="castbar" class="hidden"><div id="castbar-fill"></div><span id="castbar-label"></span></div>
     <div id="spellbar"></div>
     <div id="quickbar"></div>
     <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
@@ -148,13 +151,31 @@
       P : potion de vie — M : potion de mana<br>
       Molette : zoom — I/C/S/H : panneaux — Entrée : chat — Échap : menu et paramètres<br>
       Inventaire, clic droit : poser un objet au sol (échanges entre joueurs)<br>
-      Chat : local (15 tuiles) par défaut — canaux mondiaux : /general, /aide, /ventes, /roleplay<br><br>
+      Chat : local (15 tuiles) par défaut — canaux mondiaux : /general, /aide, /ventes, /roleplay<br>
+      Groupe : /inviter Nom (ou cliquez un joueur puis « Inviter ») — l'XP des combats est partagée à portée<br><br>
       ☠ La mort est DÉFINITIVE. Choisissez vos combats.</p>
     </div>
 
     <div id="target-frame" class="hidden">
       <span id="target-name"></span>
       <div class="bar hp small"><div id="target-hp"></div></div>
+      <button id="target-invite" class="secondary hidden">Inviter dans le groupe</button>
+    </div>
+
+    <!-- Groupe : membres et barres de PV -->
+    <div id="party-panel" class="hidden">
+      <h3>Groupe</h3>
+      <div id="party-list"></div>
+      <button id="party-leave" class="secondary">Quitter le groupe</button>
+    </div>
+
+    <!-- Invitation de groupe reçue -->
+    <div id="party-invite" class="hidden">
+      <span id="party-invite-text"></span>
+      <div class="login-buttons" style="margin-top:6px">
+        <button id="party-invite-yes">Rejoindre</button>
+        <button id="party-invite-no" class="secondary">Refuser</button>
+      </div>
     </div>
 
     <!-- Menu de jeu (Échap) -->

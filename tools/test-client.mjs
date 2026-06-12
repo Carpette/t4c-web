@@ -2,6 +2,7 @@
 // dans Node avec un DOM factice, contre un vrai serveur. Toute exception du
 // flux connexion -> création -> entrée en jeu -> rendu apparaît ici.
 // Usage : node tools/test-client.mjs [url=http://localhost:8090]
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 
 const BASE = process.argv[2] || 'http://localhost:8090';
@@ -126,7 +127,7 @@ if (MODE === 'login' && !FORCED) {
   // pré-crée un compte avec personnage (via WS brut)
   await new Promise((resolve, reject) => {
     const ws = new WebSocket(BASE.replace('http', 'ws'));
-    ws.on('open', () => ws.send(JSON.stringify({ t: 'register', name: NAME, pass: 'test1234' })));
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'register', v: PROTOCOL_VERSION, name: NAME, pass: 'test1234' })));
     ws.on('message', (raw, bin) => {
       if (bin) return;
       const m = JSON.parse(raw.toString());

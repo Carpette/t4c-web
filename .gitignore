@@ -1,4 +1,5 @@
 node_modules/
+content/overrides_*.json
 game.db
 game.db-shm
 game.db-wal

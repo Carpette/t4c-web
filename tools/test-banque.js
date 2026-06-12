@@ -2,6 +2,7 @@
 // (avec déséquipement), retrait, refus à distance, inventaire plein,
 // persistance après reconnexion. À lancer sur une base FRAÎCHE (1er compte = admin).
 // Usage : node tools/test-banque.js [url]
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 
 const URL = process.argv[2] || 'ws://localhost:8090';
@@ -44,7 +45,7 @@ function session() {
 
 const A = session();
 await A.open;
-A.send({ t: 'register', name: NAME, pass: PASS });
+A.send({ t: 'register', v: PROTOCOL_VERSION, name: NAME, pass: PASS });
 await A.waitFor(() => A.self && A.zone);
 ok('connexion zone 0', A.zone?.zoneId === 0);
 
@@ -108,7 +109,7 @@ ok('retrait refusé inventaire plein', A.self.inventory.length === 24 && A.bank.
 // --- persistance : reconnexion, la banque survit ---
 const B = session();
 await B.open;
-B.send({ t: 'login', name: NAME, pass: PASS });
+B.send({ t: 'login', v: PROTOCOL_VERSION, name: NAME, pass: PASS });
 await B.waitFor(() => B.self && B.zone);
 B.send({ t: 'admin', cmd: 'goto', x: NEAR_BANK.x, z: NEAR_BANK.z });
 await sleep(400);

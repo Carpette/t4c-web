@@ -7,6 +7,15 @@ import { settings } from '../settings.js';
 const BASE_LAYERS = { feet: 'default_feet', legs: 'cloth_pants', hands: 'default_hands' };
 const BUBBLE_FONT = '13px "Trebuchet MS", sans-serif';
 
+// Membres du groupe du joueur : leurs noms sont surlignés au-dessus des têtes
+// (alimenté par main.js à chaque party_update)
+const PARTY_IDS = new Set();
+const PARTY_NAME_COLOR = '#ffd24a';
+export function setPartyIds(ids) {
+  PARTY_IDS.clear();
+  for (const id of ids) PARTY_IDS.add(id);
+}
+
 class EntityView2D {
   constructor(meta, assets) {
     this.id = meta.id;
@@ -28,8 +37,10 @@ class EntityView2D {
       }
       this.setLook(meta.look || {});
     } else if (meta.kind === KIND.MOB) {
-      const sprite = MOBS[meta.defId]?.sprite || 'goblin';
+      const def = MOBS[meta.defId];
+      const sprite = def?.sprite || 'goblin';
       this.sprite = sprite;
+      this.spriteScale = def?.spriteScale || 1; // planches de résolutions inégales
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
       this.image = assets.images.get(assets.manifest.enemies[sprite].image);
     } else {
@@ -168,9 +179,10 @@ class EntityView2D {
       const f = this.anim.frame(d);
       if (!f) return;
       const [x, y, w, h, ox, oy] = f;
-      ctx.drawImage(this.image, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
-      this.bbox = { x: px - ox * s, y: py - oy * s, w: w * s, h: h * s, sy: py };
-      this.topY = py - oy * s;
+      const ms = s * this.spriteScale;
+      ctx.drawImage(this.image, x, y, w, h, px - ox * ms, py - oy * ms, w * ms, h * ms);
+      this.bbox = { x: px - ox * ms, y: py - oy * ms, w: w * ms, h: h * ms, sy: py };
+      this.topY = py - oy * ms;
       return;
     }
     // joueur : couches dans l'ordre propre à la direction
@@ -216,7 +228,7 @@ class EntityView2D {
       ctx.strokeText(name, px, top - 6);
       ctx.fillStyle = isSelf ? '#a8e8a8'
         : isNpc ? '#ffe48a'
-        : (isPlayer ? '#a8d8ff' : '#ffd2a8');
+        : (isPlayer ? (PARTY_IDS.has(this.id) ? PARTY_NAME_COLOR : '#a8d8ff') : '#ffd2a8');
       ctx.fillText(name, px, top - 6);
     }
     // barre de vie (pas pour les PNJ)
