@@ -343,6 +343,46 @@ $('skin-item-upload').onclick = async () => {
   } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
 };
 
+// Recale chaque case d'une planche : efface une marge (tue les lignes de
+// grille dessinées par l'IA, quelle que soit leur couleur), puis translate le
+// contenu pour que son BAS-CENTRE tombe sur l'ancrage (ax, ay) de la case —
+// sans ça, les IA dessinent la créature à ±10 px près d'une frame à l'autre
+// et l'animation tremble comme une bobine de cinéma.
+function realignSheet(src, cw, ch, ax, ay, inset = 3) {
+  const cols = Math.round(src.width / cw), rows = 8;
+  const sctx = src.getContext('2d');
+  const out = document.createElement('canvas');
+  out.width = src.width; out.height = src.height;
+  const octx = out.getContext('2d');
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x0 = c * cw, y0 = r * ch;
+      const iw = cw - inset * 2, ih = ch - inset * 2;
+      const d = sctx.getImageData(x0 + inset, y0 + inset, iw, ih);
+      let minX = Infinity, maxX = -1, maxY = -1;
+      for (let y = 0; y < ih; y++) {
+        for (let x = 0; x < iw; x++) {
+          if (d.data[(y * iw + x) * 4 + 3] > 24) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) continue; // case vide
+      const dx = Math.round(ax - (inset + (minX + maxX) / 2));
+      const dy = Math.round(ay - (inset + maxY));
+      octx.save();
+      octx.beginPath();
+      octx.rect(x0, y0, cw, ch);
+      octx.clip();
+      octx.drawImage(src, x0 + inset, y0 + inset, iw, ih, x0 + inset + dx, y0 + inset + dy, iw, ih);
+      octx.restore();
+    }
+  }
+  return out;
+}
+
 $('skin-enemy-upload').onclick = async () => {
   const f = $('skin-enemy-file').files[0];
   if (!f) { $('skins-msg').textContent = '✘ Choisissez la planche.'; return; }
@@ -355,9 +395,13 @@ $('skin-enemy-upload').onclick = async () => {
     };
     // taille EXACTE attendue par la grille : colonnes x case, 8 lignes
     const cols = Math.max(0, ...Object.values(cfg.anims).map(a => (a.to | 0) + 1));
-    const { data, canvas } = await prepareImage(f, {
+    let { data, canvas } = await prepareImage(f, {
       targetW: cols * cfg.cell[0], targetH: 8 * cfg.cell[1], mode: 'stretch',
     });
+    if ($('skin-realign').checked) {
+      canvas = realignSheet(canvas, cfg.cell[0], cfg.cell[1], cfg.anchor[0], cfg.anchor[1]);
+      data = canvas.toDataURL('image/png').split(',')[1];
+    }
     const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data });
     $('skins-msg').textContent = `✔ Planche « ${r.sprite} » ${r.existed ? 'remplacée' : 'importée'} `
       + `(${canvas.width}×${canvas.height}, ${r.cols} colonnes, ${r.anims.join(', ')}) — assignez-la à une créature.`;
