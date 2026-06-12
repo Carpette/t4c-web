@@ -2,7 +2,7 @@
 // Version du protocole client<->serveur : à incrémenter quand un client
 // périmé (en cache navigateur) deviendrait incompatible. Le serveur refuse
 // la connexion avec un message clair plutôt qu'un écran figé.
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const TICK_RATE = 10;            // ticks serveur par seconde
 export const TICK_DT = 1 / TICK_RATE;
 export const MAP_SIZE = 128;            // tuiles
@@ -126,6 +126,23 @@ export function scaleMob(def, zoneBase) {
     goldMul: 1 + zoneBase * 0.5,
   };
 }
+
+// ---------- Spawn déclenché par le mouvement (témoignages T4C) ----------
+// Les zones démarrent vides : tant qu'aucun joueur n'y BOUGE, rien n'apparaît.
+// Chaque déplacement réel marque la zone « chaude » pour quelques secondes ;
+// le serveur y fait alors apparaître UN monstre par intervalle (T4C_SPAWN_MS).
+export const SPAWN_HEAT_DURATION = 4;        // s de « chaleur » après un mouvement
+export const SPAWN_INTERVAL_DEFAULT_MS = 2500; // intervalle par défaut entre deux spawns
+export const SPAWN_MIN_PLAYER_DIST = 24;     // tuiles : jamais sous les yeux d'un joueur
+// les cavernes sont exiguës et plongées dans la pénombre : une distance
+// moindre suffit à rester hors de vue
+export const SPAWN_MIN_PLAYER_DIST_CAVE = 12;
+
+// ---------- Groupes (parties) ----------
+export const GROUP_MAX_SIZE = 5;             // membres au maximum, chef compris
+export const GROUP_INVITE_TTL = 30;          // s avant expiration d'une invitation
+export const GROUP_XP_RANGE = 30;            // tuiles : portée du partage d'XP
+export const GROUP_XP_BONUS_PER_MEMBER = 0.10; // +10 % d'XP totale par membre au-delà du 1er
 
 // États d'entité (champ binaire `state`)
 export const ST = { IDLE: 0, WALK: 1, ATTACK: 2, DEAD: 3, HURT: 4 };

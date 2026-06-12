@@ -9,6 +9,7 @@ import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
 import { generateWorld } from '../shared/worldgen.js';
+import { wakeZone, wakeCampNear } from './test-helpers.js';
 
 // chaque sort s'achète chez SON enseignant : positions de la carte partagée
 const NPC_SPOTS = generateWorld(0, 'arakas').npcSpots;
@@ -71,6 +72,8 @@ ws.on('message', (raw, bin) => {
 });
 
 const me = () => S.pos.get(S.id);
+// adaptateur pour les helpers partagés (réveil des zones, spawn T4C)
+const ctx = { send: (o) => send(o), pos: S.pos, metas: S.metas, get id() { return S.id; } };
 // monstre vivant le plus proche, filtrable par defId
 function nearestMob(defId = null) {
   let best = null, bestD = 1e9;
@@ -193,6 +196,8 @@ const PART = (process.argv[3] || 'ABC').toUpperCase();
 if (PART.includes('A')) {
 // --- récupération T4C : l'effet part IMMÉDIATEMENT, le délai s'applique APRÈS ---
 // niveau 10 : Dard de Feu = 1000 + (520 - 8x20) = 1360 ms de récupération (Bible)
+// spawn T4C : la zone est vide tant que personne ne bouge — on la réveille
+await wakeZone(ctx, { count: 1, timeout: 10000 });
 let mob = await waitFor(() => nearestMob(), 5000);
 ok('monstre trouvé', !!mob);
 await approach(mob.id, 7);
@@ -238,20 +243,26 @@ async function sampleSpell(spellId, defId, n) {
   for (let guard = 0; guard < n * 3 && out.length < n; guard++) {
     const target = nearestMob(defId) || await waitFor(() => nearestMob(defId), 4000);
     if (!target) break;
-    if (!(await approach(target.id, 7))) continue;
+    // au contact (3 tuiles) : la ligne de vue est garantie, même si le monstre
+    // est apparu derrière un obstacle (les spawns ne sont plus déterministes)
+    if (!(await approach(target.id, 3))) continue;
     const res = await castAndMeasure(spellId, target.id);
     if (res?.hit) out.push(res.hit.amount);
-    await sleep(150);
+    await sleep(400); // laisse passer la récupération avant la relance
   }
   return out;
 }
 // Hobgobelin (orc) : aucune résistance au feu ; Squelette : aucune résistance terre
-await gotoNear(280, 127); // le camp Orc de Roshnak Tul (carte Arakas Classic)
+// spawn T4C : on réveille chaque camp depuis un poste d'observation (les
+// monstres n'apparaissent jamais à moins de 24 tuiles d'un joueur)
+await wakeCampNear(ctx, 280, 127, { defId: 'orc', count: 2 }); // camp Orc de Roshnak Tul
+await gotoNear(280, 127);
 const feu = await sampleSpell('dard_de_feu', 'orc', 2);
 console.log('   échantillons Dard de Feu sur Hobgobelin :', feu.join(', '));
 ok('formule Dard de Feu respectée (1d17+6+Int/23 -> 11..27)',
   feu.length >= 2 && feu.every(v => v >= 10 && v <= 28));
-await gotoNear(219, 81); // la crypte du Nomade et ses squelettes (Arakas Classic)
+await wakeCampNear(ctx, 219, 81, { defId: 'squelette', count: 2 }); // crypte du Nomade
+await gotoNear(219, 81);
 const terre = await sampleSpell('eclat_de_pierre', 'squelette', 2);
 console.log('   échantillons Éclat de Pierre sur Squelette :', terre.join(', '));
 ok('formule Éclat de Pierre respectée (1d9+11+Sag/22 -> 12..21)',
@@ -264,6 +275,8 @@ send({ t: 'admin', cmd: 'set', level: 60, gold: 100000 });
 await sleep(400);
 // --- soin : Guérison Légère = 1d5 + 8 + Sag/23 -> ~10..14 PV ---
 // se faire blesser par le monstre le plus proche, puis se soigner
+// (réveil du camp Orc à distance : spawn T4C, puis on s'y rend)
+await wakeCampNear(ctx, 280, 127, { defId: 'orc', count: 1 });
 await gotoNear(280, 127); // au camp Orc : il faut bien se faire taper dessus
 const bully = await waitFor(() => nearestMob(), 4000);
 if (bully) {
@@ -325,6 +338,8 @@ async function sampleHits(n, timeout = 9000) {
   }
   return out;
 }
+// réveil du camp des Fourmis de feu (spawn T4C), puis on s'y rend
+await wakeCampNear(ctx, 357, 237, { defId: 'serpent', count: 1 });
 await gotoNear(357, 237); // côte NE : les Fourmis de feu (carte Arakas Classic)
 const ant = await waitFor(() => nearestMob('serpent'), 5000);
 ok('Fourmi de feu trouvée', !!ant);

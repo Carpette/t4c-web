@@ -1,5 +1,5 @@
 // Interface : connexion, HUD, inventaire (poupée T4C), fiche perso, chat, dégâts flottants
-import { STAT_NAMES, STATS, PROTOCOL_VERSION } from '../../shared/constants.js';
+import { STAT_NAMES, STATS, PROTOCOL_VERSION, GROUP_INVITE_TTL } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
 import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting } from './settings.js';
@@ -110,6 +110,17 @@ export class UI {
     };
     $('btn-trial-go').onclick = () => { $('trial-modal').classList.add('hidden'); net.send({ t: 'trial_enter' }); };
     $('btn-trial-no').onclick = () => $('trial-modal').classList.add('hidden');
+
+    // ---- Groupe : réponses à l'invitation, départ, invitation par clic ----
+    this.party = null;          // { leaderId, members: [{id, name, level}] }
+    this.selfId = null;         // renseigné par main.js au welcome
+    this.targetPlayerId = null; // joueur ciblé (bouton « Inviter »)
+    $('party-invite-yes').onclick = () => { $('party-invite').classList.add('hidden'); net.send({ t: 'party_accept' }); };
+    $('party-invite-no').onclick = () => { $('party-invite').classList.add('hidden'); net.send({ t: 'party_decline' }); };
+    $('party-leave').onclick = () => net.send({ t: 'party_leave' });
+    $('target-invite').onclick = () => {
+      if (this.targetPlayerId != null) net.send({ t: 'party_invite', id: this.targetPlayerId });
+    };
     document.querySelectorAll('#shop-tabs button').forEach(b => {
       b.onclick = () => {
         document.querySelectorAll('#shop-tabs button').forEach(x => x.classList.remove('active'));
@@ -907,10 +918,79 @@ export class UI {
   }
   hideTooltip() { $('tooltip').classList.add('hidden'); }
 
-  setTarget(name, hpPct) {
-    if (!name) { $('target-frame').classList.add('hidden'); return; }
+  // `playerId` : si la cible est un autre joueur, propose de l'inviter au groupe
+  setTarget(name, hpPct, playerId = null) {
+    if (!name) { $('target-frame').classList.add('hidden'); this.targetPlayerId = null; return; }
     $('target-frame').classList.remove('hidden');
     $('target-name').textContent = name;
     $('target-hp').style.width = `${hpPct}%`;
+    this.targetPlayerId = playerId;
+    const alreadyGrouped = playerId != null && !!this.party?.members.some(m => m.id === playerId);
+    $('target-invite').classList.toggle('hidden', playerId == null || alreadyGrouped);
+  }
+
+  // ---- Groupe ----
+  setParty(msg) {
+    this.party = msg.members.length ? msg : null;
+    this.renderParty();
+  }
+
+  renderParty() {
+    const panel = $('party-panel');
+    if (!this.party) { panel.classList.add('hidden'); this._partyHpFills = null; return; }
+    panel.classList.remove('hidden');
+    const list = $('party-list');
+    list.innerHTML = '';
+    this._partyHpFills = new Map();
+    const isLeader = this.party.leaderId === this.selfId;
+    for (const m of this.party.members) {
+      const row = document.createElement('div');
+      row.className = 'party-row';
+      const nameLine = document.createElement('div');
+      nameLine.className = 'party-name';
+      const label = document.createElement('span');
+      if (m.id === this.party.leaderId) label.classList.add('leader');
+      label.textContent = `${m.id === this.party.leaderId ? '★ ' : ''}${m.name} [${m.level}]`;
+      nameLine.appendChild(label);
+      // exclusion : réservée au chef, jamais sur soi-même
+      if (isLeader && m.id !== this.selfId) {
+        const kick = document.createElement('button');
+        kick.className = 'kick';
+        kick.title = 'Exclure du groupe';
+        kick.textContent = '✖';
+        kick.onclick = () => this.net.send({ t: 'party_kick', id: m.id });
+        nameLine.appendChild(kick);
+      }
+      const bar = document.createElement('div');
+      bar.className = 'party-hp';
+      const fill = document.createElement('div');
+      bar.appendChild(fill);
+      this._partyHpFills.set(m.id, fill);
+      row.append(nameLine, bar);
+      list.appendChild(row);
+    }
+  }
+
+  updatePartyVitals(msg) {
+    if (!this._partyHpFills) return;
+    for (const v of msg.members) {
+      const fill = this._partyHpFills.get(v.id);
+      if (fill) fill.style.width = `${Math.max(0, Math.min(100, (v.hp / Math.max(1, v.maxHp)) * 100))}%`;
+    }
+  }
+
+  showPartyInvite(msg) {
+    $('party-invite-text').textContent = `${msg.from} vous invite dans son groupe.`;
+    $('party-invite').classList.remove('hidden');
+    this.addChat('sys', `${msg.from} vous invite dans son groupe (expire dans ${GROUP_INVITE_TTL} s).`);
+    clearTimeout(this._inviteTimer);
+    this._inviteTimer = setTimeout(() => $('party-invite').classList.add('hidden'), GROUP_INVITE_TTL * 1000);
+  }
+
+  // XP par coup : le serveur regroupe les gains, la barre suit sans `self` complet
+  applyXp(msg) {
+    if (!this.self) return;
+    this.self.xp = msg.xp;
+    this.renderBars();
   }
 }

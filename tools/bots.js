@@ -18,8 +18,8 @@ function bot(n) {
     const ws = new WebSocket(URL);
     const state = {
       name, id: null, metas: new Map(), pos: new Map(),
-      dmgDealt: 0, dmgTaken: 0, loots: 0, xpMsgs: 0, level: 1, gold: 0,
-      kills: 0, snapshots: 0, errors: [],
+      dmgDealt: 0, dmgTaken: 0, loots: 0, xpMsgs: 0, xpGained: 0, level: 1, gold: 0,
+      snapshots: 0, errors: [],
     };
 
     ws.on('open', () => ws.send(JSON.stringify({ t: 'register', v: PROTOCOL_VERSION, name, pass: 'test1234' })));
@@ -47,7 +47,11 @@ function bot(n) {
         case 'meta': for (const m of msg.list) state.metas.set(m.id, m); break;
         case 'loot':
           state.loots++;
-          if (msg.text.includes('XP')) { state.xpMsgs++; state.kills++; }
+          break;
+        // XP par coup : le serveur regroupe les gains dans des messages 'xp'
+        case 'xp':
+          state.xpMsgs++;
+          state.xpGained += msg.gain || 0;
           break;
         case 'events':
           for (const ev of msg.list) {
@@ -91,7 +95,7 @@ function bot(n) {
       if (!ok) failures++;
       summaries.push(
         `${name}: ${ok ? 'OK' : 'ÉCHEC'} — snapshots=${state.snapshots} niv=${state.level} ` +
-        `dégâts infligés=${state.dmgDealt} subis=${state.dmgTaken} loots=${state.loots} kills=${state.kills} or=${state.gold}` +
+        `dégâts infligés=${state.dmgDealt} subis=${state.dmgTaken} loots=${state.loots} xp=${state.xpGained} or=${state.gold}` +
         (state.errors.length ? ` ERREURS: ${state.errors.join('; ')}` : '')
       );
       resolve();

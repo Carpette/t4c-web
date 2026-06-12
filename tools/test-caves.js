@@ -10,6 +10,7 @@ import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { generateWorld } from '../shared/worldgen.js';
 import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../shared/cave.js';
+import { wakeZone } from './test-helpers.js';
 
 const URL = process.argv[2] || 'ws://localhost:8090';
 const checks = [];
@@ -101,12 +102,15 @@ const aPos = A.pos.get(A.id);
 ok('apparu près de la sortie de la caverne',
   aPos && Math.hypot(aPos.x - exitProp.x, aPos.z - exitProp.z) < 3);
 
-// --- monstres : présents, au niveau de la zone parente +2 ---
+// --- monstres : ils apparaissent au MOUVEMENT (spawn T4C), au niveau de la
+// zone parente +2 — la caverne démarre vide, on la réveille en bougeant ---
+await wakeZone({ send: A.send, pos: A.pos, metas: A.metas, get id() { return A.id; } },
+  { count: 3, timeout: 10000 });
 const mobs = await A.waitFor(() => {
   const list = [...A.metas.values()].filter(m => m.kind === KIND.MOB);
   return list.length >= 3 ? list : null;
 }, 6000);
-ok('monstres présents dans la caverne', !!mobs);
+ok('monstres apparus dans la caverne (réveillée en bougeant)', !!mobs);
 ok(`vermine au niveau zone parente +${CAVE_LEVEL_BONUS} (Fourmilion niv 3)`,
   mobs && mobs.every(m => m.level === 1 + CAVE_LEVEL_BONUS));
 

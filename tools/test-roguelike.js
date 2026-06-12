@@ -5,6 +5,7 @@ import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
+import { wakeZone } from './test-helpers.js';
 
 const URL = process.argv[2] || 'ws://localhost:8080';
 const checks = [];
@@ -125,6 +126,9 @@ ok('entraînement par points (assommant 2, attaque 1)',
 // --- sort sur un monstre (niveau 10 pour survivre à l'approche : ~78 PV) ---
 send({ t: 'admin', cmd: 'set', level: 10 });
 await sleep(400);
+// spawn T4C : la zone est vide tant que personne ne bouge — on la réveille
+await wakeZone({ send, pos: S.pos, metas: S.metas, get id() { return S.id; } },
+  { count: 1, timeout: 10000 });
 const mob = await waitFor(() => {
   for (const [id, e] of S.pos) {
     const meta = S.metas.get(id);

@@ -15,6 +15,14 @@ const CELL = 16;
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 
+// Intervalle entre deux apparitions de monstres dans une zone « chaude »
+// (env T4C_SPAWN_MS ; les suites de test l'abaissent à ~250 ms)
+const SPAWN_INTERVAL_MS = Math.max(50,
+  parseInt(process.env.T4C_SPAWN_MS, 10) || C.SPAWN_INTERVAL_DEFAULT_MS);
+const SPAWN_TRIES_PER_TICK = 12;  // essais de placement avant d'abandonner le tick
+const XP_NOTIFY_EVERY_TICKS = 5;  // flotteurs d'XP regroupés (2 envois/s au plus)
+const PARTY_VITALS_EVERY_TICKS = 10; // PV des membres du groupe : 1 envoi/s
+
 // Première case praticable en spirale autour de (x, z) — pour déposer un
 // joueur au pied d'un prop bloquant (obélisque...) sans l'enfermer dedans.
 function walkableNear(world, x, z, maxR = 4) {
@@ -40,6 +48,10 @@ class ZoneInstance {
     this.entities = new Map();
     this.grid = new Map();
     this.players = 0;
+    // spawn par le mouvement : camps (budgets de population) + « chaleur »
+    this.camps = [];
+    this.hotUntil = 0;       // la zone est chaude tant que now <= hotUntil
+    this.nextSpawnAt = 0;    // prochain tick de spawn autorisé
   }
   cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
   gridAdd(e) {
@@ -95,26 +107,60 @@ export class Game {
   now() { return this.tickCount / C.TICK_RATE; }
 
   // ---------- Peuplement ----------
+  // Spawn T4C déclenché par le MOUVEMENT : les zones démarrent VIDES de
+  // monstres. Les camps historiques (composition de l'ancien populateIsland)
+  // deviennent des BUDGETS : tant qu'un camp est sous sa capacité et qu'un
+  // joueur bouge dans la zone, le tick de spawn peut y faire apparaître un
+  // monstre — toujours hors champ (à SPAWN_MIN_PLAYER_DIST de tout joueur).
   populateIsland(zi) {
-    const rng = mulberry32((this.zoneDef(zi.zoneId).seed ^ 0xbeef) >>> 0);
     const base = this.zoneDef(zi.zoneId).levels[0] - 1;
-    // une carte fixe (Arakas) définit ses propres spots ; sinon spots communs
-    for (const zone of zi.world.spawnZones || SPAWN_ZONES) {
-      for (let i = 0; i < zone.count; i++) {
-        let x, z, tries = 0;
-        do {
-          const a = rng() * Math.PI * 2, d = rng() * zone.radius;
-          x = zone.center[0] + Math.cos(a) * d + 0.5;
-          z = zone.center[1] + Math.sin(a) * d + 0.5;
-        } while (!zi.world.isWalkable(x, z) && ++tries < 40);
-        if (tries >= 40) continue;
-        this.spawnMob(zi, zone.mob, x, z, base);
-      }
-    }
+    // une carte fixe (Arakas) définit ses propres camps ; sinon camps communs
+    zi.camps = (zi.world.spawnZones || SPAWN_ZONES).map(zone => ({
+      x: zone.center[0] + 0.5, z: zone.center[1] + 0.5,
+      radius: zone.radius,
+      defIds: [zone.mob],   // composition du camp
+      cap: zone.count,      // population maximale
+      alive: 0,             // population actuelle (décomptée à la mort)
+      base,                 // niveau de base de la zone (scaling)
+    }));
     this.spawnNpc(zi);
   }
 
-  spawnMob(zi, defId, x, z, zoneBase, noRespawn = false) {
+  // un joueur a réellement bougé : la zone devient « chaude » quelques secondes
+  heatZone(zi) {
+    zi.hotUntil = this.now() + C.SPAWN_HEAT_DURATION;
+  }
+
+  // Tick de spawn : zone chaude ET population sous la capacité d'un camp ->
+  // UN monstre apparaît, jamais plus (progressif). Placement : un point du
+  // camp, praticable, à au moins SPAWN_MIN_PLAYER_DIST tuiles de TOUT joueur
+  // de la zone (le monstre surgit devant celui qui marche, jamais sous ses
+  // yeux). Aucun point valide -> le tick est sauté.
+  maybeSpawn(zi, now) {
+    if (!zi.camps.length || now > zi.hotUntil || now < zi.nextSpawnAt) return;
+    zi.nextSpawnAt = now + SPAWN_INTERVAL_MS / 1000;
+    const open = zi.camps.filter(c => c.alive < c.cap);
+    if (!open.length) return;
+    const minDist = zi.isCave ? C.SPAWN_MIN_PLAYER_DIST_CAVE : C.SPAWN_MIN_PLAYER_DIST;
+    const players = [];
+    for (const p of this.players.values()) {
+      if (p.zi === zi && !p.dead) players.push(p);
+    }
+    for (let attempt = 0; attempt < SPAWN_TRIES_PER_TICK; attempt++) {
+      const camp = open[Math.floor(Math.random() * open.length)];
+      const a = Math.random() * Math.PI * 2, d = Math.random() * camp.radius;
+      const x = camp.x + Math.cos(a) * d, z = camp.z + Math.sin(a) * d;
+      if (!zi.world.isWalkable(x, z)) continue;
+      if (players.some(p => Math.hypot(p.x - x, p.z - z) < minDist)) continue;
+      const defId = camp.defIds[Math.floor(Math.random() * camp.defIds.length)];
+      const m = this.spawnMob(zi, defId, x, z, camp.base);
+      m.camp = camp;
+      camp.alive++;
+      return;
+    }
+  }
+
+  spawnMob(zi, defId, x, z, zoneBase) {
     const def = MOBS[defId];
     const sc = C.scaleMob(def, zoneBase);
     const m = {
@@ -124,7 +170,7 @@ export class Game {
       hp: sc.hp, maxHp: sc.hp,
       home: { x, z }, target: null, atkCd: 0, path: null,
       wanderAt: this.now() + 2 + Math.random() * 6,
-      dead: false, hidden: false, respawnAt: 0, hideAt: 0, noRespawn,
+      dead: false, hidden: false, hideAt: 0, camp: null,
     };
     zi.add(m);
     return m;
@@ -179,6 +225,7 @@ export class Game {
       path: null, moveDir: null, attackTarget: null, atkCd: 0, lastCombat: -99,
       spellCds: {}, buffs: [],
       hp: 1, mana: 1, dead: false, hidden: false,
+      party: null, partyInvite: null, xpNotify: 0,
       known: new Set(), events: [], lastChat: 0,
       channels: ['general', 'aide', 'ventes', 'roleplay'], // Abonnés par défaut
       pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
@@ -218,6 +265,7 @@ export class Game {
   removePlayer(p, reason) {
     if (!this.players.has(p.id)) return;
     if (!p.permadead) this.savePlayer(p);
+    this.leaveParty(p); // la déconnexion fait quitter le groupe
     p.zi.players--;
     p.zi.remove(p);
     this.maybeDestroyTrial(p.zi);
@@ -290,6 +338,7 @@ export class Game {
     p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
     zi.add(p);
     zi.players++;
+    this.heatZone(zi); // l'arrivée d'un joueur compte comme un mouvement
     this.maybeDestroyTrial(old);
     this.sendZone(p);
     this.sendSelf(p);
@@ -312,7 +361,7 @@ export class Game {
     const rng = mulberry32((def.seed ^ 0x5eed) >>> 0);
     for (const spot of world.mobSpots) {
       const defId = strongest[Math.floor(rng() * strongest.length)];
-      const m = this.spawnMob(zi, defId, spot.x, spot.z, base, true);
+      const m = this.spawnMob(zi, defId, spot.x, spot.z, base);
       m.def = { ...m.def, aggro: 9, leash: 60 }; // agressifs, pas de retour au bercail
     }
     return zi;
@@ -377,12 +426,15 @@ export class Game {
   }
 
   populateCave(zi, def) {
-    // les monstres du thème de la grotte, un peu plus coriaces que la surface
+    // Comme en surface : la grotte démarre VIDE, les monstres apparaissent au
+    // rythme des déplacements. Chaque spot de monstre devient un camp de
+    // capacité 1, peuplé par le thème de la grotte (un peu plus coriace que
+    // la surface : CAVE_LEVEL_BONUS).
     const base = this.zoneDef(zi.zoneId).levels[0] - 1 + CAVE_LEVEL_BONUS;
-    const rng = mulberry32((def.seed ^ 0x9e37) >>> 0);
-    for (const spot of zi.world.mobSpots) {
-      this.spawnMob(zi, def.mobs[Math.floor(rng() * def.mobs.length)], spot.x, spot.z, base);
-    }
+    zi.camps = zi.world.mobSpots.map(spot => ({
+      x: spot.x, z: spot.z, radius: 2,
+      defIds: def.mobs, cap: 1, alive: 0, base,
+    }));
   }
 
   enterCave(p, prop) {
@@ -668,6 +720,7 @@ export class Game {
         p.x = spot.x; p.z = spot.z;
         p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingCast = null;
         p.zi.gridMove(p);
+        this.heatZone(p.zi); // le voyage local est un déplacement réel
         p.obeliskUntil = this.now() + 30; // on arrive au pied d'un obélisque : panneau réutilisable
         this.send(p, { t: 'info', text: `L'obélisque vous transporte : ${dest.name} (−${C.OBELISK_TRAVEL_COST} or).` });
         this.sendSelf(p);
@@ -754,18 +807,47 @@ export class Game {
         if (channelMatch) {
           const channel = channelMatch[1].toLowerCase();
           const text = channelMatch[2].trim();
-          
+
+          // commande de groupe : /inviter Nom
+          if (channel === 'inviter') {
+            this.partyInvite(p, { name: text });
+            return;
+          }
           const validChannels = ['general', 'aide', 'ventes', 'roleplay'];
           if (validChannels.includes(channel)) {
             this.broadcastChannelChat(channel, p.name, text);
           } else {
-            this.send(p, { t: 'info', text: `Canal /${channel} inconnu. Utilise: /general, /aide, /ventes, ou /roleplay.` });
+            this.send(p, { t: 'info', text: `Canal /${channel} inconnu. Utilise: /general, /aide, /ventes, /roleplay — ou /inviter Nom (groupe).` });
           }
         } else {
           // Chat local par défaut : envoie aux joueurs proches + bulle au-dessus de la tête
           this.sendLocalChat(p, rawText);
           this.eventNear(p, { t: 'say', id: p.id, text: rawText });
         }
+        break;
+      }
+      case 'party_invite': {
+        if (p.dead) return;
+        this.partyInvite(p, msg);
+        break;
+      }
+      case 'party_accept': {
+        if (p.dead) return;
+        this.partyAccept(p);
+        break;
+      }
+      case 'party_decline': {
+        this.partyDecline(p);
+        break;
+      }
+      case 'party_leave': {
+        if (!p.party) return;
+        this.broadcastToParty(p.party, `${p.name} quitte le groupe.`, p);
+        this.leaveParty(p);
+        break;
+      }
+      case 'party_kick': {
+        this.partyKick(p, msg);
         break;
       }
       case 'newchar': {
@@ -821,6 +903,7 @@ export class Game {
         p.x = x; p.z = z;
         p.path = null; p.moveDir = null;
         p.zi.gridMove(p);
+        this.heatZone(p.zi); // la téléportation admin est un déplacement réel
         break;
       }
       case 'zone': {
@@ -1470,9 +1553,18 @@ export class Game {
   }
 
   applyDamage(attacker, defender, dmg, crit, mod = null) {
+    const hpBefore = defender.hp;
     defender.hp -= dmg;
     defender.lastCombat = this.now();
     this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit, mod });
+    // XP « par coup » (T4C) : chaque dégât d'un joueur sur un monstre rapporte
+    // xpTotale × dégâtsEffectifs / PVmax, bornés aux PV restants (pas d'XP
+    // d'overkill). Les PV régénérés redonnent de l'XP : pas de plafond cumulé
+    // par monstre — le « milking » de liche est canon.
+    if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB && dmg > 0) {
+      const effective = Math.min(dmg, Math.max(0, hpBefore));
+      if (effective > 0) this.shareXpForDamage(attacker, defender, effective / defender.maxHp);
+    }
     if (defender.hp <= 0) {
       if (defender.kind === C.KIND.MOB) this.killMob(defender, attacker);
       else this.killPlayer(defender, attacker);
@@ -1560,11 +1652,10 @@ export class Game {
     m.curseUntil = 0; m.slowUntil = 0;
     this.eventNear(m, { t: 'fx', kind: 'die', id: m.id }); // râle + poussière côté client
     m.hideAt = this.now() + 6;
-    m.respawnAt = m.noRespawn ? Infinity : this.now() + m.def.respawn;
+    // la place se libère au camp : le spawn par mouvement pourra la repourvoir
+    if (m.camp) { m.camp.alive--; m.camp = null; }
+    // l'XP a déjà été versée COUP PAR COUP (applyDamage) : rien à la mort
     if (killer.kind === C.KIND.PLAYER) {
-      const xp = C.mobXpReward(m.level, killer.level);
-      this.addXp(killer, xp);
-      this.send(killer, { t: 'loot', text: `+${xp} XP (${m.def.name})` });
       if (killer.attackTarget === m.id) killer.attackTarget = null;
       const zid = m.zi.zoneId;
       for (const payload of rollDrops(m.def, Math.random, zid, killer.skillFx?.loot || 0)) {
@@ -1575,6 +1666,7 @@ export class Game {
 
   // Mort définitive : le personnage est effacé. Roguelike.
   killPlayer(p, killer) {
+    this.leaveParty(p); // le mort quitte le groupe
     p.dead = true; p.permadead = true; p.state = C.ST.DEAD; p.hp = 0;
     p.path = null; p.moveDir = null; p.attackTarget = null;
     p.casting = null; p.pendingCast = null; // la mort interrompt l'incantation
@@ -1623,8 +1715,40 @@ export class Game {
     this.broadcastChat('sys', `${p.name} renaît sur ${this.zoneDef(0).name}.`);
   }
 
-  addXp(p, amount) {
+  // XP générée par les dégâts d'un membre, mutualisée dans son groupe.
+  // Adaptation du modèle « 100 % aux dégâts » au jeu en groupe : la part de
+  // monstre entamée (fraction = dégâts effectifs / PVmax) vaut, pour chaque
+  // membre à portée, SA récompense de référence mobXpReward(mob, membre) —
+  // chacun à son niveau, comme en solo. Le total est bonifié de +10 % par
+  // membre au-delà du premier puis réparti à parts égales : les soigneurs
+  // touchent leur part, et grouper reste légèrement plus rentable que
+  // d'additionner des chasses solo. Hors portée ou autre zone : chacun pour soi.
+  shareXpForDamage(dealer, mob, fraction) {
+    const recipients = this.xpRecipients(dealer);
+    const bonus = 1 + C.GROUP_XP_BONUS_PER_MEMBER * (recipients.length - 1);
+    for (const r of recipients) {
+      this.grantXp(r, C.mobXpReward(mob.level, r.level) * fraction * bonus / recipients.length);
+    }
+  }
+
+  // membres du groupe éligibles au partage : même zone, vivants, à portée
+  xpRecipients(dealer) {
+    if (!dealer.party) return [dealer];
+    const out = [];
+    for (const m of dealer.party.members) {
+      if (m.dead || m.zi !== dealer.zi) continue;
+      if (Math.hypot(m.x - dealer.x, m.z - dealer.z) > C.GROUP_XP_RANGE) continue;
+      out.push(m);
+    }
+    return out.length ? out : [dealer];
+  }
+
+  // Crédite de l'XP (flottante : les petits coups s'accumulent sans perte).
+  // Le client est notifié par paquets via 'xp' (flush throttlé dans tick).
+  grantXp(p, amount) {
+    if (!this.players.has(p.id) || p.permadead || amount <= 0) return;
     p.xp += amount;
+    p.xpNotify = (p.xpNotify || 0) + amount;
     let leveled = false;
     while (p.level < C.MAX_LEVEL && p.xp >= C.xpForLevel(p.level + 1)) {
       p.level++;
@@ -1640,8 +1764,8 @@ export class Game {
       p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
       this.eventNear(p, { t: 'fx', kind: 'levelup', id: p.id });
       this.broadcastChat('sys', `${p.name} passe niveau ${p.level} !`);
+      this.sendSelf(p);
     }
-    this.sendSelf(p);
   }
 
   doPickup(p, d) {
@@ -1705,6 +1829,121 @@ export class Game {
     this.sendSelf(p);
   }
 
+  // ---------- Groupes (parties) ----------
+  // Un groupe = { leader, members: [joueurs, chef compris] }. Invitation par
+  // nom (/inviter Nom) ou par clic ; elle expire après GROUP_INVITE_TTL s.
+  // Le chef peut exclure ; s'il part (départ, mort, déconnexion), dissolution.
+
+  // informe tous les membres de la composition (panneau + surlignage des noms)
+  sendPartyUpdate(party) {
+    const msg = {
+      t: 'party_update',
+      leaderId: party.leader.id,
+      members: party.members.map(m => ({ id: m.id, name: m.name, level: m.level })),
+    };
+    for (const m of party.members) this.send(m, msg);
+  }
+
+  broadcastToParty(party, text, except = null) {
+    for (const m of party.members) {
+      if (m !== except) this.send(m, { t: 'info', text });
+    }
+  }
+
+  partyInvite(p, msg) {
+    let target = null;
+    if (msg.id != null) target = this.players.get(msg.id | 0);
+    else {
+      const name = String(msg.name || '').trim().toLowerCase();
+      if (name) for (const x of this.players.values()) {
+        if (x.name.toLowerCase() === name) { target = x; break; }
+      }
+    }
+    if (!target || target === p || target.dead || target.permadead) {
+      this.send(p, { t: 'info', text: 'Personne de ce nom à inviter.' });
+      return;
+    }
+    if (target.party) { this.send(p, { t: 'info', text: `${target.name} est déjà dans un groupe.` }); return; }
+    if (p.party && p.party.leader !== p) { this.send(p, { t: 'info', text: 'Seul le chef du groupe peut inviter.' }); return; }
+    if (p.party && p.party.members.length >= C.GROUP_MAX_SIZE) {
+      this.send(p, { t: 'info', text: `Le groupe est complet (${C.GROUP_MAX_SIZE} membres).` });
+      return;
+    }
+    target.partyInvite = { fromId: p.id, until: this.now() + C.GROUP_INVITE_TTL };
+    this.send(target, { t: 'party_invite', fromId: p.id, from: p.name });
+    this.send(p, { t: 'info', text: `Invitation envoyée à ${target.name}.` });
+  }
+
+  partyAccept(p) {
+    const inv = p.partyInvite;
+    p.partyInvite = null;
+    if (!inv || this.now() > inv.until) { this.send(p, { t: 'info', text: 'L\'invitation a expiré.' }); return; }
+    if (p.party) return; // déjà groupé (ne devrait pas arriver)
+    const from = this.players.get(inv.fromId);
+    if (!from || from.dead || from.permadead) { this.send(p, { t: 'info', text: 'L\'invitant n\'est plus là.' }); return; }
+    if (from.party && from.party.leader !== from) { this.send(p, { t: 'info', text: 'L\'invitant n\'est plus chef de groupe.' }); return; }
+    let party = from.party;
+    if (!party) {
+      party = { leader: from, members: [from] };
+      from.party = party;
+    }
+    if (party.members.length >= C.GROUP_MAX_SIZE) { this.send(p, { t: 'info', text: 'Le groupe est complet.' }); return; }
+    party.members.push(p);
+    p.party = party;
+    this.broadcastToParty(party, `${p.name} rejoint le groupe.`, p);
+    this.send(p, { t: 'info', text: `Vous rejoignez le groupe de ${party.leader.name}.` });
+    this.sendPartyUpdate(party);
+  }
+
+  partyDecline(p) {
+    const inv = p.partyInvite;
+    p.partyInvite = null;
+    if (!inv) return;
+    const from = this.players.get(inv.fromId);
+    if (from) this.send(from, { t: 'info', text: `${p.name} décline votre invitation.` });
+  }
+
+  partyKick(p, msg) {
+    const party = p.party;
+    if (!party || party.leader !== p) return;
+    const target = party.members.find(m => m.id === (msg.id | 0));
+    if (!target || target === p) return;
+    this.send(target, { t: 'info', text: 'Vous avez été exclu du groupe.' });
+    this.broadcastToParty(party, `${target.name} a été exclu du groupe.`, target);
+    this.leaveParty(target);
+  }
+
+  // sortie d'un membre (départ volontaire, exclusion, mort, déconnexion).
+  // Chef parti -> dissolution ; groupe réduit à un seul membre -> dissolution.
+  leaveParty(p) {
+    const party = p.party;
+    if (!party) return;
+    p.party = null;
+    const emptyUpdate = { t: 'party_update', leaderId: 0, members: [] };
+    this.send(p, emptyUpdate);
+    if (party.leader === p) {
+      for (const m of party.members) {
+        if (m === p) continue;
+        m.party = null;
+        this.send(m, emptyUpdate);
+        this.send(m, { t: 'info', text: 'Le groupe est dissous : le chef est parti.' });
+      }
+      party.members = [];
+      return;
+    }
+    party.members = party.members.filter(m => m !== p);
+    if (party.members.length < 2) {
+      for (const m of party.members) {
+        m.party = null;
+        this.send(m, emptyUpdate);
+        this.send(m, { t: 'info', text: 'Le groupe est dissous.' });
+      }
+      party.members = [];
+    } else {
+      this.sendPartyUpdate(party);
+    }
+  }
+
   // ---------- Boucle ----------
   tick() {
     this.tickCount++;
@@ -1733,9 +1972,17 @@ export class Game {
       }
       p.atkCd = Math.max(0, p.atkCd - dt);
 
+      // XP accumulée depuis le dernier envoi : un seul message regroupé
+      // (le client affiche un flotteur lisible, pas un par tick de DoT)
+      if ((p.xpNotify || 0) >= 1 && this.tickCount % XP_NOTIFY_EVERY_TICKS === 0) {
+        this.send(p, { t: 'xp', gain: Math.round(p.xpNotify), xp: Math.floor(p.xp) });
+        p.xpNotify = 0;
+      }
+
       // déplacement direct (flèches / clic maintenu)
       if (p.moveDir) {
         const sp = p.eff.speed * dt;
+        const ox = p.x, oz = p.z;
         const nx = p.x + p.moveDir.x * sp, nz = p.z + p.moveDir.z * sp;
         if (p.zi.world.isWalkable(nx, nz)) { p.x = nx; p.z = nz; }
         else if (p.zi.world.isWalkable(nx, p.z)) { p.x = nx; }
@@ -1743,6 +1990,7 @@ export class Game {
         p.dir = Math.atan2(p.moveDir.x, p.moveDir.z);
         p.state = C.ST.WALK;
         p.zi.gridMove(p);
+        if (p.x !== ox || p.z !== oz) this.heatZone(p.zi); // mouvement réel
       }
 
       // poursuite/attaque
@@ -1811,9 +2059,23 @@ export class Game {
       }
     }
 
+    // PV des membres de groupe (panneau de groupe côté client)
+    if (this.tickCount % PARTY_VITALS_EVERY_TICKS === 0) {
+      const done = new Set();
+      for (const p of this.players.values()) {
+        const party = p.party;
+        if (!party || done.has(party)) continue;
+        done.add(party);
+        const vit = party.members.map(m => ({ id: m.id, hp: Math.round(m.hp), maxHp: m.eff.maxHp }));
+        for (const m of party.members) this.send(m, { t: 'party_vitals', members: vit });
+      }
+    }
+
     // Monstres et objets au sol, zone par zone
     for (const zi of this.zones.values()) {
       const hasPlayers = zi.players > 0;
+      // spawn par le mouvement (l'Épreuve, gauntlet figé, reste pré-peuplée)
+      if (hasPlayers && !zi.isTrial) this.maybeSpawn(zi, now);
       for (const e of [...zi.entities.values()]) {
         if (e.kind === C.KIND.MOB) {
           if (hasPlayers || e.dead) this.tickMob(zi, e, now, dt);
@@ -1828,13 +2090,9 @@ export class Game {
 
   tickMob(zi, m, now, dt) {
     if (m.dead) {
-      if (!m.hidden && now >= m.hideAt) m.hidden = true;
-      if (now >= m.respawnAt) {
-        m.dead = false; m.hidden = false; m.hp = m.maxHp; m.state = C.ST.IDLE;
-        m.x = m.home.x; m.z = m.home.z; m.target = null; m.path = null;
-        m.dots = null; // les poisons ne survivent pas à la réapparition
-        zi.gridMove(m);
-      }
+      // le cadavre reste visible le temps du râle, puis l'entité disparaît :
+      // plus de réapparition par timer (le spawn par mouvement prend le relais)
+      if (now >= m.hideAt) zi.remove(m);
       return;
     }
     m.atkCd = Math.max(0, m.atkCd - dt);
@@ -1895,6 +2153,7 @@ export class Game {
       return;
     }
     let remaining = speed * dt;
+    let moved = false;
     while (remaining > 0 && e.path && e.path.length) {
       const wp = e.path[0];
       const dx = wp.x - e.x, dz = wp.z - e.z;
@@ -1905,10 +2164,13 @@ export class Game {
       e.z += (dz / d) * step;
       e.dir = Math.atan2(dx, dz);
       remaining -= step;
+      moved = true;
     }
     if (e.path && !e.path.length) e.path = null;
     e.state = e.path ? C.ST.WALK : (e.state === C.ST.ATTACK ? C.ST.ATTACK : C.ST.IDLE);
     e.zi.gridMove(e);
+    // un joueur qui suit un chemin maintient la zone « chaude » (spawn T4C)
+    if (moved && e.kind === C.KIND.PLAYER) this.heatZone(e.zi);
   }
 
   // ---------- Snapshots ----------

@@ -127,6 +127,33 @@ button.secondary { background: #2a2444; }
   background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px; z-index: 10;
   color: #fff; font-size: 13px; text-align: center;
 }
+#target-invite { display: block; margin: 5px auto 0; padding: 2px 10px; font-size: 11px; }
+
+/* ---- Groupe : panneau sobre des membres (sous les jauges de vie) ---- */
+#party-panel {
+  position: fixed; top: 100px; left: 12px; width: 190px; z-index: 10;
+  background: rgba(10, 8, 20, 0.78); border: 1px solid #4a3a7a;
+  border-radius: 6px; padding: 8px 10px;
+}
+#party-panel h3 { color: #c8b87a; font-size: 12px; margin: 0 0 6px; }
+.party-row { margin-bottom: 6px; font-size: 12px; color: #e8e0ff; }
+.party-row .party-name { display: flex; justify-content: space-between; align-items: center; }
+.party-row .party-name .leader { color: #ffd24a; }
+.party-row .kick {
+  background: none; border: none; color: #e86a6a; cursor: pointer;
+  font-size: 12px; padding: 0 2px;
+}
+.party-hp { height: 6px; background: rgba(0,0,0,0.6); border-radius: 3px; overflow: hidden; margin-top: 2px; }
+.party-hp div { height: 100%; background: linear-gradient(#d04a4a, #8a2a2a); transition: width 0.3s; }
+#party-leave { width: 100%; margin-top: 2px; padding: 2px 0; font-size: 11px; }
+
+/* invitation de groupe reçue : encart au-dessus du chat */
+#party-invite {
+  position: fixed; bottom: 230px; left: 12px; z-index: 12; max-width: 250px;
+  background: rgba(20, 14, 40, 0.92); border: 1px solid #c8b87a;
+  border-radius: 6px; padding: 10px 12px; color: #e8e0ff; font-size: 13px;
+}
+
 #floaters { position: fixed; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
 .floater {
   position: absolute; font-weight: bold; font-size: 16px; color: #ff5a4a;

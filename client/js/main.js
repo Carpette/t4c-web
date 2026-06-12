@@ -7,7 +7,7 @@ import { ITEMS } from '../../shared/defs.js';
 import { loadAssets } from './render2d/assets.js';
 import { buildDecor } from './render2d/decor.js';
 import { Renderer } from './render2d/renderer.js';
-import { EntityManager2D } from './render2d/entities2d.js';
+import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
 import { playMusic } from './music.js';
@@ -72,6 +72,7 @@ net.on('auth_error', (m) => fatal(m.error));
 net.on('create_char', (m) => ui.showCreation(m));
 net.on('welcome', (m) => {
   selfId = m.id;
+  ui.selfId = m.id;
   worldTime = m.time;
   ui.enterGame();
   ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
@@ -114,6 +115,20 @@ net.on('loot', (m) => {
   if (v) ui.floater(headPos(v), m.text, 'xp');
 });
 net.on('died', (m) => { cancelAim(); cancelAuto(); ui.endCastBar(); ui.showDeath(m); });
+// XP par coup : gains regroupés par le serveur -> un flotteur lisible + la barre
+net.on('xp', (m) => {
+  ui.applyXp(m);
+  const v = em.get(selfId);
+  if (v) ui.floater(headPos(v), `+${m.gain} XP`, 'xp');
+});
+// ---- Groupe ----
+net.on('party_update', (m) => {
+  ui.setParty(m);
+  // surlignage des noms des membres au-dessus des têtes
+  setPartyIds(m.members.map(x => x.id));
+});
+net.on('party_invite', (m) => ui.showPartyInvite(m));
+net.on('party_vitals', (m) => ui.updatePartyVitals(m));
 net.on('shop', (m) => ui.showShop(m));
 net.on('obelisk', (m) => ui.showObelisk(m));
 net.on('bank_open', (m) => ui.showBank(m));
@@ -545,7 +560,9 @@ window.addEventListener('blur', () => {
 function updateTargetFrame() {
   const v = targetId != null ? em.get(targetId) : null;
   if (!v || v.isDead?.()) { targetId = null; ui.setTarget(null); return; }
-  ui.setTarget(`${v.meta.name} [${v.level || v.meta.level}]`, v.hpPct);
+  // cible joueur : son id permet le bouton « Inviter dans le groupe »
+  const playerId = (v.kind === KIND.PLAYER && v.id !== selfId) ? v.id : null;
+  ui.setTarget(`${v.meta.name} [${v.level || v.meta.level}]`, v.hpPct, playerId);
 }
 
 // ---------- Boucle de rendu ----------
