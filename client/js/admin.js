@@ -107,11 +107,17 @@ function renderSkinItems() {
     };
     tdSel.appendChild(sel);
     const tdEye = document.createElement('td');
+    tdEye.style.whiteSpace = 'nowrap';
     const eye = document.createElement('button');
     eye.textContent = '👁';
     eye.title = 'Aperçu';
     eye.onclick = () => { if (sel.value) skinPreview(`/assets/skins/${encodeURIComponent(sel.value)}`); };
-    tdEye.appendChild(eye);
+    const pr = document.createElement('button');
+    pr.textContent = '📋';
+    pr.title = 'Prompt IA pour générer l\'image de cet objet';
+    pr.style.marginLeft = '4px';
+    pr.onclick = () => showPrompt(itemPrompt(id));
+    tdEye.append(eye, pr);
     tr.append(tdName, tdSel, tdEye);
     tbl.appendChild(tr);
   }
@@ -162,6 +168,89 @@ function renderSkinMobs() {
 
 $('skin-item-search').oninput = renderSkinItems;
 $('skin-mob-search').oninput = renderSkinMobs;
+
+// ---------- Prompts pour IA générative (specs alignées sur l'outil d'import) ----------
+const STYLE_COMMUN = `Style : sprite de RPG isométrique 2D rétro (à la Diablo 1 / Flare), vue 3/4
+plongeante, pixel-art peint aux couleurs riches mais palette sobre et désaturée,
+éclairage doux venant du haut-gauche. Pas de texte, pas de cadre, pas de filigrane.`;
+
+function showPrompt(text) {
+  $('skin-prompt').value = text;
+  navigator.clipboard?.writeText(text).then(
+    () => { $('skin-prompt-msg').textContent = '✔ copié dans le presse-papier'; },
+    () => { $('skin-prompt-msg').textContent = ''; });
+}
+
+function itemPrompt(id) {
+  const def = ITEMS[id];
+  const slotNames = {
+    weapon: 'arme', shield: 'bouclier', armor: 'armure (torse)', helmet: 'casque',
+    legs: 'jambières', gloves: 'gants', belt: 'ceinture', boots: 'bottes',
+    ring: 'anneau', ring2: 'anneau', amulet: 'amulette', use: 'consommable (potion/fiole)',
+  };
+  return `Génère une image d'objet pour un jeu vidéo RPG médiéval-fantastique.
+
+Objet : ${def.name} (${slotNames[def.slot] || def.slot}).
+
+Contraintes techniques IMPÉRATIVES :
+- UN SEUL fichier PNG avec fond 100 % TRANSPARENT (canal alpha), aucune couleur de fond ;
+- canevas de 96 x 96 pixels, l'objet centré et occupant environ 80 % de la hauteur ;
+- l'objet est vu comme POSÉ AU SOL en vue isométrique 3/4 (légèrement de haut) ;
+- une seule instance de l'objet, entière, sans découpe ;
+- ombre au sol discrète autorisée (petite ellipse sombre semi-transparente sous l'objet), rien d'autre ;
+- aucun débordement hors du canevas.
+
+${STYLE_COMMUN}`;
+}
+
+function enemyPrompt() {
+  const name = $('skin-enemy-name').value.trim() || 'créature';
+  const cw = parseInt($('skin-cell-w').value, 10) || 128;
+  const ch = parseInt($('skin-cell-h').value, 10) || 128;
+  const ax = parseInt($('skin-anchor-x').value, 10) || Math.floor(cw / 2);
+  const ay = parseInt($('skin-anchor-y').value, 10) || ch - 16;
+  let anims = {};
+  try { anims = JSON.parse($('skin-enemy-anims').value); } catch { /* champs invalides : prompt générique */ }
+  const cols = Math.max(0, ...Object.values(anims).map(a => (a.to | 0) + 1)) || 8;
+  const animLines = Object.entries(anims).map(([n, a]) => {
+    const labels = {
+      stance: 'attente/idle (boucle, respiration ou piétinement léger)',
+      run: 'course/déplacement (boucle de marche)',
+      swing: "attaque (élan et coup, jouée une fois)",
+      die: 'mort (s\'effondre, jouée une fois, dernière frame = au sol)',
+      hit: 'touché (recul bref)', cast: 'incantation', shoot: 'tir',
+    };
+    return `  - colonnes ${a.from} à ${a.to} : ${labels[n] || n}`;
+  }).join('\n');
+  return `Génère une PLANCHE DE SPRITES (sprite sheet) d'une créature pour un jeu vidéo RPG
+isométrique médiéval-fantastique.
+
+Créature : ${name}.
+
+Contraintes techniques IMPÉRATIVES — la planche est découpée par un programme :
+- UN SEUL fichier PNG avec fond 100 % TRANSPARENT, taille EXACTE ${cols * cw} x ${8 * ch} pixels ;
+- grille STRICTEMENT régulière : 8 lignes x ${cols} colonnes, chaque case fait ${cw} x ${ch} pixels ;
+- AUCUN espace, marge ou gouttière entre les cases ; rien ne déborde d'une case sur l'autre ;
+- chaque LIGNE est la même animation vue dans une direction différente, dans CET ordre
+  de haut en bas : 1) ouest (profil gauche), 2) nord-ouest (dos 3/4 gauche), 3) nord (dos),
+  4) nord-est (dos 3/4 droit), 5) est (profil droit), 6) sud-est (face 3/4 droite),
+  7) sud (face caméra), 8) sud-ouest (face 3/4 gauche) ;
+- chaque COLONNE est une frame d'animation :
+${animLines}
+- la créature garde la MÊME taille, le même style et la même palette dans toutes les cases ;
+- dans chaque case, les pieds (point de contact au sol) sont au pixel (${ax}, ${ay})
+  mesuré depuis le coin haut-gauche de la case — position stable d'une frame à l'autre ;
+- ombre au sol discrète autorisée (ellipse sombre sous les pieds), contenue dans la case.
+
+${STYLE_COMMUN}
+Caméra identique à un sprite vu de 3/4 haut : on voit le dessus et un côté de la créature.`;
+}
+
+$('skin-enemy-prompt').onclick = () => showPrompt(enemyPrompt());
+$('skin-prompt-copy').onclick = () => {
+  const t = $('skin-prompt').value;
+  if (t) navigator.clipboard?.writeText(t).then(() => { $('skin-prompt-msg').textContent = '✔ copié'; });
+};
 
 $('skin-item-upload').onclick = async () => {
   const f = $('skin-item-file').files[0];
