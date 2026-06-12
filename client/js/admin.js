@@ -215,9 +215,16 @@ async function initMap() {
 
 function cellOf(e) {
   const r = canvas.getBoundingClientRect();
+  let u = e.clientX - r.left, v = e.clientY - r.top;
+  if (isoOn()) {
+    // inverse de la projection iso : retombe sur les pixels « vue du dessus »
+    const u0 = (u - isoE()) / ISO_K, v0 = (v - isoF()) / ISO_K;
+    u = (u0 + 2 * v0) / 2;
+    v = (2 * v0 - u0) / 2;
+  }
   return {
-    x: Math.floor((e.clientX - r.left) / SCALE),
-    z: Math.floor((e.clientY - r.top) / SCALE),
+    x: Math.floor(u / SCALE),
+    z: Math.floor(v / SCALE),
   };
 }
 
@@ -288,15 +295,37 @@ function drawMap() {
 // ---------- Joueurs en direct sur la carte ----------
 let livePlayers = [];
 
+// Vue « jeu » : même orientation que l'écran de jeu (projection iso 2:1).
+// écran u = (x − z)·k + E ; v = (x + z)·k/2 + F  (k = ½ pour tenir dans le canvas)
+const ISO_K = 0.5;
+const isoE = () => canvas.width / 2;
+const isoF = () => (canvas.height - canvas.width / 2) / 2;
+const isoOn = () => $('iso-view').checked;
+const toScreen = (px, pz) => isoOn()
+  ? [(px - pz) * ISO_K + isoE(), (px + pz) * ISO_K / 2 + isoF()]
+  : [px, pz];
+
 function compose() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(mapLayer, 0, 0);
+  if (isoOn()) {
+    ctx.save();
+    ctx.setTransform(ISO_K, ISO_K / 2, -ISO_K, ISO_K / 2, isoE(), isoF());
+    ctx.drawImage(mapLayer, 0, 0);
+    ctx.restore();
+    // boussole : le nord de la grille part vers le haut-droite, comme en jeu
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = '#ffd34d';
+    ctx.textAlign = 'left';
+    ctx.fillText('N ↗', 10, 20);
+  } else {
+    ctx.drawImage(mapLayer, 0, 0);
+  }
   if (!$('show-players').checked) return;
   const showNames = $('show-player-names').checked;
   const r = Math.max(3, SCALE * 0.8);
   for (const p of livePlayers) {
     if (p.zoneId !== curZone || p.trial) continue; // l'Épreuve est une carte instanciée à part
-    const px = p.x * SCALE, pz = p.z * SCALE;
+    const [px, pz] = toScreen(p.x * SCALE, p.z * SCALE);
     // point : vert (joueur) ou doré (admin), liseré sombre pour la lisibilité
     ctx.beginPath();
     ctx.arc(px, pz, r, 0, Math.PI * 2);
@@ -337,6 +366,7 @@ async function pollPlayers() {
 setInterval(pollPlayers, 2000);
 $('show-players').onchange = () => { $('players-info').textContent = ''; pollPlayers(); compose(); };
 $('show-player-names').onchange = () => compose();
+$('iso-view').onchange = () => compose();
 
 // ---------- Contenu JSON ----------
 $('load-content').onclick = async () => {

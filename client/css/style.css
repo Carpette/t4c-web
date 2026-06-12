@@ -159,6 +159,11 @@ button.secondary { background: #2a2444; }
   color: #ffd24a; font-size: 22px; text-shadow: 0 2px 6px #000; z-index: 12;
   pointer-events: none; opacity: 0; transition: opacity 0.8s;
 }
+#compass {
+  position: fixed; top: 12px; right: 56px;
+  color: #ffd24a; font-weight: bold; font-size: 14px;
+  text-shadow: 0 1px 4px #000; z-index: 12; pointer-events: auto; cursor: help;
+}
 #combat-indicator {
   position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
   color: #ff6a5a; font-weight: bold; font-size: 14px; letter-spacing: 2px;
