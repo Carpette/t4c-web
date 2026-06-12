@@ -369,7 +369,8 @@ $('skin-enemy-upload').onclick = async () => {
 $('save-skins').onclick = async () => {
   try {
     const r = await api('/api/admin/skins', 'PUT', skinMap);
-    $('skins-msg').textContent = '✔ Assignations enregistrées. ' + (r.note || '');
+    const nI = Object.keys(skinMap.items).length, nM = Object.keys(skinMap.mobs).length;
+    $('skins-msg').textContent = `✔ Enregistré : ${nI} objet(s) et ${nM} créature(s) avec skin. ` + (r.note || '');
   } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
 };
 
