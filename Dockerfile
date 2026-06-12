@@ -9,6 +9,15 @@ COPY package*.json ./
 # Install only production dependencies
 RUN npm ci --omit=dev
 
+# Version automatique figée au build : le conteneur n'a pas git à l'exécution,
+# le serveur lira version.json (chaîne de repli de server/version.js). Le glob
+# .gi[t] rend la copie tolérante si le contexte de build n'a pas l'historique.
+RUN apk add --no-cache git
+COPY server/version.js ./server/version.js
+COPY tools/gen-version.js ./tools/gen-version.js
+COPY .gi[t] ./.git
+RUN node tools/gen-version.js
+
 # --- Stage 2: Final runner image ---
 FROM node:22-alpine
 
@@ -19,6 +28,7 @@ USER node
 
 # Copy dependencies and application files with proper ownership
 COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /usr/src/app/version.json ./version.json
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node client/ ./client/
 COPY --chown=node:node content/ ./content/

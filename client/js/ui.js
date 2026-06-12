@@ -104,6 +104,14 @@ export class UI {
       $('menu-settings-panel').classList.add('hidden');
       $('menu-buttons').classList.remove('hidden');
     };
+    $('menu-about').onclick = () => {
+      $('menu-buttons').classList.add('hidden');
+      $('menu-about-panel').classList.remove('hidden');
+    };
+    $('about-back').onclick = () => {
+      $('menu-about-panel').classList.add('hidden');
+      $('menu-buttons').classList.remove('hidden');
+    };
     $('menu-quit').onclick = () => {
       try { net.ws?.close(1000, 'logout'); } catch {}
       location.reload(); // retour propre à l'écran de connexion
@@ -637,10 +645,18 @@ export class UI {
     $('creation').classList.remove('hidden');
   }
 
+  // ---- Version déployée (login + À propos) ----
+  setVersion(v) {
+    const label = v.version + (v.sha ? ` — ${v.sha} (${v.date})` : '');
+    $('game-version').textContent = label;
+    $('about-version').textContent = label + (v.branch && v.branch !== 'main' ? ` — branche ${v.branch}` : '');
+  }
+
   // ---- Menu de jeu ----
   menuOpen() { return !$('game-menu').classList.contains('hidden'); }
   showMenu() {
     $('menu-settings-panel').classList.add('hidden');
+    $('menu-about-panel').classList.add('hidden');
     $('menu-buttons').classList.remove('hidden');
     $('game-menu').classList.remove('hidden');
   }

@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { Game } from './game/game.js';
 import { PROTOCOL_VERSION } from '../shared/constants.js';
 import { handleAdmin } from './admin.js';
+import { VERSION } from './version.js';
 import * as db from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,12 @@ const MIME = {
 const server = http.createServer((req, res) => {
   let url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url.startsWith('/api/admin/')) { handleAdmin(req, res, url, game); return; }
+  // version déployée (calculée au démarrage) : affichée au login et dans À propos
+  if (url === '/api/version') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify(VERSION));
+    return;
+  }
   if (url === '/') url = '/index.html';
   if (url === '/admin') url = '/admin.html';
 

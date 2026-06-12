@@ -51,6 +51,11 @@ try {
   playMusic(musicCfg.login);
 } catch { /* pas de musique configurée */ }
 
+// version déployée : en bas à gauche du login + menu À propos
+try {
+  ui.setVersion(await (await fetch('/api/version')).json());
+} catch { /* serveur sans version : on n'affiche rien */ }
+
 await net.connect();
 
 // ---------- Erreurs visibles ----------

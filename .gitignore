@@ -5,3 +5,4 @@ game.db-shm
 game.db-wal
 *.log
 .DS_Store
+version.json

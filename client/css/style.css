@@ -178,6 +178,11 @@ button.secondary { background: #2a2444; }
 #creation-confirm:disabled { opacity: 0.4; cursor: default; }
 
 #game-menu .login-box button { display: block; width: 100%; margin: 7px 0; }
+/* version déployée : discrète, en bas à gauche de l'écran de connexion */
+#game-version {
+  position: absolute; left: 12px; bottom: 10px; font-size: 11px;
+  color: rgba(160, 150, 190, 0.55); letter-spacing: 0.4px; pointer-events: none;
+}
 #game-menu .danger-btn { background: #7a2a2a; border-color: #aa4a4a; }
 #game-menu .danger-btn:hover { background: #9a3a3a; }
 
