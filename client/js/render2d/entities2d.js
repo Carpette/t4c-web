@@ -7,6 +7,35 @@ import { settings } from '../settings.js';
 const BASE_LAYERS = { feet: 'default_feet', legs: 'cloth_pants', hands: 'default_hands' };
 const BUBBLE_FONT = '13px "Trebuchet MS", sans-serif';
 
+// ---- Variations par teinte (champ `tint` de MOBS) ----
+// Une même planche Flare sert plusieurs créatures (loup gris / loup noir,
+// skraug vert / rouge...) : on la recolore UNE FOIS au chargement sur un
+// canvas hors écran (blend 'color' pour la dominante, 'multiply' pour la
+// luminosité, masque alpha d'origine), puis on met le résultat en cache —
+// aucun filtre par frame au rendu.
+const TINT_CACHE = new Map(); // `${sprite}|${tint}` -> canvas
+function tintedSheet(image, sprite, tint) {
+  if (!tint) return image;
+  const key = `${sprite}|${tint}`;
+  let sheet = TINT_CACHE.get(key);
+  if (!sheet) {
+    sheet = document.createElement('canvas');
+    sheet.width = image.width;
+    sheet.height = image.height;
+    const g = sheet.getContext('2d');
+    g.drawImage(image, 0, 0);
+    g.globalCompositeOperation = 'color';      // impose la dominante
+    g.fillStyle = tint;
+    g.fillRect(0, 0, sheet.width, sheet.height);
+    g.globalCompositeOperation = 'multiply';   // module la luminosité
+    g.fillRect(0, 0, sheet.width, sheet.height);
+    g.globalCompositeOperation = 'destination-in'; // restaure l'alpha d'origine
+    g.drawImage(image, 0, 0);
+    TINT_CACHE.set(key, sheet);
+  }
+  return sheet;
+}
+
 // Membres du groupe du joueur : leurs noms sont surlignés au-dessus des têtes
 // (alimenté par main.js à chaque party_update)
 const PARTY_IDS = new Set();
@@ -42,7 +71,8 @@ class EntityView2D {
       this.sprite = sprite;
       this.spriteScale = def?.spriteScale || 1; // planches de résolutions inégales
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
-      this.image = assets.images.get(assets.manifest.enemies[sprite].image);
+      const base = assets.images.get(assets.manifest.enemies[sprite].image);
+      this.image = tintedSheet(base, sprite, def?.tint); // recoloration en cache
     } else {
       const lootName = meta.defId === 'or'
         ? (meta.gold >= 50 ? 'coins100' : meta.gold >= 15 ? 'coins25' : 'coins5')
