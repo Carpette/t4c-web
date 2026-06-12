@@ -137,16 +137,22 @@ export class Game {
   // camp, praticable, à au moins SPAWN_MIN_PLAYER_DIST tuiles de TOUT joueur
   // de la zone (le monstre surgit devant celui qui marche, jamais sous ses
   // yeux). Aucun point valide -> le tick est sauté.
+  // Le spawn SUIT le mouvement (témoignages T4C) : les camps proches d'un
+  // joueur sont servis en priorité — le bestiaire étant vaste, arroser les
+  // camps déserts de l'autre bout de la carte gaspillerait le budget.
   maybeSpawn(zi, now) {
     if (!zi.camps.length || now > zi.hotUntil || now < zi.nextSpawnAt) return;
     zi.nextSpawnAt = now + SPAWN_INTERVAL_MS / 1000;
-    const open = zi.camps.filter(c => c.alive < c.cap);
+    let open = zi.camps.filter(c => c.alive < c.cap);
     if (!open.length) return;
     const minDist = zi.isCave ? C.SPAWN_MIN_PLAYER_DIST_CAVE : C.SPAWN_MIN_PLAYER_DIST;
     const players = [];
     for (const p of this.players.values()) {
       if (p.zi === zi && !p.dead) players.push(p);
     }
+    const near = open.filter(c =>
+      players.some(p => Math.hypot(p.x - c.x, p.z - c.z) <= C.AOI_RADIUS + c.radius));
+    if (near.length) open = near;
     for (let attempt = 0; attempt < SPAWN_TRIES_PER_TICK; attempt++) {
       const camp = open[Math.floor(Math.random() * open.length)];
       const a = Math.random() * Math.PI * 2, d = Math.random() * camp.radius;
