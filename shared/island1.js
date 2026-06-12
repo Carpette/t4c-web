@@ -538,11 +538,13 @@ export function generateIsland1() {
     while (!walk[idx(X, Z)] && tries++ < 40) { X += (tries % 2 ? 1 : -1) * tries; if (!inMap(X, Z)) X = x; }
     props.push({ type: 'chest', x: X + 0.5, z: Z + 0.5, rot: 0, s: 1 });
   };
-  const cave = (x, z, name) => {
+  // entrée de grotte ; `caveId` = clé du registre shared/cave.js (intérieur
+  // instancié) — sans caveId, l'entrée reste condamnée (contenu à venir)
+  const cave = (x, z, name, caveId = null) => {
     let X = x, Z = z, tries = 0;
     // l'entrée se pose sur une case praticable (au bord de la roche)
     while (!walk[idx(X, Z)] && tries++ < 40) { Z += 1; if (!inMap(X, Z)) Z = z; }
-    props.push({ type: 'cave', x: X + 0.5, z: Z + 0.5, rot: 0, s: 1, name });
+    props.push({ type: 'cave', x: X + 0.5, z: Z + 0.5, rot: 0, s: 1, name, caveId });
     block(X, Z);
   };
   const well = (x, z) => { props.push({ type: 'well', x: x + 0.5, z: z + 0.5, rot: 0, s: 1 }); block(x, z); };
@@ -584,7 +586,7 @@ export function generateIsland1() {
     for (let z = c.z - 6; z <= c.z + 3; z++) for (let x = c.x - 24; x <= c.x - 16; x++) {
       if (inMap(x, z) && tile[idx(x, z)] !== TILE.WATER && rng() < 0.8) tile[idx(x, z)] = TILE.GRAVE;
     }
-    cave(c.x - 24, c.z - 3, 'Crypte de Lighthaven');
+    cave(c.x - 24, c.z - 3, 'Crypte de Lighthaven', 'crypte_lh');
     // champs au sud-est (terre retournée, clôturés de barrières)
     for (const [fx, fz] of [[c.x + 9, c.z + 10], [c.x + 16, c.z + 13]]) {
       for (let z = fz; z < fz + 5; z++) for (let x = fx; x < fx + 5; x++) {
@@ -745,18 +747,19 @@ export function generateIsland1() {
   chest(ARAKAS.HP_CAPTORS.x + 3, ARAKAS.HP_CAPTORS.z + 3);   // la rançon du Grand Prêtre
   chest(LH.x - 18, LH.z - 15);                               // le coffre surprise de LH
 
-  // entrées de grottes (intérieurs à venir)
-  cave(ARAKAS.CAVE_A.x, ARAKAS.CAVE_A.z, 'Grotte A');
-  cave(ARAKAS.CAVE_B.x, ARAKAS.CAVE_B.z, 'Grotte B');
-  cave(ARAKAS.CAVE_C.x, ARAKAS.CAVE_C.z, 'Grotte C');
-  cave(ARAKAS.CAVE_D.x, ARAKAS.CAVE_D.z, 'Grotte D');
-  cave(ARAKAS.CAVE_E.x, ARAKAS.CAVE_E.z, 'Grotte E');
-  cave(ARAKAS.JARKO.x - 2, ARAKAS.JARKO.z - 3, 'Caverne de Jarko');
-  cave(ARAKAS.KRAANIAN.x, ARAKAS.KRAANIAN.z, 'Cave des Kraanians');
-  cave(ARAKAS.LABYRINTHE.x, ARAKAS.LABYRINTHE.z, 'Labyrinthe de Feylor');
-  cave(ARAKAS.FEYLOR_LAB_E.x, ARAKAS.FEYLOR_LAB_E.z, 'Labyrinthe de Feylor Est');
+  // entrées de grottes : les noms de la carte officielle, chacune reliée à
+  // son intérieur instancié (shared/cave.js) — la crypte du Nomade attendra
+  cave(ARAKAS.CAVE_A.x, ARAKAS.CAVE_A.z, 'Cave A', 'cave_a');
+  cave(ARAKAS.CAVE_B.x, ARAKAS.CAVE_B.z, 'Cave B', 'cave_b');
+  cave(ARAKAS.CAVE_C.x, ARAKAS.CAVE_C.z, 'Cave C', 'cave_c');
+  cave(ARAKAS.CAVE_D.x, ARAKAS.CAVE_D.z, 'Cave D', 'cave_d');
+  cave(ARAKAS.CAVE_E.x, ARAKAS.CAVE_E.z, 'Cave E', 'cave_e');
+  cave(ARAKAS.JARKO.x - 2, ARAKAS.JARKO.z - 3, 'Caverne de Jarko', 'jarko');
+  cave(ARAKAS.KRAANIAN.x, ARAKAS.KRAANIAN.z, 'Caverne kraanienne', 'kraanian');
+  cave(ARAKAS.LABYRINTHE.x, ARAKAS.LABYRINTHE.z, 'Labyrinthe de Feylor', 'feylor');
+  cave(ARAKAS.FEYLOR_LAB_E.x, ARAKAS.FEYLOR_LAB_E.z, 'Labyrinthe de Feylor Est', 'feylor_est');
   cave(ARAKAS.NOMADE.x, ARAKAS.NOMADE.z, 'Crypte du Nomade');
-  cave(ARAKAS.BRIGANDS.x, ARAKAS.BRIGANDS.z, 'Cave des Brigands');
+  cave(ARAKAS.BRIGANDS.x, ARAKAS.BRIGANDS.z, 'Cave des Brigands', 'brigands');
 
   // le portail de l'Épreuve, dans le cirque de Jarko
   props.push({ type: 'trialgate', x: ARAKAS.JARKO.x + 0.5, z: ARAKAS.JARKO.z + 0.5, rot: 0, s: 1 });
