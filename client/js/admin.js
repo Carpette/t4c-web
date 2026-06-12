@@ -258,25 +258,85 @@ async function loadZone(id) {
   $('map-msg').textContent = '';
 }
 
+// la carte est peinte dans une couche mémoire : la superposition des joueurs
+// en direct se redessine alors sans repeindre les ~150 000 tuiles
+const mapLayer = document.createElement('canvas');
+mapLayer.width = canvas.width; mapLayer.height = canvas.height;
+const mctx = mapLayer.getContext('2d');
+
 function drawMap() {
   const N = world.size;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  mctx.fillStyle = '#000';
+  mctx.fillRect(0, 0, mapLayer.width, mapLayer.height);
   for (let z = 0; z < N; z++) {
     for (let x = 0; x < N; x++) {
-      ctx.fillStyle = TILE_COLORS[world.tile[z * N + x]] || '#f0f';
-      ctx.fillRect(x * SCALE, z * SCALE, SCALE, SCALE);
+      mctx.fillStyle = TILE_COLORS[world.tile[z * N + x]] || '#f0f';
+      mctx.fillRect(x * SCALE, z * SCALE, SCALE, SCALE);
     }
   }
   // décors
-  ctx.font = `${SCALE + 3}px sans-serif`;
-  ctx.textAlign = 'center';
+  mctx.font = `${SCALE + 3}px sans-serif`;
+  mctx.textAlign = 'center';
   for (const p of world.props) {
     const [glyph, color] = PROP_GLYPHS[p.type] || ['?', '#fff'];
-    ctx.fillStyle = color;
-    ctx.fillText(glyph, p.x * SCALE, p.z * SCALE + SCALE * 0.8);
+    mctx.fillStyle = color;
+    mctx.fillText(glyph, p.x * SCALE, p.z * SCALE + SCALE * 0.8);
+  }
+  compose();
+}
+
+// ---------- Joueurs en direct sur la carte ----------
+let livePlayers = [];
+
+function compose() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(mapLayer, 0, 0);
+  if (!$('show-players').checked) return;
+  const showNames = $('show-player-names').checked;
+  const r = Math.max(3, SCALE * 0.8);
+  for (const p of livePlayers) {
+    if (p.zoneId !== curZone || p.trial) continue; // l'Épreuve est une carte instanciée à part
+    const px = p.x * SCALE, pz = p.z * SCALE;
+    // point : vert (joueur) ou doré (admin), liseré sombre pour la lisibilité
+    ctx.beginPath();
+    ctx.arc(px, pz, r, 0, Math.PI * 2);
+    ctx.fillStyle = p.admin ? '#ffd34d' : '#4dff6a';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#10202a';
+    ctx.stroke();
+    if (showNames) {
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      const label = `${p.name} (${p.level})`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      ctx.strokeText(label, px, pz - r - 4);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, px, pz - r - 4);
+    }
   }
 }
+
+async function pollPlayers() {
+  if (!token || !$('show-players').checked) return;
+  try {
+    const { players } = await api('/api/admin/players');
+    livePlayers = players;
+    const here = players.filter(p => p.zoneId === curZone && !p.trial).length;
+    const trials = players.filter(p => p.trial);
+    const elsewhere = players.length - here - trials.length;
+    $('players-info').textContent = players.length
+      ? `${players.length} en ligne — ${here} sur cette carte`
+        + (elsewhere ? `, ${elsewhere} ailleurs` : '')
+        + (trials.length ? `, en Épreuve : ${trials.map(p => `${p.name} (z${p.zoneId})`).join(', ')}` : '')
+      : 'aucun joueur en ligne';
+  } catch { /* session expirée ou serveur indisponible : on garde l'affichage */ }
+  compose();
+}
+setInterval(pollPlayers, 2000);
+$('show-players').onchange = () => { $('players-info').textContent = ''; pollPlayers(); compose(); };
+$('show-player-names').onchange = () => compose();
 
 // ---------- Contenu JSON ----------
 $('load-content').onclick = async () => {

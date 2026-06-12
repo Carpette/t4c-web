@@ -180,6 +180,23 @@ export async function handleAdmin(req, res, url, game) {
       return json(200, { deaths: db.pantheon(100) });
     }
 
+    // ---- joueurs connectés (position en direct, pour la carte admin) ----
+    if (url === '/api/admin/players' && req.method === 'GET') {
+      const players = [];
+      for (const p of game.players.values()) {
+        players.push({
+          name: p.name,
+          level: p.level,
+          x: Math.round(p.x * 10) / 10,
+          z: Math.round(p.z * 10) / 10,
+          zoneId: p.zi.isTrial ? p.zi.trialTarget : p.zi.zoneId,
+          trial: !!p.zi.isTrial, // dans une Épreuve : carte instanciée, pas la zone
+          admin: !!p.isAdmin,
+        });
+      }
+      return json(200, { players });
+    }
+
     return json(404, { error: 'Route inconnue' });
   } catch (e) {
     return json(400, { error: e.message });
