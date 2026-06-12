@@ -574,7 +574,7 @@ export function generateIsland1() {
     house(c.x + 9, c.z - 6, 5, 4);                // l'hôtel de ville
     house(c.x + 9, c.z + 2, 4, 4);                // la banque
     bank(c.x + 8, c.z + 7);
-    house(c.x - 10, c.z + 2, 4, 4);               // maison de Kalastor
+    house(c.x - 10, c.z + 2, 4, 4);               // la tour des mages (Iraltok, Lothan, Uranos)
     house(c.x - 10, c.z + 8, 4, 4);               // maison d'Edgar
     house(c.x + 1, c.z + 8, 4, 4);                // maison sud
     well(c.x, c.z);                               // la fontaine
@@ -628,7 +628,7 @@ export function generateIsland1() {
     }
     house(c.x - 16, c.z - 13, 5, 4);              // hôtel de ville (Lord Sunrock)
     chest(c.x - 17, c.z - 8);                     // le coffre du bourgmestre (au diamant !)
-    house(c.x - 20, c.z - 5, 4, 4);               // tour des mages (Liurn Clar)
+    house(c.x - 20, c.z - 5, 4, 4);               // la Maison des Mages (Marsac Cred, Liurn Clar)
     house(c.x - 20, c.z + 2, 4, 4);               // la prison
     house(c.x - 10, c.z - 7, 4, 4);               // magasin d'armures (Gwen)
     house(c.x - 5, c.z - 7, 4, 4);                // magasin de potions (Yolak)
@@ -805,10 +805,26 @@ export function generateIsland1() {
     size: N, height, tile, walk, props, kind: 'island',
     spawnPoint: { x: LH.x + 0.5, z: LH.z - 8.5 },   // le parvis du temple de Lighthaven
     village: { x: LH.x, z: LH.z },
-    // les marchands : Maître Aldric à Lighthaven, Ttayh Mark à Windhowl
+    // marchands généralistes (un par ville) et enseignants de sorts T4C —
+    // chaque enseignant ne vend que SES sorts (champ `vendor` de spells.json)
     npcSpots: [
-      { npcId: 'merchant', x: LH.x - 7.5, z: LH.z - 11.5 },
-      { npcId: 'merchant_wh', x: WH.x + 3.5, z: WH.z - 2.5 },
+      { npcId: 'merchant', x: LH.x - 7.5, z: LH.z - 11.5 },     // Maître Aldric (échoppe de LH)
+      { npcId: 'merchant_wh', x: WH.x + 3.5, z: WH.z - 2.5 },   // Ttayh Mark (Windhowl)
+      // le Temple de Lighthaven (parvis) et son sous-sol
+      { npcId: 'kilhiam', x: LH.x - 2.5, z: LH.z - 12.5 },
+      { npcId: 'moonrock', x: LH.x + 2.5, z: LH.z - 12.5 },
+      { npcId: 'shovanis', x: LH.x + 0.5, z: LH.z - 13.5 },
+      { npcId: 'araknor', x: LH.x + 5.5, z: LH.z - 14.5 },
+      // la tour des mages de Lighthaven
+      { npcId: 'iraltok', x: LH.x - 5.5, z: LH.z + 2.5 },
+      { npcId: 'lothan', x: LH.x - 5.5, z: LH.z + 4.5 },
+      { npcId: 'uranos', x: LH.x - 5.5, z: LH.z + 6.5 },
+      // la Maison des Mages de Windhowl
+      { npcId: 'liurn_clar', x: WH.x - 15.5, z: WH.z - 4.5 },
+      { npcId: 'marsac_cred', x: WH.x - 15.5, z: WH.z - 2.5 },
+      // les Druides d'Arakas (autour du puits sacré)
+      { npcId: 'cathbad', x: ARAKAS.DRUIDES.x - 3.5, z: ARAKAS.DRUIDES.z + 1.5 },
+      { npcId: 'holenarbed', x: ARAKAS.DRUIDES.x + 2.5, z: ARAKAS.DRUIDES.z + 2.5 },
     ],
     spawnZones: ARAKAS_SPAWNS,
     isWalkable(x, z) {

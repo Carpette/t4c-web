@@ -944,11 +944,39 @@ export class Game {
     this.send(p, { t: 'loot', text: 'Vous ouvrez le coffre...' });
   }
 
+  // ---------- Marchands et enseignants ----------
+  // premier PNJ à portée d'interaction qui passe le filtre
+  nearbyNpc(p, accepts = () => true) {
+    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
+      if (e.kind === C.KIND.NPC && accepts(e)) return e;
+    }
+    return null;
+  }
+
+  // marchand généraliste (objets, compétences, rachat) — pas un enseignant
+  nearbyMerchant(p) {
+    return this.nearbyNpc(p, n => !this.isTeacher(n));
+  }
+
+  isTeacher(npc) {
+    return !!(content.npc[npc.npcId]?.teacher);
+  }
+
+  // Qui enseigne quoi : un sort avec `vendor` n'est vendu QUE par ce PNJ ;
+  // les autres sorts restent vendus par les marchands généralistes de leur zone.
+  npcSellsSpell(p, npc, sp) {
+    if (sp.todo) return false;
+    if (sp.vendor) return sp.vendor === npc.npcId;
+    return !this.isTeacher(npc) && sp.zone <= p.zi.zoneId;
+  }
+
   openShop(p, npc) {
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
     const reqNames = { str: 'For', end: 'End', agi: 'Agi', int: 'Int', wis: 'Sag' };
-    const items = Object.entries(ITEMS)
+    // un enseignant ne tient pas d'étal : ni objets ni compétences, ses sorts seulement
+    const teacher = this.isTeacher(npc);
+    const items = teacher ? [] : Object.entries(ITEMS)
       .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold' && !d.legacy)
       .map(([defId, d]) => {
         const fixed = !!d.fixed;
@@ -966,7 +994,7 @@ export class Game {
         };
       });
     // les sorts "todo" (mécanique non implémentée) ne sont pas proposés à la vente
-    const spells = content.spells.filter(s => !s.todo && s.zone <= zid)
+    const spells = content.spells.filter(s => this.npcSellsSpell(p, npc, s))
       .map(s => ({
         ...s,
         price: Math.round(s.price * disc),
@@ -974,7 +1002,7 @@ export class Game {
         reqMet: this.spellReqMet(p, s) === true,
         reqText: this.spellReqText(s),
       }));
-    const skills = content.skills.filter(s => s.zone <= zid)
+    const skills = (teacher ? [] : content.skills.filter(s => s.zone <= zid))
       .map(s => ({
         ...s,
         learnCost: Math.round(s.learnCost * disc),
@@ -991,16 +1019,20 @@ export class Game {
   }
 
   buy(p, msg) {
-    // vérifie qu'un marchand est proche
-    let npc = null;
-    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
-      if (e.kind === C.KIND.NPC) { npc = e; break; }
-    }
-    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    // vérifie qu'un PNJ capable de vendre est à proximité : un marchand
+    // généraliste pour les objets et compétences ; pour un sort, le PNJ doit
+    // l'avoir à son répertoire (enseignant attitré ou marchand de la zone)
+    if (!this.nearbyNpc(p)) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    const needMerchant = () => {
+      if (this.nearbyMerchant(p)) return true;
+      this.send(p, { t: 'info', text: 'Ce maître n\'est pas marchand. Voyez un marchand généraliste.' });
+      return false;
+    };
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
 
     if (msg.kind === 'item') {
+      if (!needMerchant()) return;
       const def = ITEMS[msg.id];
       if (!def || def.zone == null || def.zone > Math.min(zid, 3) || def.legacy) return;
       const price = Math.round(def.price * (def.fixed ? 1 : Math.pow(zoneMult(zid), 2.6)) * disc);
@@ -1016,6 +1048,10 @@ export class Game {
     } else if (msg.kind === 'spell') {
       const sp = content.spellById[msg.id];
       if (!sp || sp.todo || sp.zone > zid || p.spells.includes(sp.id)) return;
+      if (!this.nearbyNpc(p, n => this.npcSellsSpell(p, n, sp))) {
+        this.send(p, { t: 'info', text: 'Personne ici ne peut vous enseigner ce sort.' });
+        return;
+      }
       const req = this.spellReqMet(p, sp);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const price = Math.round(sp.price * disc);
@@ -1025,6 +1061,7 @@ export class Game {
       this.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
     } else if (msg.kind === 'skill') {
       // apprentissage d'une compétence (puis entraînement via 'train')
+      if (!needMerchant()) return;
       const sk = content.skillById[msg.id];
       if (!sk || sk.zone > zid || sk.innate || p.skills[sk.id] != null) return;
       const req = this.skillReqMet(p, sk);
@@ -1037,6 +1074,7 @@ export class Game {
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
       // entraînement : +1 point, payé en or (système T4C)
+      if (!needMerchant()) return;
       const sk = content.skillById[msg.id];
       if (!sk || sk.zone > zid) return;
       const cur = p.skills[sk.id] ?? (sk.innate ? 0 : null);
@@ -1070,13 +1108,10 @@ export class Game {
     return true;
   }
 
-  // Vente au marchand : même prix que l'achat (qualité et zone de l'objet comprises)
+  // Vente au marchand : même prix que l'achat (qualité et zone de l'objet
+  // comprises). Les enseignants, eux, n'achètent rien.
   sell(p, msg) {
-    let npc = null;
-    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
-      if (e.kind === C.KIND.NPC) { npc = e; break; }
-    }
-    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    if (!this.nearbyMerchant(p)) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
     const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
     if (i < 0) return;
     const item = p.inventory[i];

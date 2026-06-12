@@ -356,6 +356,12 @@ export class UI {
   // ---- Boutique ----
   showShop(msg) {
     this.shop = msg;
+    // un enseignant n'a pas d'étal d'objets : ouvre directement l'onglet sorts
+    if (!msg.items.length && msg.spells.length && this.shopTab !== 'spells') {
+      this.shopTab = 'spells';
+      document.querySelectorAll('#shop-tabs button').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === 'spells'));
+    }
     $('shop-title').textContent = msg.name;
     $('shop').classList.remove('hidden');
     this.renderShop();
