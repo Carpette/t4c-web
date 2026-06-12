@@ -215,13 +215,16 @@ export class UI {
   renderSpellbar() {
     const bar = $('spellbar');
     bar.innerHTML = '';
+    // seuls les sorts dotés d'un RACCOURCI apparaissent dans la barre : les
+    // autres restent dans le panneau Sorts (S), l'interface reste légère
     for (const sp of this.knownSpells()) {
+      const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
+      if (!key) continue;
       const slot = document.createElement('div');
       slot.className = 'spell-slot' + (this.activeSpell === sp.id ? ' active' : '');
-      const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
       slot.innerHTML = `<span class="icon">${SPELL_ICONS[sp.type] || '✨'}</span>` +
-        (key ? `<span class="key">${key.toUpperCase()}</span>` : '');
-      slot.title = `${sp.name} — ${sp.mana} mana` + (key ? ` — touche ${key.toUpperCase()}` : '');
+        `<span class="key">${key.toUpperCase()}</span>`;
+      slot.title = `${sp.name} — ${sp.mana} mana — touche ${key.toUpperCase()}`;
       slot.dataset.spell = sp.id;
       slot.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
       const cd = document.createElement('div');
