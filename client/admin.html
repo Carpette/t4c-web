@@ -19,10 +19,30 @@
     .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
     .tab-content { display: none; }
     .tab-content.visible { display: block; }
-    #map-canvas { border: 1px solid #4a4070; cursor: crosshair; image-rendering: pixelated; }
+    #map-canvas { border: 1px solid #4a4070; cursor: crosshair; display: block; }
     .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; align-items: center; }
-    .toolbar .swatch { width: 26px; height: 26px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
-    .toolbar .swatch.active { border-color: #ffd24a; }
+    /* --- éditeur de carte : disposition, mini-carte, coordonnées, palette --- */
+    .map-layout { display: flex; gap: 12px; align-items: flex-start; }
+    #map-wrap { position: relative; }
+    #map-mini { position: absolute; right: 10px; bottom: 10px; border: 1px solid #6a5aaa;
+      background: #000; cursor: pointer; opacity: 0.92; image-rendering: pixelated; }
+    #map-coords { position: absolute; left: 10px; bottom: 10px; background: rgba(8, 6, 18, 0.8);
+      border: 1px solid #4a4070; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #cfc6ee; pointer-events: none; }
+    #map-palette { width: 312px; max-height: 706px; overflow-y: auto; background: #181226;
+      border: 1px solid #3a3158; border-radius: 6px; padding: 8px; }
+    .pal-search { width: 100%; margin-bottom: 8px; }
+    .pal-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
+      padding: 6px 8px; background: #100c1e; border-radius: 5px; font-size: 12px; }
+    .pal-options input[type=range] { width: 130px; vertical-align: middle; margin: 0 6px; }
+    .pal-group h3 { color: #c8b87a; font-size: 12px; margin: 8px 0 4px; text-transform: capitalize; }
+    .pal-row { display: flex; flex-wrap: wrap; gap: 5px; }
+    .pal-chip { width: 56px; border: 2px solid transparent; border-radius: 5px; cursor: pointer;
+      background: #100c1e; padding: 3px 2px 2px; text-align: center; }
+    .pal-chip:hover { border-color: #5d4a98; }
+    .pal-chip.active { border-color: #ffd24a; }
+    .pal-chip canvas { display: block; margin: 0 auto; }
+    .pal-chip .pal-swatch { width: 46px; height: 46px; border-radius: 4px; margin: 0 auto; }
+    .pal-chip-label { font-size: 9px; color: #9a90b8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     table { border-collapse: collapse; font-size: 12px; width: 100%; }
     th, td { border: 1px solid #2a2444; padding: 5px 8px; text-align: left; }
     th { color: #c8b87a; }
@@ -54,24 +74,37 @@
     <div id="tab-map" class="tab-content visible">
       <div class="toolbar">
         <label>Zone : <select id="map-zone"></select></label>
-        <span id="map-tools"></span>
-        <select id="prop-type">
-          <option value="tree">arbre</option><option value="rock">rocher</option>
-          <option value="house">maison</option><option value="torch">feu de camp</option>
-          <option value="grave">tombe</option><option value="well">dalle centrale</option>
-          <option value="obelisk">obélisque</option><option value="trialgate">portail d'Épreuve</option>
-        </select>
+        <button id="tool-paint" class="active" title="Pose la tuile ou le décor choisi dans la palette">🖌 Poser</button>
+        <button id="tool-erase" title="Supprime le décor cliqué">⌫ Gomme</button>
+        <button id="tool-move" title="Glisser un décor existant vers une autre case">✥ Déplacer</button>
+        <label>Pinceau : <select id="brush-size">
+          <option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="9">9</option>
+        </select></label>
+        <button id="undo-map" title="Annuler (Ctrl+Z)">↶</button>
+        <button id="redo-map" title="Rétablir (Ctrl+Maj+Z)">↷</button>
+        <button id="export-map" title="Télécharger les overrides de la zone en JSON">⬇ Exporter</button>
+        <button id="import-map" title="Charger un fichier d'overrides JSON">⬆ Importer</button>
+        <input type="file" id="import-file" accept=".json,application/json" style="display:none">
         <button id="save-map">💾 Enregistrer</button>
         <button id="reset-map" class="danger">Réinitialiser la zone</button>
-        <label style="margin-left:14px"><input type="checkbox" id="iso-view"> 🧭 Vue jeu (iso)</label>
+        <label style="margin-left:10px"><input type="checkbox" id="iso-view"> 🧭 Vue jeu (iso)</label>
         <label><input type="checkbox" id="show-players" checked> 🟢 Joueurs en direct</label>
         <label><input type="checkbox" id="show-player-names"> Afficher les noms</label>
         <span id="players-info" style="color:#9ad"></span>
       </div>
-      <p class="hint">Outils : peindre une tuile (glisser pour tracer) — « + décor » pose le décor choisi — « − décor » supprime le décor cliqué.
+      <p class="hint">Molette : zoom centré sur le curseur — clic milieu, clic droit ou Espace+glisser : déplacer la vue —
+      mini-carte cliquable — Maj+glisser : rectangle de tuiles — Alt+clic : pipette (reprend la tuile ou le décor visé) —
+      Ctrl+Z / Ctrl+Maj+Z : annuler/rétablir. En zoom rapproché, la carte est dessinée avec les vrais sprites du jeu.
       Les modifications s'appliquent à chaud sur le serveur et au prochain chargement de zone pour les joueurs.</p>
       <p id="map-msg" class="msg"></p>
-      <canvas id="map-canvas" width="768" height="768"></canvas>
+      <div class="map-layout">
+        <div id="map-wrap">
+          <canvas id="map-canvas" width="1000" height="704"></canvas>
+          <canvas id="map-mini" width="168" height="168"></canvas>
+          <div id="map-coords">—</div>
+        </div>
+        <div id="map-palette"></div>
+      </div>
     </div>
 
     <div id="tab-content" class="tab-content">
