@@ -11,21 +11,20 @@ export const CAVE_LEVEL_BONUS = 2;
 
 // Registre des intérieurs de grottes d'Arakas. Clé = `caveId` du prop `cave`
 // posé par shared/island1.js ; `depth` (1 à 3) règle le nombre de coffres et
-// la densité de monstres. `mobs` pioche dans le bestiaire de shared/defs.js :
-// les peuples sans sprite propre (kraanians, brigands, araignées) sont
-// incarnés par les monstres existants les plus proches.
+// la densité de monstres. `mobs` pioche dans le bestiaire de shared/defs.js,
+// fidèle aux occupants T4C de chaque lieu.
 export const CAVES = {
-  crypte_lh:  { seed: 0xc01f, size: 32, depth: 1, mobs: ['rat'] },                       // vermine de la crypte de départ
-  cave_a:     { seed: 0xca0a, size: 40, depth: 1, mobs: ['gobelin', 'rat'] },
-  cave_b:     { seed: 0xca0b, size: 40, depth: 1, mobs: ['gobelin', 'rat'] },
-  cave_c:     { seed: 0xca0c, size: 40, depth: 1, mobs: ['serpent'] },                   // « araignées » : insectes mordants
-  cave_d:     { seed: 0xca0d, size: 40, depth: 1, mobs: ['serpent', 'squelette'] },
-  cave_e:     { seed: 0xca0e, size: 40, depth: 1, mobs: ['serpent', 'squelette'] },
-  jarko:      { seed: 0x1a8c0, size: 48, depth: 2, mobs: ['orc', 'ogre'] },              // l'antre de Jarko
-  kraanian:   { seed: 0x44aa, size: 48, depth: 2, mobs: ['orc', 'gobelin'] },            // « kraanians » : hobgobelins
-  brigands:   { seed: 0xb416, size: 48, depth: 2, mobs: ['gobelin', 'orc'] },            // « brigands » : pillards
-  feylor:     { seed: 0xfe70, size: 56, depth: 3, mobs: ['orc', 'ogre'] },
-  feylor_est: { seed: 0xfe7e, size: 56, depth: 3, mobs: ['orc', 'ogre', 'squelette'] },
+  crypte_lh:  { seed: 0xc01f, size: 32, depth: 1, mobs: ['rat', 'rat_caverne'] },        // vermine de la crypte de départ
+  cave_a:     { seed: 0xca0a, size: 40, depth: 1, mobs: ['gobelin', 'rat_caverne'] },
+  cave_b:     { seed: 0xca0b, size: 40, depth: 1, mobs: ['gobelin', 'rat_caverne'] },
+  cave_c:     { seed: 0xca0c, size: 40, depth: 1, mobs: ['araignee_geante', 'tarentule'] },          // les caves aux araignées
+  cave_d:     { seed: 0xca0d, size: 40, depth: 1, mobs: ['araignee_geante', 'tarentule', 'squelette'] },
+  cave_e:     { seed: 0xca0e, size: 40, depth: 1, mobs: ['tarentule', 'tarentule_geante'] },
+  jarko:      { seed: 0x1a8c0, size: 48, depth: 2, mobs: ['squelette', 'zombie', 'goule', 'momie'] }, // l'antre du nécromancien Jarko
+  kraanian:   { seed: 0x44aa, size: 48, depth: 2, mobs: ['kraanian', 'mille_pattes'] },               // la fourmilière kraanienne
+  brigands:   { seed: 0xb416, size: 48, depth: 2, mobs: ['brigand', 'voleur'] },                      // le repaire des Brigands
+  feylor:     { seed: 0xfe70, size: 56, depth: 3, mobs: ['necro_araignee', 'squelette', 'liche_mineure'] },
+  feylor_est: { seed: 0xfe7e, size: 56, depth: 3, mobs: ['orc', 'skraug_vert', 'skraug_rouge'] },
 };
 
 // Paramètres de l'automate cellulaire (règle « 4-5 » classique)

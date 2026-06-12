@@ -29,17 +29,53 @@ function makeNoise(rng, gridSize) {
   };
 }
 
-// Zones d'apparition des monstres (centres en coordonnées tuile)
+// Zones d'apparition des monstres des îles procédurales (zones 1+), centres
+// en coordonnées tuile. Composition par niveau : la vermine près du village
+// (centre 64,70), la difficulté croît en s'en éloignant — bêtes et hors-la-loi
+// au sud, arachnides à l'est, morts-vivants au cimetière du NE, peaux-vertes
+// et créatures magiques aux confins du nord.
 export const SPAWN_ZONES = [
-  { mob: 'rat',       center: [64, 86],  radius: 9,  count: 12 },
-  { mob: 'rat',       center: [46, 60],  radius: 7,  count: 8 },
-  { mob: 'serpent',   center: [84, 96],  radius: 10, count: 9 },
-  { mob: 'gobelin',   center: [34, 84],  radius: 11, count: 10 },
-  { mob: 'gobelin',   center: [28, 56],  radius: 9,  count: 7 },
-  { mob: 'squelette', center: [94, 36],  radius: 11, count: 10 },
-  { mob: 'zombie',    center: [99, 30],  radius: 6,  count: 5 },
-  { mob: 'orc',       center: [56, 24],  radius: 10, count: 8 },
-  { mob: 'ogre',      center: [102, 70], radius: 6,  count: 2 },
+  // proche du village (niveaux de base 1-5)
+  { mob: 'rat',              center: [64, 86],  radius: 9,  count: 10 },
+  { mob: 'rat_caverne',      center: [70, 90],  radius: 7,  count: 6 },
+  { mob: 'araignee_geante',  center: [78, 82],  radius: 7,  count: 6 },
+  { mob: 'loup',             center: [52, 80],  radius: 8,  count: 6 },
+  { mob: 'rat',              center: [46, 60],  radius: 7,  count: 6 },
+  { mob: 'sanglier',         center: [56, 100], radius: 6,  count: 5 },
+  // premier cercle (5-11)
+  { mob: 'serpent',          center: [84, 96],  radius: 10, count: 7 },
+  { mob: 'gobelin',          center: [34, 84],  radius: 11, count: 8 },
+  { mob: 'gobelin',          center: [28, 56],  radius: 9,  count: 6 },
+  { mob: 'loup_noir',        center: [24, 92],  radius: 6,  count: 5 },
+  { mob: 'brigand',          center: [30, 70],  radius: 7,  count: 5 },
+  { mob: 'voleur',           center: [28, 74],  radius: 5,  count: 4 },
+  { mob: 'ours',             center: [40, 96],  radius: 6,  count: 4 },
+  { mob: 'serpent_venimeux', center: [70, 104], radius: 6,  count: 5 },
+  // deuxième cercle (10-17)
+  { mob: 'goule',            center: [98, 40],  radius: 5,  count: 4 },
+  { mob: 'momie',            center: [90, 32],  radius: 5,  count: 4 },
+  { mob: 'squelette',        center: [94, 36],  radius: 11, count: 8 },
+  { mob: 'zombie',           center: [99, 30],  radius: 6,  count: 5 },
+  { mob: 'guepe',            center: [90, 60],  radius: 7,  count: 5 },
+  { mob: 'tarentule',        center: [100, 84], radius: 7,  count: 6 },
+  { mob: 'tarentule_geante', center: [106, 90], radius: 5,  count: 3 },
+  { mob: 'kraanian',         center: [22, 36],  radius: 7,  count: 5 },
+  { mob: 'mille_pattes',     center: [18, 42],  radius: 5,  count: 4 },
+  { mob: 'fourmilion_geant', center: [74, 18],  radius: 6,  count: 4 },
+  // confins (12-24)
+  { mob: 'orc',              center: [56, 24],  radius: 10, count: 6 },
+  { mob: 'orc_guerrier',     center: [50, 28],  radius: 7,  count: 5 },
+  { mob: 'orc_chaman',       center: [48, 22],  radius: 4,  count: 2 },
+  { mob: 'orc_eclaireur',    center: [60, 30],  radius: 7,  count: 4 },
+  { mob: 'skraug_vert',      center: [86, 16],  radius: 6,  count: 4 },
+  { mob: 'skraug_rouge',     center: [88, 12],  radius: 5,  count: 3 },
+  { mob: 'necro_araignee',   center: [110, 44], radius: 5,  count: 3 },
+  { mob: 'centaure',         center: [30, 20],  radius: 7,  count: 4 },
+  { mob: 'elementaire_feu',  center: [14, 60],  radius: 5,  count: 3 },
+  { mob: 'golem_pierre',     center: [20, 18],  radius: 5,  count: 2 },
+  { mob: 'liche_mineure',    center: [108, 30], radius: 5,  count: 1 },
+  { mob: 'troll',            center: [104, 64], radius: 5,  count: 2 },
+  { mob: 'ogre',             center: [102, 70], radius: 6,  count: 2 },
 ];
 
 // Emplacements de PNJ par défaut d'une zone : une carte fixe les fournit
