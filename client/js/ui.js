@@ -2,8 +2,9 @@
 import { STAT_NAMES, STATS, PROTOCOL_VERSION } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
-import { SETTING_DEFS, SETTING_CHOICES, settings, setSetting } from './settings.js';
+import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting } from './settings.js';
 import { refreshMusic } from './music.js';
+import { refreshSfx, play as playSfx } from './sfx.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
@@ -240,12 +241,21 @@ export class UI {
     };
 
     addSection('Audio');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn')) {
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn' || k === 'sfxOn')) {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
       cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
       addRow(label, cb);
+    }
+    for (const [key, label] of SETTING_SLIDERS) {
+      const sl = document.createElement('input');
+      sl.type = 'range';
+      sl.min = '0'; sl.max = '1'; sl.step = '0.05';
+      sl.value = settings[key];
+      sl.oninput = () => { setSetting(key, +sl.value); refreshSfx(); };
+      sl.onchange = () => playSfx('or'); // petit aperçu du volume choisi
+      addRow(label, sl);
     }
     for (const c of SETTING_CHOICES) {
       const sel = document.createElement('select');
@@ -256,7 +266,7 @@ export class UI {
     }
 
     addSection('Affichage');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn')) {
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn' && k !== 'sfxOn')) {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
@@ -595,10 +605,13 @@ export class UI {
 
   renderBuffs() {
     const names = {
-      def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Instinct de Combat',
-      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la Terre',
-      light: '💡 Lumière', int: '🧠 Pensée Claire', wis: '🕊 Tranquillité',
-      agi: '🤸 Dextérité', spellpow: '🔮 Poussée de Mana', retort: '🔥 Bouclier élémentaire',
+      def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Instinct de combat',
+      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la terre',
+      light: '💡 Lumière', int: '🧠 Esprit clair', wis: '🕊 Tranquillité',
+      agi: '🤸 Dextérité', spellpow: '🔮 Afflux de Mana', retort: '🔥 Bouclier élémentaire',
+      resistAll: '🔮 Bouclier de mana', resist_feu: '🔥 Résistance au feu',
+      resist_eau: '❄ Résistance à la glace', sanctuaire: '⛨ Sanctuaire (intouchable)',
+      transe: '🧘 Transe (ni attaque ni sort)', maudit: '☠ Maudit (soins impossibles)',
     };
     $('buffs-display').innerHTML = (this.self?.buffs || [])
       .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');

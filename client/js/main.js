@@ -10,6 +10,7 @@ import { EntityManager2D } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
 import { playMusic } from './music.js';
+import { play as playSfx, playCast, playImpact } from './sfx.js';
 
 const INTERP_DELAY = 0.15;
 
@@ -102,6 +103,8 @@ net.on('chat', (m) => ui.addChat(m.from, m.text, m.channel || m.kind));
 net.on('info', (m) => ui.addChat('sys', m.text));
 net.on('loot', (m) => {
   ui.addChat('sys', m.text);
+  if (/^\+\d+ or$/.test(m.text)) playSfx('or');           // pièces ramassées
+  else if (m.text.startsWith('Vous ouvrez le coffre')) playSfx('coffre');
   const v = em.get(selfId);
   if (v) ui.floater(headPos(v), m.text, 'xp');
 });
@@ -135,20 +138,24 @@ net.on('events', (m) => {
       const v = em.get(ev.to);
       if (!v) continue;
       const pos = headPos(v);
-      if (ev.parry) ui.floater(pos, 'paré !', 'miss');
+      if (ev.parry) { ui.floater(pos, 'paré !', 'miss'); playSfx('parade'); }
       else if (ev.miss) ui.floater(pos, 'raté', 'miss');
       else {
         const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
         const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')
           + (ev.mod === 'resist' ? ' miss' : '') + (ev.mod === 'weak' ? ' heal' : '');
         ui.floater(pos, `-${ev.amount}${suffix}`, cls);
+        if (ev.from === selfId || ev.to === selfId) playSfx('coup');
       }
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;
-      if (ev.kind === 'levelup') ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit');
-      if (ev.kind === 'heal') ui.floater(headPos(v), '+ soin', 'heal');
-      if (ev.kind === 'buff') ui.floater(headPos(v), '✨', 'heal');
+      renderer.fxAt(ev.kind, v.x, v.z, ev.color);
+      if (ev.kind === 'levelup') { ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
+      if (ev.kind === 'heal') { ui.floater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
+      if (ev.kind === 'buff') { ui.floater(headPos(v), '✨', 'heal'); if (ev.id === selfId) playSfx('buff'); }
+      if (ev.kind === 'curse') { ui.floater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
+      if (ev.kind === 'die') playSfx('mort');
     } else if (ev.t === 'look') {
       em.get(ev.id)?.setLook(ev.look);
     } else if (ev.t === 'say') {
@@ -160,10 +167,20 @@ net.on('events', (m) => {
     } else if (ev.t === 'proj') {
       const a = em.get(ev.from), b = em.get(ev.to);
       a?.triggerSwing(); // animation de lancement à chaque sort
-      if (a && b) renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.3 });
+      if (a && b) {
+        if (ev.element === 'air') {
+          // éclair : zigzag instantané entre lanceur et cible, pas un projectile lent
+          renderer.addFx({ type: 'zap', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.22 });
+          playImpact('air');
+        } else {
+          renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, element: ev.element, dur: 0.3 });
+          if (ev.element) { playCast(ev.element); playImpact(ev.element, 0.3); }
+        }
+      }
     } else if (ev.t === 'aoe') {
       em.get(ev.from)?.triggerSwing();
-      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, dur: 0.6 });
+      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, element: ev.element, dur: 0.6 });
+      playImpact(ev.element || 'neutre');
     }
   }
 });
