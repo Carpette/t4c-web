@@ -9,6 +9,7 @@ import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { loadOverrides } from '../admin.js';
 import * as db from '../db.js';
+import { Player, Mob, NPC, Drop } from './entities.js';
 
 const CELL = 16;
 
@@ -100,15 +101,7 @@ export class Game {
   spawnMob(zi, defId, x, z, zoneBase, noRespawn = false) {
     const def = MOBS[defId];
     const sc = C.scaleMob(def, zoneBase);
-    const m = {
-      id: this.nextId++, kind: C.KIND.MOB, defId, def, sc,
-      level: sc.level,
-      x, z, dir: 0, state: C.ST.IDLE,
-      hp: sc.hp, maxHp: sc.hp,
-      home: { x, z }, target: null, atkCd: 0, path: null,
-      wanderAt: this.now() + 2 + Math.random() * 6,
-      dead: false, hidden: false, respawnAt: 0, hideAt: 0, noRespawn,
-    };
+    const m = new Mob(this.nextId++, defId, def, sc, x, z, this.now(), noRespawn);
     zi.add(m);
     return m;
   }
@@ -125,13 +118,7 @@ export class Game {
       const def = content.npc[spot.npcId] || content.npc.merchant;
       let { x, z } = spot, tries = 0;
       while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      zi.add({
-        id: this.nextId++, kind: C.KIND.NPC, npcId: spot.npcId,
-        name: def.name,
-        look: def.look,
-        x, z, dir: Math.PI, state: C.ST.IDLE, level: 0,
-        hp: 1, dead: false, hidden: false,
-      });
+      zi.add(new NPC(this.nextId++, spot.npcId, def, x, z));
     }
   }
 
@@ -147,30 +134,12 @@ export class Game {
       data = db.newCharacterData(name, this.island(0).world.spawnPoint);
       db.saveCharacter(accountId, data);
     }
-    const p = {
-      id: this.nextId++, kind: C.KIND.PLAYER, ws, accountId, isAdmin: !!isAdmin,
-      name: data.name, sex: data.sex || 'male',
-      level: data.level, xp: data.xp, statPoints: data.statPoints,
-      stats: data.stats, gold: data.gold,
-      inventory: data.inventory || [], equip: data.equip || {},
-      bank: data.bank ?? [], // coffre personnel (migration : anciens personnages sans banque)
-      spells: data.spells || [],
-      // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
-      skills: (data.skills && !Array.isArray(data.skills)) ? data.skills : {},
-      unlocked: data.unlocked || [0],
-      x: data.x, z: data.z, dir: 0, state: C.ST.IDLE,
-      path: null, moveDir: null, attackTarget: null, atkCd: 0, lastCombat: -99,
-      spellCds: {}, buffs: [],
-      hp: 1, mana: 1, dead: false, hidden: false,
-      known: new Set(), events: [], lastChat: 0,
-      channels: ['general', 'aide', 'ventes', 'roleplay'], // Abonnés par défaut
-      pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
-    };
+    const hpAcc = data.hpAcc ?? C.maxHp(data.stats, data.level);
+    const manaAcc = data.manaAcc ?? C.maxMana(data.stats, data.level);
+
+    const p = new Player(this.nextId++, ws, accountId, isAdmin, data, hpAcc, manaAcc);
     for (const it of p.inventory) setNextIid(it.iid + 1);
     for (const it of p.bank) setNextIid(it.iid + 1);
-    // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
-    p.hpAcc = data.hpAcc ?? C.maxHp(p.stats, p.level);
-    p.manaAcc = data.manaAcc ?? C.maxMana(p.stats, p.level);
 
     // zone de départ : Épreuve en cours (recréée) ou île courante
     let zi;
@@ -182,7 +151,7 @@ export class Game {
       zi = this.island(zid);
       if (!zi.world.isWalkable(p.x, p.z)) { p.x = zi.world.spawnPoint.x; p.z = zi.world.spawnPoint.z; }
     }
-    this.recompute(p);
+    p.recompute(this);
     p.hp = data.hp == null ? p.eff.maxHp : Math.min(data.hp, p.eff.maxHp);
     p.mana = data.mana == null ? p.eff.maxMana : Math.min(data.mana, p.eff.maxMana);
     if (p.hp <= 0) p.hp = p.eff.maxHp;
@@ -200,7 +169,7 @@ export class Game {
 
   removePlayer(p, reason) {
     if (!this.players.has(p.id)) return;
-    if (!p.permadead) this.savePlayer(p);
+    if (!p.permadead) p.save();
     p.zi.players--;
     p.zi.remove(p);
     this.maybeDestroyTrial(p.zi);
@@ -209,21 +178,7 @@ export class Game {
     try { p.ws.close(1000, reason || 'bye'); } catch {}
   }
 
-  savePlayer(p) {
-    if (p.permadead) return;
-    db.saveCharacter(p.accountId, {
-      name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
-      stats: p.stats, hp: p.hp, mana: p.mana, x: p.x, z: p.z,
-      gold: p.gold, inventory: p.inventory, equip: p.equip,
-      bank: p.bank,
-      hpAcc: p.hpAcc, manaAcc: p.manaAcc,
-      spells: p.spells, skills: p.skills, unlocked: p.unlocked,
-      sex: p.sex,
-      zoneId: p.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
-      trialFor: p.zi.isTrial ? p.zi.trialTarget : null,
-    });
-  }
-  saveAll() { for (const p of this.players.values()) this.savePlayer(p); }
+  saveAll() { for (const p of this.players.values()) p.save(); }
 
   sendZone(p) {
     const zi = p.zi;
@@ -292,7 +247,7 @@ export class Game {
     const zi = this.createTrial(p, target);
     p.trialFrom = p.zi.zoneId;
     this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
-    this.savePlayer(p);
+    p.save();
     this.send(p, { t: 'info', text: 'L\'Épreuve commence. Atteignez la sortie... ou mourez.' });
   }
 
@@ -304,94 +259,7 @@ export class Game {
     const dest = this.island(target);
     this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
     this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
-    this.savePlayer(p);
-  }
-
-  // ---------- Stats effectives ----------
-  recompute(p) {
-    const stats = { ...p.stats };
-    let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0, dodgeMalus = 0;
-    let wRanged = false, wRange = 0, attBonus = 0;
-    for (const slot of SLOTS) {
-      const iid = p.equip[slot];
-      if (!iid) continue;
-      const item = p.inventory.find(i => i.iid === iid);
-      if (!item) { delete p.equip[slot]; continue; }
-      const s = itemStats(item);
-      if (slot === 'weapon') {
-        wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed;
-        // arc T4C : l'attaque normale porte à `range` tuiles (avec ligne de vue)
-        const wDef = ITEMS[item.defId];
-        wRanged = !!wDef.ranged; wRange = wDef.range || 0;
-      }
-      defense += s.def;
-      dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C) — négatif = bonus
-      attBonus += ITEMS[item.defId].att || 0; // points d'Attaque offerts (Écu de Drachen : +50 Att)
-      for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
-    }
-    // compétences T4C : points entraînés x effet par point
-    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, rangedHit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
-    for (const [id, pts] of Object.entries(p.skills)) {
-      const sk = content.skillById[id];
-      if (!sk || !pts) continue;
-      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v * pts;
-    }
-    // un bouclier équipé améliore la parade de moitié (T4C)
-    if (p.equip.shield) fx.parry *= 1.5;
-    // bonus d'Attaque d'objets (+50 Att = +5 % de toucher en mêlée, comme la compétence)
-    fx.hit += attBonus * 0.001;
-    // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
-    fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
-    // buffs temporaires (valeurs calculées au lancement, façon T4C)
-    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
-    for (const b of p.buffs) {
-      if (b.stat === 'def') buffDef += b.power;
-      else if (b.stat === 'speed') buffSpeed += b.power;
-      else if (b.stat === 'dmg') buffDmgMul += b.power;
-      else if (b.stat === 'regen') buffRegen += b.power;
-      else if (b.stat === 'maxhp') buffMaxHp += b.power;       // Bénédiction
-      else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
-    }
-    p.skillFx = fx;
-    const strBonus = Math.floor(stats.str / 3);
-    const dmgMult = 1 + fx.dmgMul + buffDmgMul;
-    p.eff = {
-      stats,
-      maxHp: Math.floor((p.hpAcc ?? C.maxHp(stats, p.level)) * (1 + fx.hpMul)) + buffMaxHp,
-      maxMana: Math.floor(p.manaAcc ?? C.maxMana(stats, p.level)),
-      dmgMin: ((wMin || 2) + strBonus),
-      dmgMax: ((wMax || 3) + strBonus),
-      dmgMult,
-      dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
-      atkCd: C.attackCooldown(stats, weaponSpeed),
-      defense: defense + fx.def + buffDef,
-      speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
-      // arc équipé : portée de l'arme (tuiles), sinon mêlée
-      atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
-      ranged: wRanged,
-      buffRegen,
-      capacity: C.enc(stats),
-    };
-    p.hp = Math.min(p.hp, p.eff.maxHp);
-    p.mana = Math.min(p.mana, p.eff.maxMana);
-
-    // apparence (couches Flare)
-    const layerOf = (slot) => {
-      const iid = p.equip[slot];
-      const item = iid && p.inventory.find(i => i.iid === iid);
-      return item ? (ITEMS[item.defId].layer || null) : null;
-    };
-    const look = {
-      sex: p.sex,
-      chest: layerOf('armor'), head: layerOf('helmet'),
-      legs: layerOf('legs'), hands: layerOf('gloves'),
-      main: layerOf('weapon'), off: layerOf('shield'), feet: layerOf('boots'),
-    };
-    const changed = JSON.stringify(look) !== JSON.stringify(p.look || null);
-    p.look = look;
-    if (changed && this.players.has(p.id)) {
-      this.eventNear(p, { t: 'look', id: p.id, look });
-    }
+    p.save();
   }
 
   sendSelf(p) {
@@ -497,7 +365,7 @@ export class Game {
       }
       case 'cast': {
         if (p.dead) return;
-        this.castSpell(p, msg);
+        p.castSpell(msg, this);
         break;
       }
       case 'pickup': {
@@ -574,11 +442,11 @@ export class Game {
         let target = slot;
         if (slot === 'ring' && p.equip.ring && p.equip.ring !== item.iid && !p.equip.ring2) target = 'ring2';
         p.equip[target] = item.iid;
-        this.recompute(p); this.sendSelf(p);
+        p.recompute(this); this.sendSelf(p);
         break;
       }
       case 'unequip': {
-        if (p.equip[msg.slot]) { delete p.equip[msg.slot]; this.recompute(p); this.sendSelf(p); }
+        if (p.equip[msg.slot]) { delete p.equip[msg.slot]; p.recompute(this); this.sendSelf(p); }
         break;
       }
       case 'drop': {
@@ -603,7 +471,7 @@ export class Game {
         if (p.statPoints > 0 && C.STATS.includes(msg.stat)) {
           p.stats[msg.stat]++;
           p.statPoints--;
-          this.recompute(p); this.sendSelf(p);
+          p.recompute(this); this.sendSelf(p);
         }
         break;
       }
@@ -669,7 +537,7 @@ export class Game {
         }
         if (Number.isFinite(+msg.gold)) p.gold = Math.max(0, msg.gold | 0);
         if (Number.isFinite(+msg.statPoints)) p.statPoints = Math.max(0, msg.statPoints | 0);
-        this.recompute(p);
+        p.recompute(this);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
         this.sendSelf(p);
         break;
@@ -678,7 +546,7 @@ export class Game {
         for (const st of C.STATS) {
           if (Number.isFinite(+msg[st])) p.stats[st] = Math.max(1, msg[st] | 0);
         }
-        this.recompute(p);
+        p.recompute(this);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
         this.sendSelf(p);
         break;
@@ -793,7 +661,7 @@ export class Game {
     }
     p.inventory.splice(i, 1);
     p.bank.push(item);
-    this.recompute(p);
+    p.recompute(this);
     this.openBank(p);
     this.sendSelf(p);
   }
@@ -930,7 +798,7 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = 1;
-      this.recompute(p);
+    p.recompute(this);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
       // entraînement : +1 point, payé en or (système T4C)
@@ -945,7 +813,7 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = cur + 1;
-      this.recompute(p);
+    p.recompute(this);
     }
     this.sendSelf(p);
   }
@@ -985,7 +853,7 @@ export class Game {
     const price = Math.round(itemPrice(item) * (1 - (p.skillFx?.discount || 0)));
     p.inventory.splice(i, 1);
     p.gold += price;
-    this.recompute(p);
+    p.recompute(this);
     this.send(p, { t: 'loot', text: `Vendu : ${itemLabel(item)} (+${price} or)` });
     this.sendSelf(p);
   }
@@ -1013,81 +881,6 @@ export class Game {
     return parts.join(', ');
   }
 
-  // ---------- Sorts ----------
-  castSpell(p, msg) {
-    const sp = content.spellById[msg.spellId];
-    if (!sp || !p.spells.includes(sp.id)) return;
-    const now = this.now();
-    if ((p.spellCds[sp.id] || 0) > now) return;
-    if (p.mana < sp.mana) { this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
-
-    const spellMul = 1 + (p.skillFx?.spellMul || 0);
-    const intel = p.eff.stats.int, wis = p.eff.stats.wis;
-
-    if (sp.type === 'heal') {
-      const amount = Math.round(sp.power * (1 + wis * 0.05) * spellMul);
-      p.hp = Math.min(p.eff.maxHp, p.hp + amount);
-      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-      this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana - sp.mana) });
-    } else if (sp.type === 'buff') {
-      // puissance influencée par les stats, fidèle à T4C :
-      // Bénédiction ~ 1,2 x Sagesse ; Force de la Terre +25% de Force ;
-      // protections (CA) bonifiées par la Sagesse
-      let power = sp.power;
-      if (sp.stat === 'maxhp') power = Math.round(sp.power * wis);
-      else if (sp.stat === 'str') power = Math.max(1, Math.round(p.stats.str * sp.power));
-      else if (sp.stat === 'def') power = Math.round(sp.power * (1 + wis * 0.008));
-      p.buffs = p.buffs.filter(b => b.stat !== sp.stat);
-      p.buffs.push({ stat: sp.stat, power, until: now + sp.duration });
-      this.recompute(p);
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color });
-    } else if (sp.type === 'bolt') {
-      const target = p.zi.entities.get(msg.target | 0);
-      if (!target || target.kind !== C.KIND.MOB || target.dead || target.hidden) return;
-      if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) {
-        // hors mode combat : on s'approche puis on lance (à la T4C)
-        if (msg.approach) { this.startApproachCast(p, msg, target.x, target.z); return; }
-        this.send(p, { t: 'info', text: 'Trop loin.' });
-        return;
-      }
-      if (!lineOfSight(p.zi.world, p, target)) return;
-      // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
-      let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.9 + Math.random() * 0.2));
-      const { dmg: final, mod } = this.applyResist(target, sp, dmg);
-      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color });
-      this.applyDamage(p, target, final, false, mod);
-      // drain de vie : inefficace sur les morts-vivants (T4C)
-      if (sp.leech && !target.def.undead) {
-        p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
-        this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-      }
-      p.dir = Math.atan2(target.x - p.x, target.z - p.z);
-      p.lastCombat = now;
-    } else if (sp.type === 'aoe') {
-      const cx = +msg.x, cz = +msg.z;
-      if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
-      if (Math.hypot(cx - p.x, cz - p.z) > sp.range) {
-        if (msg.approach) { this.startApproachCast(p, msg, cx, cz); return; }
-        this.send(p, { t: 'info', text: 'Trop loin.' });
-        return;
-      }
-      this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color });
-      for (const e of [...p.zi.nearby(cx, cz, sp.radius)]) {
-        if (e.kind !== C.KIND.MOB || e.dead) continue;
-        let dmg = Math.round(sp.power * (1 + intel * 0.045) * spellMul * (0.85 + Math.random() * 0.3));
-        const { dmg: final, mod } = this.applyResist(e, sp, dmg);
-        this.applyDamage(p, e, final, false, mod);
-      }
-      p.lastCombat = now;
-    }
-
-    p.mana -= sp.mana;
-    p.spellCds[sp.id] = now + sp.cd;
-    p.state = C.ST.ATTACK;
-    this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd, mana: Math.round(p.mana) });
-    if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
-  }
-
   // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
   startApproachCast(p, msg, tx, tz) {
     p.pendingCast = { ...msg, approach: false }; // une seule approche, pas de boucle
@@ -1106,71 +899,6 @@ export class Game {
     };
   }
 
-  applyDamage(attacker, defender, dmg, crit, mod = null) {
-    defender.hp -= dmg;
-    defender.lastCombat = this.now();
-    this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit, mod });
-    if (defender.hp <= 0) {
-      if (defender.kind === C.KIND.MOB) this.killMob(defender, attacker);
-      else this.killPlayer(defender, attacker);
-    } else if (defender.kind === C.KIND.PLAYER) {
-      this.send(defender, { t: 'vitals', hp: Math.round(defender.hp), mana: Math.round(defender.mana) });
-    }
-  }
-
-  // ---------- Combat ----------
-  attack(attacker, defender) {
-    const aStats = attacker.kind === C.KIND.PLAYER ? attacker.eff.stats
-      : { str: 0, agi: 10 + attacker.level * 1.8, end: 0, int: 0, wis: 0 };
-    const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
-      : { str: 0, agi: 10 + defender.level * 1.8, end: 0, int: 0, wis: 0 };
-    attacker.state = C.ST.ATTACK;
-    attacker.dir = Math.atan2(defender.x - attacker.x, defender.z - attacker.z);
-    attacker.lastCombat = this.now();
-    defender.lastCombat = this.now();
-
-    let hitC = C.hitChance(aStats, dStats);
-    // T4C : Attaque ne sert qu'en mêlée, Archerie qu'à l'arc — jamais les deux
-    const usesBow = attacker.kind === C.KIND.PLAYER && attacker.eff.ranged;
-    if (attacker.kind === C.KIND.PLAYER) {
-      hitC = Math.min(0.98, hitC + (usesBow ? (attacker.skillFx?.rangedHit || 0) : (attacker.skillFx?.hit || 0)));
-    }
-    if (defender.kind === C.KIND.PLAYER) hitC = Math.max(0.15, hitC - (defender.skillFx?.dodge || 0));
-    if (Math.random() > hitC) {
-      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
-      return;
-    }
-    // Parade T4C : annule totalement le coup (bouclier : +50 % d'efficacité)
-    if (defender.kind === C.KIND.PLAYER && Math.random() < (defender.skillFx?.parry || 0)) {
-      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, parry: true });
-      return;
-    }
-    // flèche : trace visuelle du tir à chaque coup réussi (système des projectiles de sorts)
-    if (usesBow) this.eventNear(defender, { t: 'proj', from: attacker.id, to: defender.id, color: '#d8c8a0' });
-    // joueur : tirage dans la fourchette de l'arme (T4C) ; monstre : variance
-    let dmg;
-    if (attacker.kind === C.KIND.PLAYER) {
-      const e = attacker.eff;
-      dmg = Math.round((e.dmgMin + Math.random() * (e.dmgMax - e.dmgMin)) * e.dmgMult);
-    } else {
-      dmg = Math.round(attacker.sc.dmg * (0.85 + Math.random() * 0.3));
-    }
-    let crit = false;
-    if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (attacker.skillFx?.crit || 0)) {
-      dmg = Math.round(dmg * 1.6); crit = true;
-    }
-    let defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
-    // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
-    if (attacker.kind === C.KIND.PLAYER) defense *= 1 - (attacker.skillFx?.pierce || 0);
-    dmg = C.mitigate(dmg, defense);
-    // Coup assommant : chance d'immobiliser brièvement le monstre
-    if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
-        && Math.random() < (attacker.skillFx?.stun || 0)) {
-      defender.stunnedUntil = this.now() + 0.8;
-      defender.path = null;
-    }
-    this.applyDamage(attacker, defender, dmg, crit);
-  }
 
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
@@ -1178,7 +906,7 @@ export class Game {
     m.respawnAt = m.noRespawn ? Infinity : this.now() + m.def.respawn;
     if (killer.kind === C.KIND.PLAYER) {
       const xp = C.mobXpReward(m.level, killer.level);
-      this.addXp(killer, xp);
+      killer.addXp(xp, this);
       this.send(killer, { t: 'loot', text: `+${xp} XP (${m.def.name})` });
       if (killer.attackTarget === m.id) killer.attackTarget = null;
       const zid = m.zi.zoneId;
@@ -1207,52 +935,11 @@ export class Game {
 
   // Construit les données d'un nouveau personnage (répartition validée)
   buildCharacter(name, stats, sex) {
-    if (!C.validateCreationStats(stats)) return null;
-    const clean = {};
-    for (const st of C.STATS) clean[st] = stats[st] | 0;
-    return db.newCharacterData(name, this.island(0).world.spawnPoint, clean, sex);
+    return Player.buildCharacter(this.island(0).world.spawnPoint, name, stats, sex);
   }
 
   reincarnate(p, stats = null, sex = null) {
-    const zi0 = this.island(0);
-    const data = db.newCharacterData(p.name, zi0.world.spawnPoint, stats, sex || p.sex);
-    p.sex = data.sex;
-    db.saveCharacter(p.accountId, data);
-    p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
-    p.level = 1; p.xp = 0; p.statPoints = 0;
-    p.stats = { ...data.stats };
-    p.hpAcc = C.maxHp(p.stats, 1);
-    p.manaAcc = C.maxMana(p.stats, 1);
-    p.gold = data.gold;
-    p.inventory = data.inventory; p.equip = data.equip;
-    p.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
-    p.spells = []; p.skills = {}; p.unlocked = [0];
-    p.buffs = []; p.spellCds = {};
-    this.recompute(p);
-    p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-    this.movePlayerToZone(p, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
-    this.broadcastChat('sys', `${p.name} renaît sur ${this.zoneDef(0).name}.`);
-  }
-
-  addXp(p, amount) {
-    p.xp += amount;
-    let leveled = false;
-    while (p.level < C.MAX_LEVEL && p.xp >= C.xpForLevel(p.level + 1)) {
-      p.level++;
-      p.statPoints += C.POINTS_PER_LEVEL;
-      // gains de PV/mana figés au passage de niveau, selon les stats DU MOMENT
-      // (équipement compris) — fidèle à T4C
-      p.hpAcc += C.hpGainPerLevel(p.eff.stats);
-      p.manaAcc += C.manaGainPerLevel(p.eff.stats);
-      leveled = true;
-    }
-    if (leveled) {
-      this.recompute(p);
-      p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-      this.eventNear(p, { t: 'fx', kind: 'levelup', id: p.id });
-      this.broadcastChat('sys', `${p.name} passe niveau ${p.level} !`);
-    }
-    this.sendSelf(p);
+    p.reincarnate(this, stats, sex);
   }
 
   doPickup(p, d) {
@@ -1279,13 +966,14 @@ export class Game {
       const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
       if (zi.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
     }
-    const d = {
-      id: this.nextId++, kind: C.KIND.DROP,
-      defId: payload.gold ? 'or' : payload.item.defId,
-      gold: payload.gold || 0, item: payload.item || null,
-      x, z, dir: 0, state: 0, hidden: false,
-      expiresAt: this.now() + ttl,
-    };
+    const d = new Drop(
+      this.nextId++,
+      payload.gold ? 'or' : payload.item.defId,
+      payload.gold || 0,
+      payload.item || null,
+      x, z,
+      this.now() + ttl
+    );
     zi.add(d);
   }
 
@@ -1311,7 +999,7 @@ export class Game {
     }
     p.inventory.splice(i, 1);
     this.spawnDrop(p.zi, p.x, p.z, { item }, C.PLAYER_DROP_DESPAWN);
-    this.recompute(p);
+    p.recompute(this);
     this.send(p, { t: 'loot', text: `Posé au sol : ${itemLabel(item)}` });
     this.sendSelf(p);
   }
@@ -1324,102 +1012,7 @@ export class Game {
     const now = this.now();
 
     for (const p of this.players.values()) {
-      if (p.dead) continue;
-      // expiration des buffs
-      const nb = p.buffs.filter(b => b.until > now);
-      if (nb.length !== p.buffs.length) { p.buffs = nb; this.recompute(p); this.sendSelf(p); }
-
-      // régénération
-      if (now - p.lastCombat > 5 || p.eff.buffRegen) {
-        const oldHp = p.hp, oldMana = p.mana;
-        const inCombat = now - p.lastCombat <= 5;
-        if (!inCombat) {
-          p.hp = Math.min(p.eff.maxHp, p.hp + C.hpRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.hpRegenMul || 0)) * dt);
-          p.mana = Math.min(p.eff.maxMana, p.mana + C.manaRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.manaRegenMul || 0)) * dt);
-        }
-        if (p.eff.buffRegen) p.hp = Math.min(p.eff.maxHp, p.hp + p.eff.buffRegen * dt);
-        if ((Math.floor(p.hp) !== Math.floor(oldHp) || Math.floor(p.mana) !== Math.floor(oldMana)) && this.tickCount % 10 === 0) {
-          this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
-        }
-      }
-      p.atkCd = Math.max(0, p.atkCd - dt);
-
-      // déplacement direct (flèches / clic maintenu)
-      if (p.moveDir) {
-        const sp = p.eff.speed * dt;
-        const nx = p.x + p.moveDir.x * sp, nz = p.z + p.moveDir.z * sp;
-        if (p.zi.world.isWalkable(nx, nz)) { p.x = nx; p.z = nz; }
-        else if (p.zi.world.isWalkable(nx, p.z)) { p.x = nx; }
-        else if (p.zi.world.isWalkable(p.x, nz)) { p.z = nz; }
-        p.dir = Math.atan2(p.moveDir.x, p.moveDir.z);
-        p.state = C.ST.WALK;
-        p.zi.gridMove(p);
-      }
-
-      // poursuite/attaque
-      if (p.attackTarget != null) {
-        const tgt = p.zi.entities.get(p.attackTarget);
-        if (!tgt || tgt.dead || tgt.hidden) { p.attackTarget = null; p.state = C.ST.IDLE; }
-        else {
-          const dist = Math.hypot(tgt.x - p.x, tgt.z - p.z);
-          if (dist <= p.eff.atkRange && lineOfSight(p.zi.world, p, tgt)) {
-            p.path = null;
-            if (p.atkCd <= 0) { p.atkCd = p.eff.atkCd; this.attack(p, tgt); }
-            else if (p.state !== C.ST.ATTACK) p.state = C.ST.IDLE;
-          } else if (!p.path || this.tickCount % 5 === 0) {
-            p.path = findPath(p.zi.world, p.x, p.z, tgt.x, tgt.z);
-          }
-        }
-      }
-      if (!p.moveDir) this.stepAlong(p, p.eff.speed, dt);
-
-      // ramassage / interaction en attente
-      if (p.pendingPickup != null) {
-        const d = p.zi.entities.get(p.pendingPickup);
-        if (!d || d.kind !== C.KIND.DROP) p.pendingPickup = null;
-        else if (Math.hypot(d.x - p.x, d.z - p.z) <= C.PICKUP_RANGE) {
-          this.doPickup(p, d);
-          p.pendingPickup = null;
-        }
-      }
-      // sort en attente d'approche : lance dès qu'on est à portée
-      if (p.pendingCast) {
-        const pc = p.pendingCast;
-        const spc = content.spellById[pc.spellId];
-        const tgt = pc.target != null ? p.zi.entities.get(pc.target) : null;
-        if (!spc || (pc.target != null && (!tgt || tgt.dead || tgt.hidden))) {
-          p.pendingCast = null;
-        } else {
-          const tx = tgt ? tgt.x : pc.x, tz = tgt ? tgt.z : pc.z;
-          // à portée ET en ligne de vue : sinon on continue d'avancer
-          if (Math.hypot(tx - p.x, tz - p.z) <= spc.range
-              && lineOfSight(p.zi.world, p, { x: tx, z: tz })) {
-            if ((p.spellCds[spc.id] || 0) <= now) {
-              p.pendingCast = null;
-              p.path = null;
-              this.castSpell(p, pc);
-            }
-          } else if (!p.path || this.tickCount % 5 === 0) {
-            p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
-          }
-        }
-      }
-      if (p.pendingInteract) {
-        const pi = p.pendingInteract;
-        const tx = pi.id != null ? p.zi.entities.get(pi.id)?.x : pi.px;
-        const tz = pi.id != null ? p.zi.entities.get(pi.id)?.z : pi.pz;
-        if (tx == null) p.pendingInteract = null;
-        else if (Math.hypot(tx - p.x, tz - p.z) <= C.INTERACT_RANGE) {
-          p.pendingInteract = null;
-          if (pi.id != null) {
-            const npc = p.zi.entities.get(pi.id);
-            if (npc?.kind === C.KIND.NPC) this.openShop(p, npc);
-          } else {
-            const prop = (p.zi.world.props || []).find(pr => pr.type === pi.prop && Math.hypot(pr.x - pi.px, pr.z - pi.pz) < 0.1);
-            if (prop) this.interactProp(p, prop);
-          }
-        }
-      }
+      p.tick(this, now, dt);
     }
 
     // Monstres et objets au sol, zone par zone
@@ -1427,7 +1020,7 @@ export class Game {
       const hasPlayers = zi.players > 0;
       for (const e of [...zi.entities.values()]) {
         if (e.kind === C.KIND.MOB) {
-          if (hasPlayers || e.dead) this.tickMob(zi, e, now, dt);
+          if (hasPlayers || e.dead) e.tick(this, zi, now, dt);
         } else if (e.kind === C.KIND.DROP && now > e.expiresAt) {
           zi.remove(e);
         }
@@ -1435,76 +1028,6 @@ export class Game {
     }
 
     this.sendSnapshots();
-  }
-
-  tickMob(zi, m, now, dt) {
-    if (m.dead) {
-      if (!m.hidden && now >= m.hideAt) m.hidden = true;
-      if (now >= m.respawnAt) {
-        m.dead = false; m.hidden = false; m.hp = m.maxHp; m.state = C.ST.IDLE;
-        m.x = m.home.x; m.z = m.home.z; m.target = null; m.path = null;
-        zi.gridMove(m);
-      }
-      return;
-    }
-    m.atkCd = Math.max(0, m.atkCd - dt);
-    if (m.stunnedUntil && now < m.stunnedUntil) return; // assommé (Coup assommant)
-
-    if (!m.target && (this.tickCount + m.id) % 5 === 0) {
-      let best = null, bestD = m.def.aggro;
-      for (const e of zi.nearby(m.x, m.z, m.def.aggro)) {
-        if (e.kind !== C.KIND.PLAYER || e.dead) continue;
-        const d = Math.hypot(e.x - m.x, e.z - m.z);
-        if (d < bestD) { bestD = d; best = e; }
-      }
-      if (best) m.target = best.id;
-    }
-
-    if (m.target) {
-      const tgt = zi.entities.get(m.target);
-      const leashed = Math.hypot(m.x - m.home.x, m.z - m.home.z) > m.def.leash;
-      if (!tgt || tgt.dead || leashed || Math.hypot(tgt.x - m.x, tgt.z - m.z) > m.def.leash) {
-        m.target = null;
-        m.path = findPath(zi.world, m.x, m.z, m.home.x, m.home.z);
-      } else {
-        const dist = Math.hypot(tgt.x - m.x, tgt.z - m.z);
-        if (dist <= m.def.atkRange) {
-          m.path = null;
-          if (m.atkCd <= 0) { m.atkCd = m.def.atkSpeed; this.attack(m, tgt); }
-        } else if (!m.path || (this.tickCount + m.id) % 5 === 0) {
-          m.path = findPath(zi.world, m.x, m.z, tgt.x, tgt.z);
-        }
-      }
-    } else if (now >= m.wanderAt) {
-      m.wanderAt = now + 4 + Math.random() * 8;
-      const a = Math.random() * Math.PI * 2, d = 1 + Math.random() * 4;
-      const wx = m.home.x + Math.cos(a) * d, wz = m.home.z + Math.sin(a) * d;
-      if (zi.world.isWalkable(wx, wz)) m.path = findPath(zi.world, m.x, m.z, wx, wz);
-    }
-
-    this.stepAlong(m, m.def.speed, dt);
-  }
-
-  stepAlong(e, speed, dt) {
-    if (!e.path || !e.path.length) {
-      if (e.state === C.ST.WALK) e.state = C.ST.IDLE;
-      return;
-    }
-    let remaining = speed * dt;
-    while (remaining > 0 && e.path && e.path.length) {
-      const wp = e.path[0];
-      const dx = wp.x - e.x, dz = wp.z - e.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 0.05) { e.path.shift(); continue; }
-      const step = Math.min(d, remaining);
-      e.x += (dx / d) * step;
-      e.z += (dz / d) * step;
-      e.dir = Math.atan2(dx, dz);
-      remaining -= step;
-    }
-    if (e.path && !e.path.length) e.path = null;
-    e.state = e.path ? C.ST.WALK : (e.state === C.ST.ATTACK ? C.ST.ATTACK : C.ST.IDLE);
-    e.zi.gridMove(e);
   }
 
   // ---------- Snapshots ----------
