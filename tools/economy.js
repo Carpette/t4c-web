@@ -52,7 +52,7 @@ console.log('\n=== Kills équivalents par palier (XP par dégâts, monstre moyen
 for (let z = 0; z < 4; z++) {
   const lo = z * 25 + 1, hi = (z + 1) * 25;
   const base = z * 25;
-  const avgXp = Object.values(MOBS).reduce((s, d) => s + mobXpReward(d.level + base, (lo + hi) / 2), 0) / 7;
+  const avgXp = Object.values(MOBS).reduce((s, d) => s + mobXpReward(d.level + base, (lo + hi) / 2), 0) / Object.keys(MOBS).length;
   const span = xpForLevel(hi) - xpForLevel(lo);
   console.log(`  zone ${z} (niv ${lo}-${hi}) : ~${Math.round(span / avgXp)} kills équivalents pour traverser`);
 }
