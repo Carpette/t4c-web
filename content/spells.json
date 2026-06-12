@@ -14,12 +14,16 @@
       "price": 47,
       "mana": 10,
       "cast": 1.52,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "light", "value": 1 },
+      "buff": {
+        "stat": "light",
+        "value": 1
+      },
       "duration": 600,
       "color": "#ffe9a8",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1520 - max(0, self.level - 2) * 20)"
     },
     {
       "id": "dard_de_feu",
@@ -34,12 +38,24 @@
       "price": 106,
       "mana": 1,
       "cast": 1.52,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 17, "base": 6, "int": 23 },
+      "dmg": {
+        "dice": 17,
+        "base": 6,
+        "int": 23
+      },
       "range": 9,
       "color": "#ff9040",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1520 - max(0, self.level - 2) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d17 + 6 + self.buff_stats.int / 23"
+        }
+      ]
     },
     {
       "id": "fleche_enflammee",
@@ -54,12 +70,24 @@
       "price": 1060,
       "mana": 3,
       "cast": 1.6,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 28, "base": 16, "int": 19 },
+      "dmg": {
+        "dice": 28,
+        "base": 16,
+        "int": 19
+      },
       "range": 10,
       "color": "#ff8030",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1600 - max(0, self.level - 10) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d28 + 16 + self.buff_stats.int / 19"
+        }
+      ]
     },
     {
       "id": "eclair_de_feu",
@@ -74,12 +102,24 @@
       "price": 4074,
       "mana": 6,
       "cast": 1.72,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 45, "base": 31, "int": 16 },
+      "dmg": {
+        "dice": 45,
+        "base": 31,
+        "int": 16
+      },
       "range": 10,
       "color": "#ff7020",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1720 - max(0, self.level - 22) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d45 + 31 + self.buff_stats.int / 16"
+        }
+      ]
     },
     {
       "id": "boule_de_feu",
@@ -94,14 +134,26 @@
       "price": 5891,
       "mana": 7,
       "cast": 3.44,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 52, "base": 37, "int": 14 },
+      "dmg": {
+        "dice": 52,
+        "base": 37,
+        "int": 14
+      },
       "range": 10,
       "radius": 3,
       "color": "#ff6020",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(2000, 3440 - max(0, self.level - 27) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d52 + 37 + self.buff_stats.int / 14"
+        }
+      ]
     },
     {
       "id": "detection_des_choses_cachees",
@@ -115,10 +167,11 @@
       "price": 9485,
       "mana": 90,
       "cast": 1.85,
-      "castMin": 1.0,
+      "castMin": 1,
       "color": "#ffd29a",
       "element": "feu",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(1000, 1850 - max(0, self.level - 35) * 20)"
     },
     {
       "id": "vague_de_flamme",
@@ -132,15 +185,27 @@
       "price": 12160,
       "mana": 10,
       "cast": 3.8,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
       "centered": true,
-      "dmg": { "dice": 71, "base": 52, "int": 12 },
+      "dmg": {
+        "dice": 71,
+        "base": 52,
+        "int": 12
+      },
       "range": 0,
       "radius": 4,
       "color": "#ff5010",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(2000, 3800 - max(0, self.level - 40) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d71 + 52 + self.buff_stats.int / 12"
+        }
+      ]
     },
     {
       "id": "resistance_au_froid",
@@ -154,12 +219,16 @@
       "price": 15806,
       "mana": 11,
       "cast": 1.96,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "resist_eau", "value": 1 },
+      "buff": {
+        "stat": "resist_eau",
+        "value": 1
+      },
       "duration": 120,
       "color": "#bfeaff",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1960 - max(0, self.level - 46) * 20)"
     },
     {
       "id": "bouclier_de_feu",
@@ -173,12 +242,17 @@
       "price": 17126,
       "mana": 22,
       "cast": 1.98,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "retort", "dice": 8, "base": 8 },
+      "buff": {
+        "stat": "retort",
+        "dice": 8,
+        "base": 8
+      },
       "duration": 120,
       "color": "#ff9a50",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 1980 - max(0, self.level - 48) * 20)"
     },
     {
       "id": "detection_de_l_invisible",
@@ -191,11 +265,12 @@
       "requires": null,
       "price": 18500,
       "mana": 60,
-      "cast": 2.0,
-      "castMin": 1.0,
+      "cast": 2,
+      "castMin": 1,
       "color": "#ffd29a",
       "element": "feu",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(1000, 2000 - max(0, self.level - 50) * 20)"
     },
     {
       "id": "pluie_etincelles",
@@ -209,14 +284,26 @@
       "price": 20659,
       "mana": 12,
       "cast": 4.06,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 89, "base": 68, "int": 10 },
+      "dmg": {
+        "dice": 89,
+        "base": 68,
+        "int": 10
+      },
       "range": 10,
       "radius": 4,
       "color": "#ffa040",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(2000, 4060 - max(0, self.level - 53) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d89 + 68 + self.buff_stats.int / 10"
+        }
+      ]
     },
     {
       "id": "flamme",
@@ -230,12 +317,24 @@
       "price": 26160,
       "mana": 14,
       "cast": 2.11,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 58, "base": 65, "int": 9 },
+      "dmg": {
+        "dice": 58,
+        "base": 65,
+        "int": 9
+      },
       "range": 11,
       "color": "#ff6830",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 2110 - max(0, self.level - 60) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d58 + 65 + self.buff_stats.int / 9"
+        }
+      ]
     },
     {
       "id": "tempete_de_feu",
@@ -249,14 +348,26 @@
       "price": 41162,
       "mana": 18,
       "cast": 4.52,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 122, "base": 96, "int": 8 },
+      "dmg": {
+        "dice": 122,
+        "base": 96,
+        "int": 8
+      },
       "range": 11,
       "radius": 5,
       "color": "#ff4010",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(2000, 4520 - max(0, self.level - 76) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d122 + 96 + self.buff_stats.int / 8"
+        }
+      ]
     },
     {
       "id": "inferno",
@@ -270,12 +381,24 @@
       "price": 48787,
       "mana": 19,
       "cast": 2.33,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 76, "base": 89, "int": 8 },
+      "dmg": {
+        "dice": 76,
+        "base": 89,
+        "int": 8
+      },
       "range": 11,
       "color": "#ff3000",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 2330 - max(0, self.level - 83) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d76 + 89 + self.buff_stats.int / 8"
+        }
+      ]
     },
     {
       "id": "meteorite",
@@ -285,17 +408,32 @@
       "level": 100,
       "wis": 18,
       "int": 309,
-      "requires": ["tempete_de_feu", "inferno"],
+      "requires": [
+        "tempete_de_feu",
+        "inferno"
+      ],
       "price": 70000,
       "mana": 23,
       "cast": 2.5,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "aoe",
-      "dmg": { "dice": 157, "base": 125, "int": 7 },
+      "dmg": {
+        "dice": 157,
+        "base": 125,
+        "int": 7
+      },
       "range": 13,
       "radius": 2,
       "color": "#ff8020",
-      "element": "feu"
+      "element": "feu",
+      "cooldown": "max(1000, 2500 - max(0, self.level - 100) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d157 + 125 + self.buff_stats.int / 7"
+        }
+      ]
     },
     {
       "id": "guerison_des_poisons",
@@ -310,10 +448,11 @@
       "price": 366,
       "mana": 2,
       "cast": 1.55,
-      "castMin": 1.0,
+      "castMin": 1,
       "color": "#8af8c8",
       "element": "eau",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(1000, 1550 - max(0, self.level - 5) * 20)"
     },
     {
       "id": "poison",
@@ -328,13 +467,30 @@
       "price": 603,
       "mana": 2,
       "cast": 1.57,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 1, "base": 0, "int": 21 },
-      "dot": { "min": 1, "max": 2, "interval": 1, "duration": 20 },
+      "dmg": {
+        "dice": 1,
+        "base": 0,
+        "int": 21
+      },
+      "dot": {
+        "min": 1,
+        "max": 2,
+        "interval": 1,
+        "duration": 20
+      },
       "range": 9,
       "color": "#8ac860",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1570 - max(0, self.level - 7) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d1 + self.buff_stats.int / 21"
+        }
+      ]
     },
     {
       "id": "eclat_de_glace",
@@ -349,12 +505,24 @@
       "price": 895,
       "mana": 3,
       "cast": 1.59,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 21, "base": 13, "int": 20 },
+      "dmg": {
+        "dice": 21,
+        "base": 13,
+        "int": 20
+      },
       "range": 10,
       "color": "#bfeaff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1590 - max(0, self.level - 9) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d21 + 13 + self.buff_stats.int / 20"
+        }
+      ]
     },
     {
       "id": "fleche_empoisonnee",
@@ -369,13 +537,30 @@
       "price": 2587,
       "mana": 5,
       "cast": 1.67,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 30, "base": 12, "int": 17 },
-      "dot": { "min": 2, "max": 2, "interval": 0.5, "duration": 2.5 },
+      "dmg": {
+        "dice": 30,
+        "base": 12,
+        "int": 17
+      },
+      "dot": {
+        "min": 2,
+        "max": 2,
+        "interval": 0.5,
+        "duration": 2.5
+      },
       "range": 10,
       "color": "#a0d870",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1670 - max(0, self.level - 17) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d30 + 12 + self.buff_stats.int / 17"
+        }
+      ]
     },
     {
       "id": "gel",
@@ -390,12 +575,24 @@
       "price": 3440,
       "mana": 5,
       "cast": 1.7,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 20, "base": 21, "int": 16 },
+      "dmg": {
+        "dice": 20,
+        "base": 21,
+        "int": 16
+      },
       "range": 10,
       "color": "#9fd4ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1700 - max(0, self.level - 20) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d20 + 21 + self.buff_stats.int / 16"
+        }
+      ]
     },
     {
       "id": "barriere_de_protection",
@@ -409,12 +606,18 @@
       "price": 3751,
       "mana": 10,
       "cast": 1.71,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "def", "base": 5, "intDiv": 50, "wisDiv": 25 },
+      "buff": {
+        "stat": "def",
+        "base": 5,
+        "intDiv": 50,
+        "wisDiv": 25
+      },
       "duration": 120,
       "color": "#8ab4ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1710 - max(0, self.level - 21) * 20)"
     },
     {
       "id": "eclair_de_glace",
@@ -429,12 +632,24 @@
       "price": 5125,
       "mana": 6,
       "cast": 1.75,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 39, "base": 31, "int": 15 },
+      "dmg": {
+        "dice": 39,
+        "base": 31,
+        "int": 15
+      },
       "range": 11,
       "color": "#bfeaff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1750 - max(0, self.level - 25) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d39 + 31 + self.buff_stats.int / 15"
+        }
+      ]
     },
     {
       "id": "pensee_claire",
@@ -448,12 +663,16 @@
       "price": 6294,
       "mana": 21,
       "cast": 1.78,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "int", "selfFrac": 0.25 },
+      "buff": {
+        "stat": "int",
+        "selfFrac": 0.25
+      },
       "duration": 180,
       "color": "#9fc8ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1780 - max(0, self.level - 28) * 20)"
     },
     {
       "id": "bouclier_de_mana",
@@ -463,16 +682,23 @@
       "level": 29,
       "wis": 28,
       "int": 76,
-      "requires": ["protection", "barriere_de_protection"],
+      "requires": [
+        "protection",
+        "barriere_de_protection"
+      ],
       "price": 6711,
       "mana": 14,
       "cast": 1.79,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "resistAll", "value": 0.33 },
+      "buff": {
+        "stat": "resistAll",
+        "value": 0.33
+      },
       "duration": 120,
       "color": "#b0c8ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1790 - max(0, self.level - 29) * 20)"
     },
     {
       "id": "resistance_au_feu",
@@ -486,12 +712,16 @@
       "price": 13923,
       "mana": 10,
       "cast": 1.93,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "resist_feu", "value": 1 },
+      "buff": {
+        "stat": "resist_feu",
+        "value": 1
+      },
       "duration": 120,
       "color": "#ffb080",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1930 - max(0, self.level - 43) * 20)"
     },
     {
       "id": "boule_de_glace",
@@ -505,12 +735,24 @@
       "price": 15165,
       "mana": 11,
       "cast": 1.95,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 61, "base": 53, "int": 11 },
+      "dmg": {
+        "dice": 61,
+        "base": 53,
+        "int": 11
+      },
       "range": 10,
       "color": "#bfeaff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 1950 - max(0, self.level - 45) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d61 + 53 + self.buff_stats.int / 11"
+        }
+      ]
     },
     {
       "id": "glacier",
@@ -524,12 +766,24 @@
       "price": 22165,
       "mana": 13,
       "cast": 2.05,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 72, "base": 64, "int": 10 },
+      "dmg": {
+        "dice": 72,
+        "base": 64,
+        "int": 10
+      },
       "range": 11,
       "color": "#9fd4ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 2050 - max(0, self.level - 55) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d72 + 64 + self.buff_stats.int / 10"
+        }
+      ]
     },
     {
       "id": "tempete_de_glace",
@@ -543,14 +797,26 @@
       "price": 30485,
       "mana": 15,
       "cast": 4.26,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 83, "base": 75, "int": 9 },
+      "dmg": {
+        "dice": 83,
+        "base": 75,
+        "int": 9
+      },
       "range": 10,
       "radius": 4,
       "color": "#bfeaff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(2000, 4260 - max(0, self.level - 64) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d83 + 75 + self.buff_stats.int / 9"
+        }
+      ]
     },
     {
       "id": "blizzard",
@@ -564,14 +830,26 @@
       "price": 39102,
       "mana": 17,
       "cast": 4.48,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 52, "base": 72, "int": 8 },
+      "dmg": {
+        "dice": 52,
+        "base": 72,
+        "int": 8
+      },
       "range": 11,
       "radius": 5,
       "color": "#dff4ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(2000, 4480 - max(0, self.level - 74) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d52 + 72 + self.buff_stats.int / 8"
+        }
+      ]
     },
     {
       "id": "avalanche",
@@ -585,14 +863,26 @@
       "price": 47658,
       "mana": 19,
       "cast": 4.64,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 101, "base": 94, "int": 8 },
+      "dmg": {
+        "dice": 101,
+        "base": 94,
+        "int": 8
+      },
       "range": 11,
       "radius": 5,
       "color": "#e8f8ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(2000, 4640 - max(0, self.level - 82) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d101 + 94 + self.buff_stats.int / 8"
+        }
+      ]
     },
     {
       "id": "bouclier_de_glace",
@@ -606,12 +896,17 @@
       "price": 49930,
       "mana": 100,
       "cast": 2.34,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "retort", "dice": 12, "base": 20 },
+      "buff": {
+        "stat": "retort",
+        "dice": 12,
+        "base": 20
+      },
       "duration": 300,
       "color": "#bfeaff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 2340 - max(0, self.level - 84) * 20)"
     },
     {
       "id": "tsunami",
@@ -625,13 +920,25 @@
       "price": 64666,
       "mana": 22,
       "cast": 2.46,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "aoe",
-      "dmg": { "dice": 65, "base": 93, "int": 7 },
+      "dmg": {
+        "dice": 65,
+        "base": 93,
+        "int": 7
+      },
       "range": 12,
       "radius": 5,
       "color": "#9fd4ff",
-      "element": "eau"
+      "element": "eau",
+      "cooldown": "max(1000, 2460 - max(0, self.level - 96) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d65 + 93 + self.buff_stats.int / 7"
+        }
+      ]
     },
     {
       "id": "tourbillon",
@@ -646,12 +953,25 @@
       "price": 478,
       "mana": 2,
       "cast": 1.56,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 16, "base": 6, "int": 42, "wis": 42 },
+      "dmg": {
+        "dice": 16,
+        "base": 6,
+        "int": 42,
+        "wis": 42
+      },
       "range": 10,
       "color": "#bfe4ff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1560 - max(0, self.level - 6) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d16 + 6 + self.buff_stats.int / 42 + self.buff_stats.wis / 42"
+        }
+      ]
     },
     {
       "id": "eclair",
@@ -666,12 +986,25 @@
       "price": 2085,
       "mana": 4,
       "cast": 1.65,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 26, "base": 12, "int": 36, "wis": 36 },
+      "dmg": {
+        "dice": 26,
+        "base": 12,
+        "int": 36,
+        "wis": 36
+      },
       "range": 11,
       "color": "#9fe4ff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1650 - max(0, self.level - 15) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d26 + 12 + self.buff_stats.int / 36 + self.buff_stats.wis / 36"
+        }
+      ]
     },
     {
       "id": "mot_de_rappel",
@@ -690,7 +1023,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 21) * 0)"
     },
     {
       "id": "invocation_de_la_foudre",
@@ -705,12 +1039,25 @@
       "price": 5502,
       "mana": 7,
       "cast": 1.76,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 37, "base": 20, "int": 30, "wis": 30 },
+      "dmg": {
+        "dice": 37,
+        "base": 20,
+        "int": 30,
+        "wis": 30
+      },
       "range": 12,
       "color": "#e8f4ff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1760 - max(0, self.level - 26) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d37 + 20 + self.buff_stats.int / 30 + self.buff_stats.wis / 30"
+        }
+      ]
     },
     {
       "id": "chaine_eclairs",
@@ -724,14 +1071,27 @@
       "price": 7140,
       "mana": 7,
       "cast": 3.6,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 41, "base": 23, "int": 28, "wis": 28 },
+      "dmg": {
+        "dice": 41,
+        "base": 23,
+        "int": 28,
+        "wis": 28
+      },
       "range": 11,
       "radius": 4,
       "color": "#cfeaff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(2000, 3600 - max(0, self.level - 30) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d41 + 23 + self.buff_stats.int / 28 + self.buff_stats.wis / 28"
+        }
+      ]
     },
     {
       "id": "vortex_d_air",
@@ -745,12 +1105,25 @@
       "price": 12160,
       "mana": 10,
       "cast": 1.9,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 52, "base": 30, "int": 24, "wis": 24 },
+      "dmg": {
+        "dice": 52,
+        "base": 30,
+        "int": 24,
+        "wis": 24
+      },
       "range": 11,
       "color": "#bfe4ff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1900 - max(0, self.level - 40) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d52 + 30 + self.buff_stats.int / 24 + self.buff_stats.wis / 24"
+        }
+      ]
     },
     {
       "id": "dexterite",
@@ -764,12 +1137,16 @@
       "price": 14538,
       "mana": 11,
       "cast": 1.94,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "agi", "selfFrac": 0.25 },
+      "buff": {
+        "stat": "agi",
+        "selfFrac": 0.25
+      },
       "duration": 120,
       "color": "#ffe48a",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1940 - max(0, self.level - 44) * 20)"
     },
     {
       "id": "bouclier_electrique",
@@ -783,12 +1160,17 @@
       "price": 17807,
       "mana": 24,
       "cast": 1.99,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "retort", "dice": 9, "base": 5 },
+      "buff": {
+        "stat": "retort",
+        "dice": 9,
+        "base": 5
+      },
       "duration": 120,
       "color": "#cfeaff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(1000, 1990 - max(0, self.level - 49) * 20)"
     },
     {
       "id": "invisibilite",
@@ -802,10 +1184,11 @@
       "price": 24522,
       "mana": 70,
       "cast": 2.08,
-      "castMin": 1.0,
+      "castMin": 1,
       "color": "#dfe8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(1000, 2080 - max(0, self.level - 58) * 20)"
     },
     {
       "id": "tornade",
@@ -819,14 +1202,27 @@
       "price": 44351,
       "mana": 18,
       "cast": 4.58,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 144, "base": 67, "int": 16, "wis": 16 },
+      "dmg": {
+        "dice": 144,
+        "base": 67,
+        "int": 16,
+        "wis": 16
+      },
       "range": 11,
       "radius": 5,
       "color": "#cfeaff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(2000, 4580 - max(0, self.level - 79) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d144 + 67 + self.buff_stats.int / 16 + self.buff_stats.wis / 16"
+        }
+      ]
     },
     {
       "id": "ouragan",
@@ -840,14 +1236,27 @@
       "price": 54630,
       "mana": 20,
       "cast": 4.76,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
-      "dmg": { "dice": 159, "base": 75, "int": 14, "wis": 14 },
+      "dmg": {
+        "dice": 159,
+        "base": 75,
+        "int": 14,
+        "wis": 14
+      },
       "range": 12,
       "radius": 6,
       "color": "#dfeeff",
-      "element": "air"
+      "element": "air",
+      "cooldown": "max(2000, 4760 - max(0, self.level - 88) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d159 + 75 + self.buff_stats.int / 14 + self.buff_stats.wis / 14"
+        }
+      ]
     },
     {
       "id": "eclat_de_pierre",
@@ -862,12 +1271,24 @@
       "price": 266,
       "mana": 2,
       "cast": 1.54,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 9, "base": 11, "wis": 22 },
+      "dmg": {
+        "dice": 9,
+        "base": 11,
+        "wis": 22
+      },
       "range": 9,
       "color": "#c8a878",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1540 - max(0, self.level - 4) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d9 + 11 + self.buff_stats.wis / 22"
+        }
+      ]
     },
     {
       "id": "protection",
@@ -882,12 +1303,18 @@
       "price": 742,
       "mana": 9,
       "cast": 1.58,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "def", "base": 3, "intDiv": 100, "wisDiv": 50 },
+      "buff": {
+        "stat": "def",
+        "base": 3,
+        "intDiv": 100,
+        "wisDiv": 50
+      },
       "duration": 180,
       "color": "#c8b87a",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1580 - max(0, self.level - 8) * 20)"
     },
     {
       "id": "fracassement",
@@ -902,12 +1329,24 @@
       "price": 2858,
       "mana": 5,
       "cast": 1.68,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 5, "base": 26, "wis": 17 },
+      "dmg": {
+        "dice": 5,
+        "base": 26,
+        "wis": 17
+      },
       "range": 9,
       "color": "#b89868",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1680 - max(0, self.level - 18) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d5 + 26 + self.buff_stats.wis / 17"
+        }
+      ]
     },
     {
       "id": "force_de_la_terre",
@@ -921,12 +1360,18 @@
       "price": 4411,
       "mana": 30,
       "cast": 1.73,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "str", "base": 10, "wisDiv": 15, "intDiv": 20 },
+      "buff": {
+        "stat": "str",
+        "base": 10,
+        "wisDiv": 15,
+        "intDiv": 20
+      },
       "duration": 300,
       "color": "#c8a878",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1730 - max(0, self.level - 23) * 20)"
     },
     {
       "id": "enchevetrement",
@@ -940,12 +1385,16 @@
       "price": 7583,
       "mana": 10,
       "cast": 1.81,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "slow": { "factor": 0.5, "duration": 5 },
+      "slow": {
+        "factor": 0.5,
+        "duration": 5
+      },
       "range": 9,
       "color": "#88a858",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1810 - max(0, self.level - 31) * 20)"
     },
     {
       "id": "peau_de_pierre",
@@ -959,12 +1408,18 @@
       "price": 10515,
       "mana": 45,
       "cast": 1.87,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "def", "base": 10, "intDiv": 25, "wisDiv": 13 },
+      "buff": {
+        "stat": "def",
+        "base": 10,
+        "intDiv": 25,
+        "wisDiv": 13
+      },
       "duration": 300,
       "color": "#a89878",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 1870 - max(0, self.level - 37) * 20)"
     },
     {
       "id": "seisme",
@@ -978,15 +1433,27 @@
       "price": 16459,
       "mana": 11,
       "cast": 3.94,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "aoe",
       "centered": true,
-      "dmg": { "dice": 29, "base": 72, "wis": 11 },
+      "dmg": {
+        "dice": 29,
+        "base": 72,
+        "wis": 11
+      },
       "range": 0,
       "radius": 4,
       "color": "#b89868",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(2000, 3940 - max(0, self.level - 47) * 40)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d29 + 72 + self.buff_stats.wis / 11"
+        }
+      ]
     },
     {
       "id": "eboulement",
@@ -1000,13 +1467,25 @@
       "price": 32307,
       "mana": 16,
       "cast": 2.17,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "aoe",
-      "dmg": { "dice": 37, "base": 101, "wis": 9 },
+      "dmg": {
+        "dice": 37,
+        "base": 101,
+        "wis": 9
+      },
       "range": 9,
       "radius": 2,
       "color": "#a88858",
-      "element": "terre"
+      "element": "terre",
+      "cooldown": "max(1000, 2170 - max(0, self.level - 67) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d37 + 101 + self.buff_stats.wis / 9"
+        }
+      ]
     },
     {
       "id": "vision_veritable",
@@ -1020,10 +1499,11 @@
       "price": 34183,
       "mana": 80,
       "cast": 2.19,
-      "castMin": 1.0,
+      "castMin": 1,
       "color": "#d8c8a8",
       "element": "terre",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(1000, 2190 - max(0, self.level - 69) * 20)"
     },
     {
       "id": "guerison_legere",
@@ -1038,12 +1518,24 @@
       "price": 179,
       "mana": 2,
       "cast": 1.53,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "heal",
-      "heal": { "dice": 5, "base": 8, "wis": 23 },
+      "heal": {
+        "dice": 5,
+        "base": 8,
+        "wis": 23
+      },
       "range": 0,
       "color": "#6ae86a",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 1530 - max(0, self.level - 3) * 20)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d5 + 8 + self.buff_stats.wis / 23"
+        }
+      ]
     },
     {
       "id": "guerison_importante",
@@ -1058,12 +1550,24 @@
       "price": 1635,
       "mana": 4,
       "cast": 1.63,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "heal",
-      "heal": { "dice": 5, "base": 20, "wis": 18 },
+      "heal": {
+        "dice": 5,
+        "base": 20,
+        "wis": 18
+      },
       "range": 0,
       "color": "#6ae86a",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 1630 - max(0, self.level - 13) * 20)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d5 + 20 + self.buff_stats.wis / 18"
+        }
+      ]
     },
     {
       "id": "renvoi_des_morts_vivants",
@@ -1077,14 +1581,26 @@
       "price": 3143,
       "mana": 5,
       "cast": 1.69,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 6, "base": 27, "wis": 16 },
+      "dmg": {
+        "dice": 6,
+        "base": 27,
+        "wis": 16
+      },
       "undeadOnly": true,
       "turnUndead": true,
       "range": 9,
       "color": "#fff4c8",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 1690 - max(0, self.level - 19) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d6 + 27 + self.buff_stats.wis / 16"
+        }
+      ]
     },
     {
       "id": "guerison_critique",
@@ -1099,12 +1615,24 @@
       "price": 5891,
       "mana": 7,
       "cast": 1.77,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "heal",
-      "heal": { "dice": 6, "base": 37, "wis": 14 },
+      "heal": {
+        "dice": 6,
+        "base": 37,
+        "wis": 14
+      },
       "range": 0,
       "color": "#6ae86a",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 1770 - max(0, self.level - 27) * 20)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d6 + 37 + self.buff_stats.wis / 14"
+        }
+      ]
     },
     {
       "id": "tranquillite",
@@ -1118,12 +1646,16 @@
       "price": 11050,
       "mana": 45,
       "cast": 1.88,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "wis", "selfFrac": 0.334 },
+      "buff": {
+        "stat": "wis",
+        "selfFrac": 0.334
+      },
       "duration": 180,
       "color": "#e8f8d8",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 1880 - max(0, self.level - 38) * 20)"
     },
     {
       "id": "sanctuaire",
@@ -1133,17 +1665,23 @@
       "level": 52,
       "wis": 91,
       "int": 18,
-      "requires": ["bouclier_de_mana", "peau_de_pierre"],
+      "requires": [
+        "bouclier_de_mana",
+        "peau_de_pierre"
+      ],
       "price": 19926,
       "mana": 120,
       "cast": 120,
       "castMin": 0,
       "castStep": 0.3,
       "type": "buff",
-      "buff": { "stat": "sanctuaire" },
+      "buff": {
+        "stat": "sanctuaire"
+      },
       "duration": 30,
       "color": "#fff8d8",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(0, 120000 - max(0, self.level - 52) * 300)"
     },
     {
       "id": "guerison",
@@ -1157,12 +1695,24 @@
       "price": 22165,
       "mana": 13,
       "cast": 2.05,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "heal",
-      "heal": { "dice": 7, "base": 71, "wis": 10 },
+      "heal": {
+        "dice": 7,
+        "base": 71,
+        "wis": 10
+      },
       "range": 0,
       "color": "#8af88a",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 2050 - max(0, self.level - 55) * 20)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d7 + 71 + self.buff_stats.wis / 10"
+        }
+      ]
     },
     {
       "id": "benediction",
@@ -1176,12 +1726,15 @@
       "price": 25335,
       "mana": 140,
       "cast": 2.09,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "maxhp" },
+      "buff": {
+        "stat": "maxhp"
+      },
       "duration": 1800,
       "color": "#fff0b0",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(1000, 2090 - max(0, self.level - 59) * 20)"
     },
     {
       "id": "guerison_de_groupe",
@@ -1195,13 +1748,25 @@
       "price": 28715,
       "mana": 15,
       "cast": 4.26,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "heal",
-      "heal": { "dice": 7, "base": 81, "wis": 9 },
+      "heal": {
+        "dice": 7,
+        "base": 81,
+        "wis": 9
+      },
       "range": 0,
       "color": "#8af88a",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(2000, 4260 - max(0, self.level - 63) * 40)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d7 + 81 + self.buff_stats.wis / 9"
+        }
+      ]
     },
     {
       "id": "aura_de_guerison",
@@ -1215,13 +1780,25 @@
       "price": 40125,
       "mana": 17,
       "cast": 4.5,
-      "castMin": 2.0,
+      "castMin": 2,
       "castStep": 0.04,
       "type": "heal",
-      "heal": { "dice": 8, "base": 95, "wis": 8 },
+      "heal": {
+        "dice": 8,
+        "base": 95,
+        "wis": 8
+      },
       "range": 0,
       "color": "#aaffaa",
-      "element": "lumiere"
+      "element": "lumiere",
+      "cooldown": "max(2000, 4500 - max(0, self.level - 75) * 40)",
+      "effects": [
+        {
+          "kind": "heal",
+          "target": "self",
+          "formula": "1d8 + 95 + self.buff_stats.wis / 8"
+        }
+      ]
     },
     {
       "id": "absorption_vie_mineure",
@@ -1236,13 +1813,25 @@
       "price": 1430,
       "mana": 3,
       "cast": 1.62,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 13, "base": 10, "int": 38 },
+      "dmg": {
+        "dice": 13,
+        "base": 10,
+        "int": 38
+      },
       "leech": 1,
       "range": 8,
       "color": "#c050c0",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 1620 - max(0, self.level - 12) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d13 + 10 + self.buff_stats.int / 38"
+        }
+      ]
     },
     {
       "id": "malediction",
@@ -1257,12 +1846,13 @@
       "price": 3440,
       "mana": 5,
       "cast": 1.7,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
       "curse": 30,
       "range": 9,
       "color": "#a060a0",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 1700 - max(0, self.level - 20) * 20)"
     },
     {
       "id": "absorption_de_vie",
@@ -1276,13 +1866,25 @@
       "price": 4411,
       "mana": 6,
       "cast": 1.73,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 19, "base": 17, "int": 30 },
+      "dmg": {
+        "dice": 19,
+        "base": 17,
+        "int": 30
+      },
       "leech": 1,
       "range": 8,
       "color": "#b040b0",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 1730 - max(0, self.level - 23) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d19 + 17 + self.buff_stats.int / 30"
+        }
+      ]
     },
     {
       "id": "peste",
@@ -1296,14 +1898,31 @@
       "price": 8507,
       "mana": 40,
       "cast": 1.83,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 1, "base": 0, "int": 18 },
-      "dot": { "min": 3, "max": 5, "interval": 1, "duration": 20 },
+      "dmg": {
+        "dice": 1,
+        "base": 0,
+        "int": 18
+      },
+      "dot": {
+        "min": 3,
+        "max": 5,
+        "interval": 1,
+        "duration": 20
+      },
       "curse": 20,
       "range": 9,
       "color": "#80a050",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 1830 - max(0, self.level - 33) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d1 + self.buff_stats.int / 18"
+        }
+      ]
     },
     {
       "id": "absorption_vie_majeure",
@@ -1317,13 +1936,25 @@
       "price": 12735,
       "mana": 10,
       "cast": 1.91,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 28, "base": 30, "int": 24 },
+      "dmg": {
+        "dice": 28,
+        "base": 30,
+        "int": 24
+      },
       "leech": 1,
       "range": 9,
       "color": "#a030a0",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 1910 - max(0, self.level - 41) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d28 + 30 + self.buff_stats.int / 24"
+        }
+      ]
     },
     {
       "id": "vol_dame",
@@ -1337,13 +1968,25 @@
       "price": 34183,
       "mana": 16,
       "cast": 2.18,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "bolt",
-      "dmg": { "dice": 44, "base": 48, "int": 18 },
+      "dmg": {
+        "dice": 44,
+        "base": 48,
+        "int": 18
+      },
       "leech": 1,
       "range": 9,
       "color": "#9020a0",
-      "element": "arcane"
+      "element": "arcane",
+      "cooldown": "max(1000, 2180 - max(0, self.level - 68) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d44 + 48 + self.buff_stats.int / 18"
+        }
+      ]
     },
     {
       "id": "instinct_combat_mineur",
@@ -1357,12 +2000,16 @@
       "price": 4762,
       "mana": 6,
       "cast": 1.74,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "dmg", "value": 0.33 },
+      "buff": {
+        "stat": "dmg",
+        "value": 0.33
+      },
       "duration": 120,
       "color": "#e8c8ff",
-      "element": "neutre"
+      "element": "neutre",
+      "cooldown": "max(1000, 1740 - max(0, self.level - 24) * 20)"
     },
     {
       "id": "explosion_de_mana",
@@ -1378,10 +2025,22 @@
       "cast": 1.32,
       "castMin": 0.5,
       "type": "bolt",
-      "dmg": { "dice": 26, "base": 33, "int": 13 },
+      "dmg": {
+        "dice": 26,
+        "base": 33,
+        "int": 13
+      },
       "range": 9,
       "color": "#d8b8ff",
-      "element": "neutre"
+      "element": "neutre",
+      "cooldown": "max(500, 1320 - max(0, self.level - 32) * 20)",
+      "effects": [
+        {
+          "kind": "damage",
+          "target": "target",
+          "formula": "1d26 + 33 + self.buff_stats.int / 13"
+        }
+      ]
     },
     {
       "id": "poussee_de_mana",
@@ -1395,12 +2054,16 @@
       "price": 21406,
       "mana": 39,
       "cast": 2.04,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "spellpow", "value": 0.33 },
+      "buff": {
+        "stat": "spellpow",
+        "value": 0.33
+      },
       "duration": 120,
       "color": "#c8a8ff",
-      "element": "neutre"
+      "element": "neutre",
+      "cooldown": "max(1000, 2040 - max(0, self.level - 54) * 20)"
     },
     {
       "id": "dissipation",
@@ -1414,10 +2077,11 @@
       "price": 34183,
       "mana": 13,
       "cast": 4.06,
-      "castMin": 3.0,
+      "castMin": 3,
       "color": "#e8e8e8",
       "element": "neutre",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(3000, 4060 - max(0, self.level - 56) * 20)"
     },
     {
       "id": "instinct_combat_majeur",
@@ -1431,12 +2095,16 @@
       "price": 31390,
       "mana": 15,
       "cast": 2.16,
-      "castMin": 1.0,
+      "castMin": 1,
       "type": "buff",
-      "buff": { "stat": "dmg", "value": 0.5 },
+      "buff": {
+        "stat": "dmg",
+        "value": 0.5
+      },
       "duration": 120,
       "color": "#e8c8ff",
-      "element": "neutre"
+      "element": "neutre",
+      "cooldown": "max(1000, 2160 - max(0, self.level - 66) * 20)"
     },
     {
       "id": "vortex_lh",
@@ -1454,7 +2122,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_wh",
@@ -1472,7 +2141,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_ss",
@@ -1490,7 +2160,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_sc",
@@ -1508,7 +2179,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_sh",
@@ -1526,7 +2198,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_arakas",
@@ -1544,7 +2217,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "vortex_railleuses",
@@ -1562,7 +2236,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "air",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(30000, 30000 - max(0, self.level - 70) * 0)"
     },
     {
       "id": "portail",
@@ -1580,7 +2255,8 @@
       "castStep": 0,
       "color": "#cfd8ff",
       "element": "neutre",
-      "todo": true
+      "todo": true,
+      "cooldown": "max(20000, 20000 - max(0, self.level - 92) * 0)"
     }
   ]
 }
