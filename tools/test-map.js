@@ -143,6 +143,24 @@ ok('obélisque de Lighthaven à (345.5, 254.5)', propAt('obelisk', 345.5, 254.5)
 ok('portail de l\'Épreuve à (107.5, 77.5)', propAt('trialgate', 107.5, 77.5));
 ok('coffre-banque de Lighthaven à (340.5, 259.5)', propAt('bank', 340.5, 259.5));
 
+// --- 6 bis. marchands et enseignants : tous posés en terrain atteignable ---
+const EXPECTED_NPCS = ['merchant', 'merchant_wh', 'kilhiam', 'moonrock', 'shovanis', 'araknor',
+  'iraltok', 'lothan', 'uranos', 'liurn_clar', 'marsac_cred', 'cathbad', 'holenarbed'];
+ok('tous les PNJ attendus sont sur la carte',
+  EXPECTED_NPCS.every(id => world.npcSpots.some(s => s.npcId === id)));
+for (const spot of world.npcSpots) {
+  ok(`PNJ atteignable : ${spot.npcId}`,
+    reachableNear(seen, { x: Math.floor(spot.x), z: Math.floor(spot.z) }, 2));
+}
+// --- 6 ter. chaque grotte à intérieur a son entrée posée et atteignable ---
+const CAVE_IDS = ['crypte_lh', 'cave_a', 'cave_b', 'cave_c', 'cave_d', 'cave_e',
+  'jarko', 'kraanian', 'brigands', 'feylor', 'feylor_est'];
+for (const id of CAVE_IDS) {
+  const prop = world.props.find(p => p.type === 'cave' && p.caveId === id);
+  ok(`entrée de grotte atteignable : ${id}`,
+    prop && reachableNear(seen, { x: Math.floor(prop.x), z: Math.floor(prop.z) }, 3));
+}
+
 // --- 7. les camps de monstres ont de la place praticable et atteignable ---
 for (const zone of world.spawnZones) {
   let free = 0;

@@ -8,6 +8,11 @@ import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
+import { generateWorld } from '../shared/worldgen.js';
+
+// chaque sort s'achète chez SON enseignant : positions de la carte partagée
+const NPC_SPOTS = generateWorld(0, 'arakas').npcSpots;
+const spotOf = (npcId) => NPC_SPOTS.find(s => s.npcId === npcId);
 
 const URL = process.argv[2] || 'ws://localhost:8090';
 const checks = [];
@@ -110,19 +115,37 @@ await waitFor(() => S.self && S.id != null && me());
 ok('connexion', !!S.self);
 const home = { x: me().x, z: me().z }; // point de départ (sûr), pour s'y replier
 
-// --- boutique : sorts "todo" jamais vendus, prérequis d'achat ---
-const npc = await waitFor(() => [...S.metas.values()].find(e => e.kind === KIND.NPC));
-send({ t: 'interact', id: npc.id });
-await waitFor(() => S.shop, 15000);
-ok('boutique ouverte', !!S.shop);
-const npcPos = { ...(S.pos.get(npc.id) || home) }; // pour revenir au marchand plus tard
-ok('aucun sort "todo" en vente (Mot de rappel, Antidote pour poison, Invisibilité...)',
-  S.shop && S.shop.spells.length >= 10 && S.shop.spells.every(s => !s.todo
-    && !['mot_de_rappel', 'guerison_des_poisons', 'invisibilite'].includes(s.id)));
-const dard = S.shop?.spells.find(s => s.id === 'dard_de_feu');
+// téléportation admin près d'un point (essaie quelques cases marchables)
+async function gotoNear(x, z) {
+  for (const [dx, dz] of [[0, 0], [2, 1], [-2, 2], [4, -2], [-4, -3], [1, 4], [6, 0], [0, -6]]) {
+    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
+    await sleep(350);
+    const p = me();
+    if (p && Math.hypot(p.x - x, p.z - z) < 9) return true;
+  }
+  return false;
+}
+// ouvre la boutique d'un enseignant/marchand donné (déplacement + interaction)
+async function shopOf(npcId, displayName) {
+  const spot = spotOf(npcId);
+  await gotoNear(spot.x, spot.z);
+  const npc = await waitFor(() =>
+    [...S.metas.values()].find(e => e.kind === KIND.NPC && e.name === displayName), 5000);
+  if (!npc) return null;
+  S.shop = null;
+  send({ t: 'interact', id: npc.id });
+  return await waitFor(() => S.shop, 10000);
+}
+
+// --- enseignants : chacun ne vend QUE ses sorts, jamais les "todo" ---
+const iraltok = await shopOf('iraltok', 'Iraltok');
+ok('boutique d\'Iraltok ouverte (enseignant du feu)', !!iraltok);
+ok('Iraltok ne vend que SES sorts (Dard de feu, Flèche enflammée)',
+  iraltok && iraltok.spells.length === 2
+  && iraltok.spells.some(s => s.id === 'dard_de_feu')
+  && iraltok.spells.some(s => s.id === 'fleche_enflammee'));
+const dard = iraltok?.spells.find(s => s.id === 'dard_de_feu');
 ok('Dard de feu en vente au prix de la référence (532 or ÷ 5 = 106)', dard?.price === 106);
-const male = S.shop?.spells.find(s => s.id === 'malediction');
-ok('Malédiction (sortie de todo) en vente à 17200 ÷ 5 = 3440', male?.price === 3440);
 
 // achat refusé sous prérequis (stats de départ : Int 11 < 21)
 send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
@@ -138,7 +161,22 @@ await sleep(300);
 send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
 await waitFor(() => S.self?.spells.includes('dard_de_feu'));
 ok('achat OK une fois les prérequis remplis', S.self?.spells.includes('dard_de_feu'));
+// le mauvais enseignant ne vend rien : Guérison légère s'apprend chez Moonrock
+send({ t: 'buy', kind: 'spell', id: 'guerison_legere' });
+await sleep(500);
+ok('Iraltok refuse d\'enseigner les sorts de Moonrock', !S.self?.spells.includes('guerison_legere'));
+
+// Shovanis (sous-sol du Temple) : Malédiction au juste prix, Mot de rappel (todo) absent
+const shovanis = await shopOf('shovanis', 'Shovanis');
+ok('Malédiction chez Shovanis à 17200 ÷ 5 = 3440, sans les sorts "todo"',
+  shovanis?.spells.find(s => s.id === 'malediction')?.price === 3440
+  && shovanis?.spells.every(s => !s.todo && s.id !== 'mot_de_rappel'));
+
+// Uranos puis Moonrock : achats chez le bon maître, prérequis stricts
+await gotoNear(spotOf('uranos').x, spotOf('uranos').z);
 send({ t: 'buy', kind: 'spell', id: 'eclat_de_pierre' }); // Sag 20, Int 17 : OK
+await waitFor(() => S.self?.spells.includes('eclat_de_pierre'));
+await gotoNear(spotOf('moonrock').x, spotOf('moonrock').z);
 send({ t: 'buy', kind: 'spell', id: 'guerison_legere' }); // Sag 19, Int 15 : OK
 send({ t: 'buy', kind: 'spell', id: 'protection' });      // Sag 25 manquant -> refusé
 await sleep(500);
@@ -186,17 +224,6 @@ const relance = await waitFor(() => mine() > early, 4000);
 ok('relance bloquée pendant la récupération puis acceptée ensuite',
   mine() > dmgBefore && blocked && !!relance);
 } // fin partie A
-
-// téléportation admin près d'un point (essaie quelques cases marchables)
-async function gotoNear(x, z) {
-  for (const [dx, dz] of [[0, 0], [2, 1], [-2, 2], [4, -2], [-4, -3], [1, 4], [6, 0], [0, -6]]) {
-    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
-    await sleep(350);
-    const p = me();
-    if (p && Math.hypot(p.x - x, p.z - z) < 9) return true;
-  }
-  return false;
-}
 
 if (PART.includes('B')) {
 // --- formules de la Bible à stats connues (Int 100, Sag 20, niveau 60) ---
@@ -255,8 +282,10 @@ ok(`soin reçu conforme (~10-14 PV, mesuré ${healed})`, healed >= 6 && healed <
 send({ t: 'admin', cmd: 'set', gold: 100000 });
 send({ t: 'admin', cmd: 'stats', int: 100, wis: 30, str: 25, end: 30, agi: 15 });
 await sleep(300);
-await gotoNear(npcPos.x, npcPos.z); // l'achat exige un marchand à proximité
-send({ t: 'move', x: npcPos.x, z: npcPos.z });
+// Protection s'apprend chez Moonrock (parvis du Temple de LH)
+const moonrock = spotOf('moonrock');
+await gotoNear(moonrock.x, moonrock.z);
+send({ t: 'move', x: moonrock.x, z: moonrock.z + 1 });
 await sleep(1500);
 send({ t: 'buy', kind: 'spell', id: 'protection' });
 await waitFor(() => S.self?.spells.includes('protection'));

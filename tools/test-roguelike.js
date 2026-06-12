@@ -62,12 +62,13 @@ ok('connexion + zone reçue', S.zone?.zoneId === 0 && S.zone?.kind === 'island')
 ok('or de départ (env)', S.self?.gold >= 500);
 
 // --- marchand : parler, acheter, vérifier l'apparence ---
-const npc = await waitFor(() => [...S.metas.values()].find(e => e.kind === KIND.NPC));
-ok('PNJ marchand visible', !!npc);
+// (plusieurs PNJ entourent le temple désormais : on vise Maître Aldric par son nom)
+const npc = await waitFor(() => [...S.metas.values()].find(e => e.kind === KIND.NPC && e.name === 'Maître Aldric'));
+ok('PNJ marchand visible (Maître Aldric)', !!npc);
 send({ t: 'interact', id: npc.id });
 await waitFor(() => S.shop, 12000); // marche automatique vers le PNJ
-ok('boutique ouverte (objets/sorts/compétences)',
-  S.shop && S.shop.items.length > 5 && S.shop.spells.length >= 3 && S.shop.skills.length >= 2);
+ok('boutique ouverte (objets/compétences ; les sorts sont chez les enseignants)',
+  S.shop && S.shop.items.length > 5 && S.shop.spells.length === 0 && S.shop.skills.length >= 2);
 
 send({ t: 'buy', kind: 'item', id: 'epee_courte_rouillee' });
 await waitFor(() => S.self?.inventory.some(i => i.defId === 'epee_courte_rouillee'));
@@ -77,6 +78,20 @@ send({ t: 'equip', iid: sword.iid });
 await waitFor(() => S.self?.equip?.weapon === sword.iid);
 ok('épée équipée', S.self?.equip?.weapon === sword.iid);
 
+// téléportation admin à proximité d'un point (évite de longues marches qui
+// font dépasser le budget de temps du test ; les interactions restent réelles)
+async function jumpNear(x, z) {
+  for (const [dx, dz] of [[0, 0], [1.5, 1], [-1.5, 1.5], [2.5, -1], [-2.5, -2], [0, 3]]) {
+    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
+    await sleep(250);
+    const p = S.pos.get(S.id);
+    if (p && Math.hypot(p.x - x, p.z - z) < 4) return true;
+  }
+  return false;
+}
+
+// --- sorts : ils s'achètent chez leur ENSEIGNANT (Iraltok, tour des mages de LH) ---
+await jumpNear(326.5, 255.5); // devant Iraltok (coordonnées de shared/island1.js)
 // prérequis T4C : refus tant que Sag/Int insuffisants (stats de départ 10/10)
 send({ t: 'buy', kind: 'spell', id: 'dard_de_feu' });
 await sleep(600);
@@ -93,9 +108,11 @@ ok('Dard de Feu appris une fois les prérequis remplis', S.self?.spells.includes
 send({ t: 'buy', kind: 'spell', id: 'fleche_enflammee' });
 await sleep(600);
 ok('chaîne de prérequis respectée (Int 44 manquant)', !S.self?.spells.includes('fleche_enflammee'));
-// compétences T4C : apprentissage (Coup assommant : For 25, Agi 20) puis entraînement
+// compétences T4C : apprentissage (Coup assommant : For 25, Agi 20) puis
+// entraînement — chez Maître Aldric, les enseignants n'en vendent pas
 send({ t: 'admin', cmd: 'stats', str: 30, agi: 22, wis: 20, int: 25 });
 await sleep(400);
+await jumpNear(324.5, 242.5); // devant l'échoppe de Maître Aldric
 send({ t: 'buy', kind: 'skill', id: 'coup_assommant' });
 await waitFor(() => S.self?.skills?.coup_assommant >= 1);
 ok('Coup assommant appris', S.self?.skills?.coup_assommant === 1);
@@ -139,18 +156,6 @@ await sleep(800);
 send({ t: 'movedir', x: 0, z: 0 });
 const p1 = S.pos.get(S.id);
 ok('déplacement direct (flèches)', p1 && Math.abs(p1.x - p0.x) > 1);
-
-// téléportation admin à proximité d'un point (évite de longues marches qui
-// font dépasser le budget de temps du test ; les interactions restent réelles)
-async function jumpNear(x, z) {
-  for (const [dx, dz] of [[0, 0], [1.5, 1], [-1.5, 1.5], [2.5, -1], [-2.5, -2], [0, 3]]) {
-    send({ t: 'admin', cmd: 'goto', x: x + dx, z: z + dz });
-    await sleep(250);
-    const p = S.pos.get(S.id);
-    if (p && Math.hypot(p.x - x, p.z - z) < 4) return true;
-  }
-  return false;
-}
 
 // --- obélisque ---
 await jumpNear(345.5, 254.5);
