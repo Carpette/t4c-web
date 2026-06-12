@@ -4,8 +4,19 @@ Source : http://t4c.arp.free.fr/univers/sorts2.htm — site communautaire franç
 factuel. Les NOMS FRANÇAIS de cette table sont les noms authentiques attendus en jeu.
 Colonnes : INT puis SAG (l'inverse de la Bible anglaise). Prix = or plein (à ÷5 chez nous).
 
-Abréviations de lieux : LH = Lighthaven, WH = Windhowl. SS / SC / SH / RD : liste
-exacte en attente de Quentin — ne pas inventer, garder nos vendeurs actuels en cas de doute.
+## Abréviations de lieux (liste officielle fournie par Quentin)
+
+AR = Arakas · LH = Lighthaven (= t1) · WH = Windhowl (= t2) · SS / SSK = Silversky (= t3)
+· SC = Stonecrest (= t4) · SH = Stoneheim · RD = Raven Dust · DC = Druid Camp ·
+GC / Gob x = Goblin Camp · CV = Cursed Valley · FoNR = Forest of No Return ·
+E realm = Etheral Realm · O realm = Oracle Realm (Hallway / L room = salles avant l'oracle) ·
+Mads = Madrigan's House · Merc's = camps de mercenaires près de LH ·
+Raiders rock = nord de Windhowl · Bug isle = île au SO d'Hermit Antonian (kraanians, guêpes, serpents) ·
+Cents = spawn des centaures · Doggies / Puppies / woofies = spawns de loups ·
+Millie lake = mille-pattes kraaniens au nord du lac · Spiders = arachnofiends/nécro-araignées au sud des Skraugs verts ·
+t-field / heavy-t = champ de tarentules (PNJ Evelyn) · t-lake = étang des tarentules.
+
+Progression des temples : t1 LH → t2 WH → t3 Silversky → t4 Stonecrest.
 
 | Nom FR authentique | Prérequis | NIV | INT | SAG | PC | Mana | Prix | Lieu | Effet |
 |---|---|---|---|---|---|---|---|---|---|
