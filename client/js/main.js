@@ -216,6 +216,14 @@ function castSpellAt(spellId, params) {
   autoCast = { spellId, ...params };
 }
 
+// une vue est-elle une cible valide pour ce sort ? (monstre, ou joueur pour
+// les sorts purement maudissants comme Malédiction)
+function validSpellTarget(sp, v) {
+  if (!v || v.isDead?.()) return false;
+  if (v.kind === KIND.MOB) return true;
+  return v.kind === KIND.PLAYER && v.id !== selfId && !!sp.curse && !sp.dmg;
+}
+
 // clic de visée : détermine la cible selon le type du sort
 function aimClick(spellId, ev) {
   const sp = ui.spellDef(spellId);
@@ -223,7 +231,7 @@ function aimClick(spellId, ev) {
   cancelAuto();
   if (sp.type === 'bolt') {
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
-    if (!v || v.kind !== KIND.MOB || v.isDead?.()) { ui.addChat('sys', 'Cible invalide.'); return; }
+    if (!validSpellTarget(sp, v)) { ui.addChat('sys', 'Cible invalide.'); return; }
     targetId = v.id;
     updateTargetFrame();
     castSpellAt(spellId, { target: v.id });
@@ -321,7 +329,7 @@ function castActive(spellId, ev) {
   // bolt : cible sous le curseur, sinon cible courante
   let tid = null;
   const v = ev ? renderer.pickEntity(em, ev.clientX, ev.clientY) : null;
-  if (v && v.kind === KIND.MOB && !v.isDead?.()) tid = v.id;
+  if (validSpellTarget(sp, v)) tid = v.id;
   else if (targetId != null) tid = targetId;
   if (tid == null) { ui.addChat('sys', 'Aucune cible pour ' + sp.name + '.'); return false; }
   castSpellAt(spellId, { target: tid });
@@ -420,7 +428,7 @@ function processHover() {
     // en visée : surligne la cible potentielle avec la couleur du sort
     const sp = ui.spellDef(aimSpell);
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
-    if (sp?.type === 'bolt' && v && v.kind === KIND.MOB && !v.isDead?.()) {
+    if (sp?.type === 'bolt' && validSpellTarget(sp, v)) {
       hover = { id: v.id, color: sp.color || '#aaddff' };
     } else {
       hover = { id: null, color: null };
