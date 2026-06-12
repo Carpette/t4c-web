@@ -147,5 +147,8 @@ const gracefulOrForce = (signal) => {
   shutdownAskedAt = now;
   game.beginShutdown(parseInt(process.env.T4C_SHUTDOWN_SECS || '45', 10));
 };
-process.on('SIGINT', () => gracefulOrForce('SIGINT'));
-process.on('SIGTERM', () => gracefulOrForce('SIGTERM'));
+
+if (process.env.T4C_ENABLE_GRACEFUL_SHUTDOWN === 'true') {
+  process.on('SIGINT', () => gracefulOrForce('SIGINT'));
+  process.on('SIGTERM', () => gracefulOrForce('SIGTERM'));
+}
