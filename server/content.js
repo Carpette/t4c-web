@@ -2,10 +2,36 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FormulaEngine } from '../shared/formula-engine.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], music: { login: null, trial: null, zones: {} } };
+export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} } };
+
+const engine = new FormulaEngine();
+
+// Compile les expressions des sorts (champs `cooldown` et `effects[].formula`)
+// UNE FOIS au chargement : le tick à 10 Hz et les lancers ne parsent jamais.
+// Appelée à chaque loadContent(), donc aussi au PUT de l'admin : le cache est
+// vidé puis reconstruit — l'édition à chaud des expressions est immédiate.
+// Une expression invalide est ignorée (avertissement) : le sort retombe sur
+// ses champs numériques historiques (dmg/heal/cast).
+function compileSpellFormulas() {
+  content.spellFormulas = new Map();
+  for (const sp of content.spells) {
+    const entry = { cooldown: null, effects: [] };
+    if (typeof sp.cooldown === 'string') {
+      try { entry.cooldown = engine.compile(sp.cooldown); }
+      catch (e) { console.warn(`sort ${sp.id} : expression cooldown invalide ignorée (${e.message})`); }
+    }
+    for (const ef of (Array.isArray(sp.effects) ? sp.effects : [])) {
+      if (typeof ef.formula !== 'string') continue;
+      try { entry.effects.push({ kind: ef.kind, target: ef.target || null, expr: engine.compile(ef.formula) }); }
+      catch (e) { console.warn(`sort ${sp.id} : expression ${ef.kind} invalide ignorée (${e.message})`); }
+    }
+    if (entry.cooldown || entry.effects.length) content.spellFormulas.set(sp.id, entry);
+  }
+}
 
 export function loadContent() {
   const zones = JSON.parse(fs.readFileSync(path.join(DIR, 'zones.json'), 'utf8'));
@@ -17,6 +43,7 @@ export function loadContent() {
   content.skills = skills.skills;
   content.spellById = Object.fromEntries(content.spells.map(s => [s.id, s]));
   content.skillById = Object.fromEntries(content.skills.map(s => [s.id, s]));
+  compileSpellFormulas();
   // musiques (écran de connexion, Épreuve, zone -> fichier) : tolérant si absent.
   // Chaque emplacement a deux variantes { legacy, new } : le joueur choisit son
   // pack dans les paramètres (nouvelles musiques par défaut). L'ancien format

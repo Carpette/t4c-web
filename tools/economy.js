@@ -2,7 +2,7 @@
 // Usage : node tools/economy.js
 import { MOBS, ITEMS } from '../shared/defs.js';
 import { zoneMult, itemPrice } from '../server/game/items.js';
-import { mobXpReward, xpForLevel } from '../shared/constants.js';
+import { mobXpReward, xpForLevel, scaleMob } from '../shared/constants.js';
 import { content } from '../server/content.js';
 
 // même formule que rollDrops
@@ -45,11 +45,26 @@ for (const sp of content.spells) {
   console.log(`  ${sp.name.padEnd(28)} ${String(sp.price).padStart(7)} or  ≈ ${Math.ceil(sp.price / avgKill)} kills moyens en zone ${z}`);
 }
 
-console.log('\n=== Kills nécessaires par palier (XP, monstre moyen de la zone) ===');
+// L'XP est versée PAR COUP : xpTotale(monstre, joueur) x dégâts / PVmax.
+// Vider entièrement les PV d'un monstre rapporte donc exactement xpTotale :
+// le « kill équivalent » reste la bonne unité de mesure de la progression.
+console.log('\n=== Kills équivalents par palier (XP par dégâts, monstre moyen) ===');
 for (let z = 0; z < 4; z++) {
   const lo = z * 25 + 1, hi = (z + 1) * 25;
   const base = z * 25;
   const avgXp = Object.values(MOBS).reduce((s, d) => s + mobXpReward(d.level + base, (lo + hi) / 2), 0) / 7;
   const span = xpForLevel(hi) - xpForLevel(lo);
-  console.log(`  zone ${z} (niv ${lo}-${hi}) : ~${Math.round(span / avgXp)} kills pour traverser`);
+  console.log(`  zone ${z} (niv ${lo}-${hi}) : ~${Math.round(span / avgXp)} kills équivalents pour traverser`);
+}
+
+// Rendement de l'XP par point de dégât infligé : xpTotale / PVmax du monstre.
+// Utile pour calibrer les sorts et le partage de groupe (+10 %/membre, /n).
+console.log('\n=== XP par point de dégât (joueur au niveau moyen de la zone) ===');
+for (let z = 0; z < 4; z++) {
+  const base = z * 25, mid = z * 25 + 13;
+  const row = Object.entries(MOBS).map(([id, d]) => {
+    const sc = scaleMob(d, base);
+    return `${id}=${(mobXpReward(sc.level, mid) / sc.hp).toFixed(2)}`;
+  }).join(' | ');
+  console.log(`  zone ${z} : ${row}`);
 }

@@ -60,6 +60,106 @@
         "Mes prix sont honnêtes. Enfin, presque.",
         "Le marché noir ? Connais pas. Regarde plutôt mon étal."
       ]
+    },
+    "kilhiam": {
+      "name": "Kilhiam",
+      "teacher": true,
+      "look": { "chest": "cloth_shirt", "head": null, "main": "staff", "off": null },
+      "greetings": [
+        "Que la Lumière éclaire ton chemin, voyageur.",
+        "Même la nuit la plus noire recule devant une simple flamme."
+      ]
+    },
+    "moonrock": {
+      "name": "Moonrock",
+      "teacher": true,
+      "look": { "chest": "cloth_shirt", "head": null, "main": "staff", "off": null },
+      "greetings": [
+        "Les dieux soignent ceux qui apprennent à se soigner eux-mêmes.",
+        "Une plaie ouverte est une prière inachevée. Viens, je t'enseigne.",
+        "La Protection des dieux n'est pas gratuite, hélas."
+      ]
+    },
+    "shovanis": {
+      "name": "Shovanis",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "dagger", "off": null },
+      "greetings": [
+        "Le sous-sol du Temple garde des savoirs que les prêtres préfèrent taire...",
+        "Maudire son prochain est un art. Veux-tu l'apprendre ?"
+      ]
+    },
+    "araknor": {
+      "name": "Araknor",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "greatstaff", "off": null },
+      "greetings": [
+        "La vie des autres est une ressource comme une autre.",
+        "Approche. Ton âme m'intéresse... pour la leçon, bien sûr."
+      ]
+    },
+    "iraltok": {
+      "name": "Iraltok",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
+      "greetings": [
+        "Le feu ne pardonne rien. C'est pour cela qu'on l'apprend en premier.",
+        "Un Dard de feu bien placé vaut mieux qu'une longue épée."
+      ]
+    },
+    "lothan": {
+      "name": "Lothan",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
+      "greetings": [
+        "Le poison est patient. Le mage doit l'être aussi.",
+        "La glace et le venin tuent sans bruit. Mes sorts préférés."
+      ]
+    },
+    "uranos": {
+      "name": "Uranos",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "club", "off": null },
+      "greetings": [
+        "La terre porte tout. Elle peut aussi tout briser.",
+        "Sens la pierre sous tes pieds : c'est elle, ton arme."
+      ]
+    },
+    "liurn_clar": {
+      "name": "Liurn Clar",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
+      "greetings": [
+        "La Maison des Mages de Windhowl forme les vrais pyromanciens.",
+        "Quand tu maîtriseras l'Éclair de feu, reviens me voir pour la Boule."
+      ]
+    },
+    "marsac_cred": {
+      "name": "Marsac Cred",
+      "teacher": true,
+      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
+      "greetings": [
+        "Le froid de Windhowl est un excellent professeur.",
+        "Le Gel d'abord, l'Éclair de glace ensuite. Dans cet ordre."
+      ]
+    },
+    "cathbad": {
+      "name": "Cathbad",
+      "teacher": true,
+      "look": { "chest": "leather_chest", "head": "leather_hood", "main": "greatstaff", "off": null },
+      "greetings": [
+        "Le ciel d'Arakas gronde pour qui sait l'écouter.",
+        "La foudre n'appartient à personne. Mais je peux t'apprendre à l'inviter."
+      ]
+    },
+    "holenarbed": {
+      "name": "Holenarbed",
+      "teacher": true,
+      "look": { "chest": "leather_chest", "head": null, "main": "staff", "off": null },
+      "greetings": [
+        "La forêt soigne ce que la guerre déchire.",
+        "Quand les prêtres ne suffisent plus, on vient voir les druides."
+      ]
     }
   }
 }

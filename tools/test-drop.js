@@ -1,6 +1,7 @@
 // Test d'intégration de la pose d'objets au sol (échanges entre joueurs) :
 // A pose un objet et de l'or, B les voit apparaître et les ramasse.
 // Usage : node tools/test-drop.js [url]  (serveur lancé à part)
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { KIND } from '../shared/constants.js';
@@ -42,7 +43,7 @@ function session(name) {
   S.open = new Promise(r => ws.on('open', r));
   S.register = async () => {
     await S.open;
-    S.send({ t: 'register', name, pass: 'test1234' });
+    S.send({ t: 'register', v: PROTOCOL_VERSION, name, pass: 'test1234' });
     await S.waitFor(() => S.self && S.zone);
   };
   return S;

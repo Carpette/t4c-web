@@ -4,17 +4,17 @@
     "new": "Ombre de Bastion.mp3"
   },
   "trial": {
-    "legacy": null,
-    "new": null
+    "legacy": "exterieur.mp3",
+    "new": "Gravel Starlight.mp3"
   },
   "zones": {
     "0": {
       "legacy": "exterieur.mp3",
-      "new": null
+      "new": "Velours Moteur.mp3"
     },
     "1": {
       "legacy": "exterieur.mp3",
-      "new": null
+      "new": "Velours Moteur(1).mp3"
     },
     "2": {
       "legacy": "exterieur.mp3",

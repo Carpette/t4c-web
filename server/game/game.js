@@ -1,60 +1,38 @@
-// Boucle de jeu autoritative multi-zones : îles, Épreuves solo, PNJ, sorts, permadeath.
+// Orchestrateur du jeu autoritatif multi-zones : boucle, réseau, zones (îles,
+// Épreuves, cavernes), commerce, banque, groupes, permadeath. Les entités vivent
+// dans entities.js, le système de sorts dans spells.js, la grille dans zone.js.
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS, SLOTS, CHESTS, BANK_SIZE, chestPool } from '../../shared/defs.js';
-import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
+import { generateWorld, generateTrial, defaultNpcSpots, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
+import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../../shared/cave.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
-import { findPath, lineOfSight } from './pathfind.js';
+import { findPath } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { loadOverrides } from '../admin.js';
 import * as db from '../db.js';
+import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
+import * as spells from './spells.js';
+import { handleNpcKeywords, rootKeywordsHint } from './dialogues.js';
 
-const CELL = 16;
+// voile sombre des cavernes (la pénombre elle-même est rendue côté client)
+const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 
-// ---------- Une zone = un monde isolé (île ou instance d'Épreuve) ----------
-class ZoneInstance {
-  constructor(key, world, zoneId, isTrial = false, owner = null) {
-    this.key = key;
-    this.world = world;
-    this.zoneId = zoneId;       // index de la zone (pour le scaling des mobs)
-    this.isTrial = isTrial;
-    this.owner = owner;          // accountId si instance personnelle
-    this.entities = new Map();
-    this.grid = new Map();
-    this.players = 0;
-  }
-  cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
-  gridAdd(e) {
-    const k = this.cellKey(e.x, e.z);
-    let s = this.grid.get(k);
-    if (!s) { s = new Set(); this.grid.set(k, s); }
-    s.add(e); e._cell = k;
-  }
-  gridMove(e) {
-    const k = this.cellKey(e.x, e.z);
-    if (k !== e._cell) { this.grid.get(e._cell)?.delete(e); this.gridAdd(e); }
-  }
-  gridRemove(e) { this.grid.get(e._cell)?.delete(e); }
-  *nearby(x, z, r) {
-    const c0x = Math.floor((x - r) / CELL), c1x = Math.floor((x + r) / CELL);
-    const c0z = Math.floor((z - r) / CELL), c1z = Math.floor((z + r) / CELL);
-    for (let cz = c0z; cz <= c1z; cz++) {
-      for (let cx = c0x; cx <= c1x; cx++) {
-        const s = this.grid.get((cx << 8) | (cz & 0xff));
-        if (!s) continue;
-        for (const e of s) {
-          if (e.hidden) continue;
-          const dx = e.x - x, dz = e.z - z;
-          if (dx * dx + dz * dz <= r * r) yield e;
-        }
-      }
-    }
-  }
-  add(e) { this.entities.set(e.id, e); this.gridAdd(e); e.zi = this; }
-  remove(e) { this.entities.delete(e.id); this.gridRemove(e); }
-}
+// Intervalle entre deux apparitions de monstres dans une zone « chaude »
+// (env T4C_SPAWN_MS ; les suites de test l'abaissent à ~250 ms)
+const SPAWN_INTERVAL_MS = Math.max(50,
+  parseInt(process.env.T4C_SPAWN_MS, 10) || C.SPAWN_INTERVAL_DEFAULT_MS);
+const SPAWN_TRIES_PER_TICK = 12;  // essais de placement avant d'abandonner le tick
+const PARTY_VITALS_EVERY_TICKS = 10; // PV des membres du groupe : 1 envoi/s
+
+// Garde-fous des camps édités par l'admin (overrides `camps`)
+const CAMP_RADIUS_MIN = 1, CAMP_RADIUS_MAX = 40; // rayon d'un camp (tuiles)
+const CAMP_QUOTA_MAX = 50;                       // population max par monstre d'un camp
+
+// champs d'un PNJ que les overrides (`npcs.edit` / `npcs.add`) peuvent définir
+const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teaches', 'dialogues'];
 
 export class Game {
   constructor() {
@@ -79,47 +57,181 @@ export class Game {
   now() { return this.tickCount / C.TICK_RATE; }
 
   // ---------- Peuplement ----------
+  // Spawn T4C déclenché par le MOUVEMENT : les zones démarrent VIDES de
+  // monstres. Les camps (par défaut ceux du worldgen, sinon les overrides
+  // `camps` édités dans l'admin) sont des BUDGETS : tant qu'un camp est sous
+  // sa capacité et qu'un joueur bouge dans la zone, le tick de spawn peut y
+  // faire apparaître un monstre — toujours hors champ (SPAWN_MIN_PLAYER_DIST).
   populateIsland(zi) {
-    const rng = mulberry32((this.zoneDef(zi.zoneId).seed ^ 0xbeef) >>> 0);
-    const base = this.zoneDef(zi.zoneId).levels[0] - 1;
-    // une carte fixe (Arakas) définit ses propres spots ; sinon spots communs
-    for (const zone of zi.world.spawnZones || SPAWN_ZONES) {
-      for (let i = 0; i < zone.count; i++) {
-        let x, z, tries = 0;
-        do {
-          const a = rng() * Math.PI * 2, d = rng() * zone.radius;
-          x = zone.center[0] + Math.cos(a) * d + 0.5;
-          z = zone.center[1] + Math.sin(a) * d + 0.5;
-        } while (!zi.world.isWalkable(x, z) && ++tries < 40);
-        if (tries >= 40) continue;
-        this.spawnMob(zi, zone.mob, x, z, base);
-      }
-    }
-    this.spawnNpc(zi);
+    const ov = loadOverrides(zi.zoneId);
+    zi.camps = this.buildIslandCamps(zi, ov);
+    this.spawnNpc(zi, ov);
   }
 
-  spawnMob(zi, defId, x, z, zoneBase, noRespawn = false) {
+  // Un camp = centre + rayon + quota de population PAR monstre. `aliveBy`
+  // décompte les vivants par defId (décrémenté à la mort), `cap`/`alive` la
+  // population globale (les camps de caverne, sans quota, n'utilisent qu'eux).
+  makeCamp(x, z, radius, mobs, base) {
+    const quota = {};
+    let cap = 0;
+    for (const [defId, n] of Object.entries(mobs || {})) {
+      if (!MOBS[defId] || !((n | 0) > 0)) continue;
+      quota[defId] = Math.min(CAMP_QUOTA_MAX, n | 0);
+      cap += quota[defId];
+    }
+    if (!cap || !Number.isFinite(+x) || !Number.isFinite(+z)) return null;
+    return {
+      x: +x, z: +z,
+      radius: Math.max(CAMP_RADIUS_MIN, Math.min(CAMP_RADIUS_MAX, +radius || CAMP_RADIUS_MIN)),
+      defIds: Object.keys(quota),
+      quota, aliveBy: {},
+      cap, alive: 0,
+      base, // niveau de base de la zone (scaling)
+    };
+  }
+
+  // Camps d'une île : les overrides `camps` (format {id, x, z, r, mobs}) s'ils
+  // existent — un tableau, même vide, REMPLACE tout — sinon les camps par
+  // défaut du worldgen (carte fixe ou camps communs procéduraux).
+  buildIslandCamps(zi, ov) {
+    const base = this.zoneDef(zi.zoneId).levels[0] - 1;
+    if (Array.isArray(ov?.camps)) {
+      return ov.camps.map(c => this.makeCamp(c.x, c.z, c.r, c.mobs, base)).filter(Boolean);
+    }
+    return (zi.world.spawnZones || SPAWN_ZONES)
+      .map(zone => this.makeCamp(zone.center[0] + 0.5, zone.center[1] + 0.5,
+        zone.radius, { [zone.mob]: zone.count }, base))
+      .filter(Boolean);
+  }
+
+  // Reconstruit les camps À CHAUD (PUT des overrides) : chaque monstre vivant
+  // est rattaché au nouveau camp qui le couvre (position + quota) ; l'orphelin
+  // d'un camp supprimé s'efface, sauf s'il est déjà au combat — « plus de
+  // spawn là » est effectif immédiatement.
+  refreshCamps(zi, ov) {
+    zi.camps = this.buildIslandCamps(zi, ov);
+    for (const e of [...zi.entities.values()]) {
+      if (e.kind !== C.KIND.MOB || e.dead) continue;
+      const wasCamped = !!e.camp;
+      e.camp = null;
+      const camp = zi.camps.find(c =>
+        (c.aliveBy[e.defId] || 0) < (c.quota[e.defId] || 0)
+        && Math.hypot(c.x - e.x, c.z - e.z) <= c.radius + 2);
+      if (camp) {
+        e.camp = camp;
+        camp.alive++;
+        camp.aliveBy[e.defId] = (camp.aliveBy[e.defId] || 0) + 1;
+      } else if (wasCamped && !e.target) {
+        zi.remove(e);
+      }
+    }
+  }
+
+  // un joueur a réellement bougé : la zone devient « chaude » quelques secondes
+  heatZone(zi) {
+    zi.hotUntil = this.now() + C.SPAWN_HEAT_DURATION;
+  }
+
+  // Tick de spawn : zone chaude ET population sous la capacité d'un camp ->
+  // UN monstre apparaît, jamais plus (progressif). Placement : un point du
+  // camp, praticable, à au moins SPAWN_MIN_PLAYER_DIST tuiles de TOUT joueur
+  // de la zone (le monstre surgit devant celui qui marche, jamais sous ses
+  // yeux). Aucun point valide -> le tick est sauté.
+  maybeSpawn(zi, now) {
+    if (!zi.camps.length || now > zi.hotUntil || now < zi.nextSpawnAt) return;
+    zi.nextSpawnAt = now + SPAWN_INTERVAL_MS / 1000;
+    const open = zi.camps.filter(c => c.alive < c.cap);
+    if (!open.length) return;
+    const minDist = zi.isCave ? C.SPAWN_MIN_PLAYER_DIST_CAVE : C.SPAWN_MIN_PLAYER_DIST;
+    const players = [];
+    for (const p of this.players.values()) {
+      if (p.zi === zi && !p.dead) players.push(p);
+    }
+    for (let attempt = 0; attempt < SPAWN_TRIES_PER_TICK; attempt++) {
+      const camp = open[Math.floor(Math.random() * open.length)];
+      const a = Math.random() * Math.PI * 2, d = Math.random() * camp.radius;
+      const x = camp.x + Math.cos(a) * d, z = camp.z + Math.sin(a) * d;
+      if (!zi.world.isWalkable(x, z)) continue;
+      if (players.some(p => Math.hypot(p.x - x, p.z - z) < minDist)) continue;
+      const defId = this.pickCampMob(camp);
+      if (!defId) continue;
+      const m = this.spawnMob(zi, defId, x, z, camp.base);
+      m.camp = camp;
+      camp.alive++;
+      if (camp.aliveBy) camp.aliveBy[defId] = (camp.aliveBy[defId] || 0) + 1;
+      return;
+    }
+  }
+
+  // Quel monstre faire apparaître dans ce camp ? Avec quota (camps d'île,
+  // édités ou par défaut) : tirage parmi les monstres sous leur quota. Sans
+  // quota (camps de caverne, capacité globale) : tirage libre dans le thème.
+  pickCampMob(camp) {
+    if (camp.quota) {
+      const open = camp.defIds.filter(d => (camp.aliveBy[d] || 0) < camp.quota[d]);
+      return open.length ? open[Math.floor(Math.random() * open.length)] : null;
+    }
+    return camp.defIds[Math.floor(Math.random() * camp.defIds.length)];
+  }
+
+  spawnMob(zi, defId, x, z, zoneBase) {
     const def = MOBS[defId];
     const sc = C.scaleMob(def, zoneBase);
-    const m = new Mob(this.nextId++, defId, def, sc, x, z, this.now(), noRespawn);
+    const m = new Mob(this.nextId++, defId, def, sc, x, z, this.now());
     zi.add(m);
     return m;
   }
 
-  spawnNpc(zi) {
-    // carte fixe : emplacements explicites (un marchand par ville sur Arakas)
-    const spots = zi.world.npcSpots || (() => {
-      const v = zi.world.village;
-      let x = v.x - 4.5, z = v.z - 3.5, tries = 0;
-      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      return [{ npcId: 'merchant', x, z }];
-    })();
-    for (const spot of spots) {
-      const def = content.npc[spot.npcId] || content.npc.merchant;
-      let { x, z } = spot, tries = 0;
-      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      zi.add(new NPC(this.nextId++, spot.npcId, def, x, z));
+  // Peuple la zone en PNJ : les emplacements par défaut du worldgen (carte
+  // fixe ou marchand du village), retouchés par les overrides `npcs` —
+  // remove (retirés), move (déplacés), edit (définition retouchée) — plus les
+  // PNJ créés de toutes pièces (add). Rétrocompatible : sans overrides, les
+  // PNJ de zones.json restent tels quels.
+  spawnNpc(zi, ov = null) {
+    const o = ov?.npcs || {};
+    const removed = new Set(Array.isArray(o.remove) ? o.remove : []);
+    const moved = new Map((Array.isArray(o.move) ? o.move : []).map(m => [m.npcId, m]));
+    const edits = o.edit || {};
+    const list = [];
+    for (const spot of defaultNpcSpots(zi.world)) {
+      if (removed.has(spot.npcId)) continue;
+      const base = content.npc[spot.npcId] || content.npc.merchant;
+      const at = moved.get(spot.npcId) || spot;
+      list.push({ npcId: spot.npcId, def: this.npcDefWithPatch(base, edits[spot.npcId]), x: +at.x, z: +at.z });
     }
+    for (const a of Array.isArray(o.add) ? o.add : []) {
+      if (!a || !a.id || !Number.isFinite(+a.x) || !Number.isFinite(+a.z)) continue;
+      list.push({ npcId: String(a.id), def: this.npcDefWithPatch(content.npc.merchant, a), x: +a.x, z: +a.z });
+    }
+    for (const e of list) {
+      let { x, z } = e, tries = 0;
+      while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
+      zi.add(new NPC(this.nextId++, e.npcId, e.def, x, z));
+    }
+  }
+
+  // définition effective d'un PNJ : base de zones.json + champs édités
+  npcDefWithPatch(base, patch) {
+    if (!patch) return base;
+    const def = { ...base };
+    for (const f of NPC_EDITABLE_FIELDS) {
+      if (patch[f] != null) def[f] = patch[f];
+    }
+    return def;
+  }
+
+  // Applique les overrides d'une zone À CHAUD (PUT de l'admin) : le monde est
+  // reconstruit (tuiles/décors), les camps rebranchés, les PNJ respawnés.
+  applyZoneEdits(zoneId, ov) {
+    const def = content.zones[zoneId];
+    const zi = this.island(zoneId);
+    if (!def || !zi) return;
+    zi.world = applyOverrides(generateWorld(def.seed, def.map), ov);
+    this.refreshCamps(zi, ov);
+    for (const e of [...zi.entities.values()]) {
+      if (e.kind === C.KIND.NPC) zi.remove(e);
+    }
+    this.spawnNpc(zi, ov);
   }
 
   // ---------- Joueurs ----------
@@ -134,10 +246,7 @@ export class Game {
       data = db.newCharacterData(name, this.island(0).world.spawnPoint);
       db.saveCharacter(accountId, data);
     }
-    const hpAcc = data.hpAcc ?? C.maxHp(data.stats, data.level);
-    const manaAcc = data.manaAcc ?? C.maxMana(data.stats, data.level);
-
-    const p = new Player(this.nextId++, ws, accountId, isAdmin, data, hpAcc, manaAcc);
+    const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
     for (const it of p.inventory) setNextIid(it.iid + 1);
     for (const it of p.bank) setNextIid(it.iid + 1);
 
@@ -170,6 +279,7 @@ export class Game {
   removePlayer(p, reason) {
     if (!this.players.has(p.id)) return;
     if (!p.permadead) p.save();
+    this.leaveParty(p); // la déconnexion fait quitter le groupe
     p.zi.players--;
     p.zi.remove(p);
     this.maybeDestroyTrial(p.zi);
@@ -182,6 +292,24 @@ export class Game {
 
   sendZone(p) {
     const zi = p.zi;
+    if (zi.isCave) {
+      // caverne : le client régénère le même intérieur avec ces paramètres
+      const { seed, size, depth } = zi.caveDef;
+      this.send(p, {
+        t: 'zone',
+        kind: 'cave',
+        zoneId: zi.zoneId,
+        name: zi.caveName,
+        cave: { seed, size, depth },
+        music: this.musicFor(zi),
+        tint: CAVE_TINT,
+        levels: null,
+        x: p.x, z: p.z,
+        unlocked: p.unlocked,
+      });
+      p.known = new Set();
+      return;
+    }
     const def = zi.isTrial ? this.zoneDef(zi.trialTarget) : this.zoneDef(zi.zoneId);
     this.send(p, {
       t: 'zone',
@@ -207,6 +335,7 @@ export class Game {
     p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingPickup = null; p.pendingInteract = null; p.pendingCast = null;
     zi.add(p);
     zi.players++;
+    this.heatZone(zi); // l'arrivée d'un joueur compte comme un mouvement
     this.maybeDestroyTrial(old);
     this.sendZone(p);
     this.sendSelf(p);
@@ -229,7 +358,7 @@ export class Game {
     const rng = mulberry32((def.seed ^ 0x5eed) >>> 0);
     for (const spot of world.mobSpots) {
       const defId = strongest[Math.floor(rng() * strongest.length)];
-      const m = this.spawnMob(zi, defId, spot.x, spot.z, base, true);
+      const m = this.spawnMob(zi, defId, spot.x, spot.z, base);
       m.def = { ...m.def, aggro: 9, leash: 60 }; // agressifs, pas de retour au bercail
     }
     return zi;
@@ -259,6 +388,67 @@ export class Game {
     const dest = this.island(target);
     this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
     this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+    p.save();
+  }
+
+  // ---------- Cavernes (intérieurs instanciés, PARTAGÉS entre joueurs) ----------
+  // Contrairement à l'Épreuve (instance personnelle), chaque grotte n'a qu'UNE
+  // instance : créée au premier visiteur puis conservée — les joueurs s'y
+  // croisent, les monstres y réapparaissent normalement. Ni obélisque ni
+  // banque à l'intérieur : la seule issue est la sortie (ou la mort, définitive).
+  getCaveZone(prop, from) {
+    const def = CAVES[prop.caveId];
+    if (!def) return null;
+    const key = `cave:${prop.caveId}`;
+    let zi = this.zones.get(key);
+    if (zi) return zi;
+    zi = new ZoneInstance(key, generateCave(def.seed, def.size, def.depth), from.zoneId);
+    zi.isCave = true;
+    zi.caveDef = def;
+    zi.caveName = prop.name;
+    zi.returnTo = this.surfaceExit(from, prop);
+    this.zones.set(key, zi);
+    this.populateCave(zi, def);
+    return zi;
+  }
+
+  // case praticable devant l'entrée de la grotte : le point de retour à la surface
+  surfaceExit(zi, prop) {
+    for (const [dx, dz] of [[0, 1], [1, 0], [-1, 0], [0, 2], [1, 1], [-1, 1], [0, -1]]) {
+      if (zi.world.isWalkable(prop.x + dx, prop.z + dz)) {
+        return { zoneId: zi.zoneId, x: prop.x + dx, z: prop.z + dz };
+      }
+    }
+    return { zoneId: zi.zoneId, x: zi.world.spawnPoint.x, z: zi.world.spawnPoint.z };
+  }
+
+  populateCave(zi, def) {
+    // Comme en surface : la grotte démarre VIDE, les monstres apparaissent au
+    // rythme des déplacements. Chaque spot de monstre devient un camp de
+    // capacité 1, peuplé par le thème de la grotte (un peu plus coriace que
+    // la surface : CAVE_LEVEL_BONUS).
+    const base = this.zoneDef(zi.zoneId).levels[0] - 1 + CAVE_LEVEL_BONUS;
+    zi.camps = zi.world.mobSpots.map(spot => ({
+      x: spot.x, z: spot.z, radius: 2,
+      defIds: def.mobs, cap: 1, alive: 0, base,
+    }));
+  }
+
+  enterCave(p, prop) {
+    const zi = this.getCaveZone(prop, p.zi);
+    if (!zi) {
+      // grotte sans intérieur défini : l'entrée reste condamnée (contenu à venir)
+      this.send(p, { t: 'info', text: `${prop.name || 'La grotte'} : l'entrée est obstruée par des éboulis...` });
+      return;
+    }
+    this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
+    p.save();
+    this.send(p, { t: 'info', text: `Vous pénétrez dans ${zi.caveName}. L'obscurité vous enveloppe...` });
+  }
+
+  leaveCave(p) {
+    const back = p.zi.returnTo;
+    this.movePlayerToZone(p, this.island(back.zoneId), back.x, back.z);
     p.save();
   }
 
@@ -292,7 +482,8 @@ export class Game {
   // Renvoie les deux variantes { legacy, new } : le client choisit selon
   // le pack sélectionné dans ses paramètres.
   musicFor(zi) {
-    const s = zi.isTrial ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
+    // les cavernes partagent l'ambiance oppressante de l'Épreuve
+    const s = (zi.isTrial || zi.isCave) ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
     return (s && (s.legacy || s.new)) ? s : null;
   }
 
@@ -356,6 +547,10 @@ export class Game {
       }
       case 'attack': {
         if (p.dead) return;
+        if (this.isPacified(p)) {
+          this.send(p, { t: 'info', text: 'La transe du Sanctuaire vous empêche d\'attaquer.' });
+          return;
+        }
         const target = p.zi.entities.get(msg.id | 0);
         if (target && target.kind === C.KIND.MOB && !target.dead) {
           p.attackTarget = target.id;
@@ -407,7 +602,7 @@ export class Game {
         break;
       }
       case 'teleport': {
-        if (p.dead || p.zi.isTrial) return;
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return; // pas d'obélisque sous terre
         const zid = msg.zoneId | 0;
         if (!p.unlocked.includes(zid) || !this.island(zid)) return;
         if (this.now() > p.obeliskUntil) { this.send(p, { t: 'info', text: 'Approchez-vous de l\'obélisque.' }); return; }
@@ -415,8 +610,29 @@ export class Game {
         this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
         break;
       }
+      case 'teleport_local': {
+        // voyage entre obélisques de la MÊME zone : 10 po, accès déjà acquis
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return;
+        if (this.now() > p.obeliskUntil) { this.send(p, { t: 'info', text: 'Approchez-vous de l\'obélisque.' }); return; }
+        const dest = this.zoneObelisks(p.zi).find(o => o.i === (msg.i | 0));
+        if (!dest || Math.hypot(dest.x - p.x, dest.z - p.z) <= C.INTERACT_RANGE) return;
+        if (p.gold < C.OBELISK_TRAVEL_COST) {
+          this.send(p, { t: 'info', text: `Il vous faut ${C.OBELISK_TRAVEL_COST} pièces d'or pour ce voyage.` });
+          return;
+        }
+        p.gold -= C.OBELISK_TRAVEL_COST;
+        const spot = walkableNear(p.zi.world, dest.x, dest.z + 1.5);
+        p.x = spot.x; p.z = spot.z;
+        p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingCast = null;
+        p.zi.gridMove(p);
+        this.heatZone(p.zi); // le voyage local est un déplacement réel
+        p.obeliskUntil = this.now() + 30; // on arrive au pied d'un obélisque : panneau réutilisable
+        this.send(p, { t: 'info', text: `L'obélisque vous transporte : ${dest.name} (−${C.OBELISK_TRAVEL_COST} or).` });
+        this.sendSelf(p);
+        break;
+      }
       case 'trial_enter': {
-        if (p.dead || p.zi.isTrial) return;
+        if (p.dead || p.zi.isTrial || p.zi.isCave) return;
         if (!p.trialOffer || this.now() > p.trialOffer) { this.send(p, { t: 'info', text: 'Retournez au portail de l\'Épreuve.' }); return; }
         p.trialOffer = null;
         this.startTrial(p);
@@ -460,6 +676,11 @@ export class Game {
         if (i < 0) return;
         const st = itemStats(p.inventory[i]);
         if (ITEMS[p.inventory[i].defId].slot !== 'use') return;
+        // Malédiction : les potions de vie n'ont plus aucun effet (non consommées)
+        if (st.heal && this.isCursed(p)) {
+          this.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : la potion reste sans effet.' });
+          return;
+        }
         if (st.heal) p.hp = Math.min(p.eff.maxHp, p.hp + st.heal);
         if (st.mana) p.mana = Math.min(p.eff.maxMana, p.mana + st.mana);
         p.inventory.splice(i, 1);
@@ -491,18 +712,49 @@ export class Game {
         if (channelMatch) {
           const channel = channelMatch[1].toLowerCase();
           const text = channelMatch[2].trim();
-          
+
+          // commande de groupe : /inviter Nom
+          if (channel === 'inviter') {
+            this.partyInvite(p, { name: text });
+            return;
+          }
           const validChannels = ['general', 'aide', 'ventes', 'roleplay'];
           if (validChannels.includes(channel)) {
             this.broadcastChannelChat(channel, p.name, text);
           } else {
-            this.send(p, { t: 'info', text: `Canal /${channel} inconnu. Utilise: /general, /aide, /ventes, ou /roleplay.` });
+            this.send(p, { t: 'info', text: `Canal /${channel} inconnu. Utilise: /general, /aide, /ventes, /roleplay — ou /inviter Nom (groupe).` });
           }
         } else {
           // Chat local par défaut : envoie aux joueurs proches + bulle au-dessus de la tête
           this.sendLocalChat(p, rawText);
           this.eventNear(p, { t: 'say', id: p.id, text: rawText });
+          // un PNJ à portée d'oreille peut réagir aux mots-clés (quêtes T4C)
+          handleNpcKeywords(this, p, rawText);
         }
+        break;
+      }
+      case 'party_invite': {
+        if (p.dead) return;
+        this.partyInvite(p, msg);
+        break;
+      }
+      case 'party_accept': {
+        if (p.dead) return;
+        this.partyAccept(p);
+        break;
+      }
+      case 'party_decline': {
+        this.partyDecline(p);
+        break;
+      }
+      case 'party_leave': {
+        if (!p.party) return;
+        this.broadcastToParty(p.party, `${p.name} quitte le groupe.`, p);
+        this.leaveParty(p);
+        break;
+      }
+      case 'party_kick': {
+        this.partyKick(p, msg);
         break;
       }
       case 'newchar': {
@@ -513,7 +765,7 @@ export class Game {
       case 'create': {
         if (!p.permadead) return;
         if (!C.validateCreationStats(msg.stats)) { this.send(p, { t: 'info', text: 'Répartition invalide.' }); return; }
-        this.reincarnate(p, msg.stats, msg.sex === 'female' ? 'female' : 'male');
+        p.reincarnate(this, msg.stats, msg.sex === 'female' ? 'female' : 'male');
         break;
       }
       case 'admin': {
@@ -558,6 +810,7 @@ export class Game {
         p.x = x; p.z = z;
         p.path = null; p.moveDir = null;
         p.zi.gridMove(p);
+        this.heatZone(p.zi); // la téléportation admin est un déplacement réel
         break;
       }
       case 'zone': {
@@ -566,6 +819,12 @@ export class Game {
         if (!dest) return;
         if (!p.unlocked.includes(zid)) p.unlocked.push(zid);
         this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
+        break;
+      }
+      case 'learn': {
+        // apprend un sort directement (outillage admin/tests, sans marchand)
+        const sp = content.spellById[msg.spell];
+        if (sp && !p.spells.includes(sp.id)) { p.spells.push(sp.id); this.sendSelf(p); }
         break;
       }
     }
@@ -593,6 +852,15 @@ export class Game {
     this.interactProp(p, prop);
   }
 
+  // Les obélisques d'une zone forment un réseau de voyage local : on peut
+  // rejoindre n'importe lequel des autres pour OBELISK_TRAVEL_COST pièces d'or
+  // (l'accès à la zone suffit — c'est le réseau d'Arakas demandé par Quentin).
+  zoneObelisks(zi) {
+    return zi.world.props
+      .filter(pr => pr.type === 'obelisk')
+      .map((pr, i) => ({ i, name: pr.name || `Obélisque ${i + 1}`, x: pr.x, z: pr.z }));
+  }
+
   interactProp(p, prop) {
     if (prop.type === 'obelisk') {
       p.obeliskUntil = this.now() + 30;
@@ -601,6 +869,11 @@ export class Game {
         zones: p.unlocked.map(id => ({ id, name: this.zoneDef(id).name, levels: this.zoneDef(id).levels }))
           .sort((a, b) => a.id - b.id),
         current: p.zi.zoneId,
+        // réseau local : les autres obélisques de la zone (celui-ci exclu)
+        local: this.zoneObelisks(p.zi)
+          .filter(o => Math.hypot(o.x - prop.x, o.z - prop.z) > 1)
+          .map(({ i, name }) => ({ i, name })),
+        cost: C.OBELISK_TRAVEL_COST,
       });
     } else if (prop.type === 'trialgate') {
       const target = p.zi.zoneId + 1;
@@ -617,15 +890,14 @@ export class Game {
       });
     } else if (prop.type === 'exitgate' && p.zi.isTrial) {
       this.finishTrial(p);
+    } else if (prop.type === 'exitgate' && p.zi.isCave) {
+      this.leaveCave(p);
     } else if (prop.type === 'chest') {
       this.openChest(p, prop);
     } else if (prop.type === 'bank') {
       this.openBank(p);
     } else if (prop.type === 'cave') {
-      this.send(p, {
-        t: 'info',
-        text: `${prop.name || 'La grotte'} : l'entrée est obstruée par des éboulis... (les souterrains arrivent dans une prochaine version)`,
-      });
+      this.enterCave(p, prop);
     }
   }
 
@@ -710,12 +982,71 @@ export class Game {
     this.send(p, { t: 'loot', text: 'Vous ouvrez le coffre...' });
   }
 
+  // ---------- Marchands et enseignants ----------
+  // premier PNJ à portée d'interaction qui passe le filtre
+  nearbyNpc(p, accepts = () => true) {
+    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
+      if (e.kind === C.KIND.NPC && accepts(e)) return e;
+    }
+    return null;
+  }
+
+  // marchand généraliste (objets, compétences, rachat) — ni enseignant ni bavard
+  nearbyMerchant(p) {
+    return this.nearbyNpc(p, n => !this.isTeacher(n) && !this.isTalker(n));
+  }
+
+  // Le rôle d'un PNJ : `role` explicite des overrides ('merchant' | 'teacher'
+  // | 'bavard'), sinon le drapeau historique `teacher` de zones.json.
+  isTeacher(npc) {
+    return npc.def.role ? npc.def.role === 'teacher' : !!npc.def.teacher;
+  }
+
+  // un bavard ne tient pas boutique : il salue, et réagit aux mots-clés
+  isTalker(npc) {
+    return npc.def.role === 'bavard';
+  }
+
+  // Qui enseigne quoi : un répertoire `teaches` édité fait foi ; sinon un sort
+  // avec `vendor` n'est vendu QUE par ce PNJ, et les autres sorts restent
+  // vendus par les marchands généralistes de leur zone.
+  npcSellsSpell(p, npc, sp) {
+    if (sp.todo) return false;
+    if (Array.isArray(npc.def.teaches)) return npc.def.teaches.includes(sp.id);
+    if (sp.vendor) return sp.vendor === npc.npcId;
+    return !this.isTeacher(npc) && !this.isTalker(npc) && sp.zone <= p.zi.zoneId;
+  }
+
+  // Quels objets ce PNJ vend-il ? Un étal `sells` édité fait foi ; sinon la
+  // règle historique : tout marchand généraliste vend le standard de la zone.
+  npcSellsItem(npc, defId, zid) {
+    const d = ITEMS[defId];
+    if (!d || d.slot === 'gold' || d.legacy) return false;
+    if (Array.isArray(npc.def.sells)) return npc.def.sells.includes(defId);
+    if (this.isTeacher(npc) || this.isTalker(npc)) return false;
+    return d.zone != null && d.zone <= Math.min(zid, 3);
+  }
+
+  // salut du PNJ : phrase d'ambiance + indice des mots-clés racine (T4C)
+  npcGreet(p, npc) {
+    const lines = Array.isArray(npc.def.greetings) && npc.def.greetings.length
+      ? npc.def.greetings : ['...'];
+    let line = lines[Math.floor(Math.random() * lines.length)];
+    const hint = rootKeywordsHint(npc.def);
+    if (hint) line += ' ' + hint;
+    this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
+  }
+
   openShop(p, npc) {
+    // un bavard ne tient pas boutique : il salue (et ses mots-clés font le reste)
+    if (this.isTalker(npc)) { this.npcGreet(p, npc); return; }
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
     const reqNames = { str: 'For', end: 'End', agi: 'Agi', int: 'Int', wis: 'Sag' };
-    const items = Object.entries(ITEMS)
-      .filter(([, d]) => d.zone != null && d.zone <= Math.min(zid, 3) && d.slot !== 'gold' && !d.legacy)
+    // un enseignant ne tient pas d'étal : ni objets ni compétences, ses sorts seulement
+    const teacher = this.isTeacher(npc);
+    const items = teacher ? [] : Object.entries(ITEMS)
+      .filter(([defId]) => this.npcSellsItem(npc, defId, zid))
       .map(([defId, d]) => {
         const fixed = !!d.fixed;
         return {
@@ -731,15 +1062,16 @@ export class Game {
           reqText: d.req ? Object.entries(d.req).map(([s, v]) => `${reqNames[s] || s} ${v}`).join(', ') : null,
         };
       });
-    const spells = content.spells.filter(s => s.zone <= zid)
+    // les sorts "todo" (mécanique non implémentée) ne sont pas proposés à la vente
+    const spellList = content.spells.filter(s => this.npcSellsSpell(p, npc, s))
       .map(s => ({
         ...s,
         price: Math.round(s.price * disc),
         known: p.spells.includes(s.id),
-        reqMet: this.spellReqMet(p, s) === true,
-        reqText: this.spellReqText(s),
+        reqMet: spells.spellReqMet(p, s) === true,
+        reqText: spells.spellReqText(s),
       }));
-    const skills = content.skills.filter(s => s.zone <= zid)
+    const skills = (teacher ? [] : content.skills.filter(s => s.zone <= zid))
       .map(s => ({
         ...s,
         learnCost: Math.round(s.learnCost * disc),
@@ -749,25 +1081,31 @@ export class Game {
         reqMet: this.skillReqMet(p, s) === true,
         reqText: this.skillReqText(s),
       }));
-    const npcDef = content.npc[npc.npcId] || content.npc.merchant;
-    const line = npcDef.greetings[Math.floor(Math.random() * npcDef.greetings.length)];
-    this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
-    this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells, skills });
+    this.npcGreet(p, npc);
+    this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells: spellList, skills });
   }
 
   buy(p, msg) {
-    // vérifie qu'un marchand est proche
-    let npc = null;
-    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
-      if (e.kind === C.KIND.NPC) { npc = e; break; }
-    }
-    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    // vérifie qu'un PNJ capable de vendre est à proximité : un marchand
+    // généraliste pour les objets et compétences ; pour un sort, le PNJ doit
+    // l'avoir à son répertoire (enseignant attitré ou marchand de la zone)
+    if (!this.nearbyNpc(p)) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    const needMerchant = () => {
+      if (this.nearbyMerchant(p)) return true;
+      this.send(p, { t: 'info', text: 'Ce maître n\'est pas marchand. Voyez un marchand généraliste.' });
+      return false;
+    };
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
 
     if (msg.kind === 'item') {
       const def = ITEMS[msg.id];
-      if (!def || def.zone == null || def.zone > Math.min(zid, 3) || def.legacy) return;
+      if (!def) return;
+      // un PNJ proche doit avoir cet article à son étal (édité ou standard de zone)
+      if (!this.nearbyNpc(p, n => this.npcSellsItem(n, msg.id, zid))) {
+        this.send(p, { t: 'info', text: 'Personne ici ne vend cet article.' });
+        return;
+      }
       const price = Math.round(def.price * (def.fixed ? 1 : Math.pow(zoneMult(zid), 2.6)) * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       if (p.inventory.length >= 24) { this.send(p, { t: 'info', text: 'Inventaire plein.' }); return; }
@@ -780,8 +1118,12 @@ export class Game {
       this.send(p, { t: 'loot', text: `Acheté : ${itemLabel(item)}` });
     } else if (msg.kind === 'spell') {
       const sp = content.spellById[msg.id];
-      if (!sp || sp.zone > zid || p.spells.includes(sp.id)) return;
-      const req = this.spellReqMet(p, sp);
+      if (!sp || sp.todo || sp.zone > zid || p.spells.includes(sp.id)) return;
+      if (!this.nearbyNpc(p, n => this.npcSellsSpell(p, n, sp))) {
+        this.send(p, { t: 'info', text: 'Personne ici ne peut vous enseigner ce sort.' });
+        return;
+      }
+      const req = spells.spellReqMet(p, sp);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const price = Math.round(sp.price * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
@@ -790,6 +1132,7 @@ export class Game {
       this.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
     } else if (msg.kind === 'skill') {
       // apprentissage d'une compétence (puis entraînement via 'train')
+      if (!needMerchant()) return;
       const sk = content.skillById[msg.id];
       if (!sk || sk.zone > zid || sk.innate || p.skills[sk.id] != null) return;
       const req = this.skillReqMet(p, sk);
@@ -798,10 +1141,11 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = 1;
-    p.recompute(this);
+      p.recompute(this);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
       // entraînement : +1 point, payé en or (système T4C)
+      if (!needMerchant()) return;
       const sk = content.skillById[msg.id];
       if (!sk || sk.zone > zid) return;
       const cur = p.skills[sk.id] ?? (sk.innate ? 0 : null);
@@ -813,7 +1157,7 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = cur + 1;
-    p.recompute(this);
+      p.recompute(this);
     }
     this.sendSelf(p);
   }
@@ -835,13 +1179,10 @@ export class Game {
     return true;
   }
 
-  // Vente au marchand : même prix que l'achat (qualité et zone de l'objet comprises)
+  // Vente au marchand : même prix que l'achat (qualité et zone de l'objet
+  // comprises). Les enseignants, eux, n'achètent rien.
   sell(p, msg) {
-    let npc = null;
-    for (const e of p.zi.nearby(p.x, p.z, C.INTERACT_RANGE + 1)) {
-      if (e.kind === C.KIND.NPC) { npc = e; break; }
-    }
-    if (!npc) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
+    if (!this.nearbyMerchant(p)) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
     const i = p.inventory.findIndex(it => it.iid === (msg.iid | 0));
     if (i < 0) return;
     const item = p.inventory[i];
@@ -858,56 +1199,31 @@ export class Game {
     this.sendSelf(p);
   }
 
-  // Prérequis T4C d'un sort : niveau, Sagesse, Intelligence, sort précédent.
-  // Retourne true, ou le message expliquant ce qui manque.
-  spellReqMet(p, sp) {
-    const wis = p.eff.stats.wis, intel = p.eff.stats.int;
-    if (sp.level && p.level < sp.level) return `Niveau ${sp.level} requis.`;
-    if (sp.wis && wis < sp.wis) return `${sp.wis} de Sagesse requis (vous : ${wis}).`;
-    if (sp.int && intel < sp.int) return `${sp.int} d'Intelligence requis (vous : ${intel}).`;
-    if (sp.requires && !p.spells.includes(sp.requires)) {
-      const r = content.spellById[sp.requires];
-      return `Sort prérequis : ${r ? r.name : sp.requires}.`;
-    }
-    return true;
-  }
+  // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
+  isUntouchable(e) { return (e.sanctuaryUntil || 0) > this.now(); }
 
-  spellReqText(sp) {
-    const parts = [];
-    if (sp.level) parts.push(`niv. ${sp.level}`);
-    if (sp.wis) parts.push(`Sag ${sp.wis}`);
-    if (sp.int) parts.push(`Int ${sp.int}`);
-    if (sp.requires) parts.push(content.spellById[sp.requires]?.name || sp.requires);
-    return parts.join(', ');
-  }
+  // Le joueur est-il en transe (Sanctuaire) : ni attaque ni sort pendant 2x la durée
+  isPacified(p) { return (p.pacifiedUntil || 0) > this.now(); }
 
-  // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
-  startApproachCast(p, msg, tx, tz) {
-    p.pendingCast = { ...msg, approach: false }; // une seule approche, pas de boucle
-    p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
-    p.moveDir = null;
-    p.attackTarget = null;
-  }
+  // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
+  isCursed(e) { return (e.curseUntil || 0) > this.now(); }
 
-  // Résistances élémentaires T4C : réduction (ou amplification si faiblesse)
-  applyResist(target, sp, dmg) {
-    const resist = target.def?.resist?.[sp.element] || 0;
-    if (!resist) return { dmg, mod: null };
-    return {
-      dmg: Math.max(1, Math.round(dmg * (1 - resist))),
-      mod: resist > 0.05 ? 'resist' : (resist < -0.05 ? 'weak' : null),
-    };
-  }
-
+  // ---------- Sorts (système complet dans spells.js) ----------
+  castSpell(p, msg) { spells.castSpell(this, p, msg); }
 
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
+    m.curseUntil = 0; m.slowUntil = 0;
+    this.eventNear(m, { t: 'fx', kind: 'die', id: m.id }); // râle + poussière côté client
     m.hideAt = this.now() + 6;
-    m.respawnAt = m.noRespawn ? Infinity : this.now() + m.def.respawn;
+    // la place se libère au camp : le spawn par mouvement pourra la repourvoir
+    if (m.camp) {
+      m.camp.alive--;
+      if (m.camp.aliveBy) m.camp.aliveBy[m.defId] = Math.max(0, (m.camp.aliveBy[m.defId] || 0) - 1);
+      m.camp = null;
+    }
+    // l'XP a déjà été versée COUP PAR COUP (applyDamage) : rien à la mort
     if (killer.kind === C.KIND.PLAYER) {
-      const xp = C.mobXpReward(m.level, killer.level);
-      killer.addXp(xp, this);
-      this.send(killer, { t: 'loot', text: `+${xp} XP (${m.def.name})` });
       if (killer.attackTarget === m.id) killer.attackTarget = null;
       const zid = m.zi.zoneId;
       for (const payload of rollDrops(m.def, Math.random, zid, killer.skillFx?.loot || 0)) {
@@ -918,10 +1234,14 @@ export class Game {
 
   // Mort définitive : le personnage est effacé. Roguelike.
   killPlayer(p, killer) {
+    this.leaveParty(p); // le mort quitte le groupe
     p.dead = true; p.permadead = true; p.state = C.ST.DEAD; p.hp = 0;
     p.path = null; p.moveDir = null; p.attackTarget = null;
+    p.casting = null; p.pendingCast = null; // la mort interrompt l'incantation
     const who = killer.kind === C.KIND.MOB ? killer.def.name : killer.name;
-    const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}` : this.zoneDef(p.zi.zoneId).name;
+    const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}`
+      : p.zi.isCave ? p.zi.caveName
+      : this.zoneDef(p.zi.zoneId).name;
     db.recordDeath(p.name, p.level, zoneName, who);
     db.deleteCharacter(p.accountId);
     this.broadcastChat('sys', `☠ ${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
@@ -935,11 +1255,38 @@ export class Game {
 
   // Construit les données d'un nouveau personnage (répartition validée)
   buildCharacter(name, stats, sex) {
-    return Player.buildCharacter(this.island(0).world.spawnPoint, name, stats, sex);
+    if (!C.validateCreationStats(stats)) return null;
+    const clean = {};
+    for (const st of C.STATS) clean[st] = stats[st] | 0;
+    return db.newCharacterData(name, this.island(0).world.spawnPoint, clean, sex);
   }
 
-  reincarnate(p, stats = null, sex = null) {
-    p.reincarnate(this, stats, sex);
+  // XP générée par les dégâts d'un membre, mutualisée dans son groupe.
+  // Adaptation du modèle « 100 % aux dégâts » au jeu en groupe : la part de
+  // monstre entamée (fraction = dégâts effectifs / PVmax) vaut, pour chaque
+  // membre à portée, SA récompense de référence mobXpReward(mob, membre) —
+  // chacun à son niveau, comme en solo. Le total est bonifié de +10 % par
+  // membre au-delà du premier puis réparti à parts égales : les soigneurs
+  // touchent leur part, et grouper reste légèrement plus rentable que
+  // d'additionner des chasses solo. Hors portée ou autre zone : chacun pour soi.
+  shareXpForDamage(dealer, mob, fraction) {
+    const recipients = this.xpRecipients(dealer);
+    const bonus = 1 + C.GROUP_XP_BONUS_PER_MEMBER * (recipients.length - 1);
+    for (const r of recipients) {
+      r.grantXp(C.mobXpReward(mob.level, r.level) * fraction * bonus / recipients.length, this);
+    }
+  }
+
+  // membres du groupe éligibles au partage : même zone, vivants, à portée
+  xpRecipients(dealer) {
+    if (!dealer.party) return [dealer];
+    const out = [];
+    for (const m of dealer.party.members) {
+      if (m.dead || m.zi !== dealer.zi) continue;
+      if (Math.hypot(m.x - dealer.x, m.z - dealer.z) > C.GROUP_XP_RANGE) continue;
+      out.push(m);
+    }
+    return out.length ? out : [dealer];
   }
 
   doPickup(p, d) {
@@ -966,14 +1313,8 @@ export class Game {
       const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
       if (zi.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
     }
-    const d = new Drop(
-      this.nextId++,
-      payload.gold ? 'or' : payload.item.defId,
-      payload.gold || 0,
-      payload.item || null,
-      x, z,
-      this.now() + ttl
-    );
+    const d = new Drop(this.nextId++, payload.gold ? 'or' : payload.item.defId,
+      payload.gold, payload.item, x, z, this.now() + ttl);
     zi.add(d);
   }
 
@@ -1004,6 +1345,121 @@ export class Game {
     this.sendSelf(p);
   }
 
+  // ---------- Groupes (parties) ----------
+  // Un groupe = { leader, members: [joueurs, chef compris] }. Invitation par
+  // nom (/inviter Nom) ou par clic ; elle expire après GROUP_INVITE_TTL s.
+  // Le chef peut exclure ; s'il part (départ, mort, déconnexion), dissolution.
+
+  // informe tous les membres de la composition (panneau + surlignage des noms)
+  sendPartyUpdate(party) {
+    const msg = {
+      t: 'party_update',
+      leaderId: party.leader.id,
+      members: party.members.map(m => ({ id: m.id, name: m.name, level: m.level })),
+    };
+    for (const m of party.members) this.send(m, msg);
+  }
+
+  broadcastToParty(party, text, except = null) {
+    for (const m of party.members) {
+      if (m !== except) this.send(m, { t: 'info', text });
+    }
+  }
+
+  partyInvite(p, msg) {
+    let target = null;
+    if (msg.id != null) target = this.players.get(msg.id | 0);
+    else {
+      const name = String(msg.name || '').trim().toLowerCase();
+      if (name) for (const x of this.players.values()) {
+        if (x.name.toLowerCase() === name) { target = x; break; }
+      }
+    }
+    if (!target || target === p || target.dead || target.permadead) {
+      this.send(p, { t: 'info', text: 'Personne de ce nom à inviter.' });
+      return;
+    }
+    if (target.party) { this.send(p, { t: 'info', text: `${target.name} est déjà dans un groupe.` }); return; }
+    if (p.party && p.party.leader !== p) { this.send(p, { t: 'info', text: 'Seul le chef du groupe peut inviter.' }); return; }
+    if (p.party && p.party.members.length >= C.GROUP_MAX_SIZE) {
+      this.send(p, { t: 'info', text: `Le groupe est complet (${C.GROUP_MAX_SIZE} membres).` });
+      return;
+    }
+    target.partyInvite = { fromId: p.id, until: this.now() + C.GROUP_INVITE_TTL };
+    this.send(target, { t: 'party_invite', fromId: p.id, from: p.name });
+    this.send(p, { t: 'info', text: `Invitation envoyée à ${target.name}.` });
+  }
+
+  partyAccept(p) {
+    const inv = p.partyInvite;
+    p.partyInvite = null;
+    if (!inv || this.now() > inv.until) { this.send(p, { t: 'info', text: 'L\'invitation a expiré.' }); return; }
+    if (p.party) return; // déjà groupé (ne devrait pas arriver)
+    const from = this.players.get(inv.fromId);
+    if (!from || from.dead || from.permadead) { this.send(p, { t: 'info', text: 'L\'invitant n\'est plus là.' }); return; }
+    if (from.party && from.party.leader !== from) { this.send(p, { t: 'info', text: 'L\'invitant n\'est plus chef de groupe.' }); return; }
+    let party = from.party;
+    if (!party) {
+      party = { leader: from, members: [from] };
+      from.party = party;
+    }
+    if (party.members.length >= C.GROUP_MAX_SIZE) { this.send(p, { t: 'info', text: 'Le groupe est complet.' }); return; }
+    party.members.push(p);
+    p.party = party;
+    this.broadcastToParty(party, `${p.name} rejoint le groupe.`, p);
+    this.send(p, { t: 'info', text: `Vous rejoignez le groupe de ${party.leader.name}.` });
+    this.sendPartyUpdate(party);
+  }
+
+  partyDecline(p) {
+    const inv = p.partyInvite;
+    p.partyInvite = null;
+    if (!inv) return;
+    const from = this.players.get(inv.fromId);
+    if (from) this.send(from, { t: 'info', text: `${p.name} décline votre invitation.` });
+  }
+
+  partyKick(p, msg) {
+    const party = p.party;
+    if (!party || party.leader !== p) return;
+    const target = party.members.find(m => m.id === (msg.id | 0));
+    if (!target || target === p) return;
+    this.send(target, { t: 'info', text: 'Vous avez été exclu du groupe.' });
+    this.broadcastToParty(party, `${target.name} a été exclu du groupe.`, target);
+    this.leaveParty(target);
+  }
+
+  // sortie d'un membre (départ volontaire, exclusion, mort, déconnexion).
+  // Chef parti -> dissolution ; groupe réduit à un seul membre -> dissolution.
+  leaveParty(p) {
+    const party = p.party;
+    if (!party) return;
+    p.party = null;
+    const emptyUpdate = { t: 'party_update', leaderId: 0, members: [] };
+    this.send(p, emptyUpdate);
+    if (party.leader === p) {
+      for (const m of party.members) {
+        if (m === p) continue;
+        m.party = null;
+        this.send(m, emptyUpdate);
+        this.send(m, { t: 'info', text: 'Le groupe est dissous : le chef est parti.' });
+      }
+      party.members = [];
+      return;
+    }
+    party.members = party.members.filter(m => m !== p);
+    if (party.members.length < 2) {
+      for (const m of party.members) {
+        m.party = null;
+        this.send(m, emptyUpdate);
+        this.send(m, { t: 'info', text: 'Le groupe est dissous.' });
+      }
+      party.members = [];
+    } else {
+      this.sendPartyUpdate(party);
+    }
+  }
+
   // ---------- Boucle ----------
   tick() {
     this.tickCount++;
@@ -1011,16 +1467,28 @@ export class Game {
     this.worldTime = (this.worldTime + dt) % C.DAY_LENGTH;
     const now = this.now();
 
-    for (const p of this.players.values()) {
-      p.tick(this, now, dt);
+    for (const p of this.players.values()) p.tick(this, now, dt);
+
+    // PV des membres de groupe (panneau de groupe côté client)
+    if (this.tickCount % PARTY_VITALS_EVERY_TICKS === 0) {
+      const done = new Set();
+      for (const p of this.players.values()) {
+        const party = p.party;
+        if (!party || done.has(party)) continue;
+        done.add(party);
+        const vit = party.members.map(m => ({ id: m.id, hp: Math.round(m.hp), maxHp: m.eff.maxHp }));
+        for (const m of party.members) this.send(m, { t: 'party_vitals', members: vit });
+      }
     }
 
     // Monstres et objets au sol, zone par zone
     for (const zi of this.zones.values()) {
       const hasPlayers = zi.players > 0;
+      // spawn par le mouvement (l'Épreuve, gauntlet figé, reste pré-peuplée)
+      if (hasPlayers && !zi.isTrial) this.maybeSpawn(zi, now);
       for (const e of [...zi.entities.values()]) {
         if (e.kind === C.KIND.MOB) {
-          if (hasPlayers || e.dead) e.tick(this, zi, now, dt);
+          if (hasPlayers || e.dead) e.tick(this, now, dt);
         } else if (e.kind === C.KIND.DROP && now > e.expiresAt) {
           zi.remove(e);
         }

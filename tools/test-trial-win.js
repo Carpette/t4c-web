@@ -1,5 +1,6 @@
 // Test : victoire de l'Épreuve → déblocage de la zone suivante.
 // Le 1er compte créé est admin : on s'en sert pour accélérer (niveau, téléport local).
+import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 
@@ -37,7 +38,7 @@ ws.on('message', (raw, bin) => {
 });
 
 await new Promise(r => ws.on('open', r));
-send({ t: 'register', name: 'Champion', pass: 'test1234' });
+send({ t: 'register', v: PROTOCOL_VERSION, name: 'Champion', pass: 'test1234' });
 await waitFor(() => S.self && S.zone);
 ok('admin (1er compte)', S.admin === true);
 
@@ -45,10 +46,10 @@ send({ t: 'admin', cmd: 'set', level: 120 });
 await waitFor(() => S.self?.level === 120);
 ok('niveau 120 via admin', S.self?.level === 120);
 
-// téléport local près du portail de l'Épreuve (monts Righul, carte Arakas)
-send({ t: 'admin', cmd: 'goto', x: 114.5, z: 43.5 });
+// téléport local près du portail de l'Épreuve (caverne de Jarko, désert NO d'Arakas)
+send({ t: 'admin', cmd: 'goto', x: 107.5, z: 75.5 });
 await new Promise(r => setTimeout(r, 400));
-send({ t: 'interact', prop: 'trialgate', x: 114.5, z: 45.5 });
+send({ t: 'interact', prop: 'trialgate', x: 107.5, z: 77.5 });
 await waitFor(() => S.trial, 15000);
 ok('confirmation reçue', !!S.trial);
 send({ t: 'trial_enter' });

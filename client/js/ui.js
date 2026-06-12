@@ -1,9 +1,10 @@
 // Interface : connexion, HUD, inventaire (poupée T4C), fiche perso, chat, dégâts flottants
-import { STAT_NAMES, STATS, PROTOCOL_VERSION } from '../../shared/constants.js';
+import { STAT_NAMES, STATS, PROTOCOL_VERSION, GROUP_INVITE_TTL } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
-import { SETTING_DEFS, SETTING_CHOICES, settings, setSetting } from './settings.js';
+import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting } from './settings.js';
 import { refreshMusic } from './music.js';
+import { refreshSfx, play as playSfx } from './sfx.js';
 
 const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
@@ -109,6 +110,17 @@ export class UI {
     };
     $('btn-trial-go').onclick = () => { $('trial-modal').classList.add('hidden'); net.send({ t: 'trial_enter' }); };
     $('btn-trial-no').onclick = () => $('trial-modal').classList.add('hidden');
+
+    // ---- Groupe : réponses à l'invitation, départ, invitation par clic ----
+    this.party = null;          // { leaderId, members: [{id, name, level}] }
+    this.selfId = null;         // renseigné par main.js au welcome
+    this.targetPlayerId = null; // joueur ciblé (bouton « Inviter »)
+    $('party-invite-yes').onclick = () => { $('party-invite').classList.add('hidden'); net.send({ t: 'party_accept' }); };
+    $('party-invite-no').onclick = () => { $('party-invite').classList.add('hidden'); net.send({ t: 'party_decline' }); };
+    $('party-leave').onclick = () => net.send({ t: 'party_leave' });
+    $('target-invite').onclick = () => {
+      if (this.targetPlayerId != null) net.send({ t: 'party_invite', id: this.targetPlayerId });
+    };
     document.querySelectorAll('#shop-tabs button').forEach(b => {
       b.onclick = () => {
         document.querySelectorAll('#shop-tabs button').forEach(x => x.classList.remove('active'));
@@ -240,12 +252,21 @@ export class UI {
     };
 
     addSection('Audio');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn')) {
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn' || k === 'sfxOn')) {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
       cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
       addRow(label, cb);
+    }
+    for (const [key, label] of SETTING_SLIDERS) {
+      const sl = document.createElement('input');
+      sl.type = 'range';
+      sl.min = '0'; sl.max = '1'; sl.step = '0.05';
+      sl.value = settings[key];
+      sl.oninput = () => { setSetting(key, +sl.value); refreshSfx(); };
+      sl.onchange = () => playSfx('or'); // petit aperçu du volume choisi
+      addRow(label, sl);
     }
     for (const c of SETTING_CHOICES) {
       const sel = document.createElement('select');
@@ -256,7 +277,7 @@ export class UI {
     }
 
     addSection('Affichage');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn')) {
+    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn' && k !== 'sfxOn')) {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
@@ -308,6 +329,27 @@ export class UI {
     this.cds[spellId] = performance.now() / 1000 + dur;
   }
 
+  // ---- Barre d'incantation (vitesse de sort T4C) ----
+  // Remplissage linéaire en CSS pendant `ms` ; cachée à la fin ou si le
+  // serveur interrompt l'incantation (cast_break : mouvement, cible perdue).
+  startCastBar(name, ms) {
+    const bar = $('castbar'), fill = $('castbar-fill');
+    $('castbar-label').textContent = `${name} — récupération`;
+    bar.classList.remove('hidden');
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    void fill.offsetWidth; // force le reflow pour relancer la transition
+    fill.style.transition = `width ${ms}ms linear`;
+    fill.style.width = '100%';
+    clearTimeout(this._castTimer);
+    this._castTimer = setTimeout(() => bar.classList.add('hidden'), ms + 200);
+  }
+
+  endCastBar() {
+    clearTimeout(this._castTimer);
+    $('castbar').classList.add('hidden');
+  }
+
   tickCooldowns() {
     const now = performance.now() / 1000;
     // uniquement la barre de sorts : les cases de potions partagent la classe
@@ -325,6 +367,12 @@ export class UI {
   // ---- Boutique ----
   showShop(msg) {
     this.shop = msg;
+    // un enseignant n'a pas d'étal d'objets : ouvre directement l'onglet sorts
+    if (!msg.items.length && msg.spells.length && this.shopTab !== 'spells') {
+      this.shopTab = 'spells';
+      document.querySelectorAll('#shop-tabs button').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === 'spells'));
+    }
     $('shop-title').textContent = msg.name;
     $('shop').classList.remove('hidden');
     this.renderShop();
@@ -467,6 +515,26 @@ export class UI {
   showObelisk(msg) {
     const div = $('obelisk-list');
     div.innerHTML = '';
+    // réseau LOCAL : les autres obélisques de la zone, pour quelques pièces d'or
+    if (msg.local?.length) {
+      const h = document.createElement('h3');
+      h.className = 'bank-section';
+      h.textContent = `Voyages locaux (${msg.cost} or)`;
+      div.appendChild(h);
+      const broke = (this.self?.gold ?? 0) < msg.cost;
+      for (const o of msg.local) {
+        const btn = document.createElement('button');
+        btn.textContent = `${o.name} — ${msg.cost} or`;
+        btn.disabled = broke;
+        btn.title = broke ? `Il vous faut ${msg.cost} pièces d'or.` : '';
+        btn.onclick = () => { $('obelisk-panel').classList.add('hidden'); this.net.send({ t: 'teleport_local', i: o.i }); };
+        div.appendChild(btn);
+      }
+      const h2 = document.createElement('h3');
+      h2.className = 'bank-section';
+      h2.textContent = 'Autres zones';
+      div.appendChild(h2);
+    }
     for (const z of msg.zones) {
       const btn = document.createElement('button');
       btn.textContent = `${z.name} (niv. ${z.levels[0]}-${z.levels[1]})` + (z.id === msg.current ? ' — ici' : '');
@@ -574,9 +642,13 @@ export class UI {
 
   renderBuffs() {
     const names = {
-      def: '🛡 Protection', speed: '💨 Dextérité', dmg: '⚔ Instinct de Combat',
-      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la Terre',
-      light: '💡 Lumière',
+      def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Instinct de combat',
+      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la terre',
+      light: '💡 Lumière', int: '🧠 Esprit clair', wis: '🕊 Tranquillité',
+      agi: '🤸 Dextérité', spellpow: '🔮 Afflux de Mana', retort: '🔥 Bouclier élémentaire',
+      resistAll: '🔮 Bouclier de mana', resist_feu: '🔥 Résistance au feu',
+      resist_eau: '❄ Résistance à la glace', sanctuaire: '⛨ Sanctuaire (intouchable)',
+      transe: '🧘 Transe (ni attaque ni sort)', maudit: '☠ Maudit (soins impossibles)',
     };
     $('buffs-display').innerHTML = (this.self?.buffs || [])
       .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');
@@ -846,10 +918,79 @@ export class UI {
   }
   hideTooltip() { $('tooltip').classList.add('hidden'); }
 
-  setTarget(name, hpPct) {
-    if (!name) { $('target-frame').classList.add('hidden'); return; }
+  // `playerId` : si la cible est un autre joueur, propose de l'inviter au groupe
+  setTarget(name, hpPct, playerId = null) {
+    if (!name) { $('target-frame').classList.add('hidden'); this.targetPlayerId = null; return; }
     $('target-frame').classList.remove('hidden');
     $('target-name').textContent = name;
     $('target-hp').style.width = `${hpPct}%`;
+    this.targetPlayerId = playerId;
+    const alreadyGrouped = playerId != null && !!this.party?.members.some(m => m.id === playerId);
+    $('target-invite').classList.toggle('hidden', playerId == null || alreadyGrouped);
+  }
+
+  // ---- Groupe ----
+  setParty(msg) {
+    this.party = msg.members.length ? msg : null;
+    this.renderParty();
+  }
+
+  renderParty() {
+    const panel = $('party-panel');
+    if (!this.party) { panel.classList.add('hidden'); this._partyHpFills = null; return; }
+    panel.classList.remove('hidden');
+    const list = $('party-list');
+    list.innerHTML = '';
+    this._partyHpFills = new Map();
+    const isLeader = this.party.leaderId === this.selfId;
+    for (const m of this.party.members) {
+      const row = document.createElement('div');
+      row.className = 'party-row';
+      const nameLine = document.createElement('div');
+      nameLine.className = 'party-name';
+      const label = document.createElement('span');
+      if (m.id === this.party.leaderId) label.classList.add('leader');
+      label.textContent = `${m.id === this.party.leaderId ? '★ ' : ''}${m.name} [${m.level}]`;
+      nameLine.appendChild(label);
+      // exclusion : réservée au chef, jamais sur soi-même
+      if (isLeader && m.id !== this.selfId) {
+        const kick = document.createElement('button');
+        kick.className = 'kick';
+        kick.title = 'Exclure du groupe';
+        kick.textContent = '✖';
+        kick.onclick = () => this.net.send({ t: 'party_kick', id: m.id });
+        nameLine.appendChild(kick);
+      }
+      const bar = document.createElement('div');
+      bar.className = 'party-hp';
+      const fill = document.createElement('div');
+      bar.appendChild(fill);
+      this._partyHpFills.set(m.id, fill);
+      row.append(nameLine, bar);
+      list.appendChild(row);
+    }
+  }
+
+  updatePartyVitals(msg) {
+    if (!this._partyHpFills) return;
+    for (const v of msg.members) {
+      const fill = this._partyHpFills.get(v.id);
+      if (fill) fill.style.width = `${Math.max(0, Math.min(100, (v.hp / Math.max(1, v.maxHp)) * 100))}%`;
+    }
+  }
+
+  showPartyInvite(msg) {
+    $('party-invite-text').textContent = `${msg.from} vous invite dans son groupe.`;
+    $('party-invite').classList.remove('hidden');
+    this.addChat('sys', `${msg.from} vous invite dans son groupe (expire dans ${GROUP_INVITE_TTL} s).`);
+    clearTimeout(this._inviteTimer);
+    this._inviteTimer = setTimeout(() => $('party-invite').classList.add('hidden'), GROUP_INVITE_TTL * 1000);
+  }
+
+  // XP par coup : le serveur regroupe les gains, la barre suit sans `self` complet
+  applyXp(msg) {
+    if (!this.self) return;
+    this.self.xp = msg.xp;
+    this.renderBars();
   }
 }
