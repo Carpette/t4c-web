@@ -165,11 +165,25 @@
 
       <div class="row">
         <div style="flex:1; min-width: 380px">
-          <h2>1. Téléverser une image d'objet (PNG)</h2>
-          <p class="hint">Une seule image, fond transparent conseillé, ~48 à 96 px de haut.
-          Elle servira d'icône (inventaire, boutique) et d'apparence au sol.</p>
+          <h2>0. Préparation automatique à l'import</h2>
+          <p class="hint">Pour les images générées par IA : le fond uni est rendu transparent
+          (détourage chroma, bords adoucis) et l'image est redimensionnée à la taille exacte
+          attendue. Appliqué au moment du téléversement, l'original n'est pas modifié.</p>
           <div class="toolbar">
-            <input type="file" id="skin-item-file" accept="image/png">
+            <label><input type="checkbox" id="skin-chroma" checked> 🟩 Fond uni → transparent</label>
+            <input type="color" id="skin-chroma-color" value="#00ff00" title="Couleur du fond à détourer">
+            <label>tolérance <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" style="width:110px"></label>
+          </div>
+          <div class="toolbar">
+            <label><input type="checkbox" id="skin-resize" checked> 📐 Redimensionner à la taille attendue</label>
+            <label>objets : <input id="skin-item-size" value="96" style="width:50px"> px</label>
+          </div>
+
+          <h2>1. Téléverser une image d'objet (PNG)</h2>
+          <p class="hint">Une seule image. Elle servira d'icône (inventaire, boutique)
+          et d'apparence au sol.</p>
+          <div class="toolbar">
+            <input type="file" id="skin-item-file" accept="image/png,image/jpeg,image/webp">
             <button id="skin-item-upload">⬆ Téléverser</button>
           </div>
 
@@ -179,7 +193,7 @@
           l'ancrage des pieds dans la case, et les colonnes de chaque animation
           (stance, run, swing et die sont obligatoires).</p>
           <div class="toolbar">
-            <input type="file" id="skin-enemy-file" accept="image/png">
+            <input type="file" id="skin-enemy-file" accept="image/png,image/jpeg,image/webp">
             <label>Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" style="width:120px"></label>
           </div>
           <div class="toolbar">

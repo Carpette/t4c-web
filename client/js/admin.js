@@ -64,6 +64,60 @@ const fileToBase64 = (file) => new Promise((res, rej) => {
   r.readAsDataURL(file);
 });
 
+// ---- Préparation à l'import : détourage chroma + redimensionnement ----
+const loadImageFile = (file) => new Promise((res, rej) => {
+  const img = new Image();
+  img.onload = () => res(img);
+  img.onerror = () => rej(new Error('image illisible'));
+  img.src = URL.createObjectURL(file);
+});
+
+// rend transparent tout pixel proche de la couleur de fond (bords adoucis)
+function chromaKey(ctx, w, h, hex, tol) {
+  const r0 = parseInt(hex.slice(1, 3), 16), g0 = parseInt(hex.slice(3, 5), 16), b0 = parseInt(hex.slice(5, 7), 16);
+  const d = ctx.getImageData(0, 0, w, h);
+  const px = d.data;
+  const soft = tol * 1.55; // zone de transition : alpha progressif
+  for (let i = 0; i < px.length; i += 4) {
+    const dr = px[i] - r0, dg = px[i + 1] - g0, db = px[i + 2] - b0;
+    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    if (dist < tol) px[i + 3] = 0;
+    else if (dist < soft) px[i + 3] = Math.min(px[i + 3], Math.round(((dist - tol) / (soft - tol)) * 255));
+  }
+  ctx.putImageData(d, 0, 0);
+}
+
+// Pipeline : chroma à PLEINE résolution (détourage propre), puis resize.
+// mode 'contain' (objets : tient dans la cible, centré) ou 'stretch'
+// (planches : la grille doit tomber juste ; le ratio étant respecté par
+// l'IA, la déformation est négligeable). Retourne du PNG en base64.
+async function prepareImage(file, { targetW = 0, targetH = 0, mode = 'contain' } = {}) {
+  const img = await loadImageFile(file);
+  const a = document.createElement('canvas');
+  a.width = img.width; a.height = img.height;
+  const actx = a.getContext('2d');
+  actx.drawImage(img, 0, 0);
+  if ($('skin-chroma').checked) {
+    chromaKey(actx, a.width, a.height, $('skin-chroma-color').value, parseInt($('skin-chroma-tol').value, 10) || 90);
+  }
+  if (!$('skin-resize').checked || !targetW || !targetH) {
+    return { data: a.toDataURL('image/png').split(',')[1], canvas: a };
+  }
+  const b = document.createElement('canvas');
+  b.width = targetW; b.height = targetH;
+  const bctx = b.getContext('2d');
+  bctx.imageSmoothingEnabled = true;
+  bctx.imageSmoothingQuality = 'high';
+  if (mode === 'stretch') {
+    bctx.drawImage(a, 0, 0, a.width, a.height, 0, 0, targetW, targetH);
+  } else {
+    const s = Math.min(targetW / a.width, targetH / a.height);
+    const w = Math.max(1, Math.round(a.width * s)), h = Math.max(1, Math.round(a.height * s));
+    bctx.drawImage(a, 0, 0, a.width, a.height, Math.round((targetW - w) / 2), Math.round((targetH - h) / 2), w, h);
+  }
+  return { data: b.toDataURL('image/png').split(',')[1], canvas: b };
+}
+
 function skinPreview(src) {
   const img = $('skin-preview');
   img.src = src;
@@ -202,17 +256,20 @@ function itemPrompt(id) {
     legs: 'jambières', gloves: 'gants', belt: 'ceinture', boots: 'bottes',
     ring: 'anneau', ring2: 'anneau', amulet: 'amulette', use: 'consommable (potion/fiole)',
   };
+  const bg = $('skin-chroma-color').value.toUpperCase();
   return `Génère une image d'objet pour un jeu vidéo RPG médiéval-fantastique.
 
 Objet : ${def.name} (${slotNames[def.slot] || def.slot}).
 
-Contraintes techniques IMPÉRATIVES :
-- UN SEUL fichier PNG avec fond 100 % TRANSPARENT (canal alpha), aucune couleur de fond ;
-- canevas de 96 x 96 pixels, l'objet centré et occupant environ 80 % de la hauteur ;
+Contraintes techniques IMPÉRATIVES (l'image sera détourée et redimensionnée par un outil) :
+- fond UNI de couleur VERTE PURE ${bg}, parfaitement uniforme sur toute l'image :
+  aucun dégradé, aucune texture, aucun vignettage, aucune ombre portée sur le fond ;
+- AUCUNE teinte verte sur l'objet lui-même (elle deviendrait transparente) ;
+- image CARRÉE (ratio 1:1), idéalement 96 x 96 pixels — si la taille exacte est
+  impossible, respecte STRICTEMENT le ratio carré ;
+- un seul objet, entier, centré, occupant environ 80 % de la hauteur ;
 - l'objet est vu comme POSÉ AU SOL en vue isométrique 3/4 (légèrement de haut) ;
-- une seule instance de l'objet, entière, sans découpe ;
-- ombre au sol discrète autorisée (petite ellipse sombre semi-transparente sous l'objet), rien d'autre ;
-- aucun débordement hors du canevas.
+- pas d'ombre au sol, pas de reflet, contour net.
 
 ${STYLE_COMMUN}`;
 }
@@ -236,14 +293,21 @@ function enemyPrompt(creatureName = null, flavor = '') {
     };
     return `  - colonnes ${a.from} à ${a.to} : ${labels[n] || n}`;
   }).join('\n');
+  const bg = $('skin-chroma-color').value.toUpperCase();
   return `Génère une PLANCHE DE SPRITES (sprite sheet) d'une créature pour un jeu vidéo RPG
 isométrique médiéval-fantastique.
 
 Créature : ${name}.${flavor ? `\n${flavor}` : ''}
 
-Contraintes techniques IMPÉRATIVES — la planche est découpée par un programme :
-- UN SEUL fichier PNG avec fond 100 % TRANSPARENT, taille EXACTE ${cols * cw} x ${8 * ch} pixels ;
-- grille STRICTEMENT régulière : 8 lignes x ${cols} colonnes, chaque case fait ${cw} x ${ch} pixels ;
+Contraintes techniques IMPÉRATIVES — la planche est détourée, redimensionnée puis
+découpée par un programme :
+- fond UNI de couleur VERTE PURE ${bg}, parfaitement uniforme sur TOUTE la planche :
+  aucun dégradé, aucune texture, aucune ligne de grille visible, aucune ombre au sol ;
+- AUCUNE teinte verte sur la créature (elle deviendrait transparente) ;
+- taille idéale ${cols * cw} x ${8 * ch} pixels — si impossible, respecte STRICTEMENT
+  ce ratio ${cols * cw}:${8 * ch} (l'outil redimensionne à l'import) ;
+- grille STRICTEMENT régulière : 8 lignes x ${cols} colonnes, chaque case fait ${cw} x ${ch} pixels
+  (à l'échelle du ratio) ;
 - AUCUN espace, marge ou gouttière entre les cases ; rien ne déborde d'une case sur l'autre ;
 - chaque LIGNE est la même animation vue dans une direction différente, dans CET ordre
   de haut en bas : 1) ouest (profil gauche), 2) nord-ouest (dos 3/4 gauche), 3) nord (dos),
@@ -254,7 +318,7 @@ ${animLines}
 - la créature garde la MÊME taille, le même style et la même palette dans toutes les cases ;
 - dans chaque case, les pieds (point de contact au sol) sont au pixel (${ax}, ${ay})
   mesuré depuis le coin haut-gauche de la case — position stable d'une frame à l'autre ;
-- ombre au sol discrète autorisée (ellipse sombre sous les pieds), contenue dans la case.
+- pas d'ombre portée (le fond doit rester du vert pur autour de la créature).
 
 ${STYLE_COMMUN}
 Caméra identique à un sprite vu de 3/4 haut : on voit le dessus et un côté de la créature.`;
@@ -268,18 +332,20 @@ $('skin-prompt-copy').onclick = () => {
 
 $('skin-item-upload').onclick = async () => {
   const f = $('skin-item-file').files[0];
-  if (!f) { $('skins-msg').textContent = '✘ Choisissez un fichier PNG.'; return; }
+  if (!f) { $('skins-msg').textContent = '✘ Choisissez un fichier image.'; return; }
   try {
-    const r = await api('/api/admin/skins/upload', 'POST', { name: f.name, data: await fileToBase64(f) });
-    $('skins-msg').textContent = `✔ ${r.file} téléversé — assignez-le à un objet ci-contre.`;
-    skinPreview(`/assets/${r.file}?t=${Date.now()}`);
+    const size = parseInt($('skin-item-size').value, 10) || 96;
+    const { data, canvas } = await prepareImage(f, { targetW: size, targetH: size, mode: 'contain' });
+    const r = await api('/api/admin/skins/upload', 'POST', { name: f.name, data });
+    $('skins-msg').textContent = `✔ ${r.file} téléversé (${canvas.width}×${canvas.height}) — assignez-le à un objet ci-contre.`;
+    skinPreview(canvas.toDataURL());
     await loadSkins();
   } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
 };
 
 $('skin-enemy-upload').onclick = async () => {
   const f = $('skin-enemy-file').files[0];
-  if (!f) { $('skins-msg').textContent = '✘ Choisissez la planche PNG.'; return; }
+  if (!f) { $('skins-msg').textContent = '✘ Choisissez la planche.'; return; }
   try {
     const cfg = {
       name: $('skin-enemy-name').value.trim(),
@@ -287,10 +353,15 @@ $('skin-enemy-upload').onclick = async () => {
       anchor: [parseInt($('skin-anchor-x').value, 10), parseInt($('skin-anchor-y').value, 10)],
       anims: JSON.parse($('skin-enemy-anims').value),
     };
-    const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data: await fileToBase64(f) });
+    // taille EXACTE attendue par la grille : colonnes x case, 8 lignes
+    const cols = Math.max(0, ...Object.values(cfg.anims).map(a => (a.to | 0) + 1));
+    const { data, canvas } = await prepareImage(f, {
+      targetW: cols * cfg.cell[0], targetH: 8 * cfg.cell[1], mode: 'stretch',
+    });
+    const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data });
     $('skins-msg').textContent = `✔ Planche « ${r.sprite} » ${r.existed ? 'remplacée' : 'importée'} `
-      + `(${r.cols} colonnes, ${r.anims.join(', ')}) — assignez-la à une créature.`;
-    skinPreview(URL.createObjectURL(f));
+      + `(${canvas.width}×${canvas.height}, ${r.cols} colonnes, ${r.anims.join(', ')}) — assignez-la à une créature.`;
+    skinPreview(canvas.toDataURL());
     await loadSkins();
   } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
 };
