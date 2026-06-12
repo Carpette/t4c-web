@@ -1,17 +1,21 @@
-// Boucle de jeu autoritative multi-zones : îles, Épreuves solo, PNJ, sorts, permadeath.
+// Orchestrateur du jeu autoritatif multi-zones : boucle, réseau, zones (îles,
+// Épreuves, cavernes), commerce, banque, groupes, permadeath. Les entités vivent
+// dans entities.js, le système de sorts dans spells.js, la grille dans zone.js.
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS, SLOTS, CHESTS, BANK_SIZE, chestPool } from '../../shared/defs.js';
 import { generateWorld, generateTrial, SPAWN_ZONES, mulberry32 } from '../../shared/worldgen.js';
 import { generateCave, CAVES, CAVE_LEVEL_BONUS } from '../../shared/cave.js';
 import { encodeSnapshot } from '../../shared/protocol.js';
 import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inventoryWeight, setNextIid, zoneMult } from './items.js';
-import { findPath, lineOfSight } from './pathfind.js';
+import { findPath } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { loadOverrides } from '../admin.js';
 import * as db from '../db.js';
+import { ZoneInstance, walkableNear } from './zone.js';
+import { Player, Mob, NPC, Drop } from './entities.js';
+import * as spells from './spells.js';
 
-const CELL = 16;
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 
@@ -20,69 +24,7 @@ const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
 const SPAWN_INTERVAL_MS = Math.max(50,
   parseInt(process.env.T4C_SPAWN_MS, 10) || C.SPAWN_INTERVAL_DEFAULT_MS);
 const SPAWN_TRIES_PER_TICK = 12;  // essais de placement avant d'abandonner le tick
-const XP_NOTIFY_EVERY_TICKS = 5;  // flotteurs d'XP regroupés (2 envois/s au plus)
 const PARTY_VITALS_EVERY_TICKS = 10; // PV des membres du groupe : 1 envoi/s
-
-// Première case praticable en spirale autour de (x, z) — pour déposer un
-// joueur au pied d'un prop bloquant (obélisque...) sans l'enfermer dedans.
-function walkableNear(world, x, z, maxR = 4) {
-  for (let r = 0; r <= maxR; r++) {
-    for (let dz = -r; dz <= r; dz++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; // anneau seulement
-        if (world.isWalkable(x + dx, z + dz)) return { x: x + dx, z: z + dz };
-      }
-    }
-  }
-  return { x: world.spawnPoint.x, z: world.spawnPoint.z };
-}
-
-// ---------- Une zone = un monde isolé (île ou instance d'Épreuve) ----------
-class ZoneInstance {
-  constructor(key, world, zoneId, isTrial = false, owner = null) {
-    this.key = key;
-    this.world = world;
-    this.zoneId = zoneId;       // index de la zone (pour le scaling des mobs)
-    this.isTrial = isTrial;
-    this.owner = owner;          // accountId si instance personnelle
-    this.entities = new Map();
-    this.grid = new Map();
-    this.players = 0;
-    // spawn par le mouvement : camps (budgets de population) + « chaleur »
-    this.camps = [];
-    this.hotUntil = 0;       // la zone est chaude tant que now <= hotUntil
-    this.nextSpawnAt = 0;    // prochain tick de spawn autorisé
-  }
-  cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
-  gridAdd(e) {
-    const k = this.cellKey(e.x, e.z);
-    let s = this.grid.get(k);
-    if (!s) { s = new Set(); this.grid.set(k, s); }
-    s.add(e); e._cell = k;
-  }
-  gridMove(e) {
-    const k = this.cellKey(e.x, e.z);
-    if (k !== e._cell) { this.grid.get(e._cell)?.delete(e); this.gridAdd(e); }
-  }
-  gridRemove(e) { this.grid.get(e._cell)?.delete(e); }
-  *nearby(x, z, r) {
-    const c0x = Math.floor((x - r) / CELL), c1x = Math.floor((x + r) / CELL);
-    const c0z = Math.floor((z - r) / CELL), c1z = Math.floor((z + r) / CELL);
-    for (let cz = c0z; cz <= c1z; cz++) {
-      for (let cx = c0x; cx <= c1x; cx++) {
-        const s = this.grid.get((cx << 8) | (cz & 0xff));
-        if (!s) continue;
-        for (const e of s) {
-          if (e.hidden) continue;
-          const dx = e.x - x, dz = e.z - z;
-          if (dx * dx + dz * dz <= r * r) yield e;
-        }
-      }
-    }
-  }
-  add(e) { this.entities.set(e.id, e); this.gridAdd(e); e.zi = this; }
-  remove(e) { this.entities.delete(e.id); this.gridRemove(e); }
-}
 
 export class Game {
   constructor() {
@@ -163,15 +105,7 @@ export class Game {
   spawnMob(zi, defId, x, z, zoneBase) {
     const def = MOBS[defId];
     const sc = C.scaleMob(def, zoneBase);
-    const m = {
-      id: this.nextId++, kind: C.KIND.MOB, defId, def, sc,
-      level: sc.level,
-      x, z, dir: 0, state: C.ST.IDLE,
-      hp: sc.hp, maxHp: sc.hp,
-      home: { x, z }, target: null, atkCd: 0, path: null,
-      wanderAt: this.now() + 2 + Math.random() * 6,
-      dead: false, hidden: false, hideAt: 0, camp: null,
-    };
+    const m = new Mob(this.nextId++, defId, def, sc, x, z, this.now());
     zi.add(m);
     return m;
   }
@@ -188,13 +122,7 @@ export class Game {
       const def = content.npc[spot.npcId] || content.npc.merchant;
       let { x, z } = spot, tries = 0;
       while (!zi.world.isWalkable(x, z) && tries++ < 30) { x += 0.7; }
-      zi.add({
-        id: this.nextId++, kind: C.KIND.NPC, npcId: spot.npcId,
-        name: def.name,
-        look: def.look,
-        x, z, dir: Math.PI, state: C.ST.IDLE, level: 0,
-        hp: 1, dead: false, hidden: false,
-      });
+      zi.add(new NPC(this.nextId++, spot.npcId, def, x, z));
     }
   }
 
@@ -210,31 +138,9 @@ export class Game {
       data = db.newCharacterData(name, this.island(0).world.spawnPoint);
       db.saveCharacter(accountId, data);
     }
-    const p = {
-      id: this.nextId++, kind: C.KIND.PLAYER, ws, accountId, isAdmin: !!isAdmin,
-      name: data.name, sex: data.sex || 'male',
-      level: data.level, xp: data.xp, statPoints: data.statPoints,
-      stats: data.stats, gold: data.gold,
-      inventory: data.inventory || [], equip: data.equip || {},
-      bank: data.bank ?? [], // coffre personnel (migration : anciens personnages sans banque)
-      spells: data.spells || [],
-      // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
-      skills: (data.skills && !Array.isArray(data.skills)) ? data.skills : {},
-      unlocked: data.unlocked || [0],
-      x: data.x, z: data.z, dir: 0, state: C.ST.IDLE,
-      path: null, moveDir: null, attackTarget: null, atkCd: 0, lastCombat: -99,
-      spellCds: {}, buffs: [],
-      hp: 1, mana: 1, dead: false, hidden: false,
-      party: null, partyInvite: null, xpNotify: 0,
-      known: new Set(), events: [], lastChat: 0,
-      channels: ['general', 'aide', 'ventes', 'roleplay'], // Abonnés par défaut
-      pendingPickup: null, pendingInteract: null, trialOffer: null, obeliskUntil: 0,
-    };
+    const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
     for (const it of p.inventory) setNextIid(it.iid + 1);
     for (const it of p.bank) setNextIid(it.iid + 1);
-    // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
-    p.hpAcc = data.hpAcc ?? C.maxHp(p.stats, p.level);
-    p.manaAcc = data.manaAcc ?? C.maxMana(p.stats, p.level);
 
     // zone de départ : Épreuve en cours (recréée) ou île courante
     let zi;
@@ -246,7 +152,7 @@ export class Game {
       zi = this.island(zid);
       if (!zi.world.isWalkable(p.x, p.z)) { p.x = zi.world.spawnPoint.x; p.z = zi.world.spawnPoint.z; }
     }
-    this.recompute(p);
+    p.recompute(this);
     p.hp = data.hp == null ? p.eff.maxHp : Math.min(data.hp, p.eff.maxHp);
     p.mana = data.mana == null ? p.eff.maxMana : Math.min(data.mana, p.eff.maxMana);
     if (p.hp <= 0) p.hp = p.eff.maxHp;
@@ -264,7 +170,7 @@ export class Game {
 
   removePlayer(p, reason) {
     if (!this.players.has(p.id)) return;
-    if (!p.permadead) this.savePlayer(p);
+    if (!p.permadead) p.save();
     this.leaveParty(p); // la déconnexion fait quitter le groupe
     p.zi.players--;
     p.zi.remove(p);
@@ -274,24 +180,7 @@ export class Game {
     try { p.ws.close(1000, reason || 'bye'); } catch {}
   }
 
-  savePlayer(p) {
-    if (p.permadead) return;
-    // en caverne, on sauvegarde le point de retour à la surface : les
-    // coordonnées de la grotte n'auraient aucun sens sur la carte de l'île
-    const pos = p.zi.isCave ? p.zi.returnTo : p;
-    db.saveCharacter(p.accountId, {
-      name: p.name, level: p.level, xp: p.xp, statPoints: p.statPoints,
-      stats: p.stats, hp: p.hp, mana: p.mana, x: pos.x, z: pos.z,
-      gold: p.gold, inventory: p.inventory, equip: p.equip,
-      bank: p.bank,
-      hpAcc: p.hpAcc, manaAcc: p.manaAcc,
-      spells: p.spells, skills: p.skills, unlocked: p.unlocked,
-      sex: p.sex,
-      zoneId: p.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
-      trialFor: p.zi.isTrial ? p.zi.trialTarget : null,
-    });
-  }
-  saveAll() { for (const p of this.players.values()) this.savePlayer(p); }
+  saveAll() { for (const p of this.players.values()) p.save(); }
 
   sendZone(p) {
     const zi = p.zi;
@@ -379,7 +268,7 @@ export class Game {
     const zi = this.createTrial(p, target);
     p.trialFrom = p.zi.zoneId;
     this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
-    this.savePlayer(p);
+    p.save();
     this.send(p, { t: 'info', text: 'L\'Épreuve commence. Atteignez la sortie... ou mourez.' });
   }
 
@@ -391,7 +280,7 @@ export class Game {
     const dest = this.island(target);
     this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
     this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
-    this.savePlayer(p);
+    p.save();
   }
 
   // ---------- Cavernes (intérieurs instanciés, PARTAGÉS entre joueurs) ----------
@@ -445,106 +334,14 @@ export class Game {
       return;
     }
     this.movePlayerToZone(p, zi, zi.world.spawnPoint.x, zi.world.spawnPoint.z);
-    this.savePlayer(p);
+    p.save();
     this.send(p, { t: 'info', text: `Vous pénétrez dans ${zi.caveName}. L'obscurité vous enveloppe...` });
   }
 
   leaveCave(p) {
     const back = p.zi.returnTo;
     this.movePlayerToZone(p, this.island(back.zoneId), back.x, back.z);
-    this.savePlayer(p);
-  }
-
-  // ---------- Stats effectives ----------
-  recompute(p) {
-    const stats = { ...p.stats };
-    let wMin = 0, wMax = 0, weaponSpeed = null, defense = 0, dodgeMalus = 0;
-    let wRanged = false, wRange = 0, attBonus = 0;
-    for (const slot of SLOTS) {
-      const iid = p.equip[slot];
-      if (!iid) continue;
-      const item = p.inventory.find(i => i.iid === iid);
-      if (!item) { delete p.equip[slot]; continue; }
-      const s = itemStats(item);
-      if (slot === 'weapon') {
-        wMin = s.dmgMin; wMax = s.dmgMax; weaponSpeed = s.speed;
-        // arc T4C : l'attaque normale porte à `range` tuiles (avec ligne de vue)
-        const wDef = ITEMS[item.defId];
-        wRanged = !!wDef.ranged; wRange = wDef.range || 0;
-      }
-      defense += s.def;
-      dodgeMalus += s.malus || 0; // malus d'esquive des armures lourdes (T4C) — négatif = bonus
-      attBonus += ITEMS[item.defId].att || 0; // points d'Attaque offerts (Écu de Drachen : +50 Att)
-      for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
-    }
-    // compétences T4C : points entraînés x effet par point
-    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, rangedHit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
-    for (const [id, pts] of Object.entries(p.skills)) {
-      const sk = content.skillById[id];
-      if (!sk || !pts) continue;
-      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v * pts;
-    }
-    // un bouclier équipé améliore la parade de moitié (T4C)
-    if (p.equip.shield) fx.parry *= 1.5;
-    // bonus d'Attaque d'objets (+50 Att = +5 % de toucher en mêlée, comme la compétence)
-    fx.hit += attBonus * 0.001;
-    // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
-    fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
-    // buffs temporaires (valeurs calculées au lancement, façon T4C)
-    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
-    for (const b of p.buffs) {
-      if (b.stat === 'def') buffDef += b.power;
-      else if (b.stat === 'speed') buffSpeed += b.power;
-      else if (b.stat === 'dmg') buffDmgMul += b.power;
-      else if (b.stat === 'regen') buffRegen += b.power;
-      else if (b.stat === 'maxhp') buffMaxHp += b.power;       // Bénédiction
-      else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
-      else if (b.stat === 'int') stats.int += b.power;          // Pensée Claire
-      else if (b.stat === 'wis') stats.wis += b.power;          // Tranquillité
-      else if (b.stat === 'agi') stats.agi += b.power;          // Dextérité (Nimbleness)
-      // 'spellpow' (Poussée de Mana) est lu au lancer d'un sort,
-      // 'retort' (Boucliers de Feu/Glace/Électrique) à la riposte — rien ici.
-    }
-    p.skillFx = fx;
-    const strBonus = Math.floor(stats.str / 3);
-    const dmgMult = 1 + fx.dmgMul + buffDmgMul;
-    p.eff = {
-      stats,
-      maxHp: Math.floor((p.hpAcc ?? C.maxHp(stats, p.level)) * (1 + fx.hpMul)) + buffMaxHp,
-      maxMana: Math.floor(p.manaAcc ?? C.maxMana(stats, p.level)),
-      dmgMin: ((wMin || 2) + strBonus),
-      dmgMax: ((wMax || 3) + strBonus),
-      dmgMult,
-      dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
-      atkCd: C.attackCooldown(stats, weaponSpeed),
-      defense: defense + fx.def + buffDef,
-      speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
-      // arc équipé : portée de l'arme (tuiles), sinon mêlée
-      atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
-      ranged: wRanged,
-      buffRegen,
-      capacity: C.enc(stats),
-    };
-    p.hp = Math.min(p.hp, p.eff.maxHp);
-    p.mana = Math.min(p.mana, p.eff.maxMana);
-
-    // apparence (couches Flare)
-    const layerOf = (slot) => {
-      const iid = p.equip[slot];
-      const item = iid && p.inventory.find(i => i.iid === iid);
-      return item ? (ITEMS[item.defId].layer || null) : null;
-    };
-    const look = {
-      sex: p.sex,
-      chest: layerOf('armor'), head: layerOf('helmet'),
-      legs: layerOf('legs'), hands: layerOf('gloves'),
-      main: layerOf('weapon'), off: layerOf('shield'), feet: layerOf('boots'),
-    };
-    const changed = JSON.stringify(look) !== JSON.stringify(p.look || null);
-    p.look = look;
-    if (changed && this.players.has(p.id)) {
-      this.eventNear(p, { t: 'look', id: p.id, look });
-    }
+    p.save();
   }
 
   sendSelf(p) {
@@ -753,11 +550,11 @@ export class Game {
         let target = slot;
         if (slot === 'ring' && p.equip.ring && p.equip.ring !== item.iid && !p.equip.ring2) target = 'ring2';
         p.equip[target] = item.iid;
-        this.recompute(p); this.sendSelf(p);
+        p.recompute(this); this.sendSelf(p);
         break;
       }
       case 'unequip': {
-        if (p.equip[msg.slot]) { delete p.equip[msg.slot]; this.recompute(p); this.sendSelf(p); }
+        if (p.equip[msg.slot]) { delete p.equip[msg.slot]; p.recompute(this); this.sendSelf(p); }
         break;
       }
       case 'drop': {
@@ -787,7 +584,7 @@ export class Game {
         if (p.statPoints > 0 && C.STATS.includes(msg.stat)) {
           p.stats[msg.stat]++;
           p.statPoints--;
-          this.recompute(p); this.sendSelf(p);
+          p.recompute(this); this.sendSelf(p);
         }
         break;
       }
@@ -858,7 +655,7 @@ export class Game {
       case 'create': {
         if (!p.permadead) return;
         if (!C.validateCreationStats(msg.stats)) { this.send(p, { t: 'info', text: 'Répartition invalide.' }); return; }
-        this.reincarnate(p, msg.stats, msg.sex === 'female' ? 'female' : 'male');
+        p.reincarnate(this, msg.stats, msg.sex === 'female' ? 'female' : 'male');
         break;
       }
       case 'admin': {
@@ -882,7 +679,7 @@ export class Game {
         }
         if (Number.isFinite(+msg.gold)) p.gold = Math.max(0, msg.gold | 0);
         if (Number.isFinite(+msg.statPoints)) p.statPoints = Math.max(0, msg.statPoints | 0);
-        this.recompute(p);
+        p.recompute(this);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
         this.sendSelf(p);
         break;
@@ -891,7 +688,7 @@ export class Game {
         for (const st of C.STATS) {
           if (Number.isFinite(+msg[st])) p.stats[st] = Math.max(1, msg[st] | 0);
         }
-        this.recompute(p);
+        p.recompute(this);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
         this.sendSelf(p);
         break;
@@ -1026,7 +823,7 @@ export class Game {
     }
     p.inventory.splice(i, 1);
     p.bank.push(item);
-    this.recompute(p);
+    p.recompute(this);
     this.openBank(p);
     this.sendSelf(p);
   }
@@ -1125,13 +922,13 @@ export class Game {
         };
       });
     // les sorts "todo" (mécanique non implémentée) ne sont pas proposés à la vente
-    const spells = content.spells.filter(s => this.npcSellsSpell(p, npc, s))
+    const spellList = content.spells.filter(s => this.npcSellsSpell(p, npc, s))
       .map(s => ({
         ...s,
         price: Math.round(s.price * disc),
         known: p.spells.includes(s.id),
-        reqMet: this.spellReqMet(p, s) === true,
-        reqText: this.spellReqText(s),
+        reqMet: spells.spellReqMet(p, s) === true,
+        reqText: spells.spellReqText(s),
       }));
     const skills = (teacher ? [] : content.skills.filter(s => s.zone <= zid))
       .map(s => ({
@@ -1146,7 +943,7 @@ export class Game {
     const npcDef = content.npc[npc.npcId] || content.npc.merchant;
     const line = npcDef.greetings[Math.floor(Math.random() * npcDef.greetings.length)];
     this.eventNear(p, { t: 'say', id: npc.id, text: line, npc: true });
-    this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells, skills });
+    this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells: spellList, skills });
   }
 
   buy(p, msg) {
@@ -1183,7 +980,7 @@ export class Game {
         this.send(p, { t: 'info', text: 'Personne ici ne peut vous enseigner ce sort.' });
         return;
       }
-      const req = this.spellReqMet(p, sp);
+      const req = spells.spellReqMet(p, sp);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const price = Math.round(sp.price * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
@@ -1201,7 +998,7 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = 1;
-      this.recompute(p);
+      p.recompute(this);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
       // entraînement : +1 point, payé en or (système T4C)
@@ -1217,7 +1014,7 @@ export class Game {
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = cur + 1;
-      this.recompute(p);
+      p.recompute(this);
     }
     this.sendSelf(p);
   }
@@ -1254,68 +1051,9 @@ export class Game {
     const price = Math.round(itemPrice(item) * (1 - (p.skillFx?.discount || 0)));
     p.inventory.splice(i, 1);
     p.gold += price;
-    this.recompute(p);
+    p.recompute(this);
     this.send(p, { t: 'loot', text: `Vendu : ${itemLabel(item)} (+${price} or)` });
     this.sendSelf(p);
-  }
-
-  // Prérequis T4C d'un sort : niveau, Sagesse, Intelligence, sort(s) précédent(s).
-  // Retourne true, ou le message expliquant ce qui manque.
-  spellReqMet(p, sp) {
-    const wis = p.eff.stats.wis, intel = p.eff.stats.int;
-    if (sp.level && p.level < sp.level) return `Niveau ${sp.level} requis.`;
-    if (sp.wis && wis < sp.wis) return `${sp.wis} de Sagesse requis (vous : ${wis}).`;
-    if (sp.int && intel < sp.int) return `${sp.int} d'Intelligence requis (vous : ${intel}).`;
-    // la Bible admet plusieurs prérequis (ex : Météorite = Tempête de Feu ET Inferno)
-    for (const req of (Array.isArray(sp.requires) ? sp.requires : sp.requires ? [sp.requires] : [])) {
-      if (!p.spells.includes(req)) {
-        const r = content.spellById[req];
-        return `Sort prérequis : ${r ? r.name : req}.`;
-      }
-    }
-    return true;
-  }
-
-  spellReqText(sp) {
-    const parts = [];
-    if (sp.level) parts.push(`niv. ${sp.level}`);
-    if (sp.wis) parts.push(`Sag ${sp.wis}`);
-    if (sp.int) parts.push(`Int ${sp.int}`);
-    for (const req of (Array.isArray(sp.requires) ? sp.requires : sp.requires ? [sp.requires] : [])) {
-      parts.push(content.spellById[req]?.name || req);
-    }
-    return parts.join(', ');
-  }
-
-  // ---------- Sorts ----------
-  // Vitesse d'incantation T4C (Bible, Spell Speed) : `cast` secondes au niveau
-  // du sort, qui diminue de `castStep` (20 ou 40 ms) par niveau au-delà,
-  // plancher `castMin`. Word of Recall/Gateway/Portal sont fixes (castStep 0).
-  castTimeMs(p, sp) {
-    const slow = (sp.cast ?? 1.5) * 1000;
-    const fast = (sp.castMin ?? 1) * 1000;
-    const step = (sp.castStep ?? 0.02) * 1000;
-    return Math.round(Math.max(fast, slow - Math.max(0, p.level - (sp.level || 1)) * step));
-  }
-
-  // Formule de la Bible : 1dN + base + Int/k + Sag/k (puissance élémentaire = 100)
-  rollSpellOutput(p, f) {
-    const s = p.eff.stats;
-    let v = f.base || 0;
-    if (f.dice) v += 1 + Math.floor(Math.random() * f.dice);
-    if (f.int) v += s.int / f.int;
-    if (f.wis) v += s.wis / f.wis;
-    return v;
-  }
-
-  // Multiplicateur de puissance : compétences + Afflux de Mana (+33 %).
-  // L'Afflux ne s'applique PAS aux sorts d'arcane (réf. t4c.arp.free.fr).
-  spellPowerMul(p, element = null) {
-    let m = 1 + (p.skillFx?.spellMul || 0);
-    if (element !== 'arcane') {
-      for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
-    }
-    return m;
   }
 
   // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
@@ -1327,325 +1065,8 @@ export class Game {
   // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
   isCursed(e) { return (e.curseUntil || 0) > this.now(); }
 
-  // Style visuel/sonore d'un sort pour le client : poison (vert), drain (sombre)
-  // ou simplement son élément
-  spellStyle(sp) {
-    if (sp.leech) return 'drain';
-    if (sp.dot) return 'poison';
-    return sp.element || null;
-  }
-
-  // Validation + début d'incantation. L'effet part dans resolveCast() une fois
-  // le temps d'incantation écoulé (tick). L'approche automatique hors combat
-  // passe toujours par pendingCast : l'incantation démarre une fois à portée.
-  castSpell(p, msg) {
-    const sp = content.spellById[msg.spellId];
-    if (!sp || !p.spells.includes(sp.id) || sp.todo) return;
-    const now = this.now();
-    if (this.isPacified(p)) {
-      this.send(p, { t: 'info', text: 'La transe du Sanctuaire vous empêche de lancer le moindre sort.' });
-      return;
-    }
-    if (p.casting) return; // déjà en train d'incanter
-    if ((p.spellCds[sp.id] || 0) > now) return;
-    if (p.mana < sp.mana) { this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return; }
-
-    const cast = { spellId: sp.id };
-    if (sp.type === 'bolt') {
-      const target = p.zi.entities.get(msg.target | 0);
-      // les sorts purement maudissants (Malédiction) peuvent viser un joueur (T4C)
-      const curseOnly = sp.curse && !sp.dmg;
-      const validTarget = target && !target.dead && !target.hidden
-        && (target.kind === C.KIND.MOB
-          || (curseOnly && target.kind === C.KIND.PLAYER && target.id !== p.id && !this.isUntouchable(target)));
-      if (!validTarget) return;
-      if (sp.undeadOnly && !target.def?.undead) {
-        this.send(p, { t: 'info', text: `${sp.name} n'affecte que les morts-vivants.` });
-        return;
-      }
-      if (Math.hypot(target.x - p.x, target.z - p.z) > sp.range) {
-        // hors mode combat : on s'approche puis on lance (à la T4C)
-        if (msg.approach) { this.startApproachCast(p, msg, target.x, target.z); return; }
-        this.send(p, { t: 'info', text: 'Trop loin.' });
-        return;
-      }
-      if (!lineOfSight(p.zi.world, p, target)) return;
-      cast.target = target.id;
-      p.dir = Math.atan2(target.x - p.x, target.z - p.z);
-    } else if (sp.type === 'aoe' && !sp.centered) {
-      const cx = +msg.x, cz = +msg.z;
-      if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
-      if (Math.hypot(cx - p.x, cz - p.z) > sp.range) {
-        if (msg.approach) { this.startApproachCast(p, msg, cx, cz); return; }
-        this.send(p, { t: 'info', text: 'Trop loin.' });
-        return;
-      }
-      cast.x = cx; cast.z = cz;
-      p.dir = Math.atan2(cx - p.x, cz - p.z);
-    }
-
-    // T4C : l'effet du sort part IMMÉDIATEMENT — la « vitesse du sort » de la
-    // Bible est le délai de RÉCUPÉRATION avant de pouvoir relancer, pas une
-    // incantation préalable (corrigé d'après l'expérience de jeu de Quentin)
-    if ((p.spellReadyAt || 0) > now) {
-      this.send(p, { t: 'cast_cd', ms: Math.max(0, Math.round((p.spellReadyAt - now) * 1000)) });
-      return;
-    }
-    p.casting = cast;
-    if (this.resolveCast(p)) {
-      const ms = this.castTimeMs(p, sp);
-      p.spellReadyAt = now + ms / 1000;
-      p.state = C.ST.ATTACK; // posture de lancement
-      this.send(p, { t: 'cast_start', spellId: sp.id, name: sp.name, ms }); // barre de récupération
-    }
-  }
-
-  // Applique l'effet du sort (formules de la Bible). Retourne true si le sort
-  // est réellement parti (la récupération ne s'applique qu'en cas de succès).
-  resolveCast(p) {
-    const c = p.casting;
-    p.casting = null;
-    const sp = content.spellById[c.spellId];
-    if (!sp || p.dead) return false;
-    const now = this.now();
-    if (p.mana < sp.mana) { this.send(p, { t: 'cast_break' }); this.send(p, { t: 'info', text: 'Mana insuffisant.' }); return false; }
-
-    const mul = this.spellPowerMul(p, sp.element);
-    const wis = p.eff.stats.wis;
-
-    if (sp.type === 'heal') {
-      // Malédiction : aucun soin ne peut atteindre la cible
-      if (this.isCursed(p)) {
-        this.send(p, { t: 'cast_break' });
-        this.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : le soin échoue.' });
-        return false;
-      }
-      const amount = Math.max(1, Math.round(this.rollSpellOutput(p, sp.heal) * mul));
-      p.hp = Math.min(p.eff.maxHp, p.hp + amount);
-      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-    } else if (sp.type === 'buff' && sp.buff.stat === 'sanctuaire') {
-      // Sanctuaire : intouchable pendant la durée, mais incapable d'attaquer
-      // ou de lancer un sort pendant LE DOUBLE de la durée (T4C)
-      p.sanctuaryUntil = now + sp.duration;
-      p.pacifiedUntil = now + sp.duration * 2;
-      p.attackTarget = null; p.pendingCast = null;
-      p.buffs = p.buffs.filter(x => x.stat !== 'sanctuaire' && x.stat !== 'transe');
-      p.buffs.push({ stat: 'sanctuaire', power: 1, until: p.sanctuaryUntil });
-      p.buffs.push({ stat: 'transe', power: 1, until: p.pacifiedUntil });
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: 'sanctuaire' });
-    } else if (sp.type === 'buff') {
-      const b = sp.buff;
-      let power;
-      if (b.value != null) power = b.value;
-      else if (b.selfFrac) power = Math.max(1, Math.round((p.stats[b.stat] || 0) * b.selfFrac)); // % de la stat DE BASE (true_x de la Bible)
-      else if (b.stat === 'maxhp') power = Math.round(wis + Math.random() * (wis / 4)); // Bénédiction : Sag + 1d(Sag/4) PV
-      else if (b.stat === 'retort') power = Math.round((b.base || 0) + (b.dice || 0) / 2); // affichage : dégâts moyens de riposte
-      else power = Math.round(((b.base || 0) + (b.intDiv ? p.eff.stats.int / b.intDiv : 0) + (b.wisDiv ? wis / b.wisDiv : 0)) * 10) / 10;
-      p.buffs = p.buffs.filter(x => x.stat !== b.stat);
-      p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
-      this.recompute(p);
-      this.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: b.stat });
-    } else if (sp.type === 'bolt') {
-      const target = p.zi.entities.get(c.target | 0);
-      const curseOnly = sp.curse && !sp.dmg;
-      // la cible est morte ou s'est dérobée pendant l'incantation : le sort échoue sans coûter de mana
-      if (!target || target.dead || target.hidden
-          || !(target.kind === C.KIND.MOB || (curseOnly && target.kind === C.KIND.PLAYER && target.id !== p.id && !this.isUntouchable(target)))
-          || Math.hypot(target.x - p.x, target.z - p.z) > sp.range + 2
-          || !lineOfSight(p.zi.world, p, target)) {
-        this.send(p, { t: 'cast_break' });
-        this.send(p, { t: 'info', text: 'La cible s\'est dérobée.' });
-        return false;
-      }
-      this.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: this.spellStyle(sp) });
-      if (sp.dmg) {
-        // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
-        let dmg = this.rollSpellOutput(p, sp.dmg) * mul;
-        // Renvoi des Morts-Vivants : multiplicateur Sag/(20+2×niveau) de la Bible
-        if (sp.turnUndead) dmg *= wis / (20 + 2 * p.level);
-        const { dmg: final, mod } = this.applyResist(target, sp, Math.max(1, Math.round(dmg)));
-        this.applyDamage(p, target, final, false, mod);
-        // drain de vie : rend au lanceur, inefficace sur les morts-vivants (T4C)
-        // et bloqué si le lanceur est lui-même maudit (aucun soin ne l'atteint)
-        if (sp.leech && !target.def.undead && !this.isCursed(p)) {
-          p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
-          // filet sombre de la cible vers le lanceur
-          this.eventNear(p, { t: 'proj', from: target.id, to: p.id, color: '#5a1a6a', element: 'drain' });
-          this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-        }
-      }
-      // Enchevêtrement : RALENTIT la cible (malus de vitesse, fidèle au site français)
-      if (sp.slow && !target.dead) {
-        target.slowUntil = now + sp.slow.duration;
-        target.slowFactor = sp.slow.factor;
-      }
-      // Malédiction / Peste : la cible (joueur OU monstre) ne peut plus être soignée
-      if (sp.curse && !target.dead) {
-        target.curseUntil = now + sp.curse;
-        this.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
-        if (target.kind === C.KIND.PLAYER) {
-          target.buffs = target.buffs.filter(x => x.stat !== 'maudit');
-          target.buffs.push({ stat: 'maudit', power: 1, until: target.curseUntil });
-          this.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
-          this.sendSelf(target);
-        }
-      }
-      // Poison / Flèche empoisonnée / Peste : dégâts sur la durée
-      if (sp.dot && !target.dead) {
-        (target.dots = target.dots || []).push({
-          ...sp.dot, element: sp.element, from: p,
-          until: now + sp.dot.duration, nextAt: now + sp.dot.interval,
-        });
-      }
-      p.dir = Math.atan2(target.x - p.x, target.z - p.z);
-      p.lastCombat = now;
-    } else if (sp.type === 'aoe') {
-      // sorts centrés sur le lanceur (Vague de Flamme, Séisme) ou sur un point visé
-      const cx = sp.centered ? p.x : +c.x, cz = sp.centered ? p.z : +c.z;
-      this.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color, element: this.spellStyle(sp) });
-      const hits = [...p.zi.nearby(cx, cz, sp.radius)].filter(e => e.kind === C.KIND.MOB && !e.dead);
-      for (const e of hits) {
-        const dist = Math.hypot(e.x - cx, e.z - cz);
-        // dégâts pleins au centre, décroissants vers le bord ((20-r)/20 de la Bible)
-        let dmg = this.rollSpellOutput(p, sp.dmg) * mul * (1 - 0.5 * Math.min(1, dist / sp.radius));
-        if (hits.length === 1) dmg *= 2; // T4C : dégâts doublés sur cible unique
-        const { dmg: final, mod } = this.applyResist(e, sp, Math.max(1, Math.round(dmg)));
-        this.applyDamage(p, e, final, false, mod);
-      }
-      p.lastCombat = now;
-    }
-
-    p.mana -= sp.mana;
-    p.spellCds[sp.id] = now + (sp.cd || 0);
-    p.state = C.ST.ATTACK;
-    this.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd || 0, mana: Math.round(p.mana) });
-    if (sp.type === 'buff') this.sendSelf(p); // maxHp/dégâts/défense ont pu changer
-    else this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
-    return true;
-  }
-
-  // Hors mode combat : marche jusqu'à la portée du sort, puis le lance
-  startApproachCast(p, msg, tx, tz) {
-    p.pendingCast = { ...msg, approach: false }; // une seule approche, pas de boucle
-    p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
-    p.moveDir = null;
-    p.attackTarget = null;
-  }
-
-  // Résistances élémentaires T4C : réduction (ou amplification si faiblesse).
-  // Pour un joueur, les buffs s'ajoutent : Bouclier de mana (+33 % contre toutes
-  // les magies SAUF arcanes) et Résistance au feu / à la glace (+100 % à l'élément).
-  // À 100 % ou plus, le sort est entièrement annulé (0 dégât).
-  applyResist(target, sp, dmg) {
-    let resist = target.def?.resist?.[sp.element] || 0;
-    if (target.kind === C.KIND.PLAYER && sp.element) {
-      for (const b of target.buffs) {
-        if (b.stat === 'resistAll' && sp.element !== 'arcane') resist += b.power;
-        else if (b.stat === 'resist_' + sp.element) resist += b.power;
-      }
-    }
-    if (!resist) return { dmg, mod: null };
-    resist = Math.min(1, resist);
-    return {
-      dmg: resist >= 1 ? 0 : Math.max(1, Math.round(dmg * (1 - resist))),
-      mod: resist > 0.05 ? 'resist' : (resist < -0.05 ? 'weak' : null),
-    };
-  }
-
-  applyDamage(attacker, defender, dmg, crit, mod = null) {
-    const hpBefore = defender.hp;
-    defender.hp -= dmg;
-    defender.lastCombat = this.now();
-    this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, amount: dmg, crit, mod });
-    // XP « par coup » (T4C) : chaque dégât d'un joueur sur un monstre rapporte
-    // xpTotale × dégâtsEffectifs / PVmax, bornés aux PV restants (pas d'XP
-    // d'overkill). Les PV régénérés redonnent de l'XP : pas de plafond cumulé
-    // par monstre — le « milking » de liche est canon.
-    if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB && dmg > 0) {
-      const effective = Math.min(dmg, Math.max(0, hpBefore));
-      if (effective > 0) this.shareXpForDamage(attacker, defender, effective / defender.maxHp);
-    }
-    if (defender.hp <= 0) {
-      if (defender.kind === C.KIND.MOB) this.killMob(defender, attacker);
-      else this.killPlayer(defender, attacker);
-    } else if (defender.kind === C.KIND.PLAYER) {
-      this.send(defender, { t: 'vitals', hp: Math.round(defender.hp), mana: Math.round(defender.mana) });
-    }
-  }
-
-  // ---------- Combat ----------
-  attack(attacker, defender) {
-    // Sanctuaire : la cible est intouchable ; l'attaquant en transe ne frappe pas
-    if (this.isUntouchable(defender)) return;
-    if (attacker.kind === C.KIND.PLAYER && this.isPacified(attacker)) { attacker.attackTarget = null; return; }
-    const aStats = attacker.kind === C.KIND.PLAYER ? attacker.eff.stats
-      : { str: 0, agi: 10 + attacker.level * 1.8, end: 0, int: 0, wis: 0 };
-    const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
-      : { str: 0, agi: 10 + defender.level * 1.8, end: 0, int: 0, wis: 0 };
-    attacker.state = C.ST.ATTACK;
-    attacker.dir = Math.atan2(defender.x - attacker.x, defender.z - attacker.z);
-    attacker.lastCombat = this.now();
-    defender.lastCombat = this.now();
-
-    let hitC = C.hitChance(aStats, dStats);
-    // T4C : Attaque ne sert qu'en mêlée, Archerie qu'à l'arc — jamais les deux
-    const usesBow = attacker.kind === C.KIND.PLAYER && attacker.eff.ranged;
-    if (attacker.kind === C.KIND.PLAYER) {
-      hitC = Math.min(0.98, hitC + (usesBow ? (attacker.skillFx?.rangedHit || 0) : (attacker.skillFx?.hit || 0)));
-    }
-    if (defender.kind === C.KIND.PLAYER) hitC = Math.max(0.15, hitC - (defender.skillFx?.dodge || 0));
-    if (Math.random() > hitC) {
-      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, miss: true });
-      return;
-    }
-    // Parade T4C : annule totalement le coup (bouclier : +50 % d'efficacité)
-    if (defender.kind === C.KIND.PLAYER && Math.random() < (defender.skillFx?.parry || 0)) {
-      this.eventNear(defender, { t: 'dmg', from: attacker.id, to: defender.id, parry: true });
-      return;
-    }
-    // flèche : trace visuelle du tir à chaque coup réussi (système des projectiles de sorts)
-    if (usesBow) this.eventNear(defender, { t: 'proj', from: attacker.id, to: defender.id, color: '#d8c8a0' });
-    // joueur : tirage dans la fourchette de l'arme (T4C) ; monstre : variance
-    let dmg;
-    if (attacker.kind === C.KIND.PLAYER) {
-      const e = attacker.eff;
-      dmg = Math.round((e.dmgMin + Math.random() * (e.dmgMax - e.dmgMin)) * e.dmgMult);
-    } else {
-      dmg = Math.round(attacker.sc.dmg * (0.85 + Math.random() * 0.3));
-    }
-    let crit = false;
-    if (attacker.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (attacker.skillFx?.crit || 0)) {
-      dmg = Math.round(dmg * 1.6); crit = true;
-    }
-    let defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
-    // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
-    if (attacker.kind === C.KIND.PLAYER) defense *= 1 - (attacker.skillFx?.pierce || 0);
-    dmg = C.mitigate(dmg, defense);
-    // attaque élémentaire d'un monstre (ex. Fourmi de feu) : les résistances
-    // du défenseur s'appliquent (Bouclier de mana, Résistance au feu/à la glace...)
-    let elemMod = null;
-    if (attacker.kind === C.KIND.MOB && attacker.def.element) {
-      ({ dmg, mod: elemMod } = this.applyResist(defender, { element: attacker.def.element }, dmg));
-    }
-    // Coup assommant : chance d'immobiliser brièvement le monstre
-    if (attacker.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
-        && Math.random() < (attacker.skillFx?.stun || 0)) {
-      defender.stunnedUntil = this.now() + 0.8;
-      defender.path = null;
-    }
-    this.applyDamage(attacker, defender, dmg, crit, elemMod);
-    // Boucliers de Feu/Glace/Électrique (T4C) : riposte élémentaire à chaque
-    // coup physique encaissé — 1dN + base, modulé par la résistance du monstre
-    if (defender.kind === C.KIND.PLAYER && attacker.kind === C.KIND.MOB && !attacker.dead) {
-      for (const b of defender.buffs) {
-        if (b.stat !== 'retort') continue;
-        const raw = (b.base || 0) + 1 + Math.floor(Math.random() * (b.dice || 1));
-        const { dmg: rDmg, mod } = this.applyResist(attacker, { element: b.element }, raw);
-        this.applyDamage(defender, attacker, rDmg, false, mod);
-        if (attacker.dead) break;
-      }
-    }
-  }
+  // ---------- Sorts (système complet dans spells.js) ----------
+  castSpell(p, msg) { spells.castSpell(this, p, msg); }
 
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
@@ -1693,28 +1114,6 @@ export class Game {
     return db.newCharacterData(name, this.island(0).world.spawnPoint, clean, sex);
   }
 
-  reincarnate(p, stats = null, sex = null) {
-    const zi0 = this.island(0);
-    const data = db.newCharacterData(p.name, zi0.world.spawnPoint, stats, sex || p.sex);
-    p.sex = data.sex;
-    db.saveCharacter(p.accountId, data);
-    p.permadead = false; p.dead = false; p.state = C.ST.IDLE;
-    p.level = 1; p.xp = 0; p.statPoints = 0;
-    p.stats = { ...data.stats };
-    p.hpAcc = C.maxHp(p.stats, 1);
-    p.manaAcc = C.maxMana(p.stats, 1);
-    p.gold = data.gold;
-    p.inventory = data.inventory; p.equip = data.equip;
-    p.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
-    p.spells = []; p.skills = {}; p.unlocked = [0];
-    p.buffs = []; p.spellCds = {}; p.casting = null;
-    p.curseUntil = 0; p.sanctuaryUntil = 0; p.pacifiedUntil = 0;
-    this.recompute(p);
-    p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-    this.movePlayerToZone(p, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
-    this.broadcastChat('sys', `${p.name} renaît sur ${this.zoneDef(0).name}.`);
-  }
-
   // XP générée par les dégâts d'un membre, mutualisée dans son groupe.
   // Adaptation du modèle « 100 % aux dégâts » au jeu en groupe : la part de
   // monstre entamée (fraction = dégâts effectifs / PVmax) vaut, pour chaque
@@ -1727,7 +1126,7 @@ export class Game {
     const recipients = this.xpRecipients(dealer);
     const bonus = 1 + C.GROUP_XP_BONUS_PER_MEMBER * (recipients.length - 1);
     for (const r of recipients) {
-      this.grantXp(r, C.mobXpReward(mob.level, r.level) * fraction * bonus / recipients.length);
+      r.grantXp(C.mobXpReward(mob.level, r.level) * fraction * bonus / recipients.length, this);
     }
   }
 
@@ -1741,31 +1140,6 @@ export class Game {
       out.push(m);
     }
     return out.length ? out : [dealer];
-  }
-
-  // Crédite de l'XP (flottante : les petits coups s'accumulent sans perte).
-  // Le client est notifié par paquets via 'xp' (flush throttlé dans tick).
-  grantXp(p, amount) {
-    if (!this.players.has(p.id) || p.permadead || amount <= 0) return;
-    p.xp += amount;
-    p.xpNotify = (p.xpNotify || 0) + amount;
-    let leveled = false;
-    while (p.level < C.MAX_LEVEL && p.xp >= C.xpForLevel(p.level + 1)) {
-      p.level++;
-      p.statPoints += C.POINTS_PER_LEVEL;
-      // gains de PV/mana figés au passage de niveau, selon les stats DU MOMENT
-      // (équipement compris) — fidèle à T4C
-      p.hpAcc += C.hpGainPerLevel(p.eff.stats);
-      p.manaAcc += C.manaGainPerLevel(p.eff.stats);
-      leveled = true;
-    }
-    if (leveled) {
-      this.recompute(p);
-      p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
-      this.eventNear(p, { t: 'fx', kind: 'levelup', id: p.id });
-      this.broadcastChat('sys', `${p.name} passe niveau ${p.level} !`);
-      this.sendSelf(p);
-    }
   }
 
   doPickup(p, d) {
@@ -1792,13 +1166,8 @@ export class Game {
       const dx = (Math.random() - 0.5) * 2, dz = (Math.random() - 0.5) * 2;
       if (zi.world.isWalkable(x + dx, z + dz)) { x += dx; z += dz; break; }
     }
-    const d = {
-      id: this.nextId++, kind: C.KIND.DROP,
-      defId: payload.gold ? 'or' : payload.item.defId,
-      gold: payload.gold || 0, item: payload.item || null,
-      x, z, dir: 0, state: 0, hidden: false,
-      expiresAt: this.now() + ttl,
-    };
+    const d = new Drop(this.nextId++, payload.gold ? 'or' : payload.item.defId,
+      payload.gold, payload.item, x, z, this.now() + ttl);
     zi.add(d);
   }
 
@@ -1824,7 +1193,7 @@ export class Game {
     }
     p.inventory.splice(i, 1);
     this.spawnDrop(p.zi, p.x, p.z, { item }, C.PLAYER_DROP_DESPAWN);
-    this.recompute(p);
+    p.recompute(this);
     this.send(p, { t: 'loot', text: `Posé au sol : ${itemLabel(item)}` });
     this.sendSelf(p);
   }
@@ -1951,113 +1320,7 @@ export class Game {
     this.worldTime = (this.worldTime + dt) % C.DAY_LENGTH;
     const now = this.now();
 
-    for (const p of this.players.values()) {
-      if (p.dead) continue;
-      // expiration des buffs
-      const nb = p.buffs.filter(b => b.until > now);
-      if (nb.length !== p.buffs.length) { p.buffs = nb; this.recompute(p); this.sendSelf(p); }
-
-      // régénération
-      if (now - p.lastCombat > 5 || p.eff.buffRegen) {
-        const oldHp = p.hp, oldMana = p.mana;
-        const inCombat = now - p.lastCombat <= 5;
-        if (!inCombat) {
-          p.hp = Math.min(p.eff.maxHp, p.hp + C.hpRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.hpRegenMul || 0)) * dt);
-          p.mana = Math.min(p.eff.maxMana, p.mana + C.manaRegenPerSec(p.eff.stats) * (1 + (p.skillFx?.manaRegenMul || 0)) * dt);
-        }
-        if (p.eff.buffRegen) p.hp = Math.min(p.eff.maxHp, p.hp + p.eff.buffRegen * dt);
-        if ((Math.floor(p.hp) !== Math.floor(oldHp) || Math.floor(p.mana) !== Math.floor(oldMana)) && this.tickCount % 10 === 0) {
-          this.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
-        }
-      }
-      p.atkCd = Math.max(0, p.atkCd - dt);
-
-      // XP accumulée depuis le dernier envoi : un seul message regroupé
-      // (le client affiche un flotteur lisible, pas un par tick de DoT)
-      if ((p.xpNotify || 0) >= 1 && this.tickCount % XP_NOTIFY_EVERY_TICKS === 0) {
-        this.send(p, { t: 'xp', gain: Math.round(p.xpNotify), xp: Math.floor(p.xp) });
-        p.xpNotify = 0;
-      }
-
-      // déplacement direct (flèches / clic maintenu)
-      if (p.moveDir) {
-        const sp = p.eff.speed * dt;
-        const ox = p.x, oz = p.z;
-        const nx = p.x + p.moveDir.x * sp, nz = p.z + p.moveDir.z * sp;
-        if (p.zi.world.isWalkable(nx, nz)) { p.x = nx; p.z = nz; }
-        else if (p.zi.world.isWalkable(nx, p.z)) { p.x = nx; }
-        else if (p.zi.world.isWalkable(p.x, nz)) { p.z = nz; }
-        p.dir = Math.atan2(p.moveDir.x, p.moveDir.z);
-        p.state = C.ST.WALK;
-        p.zi.gridMove(p);
-        if (p.x !== ox || p.z !== oz) this.heatZone(p.zi); // mouvement réel
-      }
-
-      // poursuite/attaque
-      if (p.attackTarget != null) {
-        const tgt = p.zi.entities.get(p.attackTarget);
-        if (!tgt || tgt.dead || tgt.hidden) { p.attackTarget = null; p.state = C.ST.IDLE; }
-        else {
-          const dist = Math.hypot(tgt.x - p.x, tgt.z - p.z);
-          if (dist <= p.eff.atkRange && lineOfSight(p.zi.world, p, tgt)) {
-            p.path = null;
-            if (p.atkCd <= 0) { p.atkCd = p.eff.atkCd; this.attack(p, tgt); }
-            else if (p.state !== C.ST.ATTACK) p.state = C.ST.IDLE;
-          } else if (!p.path || this.tickCount % 5 === 0) {
-            p.path = findPath(p.zi.world, p.x, p.z, tgt.x, tgt.z);
-          }
-        }
-      }
-      if (!p.moveDir) this.stepAlong(p, p.eff.speed, dt);
-
-      // ramassage / interaction en attente
-      if (p.pendingPickup != null) {
-        const d = p.zi.entities.get(p.pendingPickup);
-        if (!d || d.kind !== C.KIND.DROP) p.pendingPickup = null;
-        else if (Math.hypot(d.x - p.x, d.z - p.z) <= C.PICKUP_RANGE) {
-          this.doPickup(p, d);
-          p.pendingPickup = null;
-        }
-      }
-      // sort en attente d'approche : lance dès qu'on est à portée
-      if (p.pendingCast) {
-        const pc = p.pendingCast;
-        const spc = content.spellById[pc.spellId];
-        const tgt = pc.target != null ? p.zi.entities.get(pc.target) : null;
-        if (!spc || (pc.target != null && (!tgt || tgt.dead || tgt.hidden))) {
-          p.pendingCast = null;
-        } else {
-          const tx = tgt ? tgt.x : pc.x, tz = tgt ? tgt.z : pc.z;
-          // à portée ET en ligne de vue : sinon on continue d'avancer
-          if (Math.hypot(tx - p.x, tz - p.z) <= spc.range
-              && lineOfSight(p.zi.world, p, { x: tx, z: tz })) {
-            if ((p.spellCds[spc.id] || 0) <= now) {
-              p.pendingCast = null;
-              p.path = null;
-              this.castSpell(p, pc);
-            }
-          } else if (!p.path || this.tickCount % 5 === 0) {
-            p.path = findPath(p.zi.world, p.x, p.z, tx, tz);
-          }
-        }
-      }
-      if (p.pendingInteract) {
-        const pi = p.pendingInteract;
-        const tx = pi.id != null ? p.zi.entities.get(pi.id)?.x : pi.px;
-        const tz = pi.id != null ? p.zi.entities.get(pi.id)?.z : pi.pz;
-        if (tx == null) p.pendingInteract = null;
-        else if (Math.hypot(tx - p.x, tz - p.z) <= C.INTERACT_RANGE) {
-          p.pendingInteract = null;
-          if (pi.id != null) {
-            const npc = p.zi.entities.get(pi.id);
-            if (npc?.kind === C.KIND.NPC) this.openShop(p, npc);
-          } else {
-            const prop = (p.zi.world.props || []).find(pr => pr.type === pi.prop && Math.hypot(pr.x - pi.px, pr.z - pi.pz) < 0.1);
-            if (prop) this.interactProp(p, prop);
-          }
-        }
-      }
-    }
+    for (const p of this.players.values()) p.tick(this, now, dt);
 
     // PV des membres de groupe (panneau de groupe côté client)
     if (this.tickCount % PARTY_VITALS_EVERY_TICKS === 0) {
@@ -2078,7 +1341,7 @@ export class Game {
       if (hasPlayers && !zi.isTrial) this.maybeSpawn(zi, now);
       for (const e of [...zi.entities.values()]) {
         if (e.kind === C.KIND.MOB) {
-          if (hasPlayers || e.dead) this.tickMob(zi, e, now, dt);
+          if (hasPlayers || e.dead) e.tick(this, now, dt);
         } else if (e.kind === C.KIND.DROP && now > e.expiresAt) {
           zi.remove(e);
         }
@@ -2086,91 +1349,6 @@ export class Game {
     }
 
     this.sendSnapshots();
-  }
-
-  tickMob(zi, m, now, dt) {
-    if (m.dead) {
-      // le cadavre reste visible le temps du râle, puis l'entité disparaît :
-      // plus de réapparition par timer (le spawn par mouvement prend le relais)
-      if (now >= m.hideAt) zi.remove(m);
-      return;
-    }
-    m.atkCd = Math.max(0, m.atkCd - dt);
-    // poisons en cours (Poison, Flèche Empoisonnée) : dégâts sur la durée
-    if (m.dots && m.dots.length) {
-      for (const d of m.dots) {
-        if (now >= d.nextAt && now <= d.until) {
-          d.nextAt += d.interval;
-          const dmg = Math.max(1, Math.round(d.min + Math.random() * (d.max - d.min)));
-          this.applyDamage(d.from, m, dmg, false);
-          if (m.dead) return;
-        }
-      }
-      m.dots = m.dots.filter(d => now < d.until);
-    }
-    if (m.stunnedUntil && now < m.stunnedUntil) return; // assommé (Coup assommant)
-
-    if (!m.target && (this.tickCount + m.id) % 5 === 0) {
-      let best = null, bestD = m.def.aggro;
-      for (const e of zi.nearby(m.x, m.z, m.def.aggro)) {
-        if (e.kind !== C.KIND.PLAYER || e.dead || this.isUntouchable(e)) continue;
-        const d = Math.hypot(e.x - m.x, e.z - m.z);
-        if (d < bestD) { bestD = d; best = e; }
-      }
-      if (best) m.target = best.id;
-    }
-
-    if (m.target) {
-      const tgt = zi.entities.get(m.target);
-      const leashed = Math.hypot(m.x - m.home.x, m.z - m.home.z) > m.def.leash;
-      if (!tgt || tgt.dead || this.isUntouchable(tgt) || leashed || Math.hypot(tgt.x - m.x, tgt.z - m.z) > m.def.leash) {
-        m.target = null;
-        m.path = findPath(zi.world, m.x, m.z, m.home.x, m.home.z);
-      } else {
-        const dist = Math.hypot(tgt.x - m.x, tgt.z - m.z);
-        if (dist <= m.def.atkRange) {
-          m.path = null;
-          if (m.atkCd <= 0) { m.atkCd = m.def.atkSpeed; this.attack(m, tgt); }
-        } else if (!m.path || (this.tickCount + m.id) % 5 === 0) {
-          m.path = findPath(zi.world, m.x, m.z, tgt.x, tgt.z);
-        }
-      }
-    } else if (now >= m.wanderAt) {
-      m.wanderAt = now + 4 + Math.random() * 8;
-      const a = Math.random() * Math.PI * 2, d = 1 + Math.random() * 4;
-      const wx = m.home.x + Math.cos(a) * d, wz = m.home.z + Math.sin(a) * d;
-      if (zi.world.isWalkable(wx, wz)) m.path = findPath(zi.world, m.x, m.z, wx, wz);
-    }
-
-    // Enchevêtrement : vitesse réduite tant que le ralentissement court
-    const speed = (m.slowUntil && now < m.slowUntil) ? m.def.speed * (m.slowFactor ?? 0.5) : m.def.speed;
-    this.stepAlong(m, speed, dt);
-  }
-
-  stepAlong(e, speed, dt) {
-    if (!e.path || !e.path.length) {
-      if (e.state === C.ST.WALK) e.state = C.ST.IDLE;
-      return;
-    }
-    let remaining = speed * dt;
-    let moved = false;
-    while (remaining > 0 && e.path && e.path.length) {
-      const wp = e.path[0];
-      const dx = wp.x - e.x, dz = wp.z - e.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 0.05) { e.path.shift(); continue; }
-      const step = Math.min(d, remaining);
-      e.x += (dx / d) * step;
-      e.z += (dz / d) * step;
-      e.dir = Math.atan2(dx, dz);
-      remaining -= step;
-      moved = true;
-    }
-    if (e.path && !e.path.length) e.path = null;
-    e.state = e.path ? C.ST.WALK : (e.state === C.ST.ATTACK ? C.ST.ATTACK : C.ST.IDLE);
-    e.zi.gridMove(e);
-    // un joueur qui suit un chemin maintient la zone « chaude » (spawn T4C)
-    if (moved && e.kind === C.KIND.PLAYER) this.heatZone(e.zi);
   }
 
   // ---------- Snapshots ----------
