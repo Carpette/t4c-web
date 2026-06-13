@@ -675,6 +675,9 @@ export class Game {
 
   // ---------- Messages clients ----------
   onMessage(p, msg) {
+    // mesure de latence : on renvoie l'horodatage client tel quel (aller-retour
+    // WebSocket). Léger, sans état, autorisé même mort/permadead.
+    if (msg.t === 'ping') { this.send(p, { t: 'pong', ts: msg.ts }); return; }
     if (p.permadead && msg.t !== 'newchar' && msg.t !== 'create') return;
     switch (msg.t) {
       case 'move': {
