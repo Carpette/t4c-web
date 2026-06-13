@@ -212,6 +212,63 @@ win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
 ok('Ctrl+Z ×2 : poses de zones musicales annulées (section `music` absente)',
   ed.getOverrides().music === undefined && ed.getMusicZones().length === 0);
 
+// pot de peinture (flood-fill) : remplit par contiguïté les tuiles du même type
+ed.loadZone && await ed.loadZone(0); // repart d'une zone propre (overrides vides)
+await new Promise(r => setTimeout(r, 60));
+{
+  const tilesBefore = ed.getOverrides().tiles.length;
+  ed.setTool({ kind: 'tile', tile: 1 }); // FOREST (≠ herbe par défaut autour du point)
+  // remplit la zone contiguë autour d'un point d'herbe : produit des overrides tiles
+  ed.floodFill(64, 64, false);
+  const tilesAfter = ed.getOverrides().tiles.length;
+  ok('flood-fill : produit des overrides tiles (remplissage par contiguïté)', tilesAfter > tilesBefore);
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true }); // annule le remplissage
+  ok('flood-fill : annulable (Ctrl+Z)', ed.getOverrides().tiles.length === tilesBefore);
+}
+
+// copier / coller une région : décalage correct des tuiles et props add
+{
+  // pose une tuile repère + un décor dans une petite région, puis copie/colle
+  ed.setTool({ kind: 'tile', tile: 3 }); // COBBLE
+  ed.paintAt(10, 10);
+  ed.rebuildNow(); // applique tout de suite (la peinture est normalement différée)
+  const addBefore = ed.getOverrides().props.add.length;
+  // sélectionne la région 10..12 x 10..12 et copie
+  ed.selectRegion(10, 10, 12, 12);
+  ed.copySelection();
+  const clip = ed.getClipboard();
+  ok('copier : presse-papier rempli (région 3×3, tuiles incluses)', clip && clip.w === 3 && clip.h === 3 && clip.tiles.length === 9);
+  const cobbleInClip = clip.tiles.find(([dx, dz, t]) => dx === 0 && dz === 0 && t === 3);
+  ok('copier : la tuile COBBLE est capturée en coordonnées relatives', !!cobbleInClip);
+  // colle 100 tuiles plus loin : la tuile COBBLE doit réapparaître à (110,110)
+  const tilesBefore = ed.getOverrides().tiles.length;
+  ed.pasteAt(110, 110);
+  const pasted = ed.getOverrides().tiles.find(([x, z, t]) => x === 110 && z === 110 && t === 3);
+  ok('coller : la région est décalée (COBBLE recopiée à la nouvelle position)', !!pasted);
+  ok('coller : de nouvelles tuiles ont été écrites', ed.getOverrides().tiles.length > tilesBefore);
+  void addBefore;
+}
+
+// calque Coffres : pose d'un coffre + édition du butin (ov.chests)
+ed.loadZone && await ed.loadZone(0);
+await new Promise(r => setTimeout(r, 60));
+{
+  const chestsBefore = ed.getChests().length;
+  ed.placeChestAt(70, 70);
+  ok('pose d\'un coffre : prop `chest` ajouté + listé', ed.getChests().length === chestsBefore + 1
+    && ed.getOverrides().props.add.some(p => p.type === 'chest' && Math.floor(p.x) === 70 && Math.floor(p.z) === 70));
+}
+
+// calque Points spéciaux : pose d'un téléporteur (ov.markers)
+{
+  ed.placeMarkerAt(80, 80);
+  const m = ed.getMarkers();
+  ok('pose d\'un point spécial : entrée `markers` (téléport par défaut)',
+    ed.getOverrides().markers?.length === 1 && m[0].kind === 'teleport' && m[0].target);
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ok('Ctrl+Z : pose du point annulée (section `markers` absente)', ed.getOverrides().markers === undefined);
+}
+
 // laisse la boucle de rendu dessiner quelques frames en mode sprites (chunks)
 await new Promise(r => setTimeout(r, 400));
 ok('aucune exception (chargement, rendu chunks, outils)', failures.length === 0);
