@@ -1283,24 +1283,39 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       h('button', { textContent: '✕', onclick: closePanel }));
   }
 
+  // Sélecteur FILTRABLE réutilisable : un champ de recherche + un <select> dont
+  // les options sont filtrées en direct. Évite de scroller des centaines
+  // d'objets/monstres. `defs` = [[id, def], ...] (def.name affiché) ; `value`
+  // initial ; `onChange(id)` ; `width` du select. Retourne { wrap, get }.
+  function filterSelect(defs, value, onChange, width = 150) {
+    const opts = (q, cur) => defs
+      .filter(([id, d]) => !q || `${id} ${d.name || ''}`.toLowerCase().includes(q) || id === cur)
+      .map(([id, d]) => `<option value="${id}"${id === cur ? ' selected' : ''}>${d.name || id}</option>`).join('');
+    let cur = value;
+    const sel = h('select', { innerHTML: opts('', cur), style: { width: width + 'px' } });
+    sel.onchange = () => { cur = sel.value; onChange(cur); };
+    const search = h('input', { placeholder: '🔍 filtrer', style: { width: '110px' } });
+    search.oninput = () => { sel.innerHTML = opts(search.value.trim().toLowerCase(), cur); };
+    return { wrap: h('div', { className: 'edit-row' }, search, sel), get: () => cur };
+  }
+
   // fiche d'un camp : composition (monstre × quantité), rayon, suppression
   function openCampPanel(index) {
     const camp = campsList[index];
     if (!camp) return;
     closePanel();
     const mobs = Object.entries(camp.mobs || {}); // état de travail [defId, n]
-    const mobOptions = (sel) => Object.entries(MOBS)
-      .map(([id, d]) => `<option value="${id}"${id === sel ? ' selected' : ''}>${d.name}</option>`).join('');
+    const mobDefs = Object.entries(MOBS);
     const rows = h('div');
     const renderRows = () => {
       rows.innerHTML = '';
       mobs.forEach((m, i) => {
-        const sel = h('select', { innerHTML: mobOptions(m[0]) });
-        sel.onchange = () => { m[0] = sel.value; };
+        const fs = filterSelect(mobDefs, m[0], (id) => { m[0] = id; }, 150);
         const num = h('input', { type: 'number', min: '1', max: '50', value: String(m[1]), style: { width: '54px' } });
         num.onchange = () => { m[1] = Math.max(1, num.value | 0); };
-        rows.append(h('div', { className: 'edit-row' }, sel, num,
-          h('button', { textContent: '✕', onclick: () => { mobs.splice(i, 1); renderRows(); } })));
+        rows.append(h('div', { className: 'edit-dlg' }, fs.wrap,
+          h('div', { className: 'edit-row' }, 'n ', num,
+            h('button', { textContent: '✕', onclick: () => { mobs.splice(i, 1); renderRows(); } }))));
       });
     };
     renderRows();
@@ -1357,12 +1372,20 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     });
     // sorts enseignés (rôle enseignant) — vide : répertoire `vendor` historique
     const teaches = new Set(Array.isArray(def.teaches) ? def.teaches : []);
+    const teachSearch = h('input', { placeholder: '🔍 filtrer les sorts', style: { width: '100%' } });
     const teachesBox = h('div', { className: 'edit-list' });
-    for (const sp of spells) {
-      const cb = h('input', { type: 'checkbox', checked: teaches.has(sp.id) });
-      cb.onchange = () => { cb.checked ? teaches.add(sp.id) : teaches.delete(sp.id); };
-      teachesBox.append(h('label', { className: 'edit-check' }, cb, ` ${sp.name}`));
-    }
+    const renderTeaches = () => {
+      const q = teachSearch.value.trim().toLowerCase();
+      teachesBox.innerHTML = '';
+      for (const sp of spells) {
+        if (q && !(`${sp.id} ${sp.name}`.toLowerCase().includes(q)) && !teaches.has(sp.id)) continue;
+        const cb = h('input', { type: 'checkbox', checked: teaches.has(sp.id) });
+        cb.onchange = () => { cb.checked ? teaches.add(sp.id) : teaches.delete(sp.id); };
+        teachesBox.append(h('label', { className: 'edit-check' }, cb, ` ${sp.name}`));
+      }
+    };
+    teachSearch.oninput = renderTeaches;
+    renderTeaches();
     // objets vendus (rôle marchand) — vide : étal standard de la zone
     const sells = new Set(Array.isArray(def.sells) ? def.sells : []);
     const sellSearch = h('input', { placeholder: '🔍 filtrer les objets', style: { width: '100%' } });
@@ -1380,7 +1403,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     };
     sellSearch.oninput = renderSells;
     renderSells();
-    const teachesWrap = h('div', {}, h('h4', { textContent: 'Sorts enseignés (vide : répertoire attitré)' }), teachesBox);
+    const teachesWrap = h('div', {}, h('h4', { textContent: 'Sorts enseignés (vide : répertoire attitré)' }), teachSearch, teachesBox);
     const sellsWrap = h('div', {}, h('h4', { textContent: 'Objets vendus (vide : étal standard de la zone)' }), sellSearch, sellBox);
     const syncRole = () => {
       teachesWrap.style.display = roleSel.value === 'teacher' ? '' : 'none';
@@ -2578,8 +2601,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     descIn.onchange = () => { m2.desc = descIn.value; };
     questPanel.append(h('h3', { textContent: 'Description' }), descIn);
     const npcOptions = npcsList.map(n => `<option value="${n.npcId}">${n.def.name || n.npcId}</option>`).join('');
-    const itemDefs = Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy);
-    const itemOpts = (sel) => '<option value="">— aucun —</option>' + itemDefs.map(([id, d]) => `<option value="${id}"${id === sel ? ' selected' : ''}>${d.name}</option>`).join('');
+    // [['', aucun], ...] : le sélecteur filtrable accepte « aucun objet »
+    const itemDefsOpt = [['', { name: '— aucun —' }], ...Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy)];
     const stepsBox = h('div');
     const renderSteps = () => {
       stepsBox.innerHTML = '';
@@ -2602,15 +2625,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
           onclick: () => { if (i > 0) { s.reqFlag = m2.steps[i - 1].flag; renderSteps(); } } });
         const lvlIn = h('input', { type: 'number', min: '0', value: String(s.reqLevel || 0), style: { width: '54px' } });
         lvlIn.onchange = () => { s.reqLevel = Math.max(0, lvlIn.value | 0); };
-        const itemSel = h('select', { innerHTML: itemOpts(s.reqItem) });
-        itemSel.onchange = () => { s.reqItem = itemSel.value; };
+        const itemFs = filterSelect(itemDefsOpt, s.reqItem || '', (id) => { s.reqItem = id; }, 150);
+        const itemSel = itemFs.wrap;
         const consumeCb = h('input', { type: 'checkbox', checked: !!s.consume });
         consumeCb.onchange = () => { s.consume = consumeCb.checked; };
         // effets
         const goldIn = h('input', { type: 'number', min: '0', value: String(s.gold || 0), style: { width: '70px' } });
         goldIn.onchange = () => { s.gold = Math.max(0, goldIn.value | 0); };
-        const rewSel = h('select', { innerHTML: itemOpts(s.itemDefId) });
-        rewSel.onchange = () => { s.itemDefId = rewSel.value; };
+        const rewFs = filterSelect(itemDefsOpt, s.itemDefId || '', (id) => { s.itemDefId = id; }, 150);
+        const rewSel = rewFs.wrap;
         const rewN = h('input', { type: 'number', min: '1', value: String(s.itemN || 1), style: { width: '48px' } });
         rewN.onchange = () => { s.itemN = Math.max(1, rewN.value | 0); };
         const xpIn = h('input', { type: 'number', min: '0', value: String(s.xp || 0), style: { width: '70px' } });
