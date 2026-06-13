@@ -128,6 +128,49 @@ export function buildPalette({ container, assets, onSelect }) {
     return div;
   }
 
+  // --- état d'ouverture des thèmes (accordéon), mémorisé entre sessions ---
+  const OPEN_KEY = 'palAccordionOpen';
+  let openState = {};
+  try { openState = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}') || {}; } catch { openState = {}; }
+  const saveOpen = () => { try { localStorage.setItem(OPEN_KEY, JSON.stringify(openState)); } catch { /* stockage indispo */ } };
+
+  // Crée un thème repliable (accordéon). `id` sert à mémoriser l'état ;
+  // `count` est affiché à droite de l'en-tête. Retourne le conteneur de corps
+  // dans lequel ajouter des sous-sections. Plusieurs thèmes peuvent être ouverts.
+  const themes = []; // { theme, head, body, text } pour le filtre et l'aplatissement
+  function makeTheme(id, label, count) {
+    const theme = el('div', 'pal-theme');
+    const head = el('button', 'pal-theme-head');
+    head.type = 'button';
+    const chevron = el('span', 'pal-theme-chevron', '▶');
+    head.append(chevron, doc.createTextNode(label));
+    if (count != null) head.appendChild(el('span', 'pal-theme-count', String(count)));
+    const body = el('div', 'pal-theme-body');
+    theme.append(head, body);
+    const open = openState[id] ?? false;
+    theme.classList.toggle('open', open);
+    head.onclick = () => {
+      const now = !theme.classList.contains('open');
+      theme.classList.toggle('open', now);
+      openState[id] = now;
+      saveOpen();
+    };
+    root.appendChild(theme);
+    themes.push({ id, theme, head, body });
+    return body;
+  }
+
+  // Sous-section « type » (Sols / Murs & falaises / Mobilier & objets) à
+  // l'intérieur d'un thème : un titre + une rangée de vignettes.
+  function makeSubsection(body, title) {
+    const sub = el('div', 'pal-subsec');
+    sub.appendChild(el('h4', null, title));
+    const row = el('div', 'pal-row');
+    sub.appendChild(row);
+    body.appendChild(sub);
+    return { sub, row };
+  }
+
   // --- section sols ---
   const groups = []; // { div, text } pour le filtre
   {
@@ -171,36 +214,69 @@ export function buildPalette({ container, assets, onSelect }) {
     groups.push({ div: g, text: (type + ' ' + def.label + ' ' + def.variants.map(v => v.label).join(' ')).toLowerCase() });
   }
 
-  // --- sections tilesets Flare additionnels : un groupe par famille ---
+  // --- thèmes Flare additionnels : un ACCORDÉON par famille, sous-sections par type ---
   // Énumère toutes les frames du tileset depuis le manifeste (cave/dungeon/ruins/
-  // neige) et en fait des vignettes. La pose enregistre un prop { type, v:frame }
+  // neige) et les répartit en 3 sous-sections selon `ts.types[frame]` (sol/mur/objet,
+  // calculé par build-manifest.js). La pose enregistre un prop { type, v:frame }
   // dont l'id de tuile rendu est « prefix:frame » (voir decormap.tilesetPropId).
   const tilesets = assets?.manifest?.tilesets || {};
+  // libellés des sous-sections + ordre d'affichage des types
+  const TYPE_SUBSECTIONS = [
+    ['sol', 'Sols'],
+    ['mur', 'Murs & falaises'],
+    ['objet', 'Mobilier & objets'],
+  ];
   for (const [type, prefix, label, [glyph, color]] of TILESET_PROP_FAMILIES) {
     const ts = tilesets[prefix];
     if (!ts || !ts.tiles) continue;
     const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
     if (!frames.length) continue;
-    const g = el('div', 'pal-group');
-    g.appendChild(el('h3', null, label));
-    const row = el('div', 'pal-row');
-    for (const frame of frames) {
-      const n = Number(frame);
-      const tileId = tilesetPropId(type, n); // « prefix:frame »
-      row.appendChild(makeChip(
-        { label: `${label} ${frame}`, tileId, glyph, color },
-        () => ({ kind: 'prop', type, v: n }),
-        (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-      ));
+    const ttypes = ts.types || {};
+    const body = makeTheme('flare:' + prefix, label, frames.length);
+    const subGroups = []; // { div, text } pour le filtre (granularité sous-section)
+    for (const [tkey, subLabel] of TYPE_SUBSECTIONS) {
+      const inSec = frames.filter(f => (ttypes[f] || 'objet') === tkey);
+      if (!inSec.length) continue;
+      const { sub, row } = makeSubsection(body, `${subLabel} (${inSec.length})`);
+      for (const frame of inSec) {
+        const n = Number(frame);
+        const tileId = tilesetPropId(type, n); // « prefix:frame »
+        row.appendChild(makeChip(
+          { label: `${label} — ${subLabel} ${frame}`, tileId, glyph, color },
+          () => ({ kind: 'prop', type, v: n }),
+          (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
+        ));
+      }
+      subGroups.push({ div: sub, text: (type + ' ' + prefix + ' ' + label + ' ' + subLabel).toLowerCase() });
     }
-    g.appendChild(row);
-    root.appendChild(g);
-    groups.push({ div: g, text: (type + ' ' + prefix + ' ' + label).toLowerCase() });
+    // un thème compte comme un « groupe » pour le filtre : visible si l'une de
+    // ses sous-sections matche ; aplati (déplié) quand une recherche est active.
+    themes[themes.length - 1].subGroups = subGroups;
+    themes[themes.length - 1].text = (type + ' ' + prefix + ' ' + label).toLowerCase();
   }
 
   search.oninput = () => {
     const q = search.value.trim().toLowerCase();
+    // groupes plats (sols + props d'Arakas)
     for (const grp of groups) grp.div.style.display = !q || grp.text.includes(q) ? '' : 'none';
+    // thèmes Flare : recherche active -> on aplatit (déplie tout) et on filtre
+    // par sous-section ; recherche vide -> on restaure l'état d'accordéon mémorisé.
+    for (const t of themes) {
+      const subs = t.subGroups || [];
+      let anyMatch = false;
+      for (const s of subs) {
+        const show = !q || s.text.includes(q) || (t.text || '').includes(q);
+        s.div.style.display = show ? '' : 'none';
+        if (show) anyMatch = true;
+      }
+      if (q) {
+        t.theme.style.display = anyMatch ? '' : 'none';
+        t.theme.classList.add('open'); // aplatit l'accordéon pour montrer les résultats
+      } else {
+        t.theme.style.display = '';
+        t.theme.classList.toggle('open', openState[t.id] ?? false); // restaure l'état mémorisé
+      }
+    }
   };
 
   emit(); // sélection initiale : herbe

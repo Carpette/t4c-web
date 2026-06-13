@@ -112,6 +112,19 @@
     .pal-chip canvas { display: block; margin: 0 auto; }
     .pal-chip .pal-swatch { width: 72px; height: 72px; border-radius: 4px; margin: 0 auto; }
     .pal-chip-label { font-size: 10px; color: #9a90b8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    /* --- accordéon par thème + sous-sections par type --- */
+    .pal-theme { margin-bottom: 4px; border: 1px solid #2a2444; border-radius: 6px; overflow: hidden; background: #140f24; }
+    .pal-theme-head { display: flex; align-items: center; gap: 6px; width: 100%; cursor: pointer;
+      padding: 7px 9px; background: #1b1430; color: #c8b87a; font-size: 12px; font-weight: bold;
+      border: none; text-align: left; user-select: none; }
+    .pal-theme-head:hover { background: #241a3c; }
+    .pal-theme-chevron { display: inline-block; transition: transform .15s; color: #8a7fb0; font-size: 11px; }
+    .pal-theme.open .pal-theme-chevron { transform: rotate(90deg); }
+    .pal-theme-count { margin-left: auto; color: #6a6088; font-weight: normal; font-size: 11px; }
+    .pal-theme-body { display: none; padding: 4px 8px 8px; }
+    .pal-theme.open .pal-theme-body { display: block; }
+    .pal-subsec h4 { color: #9a90b8; font-size: 11px; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .04em; }
+    .pal-subsec:first-child h4 { margin-top: 2px; }
     table { border-collapse: collapse; font-size: 12px; width: 100%; }
     th, td { border: 1px solid #2a2444; padding: 5px 8px; text-align: left; }
     th { color: #c8b87a; }
