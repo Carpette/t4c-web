@@ -107,7 +107,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   const NPC_ROLE_NAMES = { merchant: 'marchand', teacher: 'enseignant', bavard: 'bavard' };
 
   // vue : z = px/tuile ; (cx, cz) = tuile au centre du canvas ; iso = vue jeu
-  const view = { z: 4, cx: 64, cz: 64, iso: false };
+  const view = { z: 4, cx: 64, cz: 64, iso: true }; // vue iso par défaut (comme en jeu)
 
   function emptyOv() { return { tiles: [], props: { add: [], remove: [] } }; }
   function normalizeOv(o) {
