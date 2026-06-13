@@ -2771,6 +2771,93 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     pendingPlace = 'marker';
     msg('Cliquez sur la carte pour poser le point spécial (sa fiche choisit le type et la destination).');
   });
+  // ---------- panneau droit : onglets « Palette » / « Calques » ----------
+  // Bascule entre la palette (sols/décors) et la liste des calques d'édition.
+  function showSideTab(name) {
+    for (const b of document.querySelectorAll('#map-side-tabs button'))
+      b.classList.toggle('active', b.dataset.side === name);
+    $('map-pane-palette')?.classList.toggle('visible', name === 'palette');
+    $('map-pane-layers')?.classList.toggle('visible', name === 'layers');
+  }
+  for (const b of document.querySelectorAll('#map-side-tabs button'))
+    b.addEventListener('click', () => showSideTab(b.dataset.side));
+
+  // ---------- onglet « Calques » : œil (visible) + nom + « + » (pose) ----------
+  // Chaque calque réutilise sa case `layer-xxx` (source de vérité de la
+  // visibilité, lue par les fonctions de rendu) et son bouton `add-xxx` (arme la
+  // pose) : les lignes de l'onglet ne font que piloter ces contrôles existants.
+  // Cliquer une ligne la désigne comme calque « courant » (mis en évidence).
+  const LAYER_DEFS = [
+    { key: 'camps',    icon: '⛺', name: 'Camps',           cb: 'layer-camps',    add: 'add-camp' },
+    { key: 'npcs',     icon: '👤', name: 'PNJ',             cb: 'layer-npcs',     add: 'add-npc' },
+    { key: 'chests',   icon: '🧰', name: 'Coffres',         cb: 'layer-chests',   add: 'add-chest' },
+    { key: 'markers',  icon: '📍', name: 'Points spéciaux', cb: 'layer-markers',  add: 'add-marker' },
+    { key: 'music',    icon: '🎵', name: 'Zones musicales', cb: 'layer-music',    add: 'add-music' },
+    { key: 'ambience', icon: '🌫', name: 'Ambiance',        cb: 'layer-ambience', add: 'add-ambience' },
+    { key: 'lights',   icon: '💡', name: 'Lumières',        cb: 'layer-lights',   add: 'add-light' },
+  ];
+  let currentLayer = null;          // calque mis en évidence (clic sur la ligne)
+  const layerRows = {};             // key -> { row, eye }
+  // bascule la visibilité d'un calque via sa case cachée (relaie l'événement
+  // `change` aux handlers existants qui mettent à jour showXxx + markDirty)
+  function toggleLayerVisible(def) {
+    const cb = $(def.cb);
+    cb.checked = !cb.checked;
+    // relaie aux handlers existants : addEventListener('change') ET .onchange
+    if (typeof cb.dispatchEvent === 'function') cb.dispatchEvent(new Event('change'));
+    else { cb.fire?.('change'); cb.onchange?.(); }
+    syncLayersPanel();
+  }
+  function setCurrentLayer(key) { currentLayer = key; syncLayersPanel(); }
+  // reflète l'état (visible / courant) sur les lignes — appelé après chaque action
+  function syncLayersPanel() {
+    for (const def of LAYER_DEFS) {
+      const r = layerRows[def.key];
+      if (!r) continue;
+      const shown = !!$(def.cb).checked;
+      r.row.classList.toggle('shown', shown);
+      r.row.classList.toggle('current', currentLayer === def.key);
+      r.eye.textContent = shown ? '👁' : '🚫';
+      r.eye.title = shown ? 'Calque visible (cliquer pour masquer)' : 'Calque masqué (cliquer pour afficher)';
+    }
+  }
+  function buildLayersPanel() {
+    const host = $('map-layers');
+    if (!host) return;
+    host.innerHTML = '';
+    for (const def of LAYER_DEFS) {
+      const row = document.createElement('div');
+      row.className = 'layer-row';
+      const eye = document.createElement('button');
+      eye.className = 'layer-eye';
+      eye.addEventListener('click', (e) => { e.stopPropagation(); toggleLayerVisible(def); });
+      const label = document.createElement('span');
+      label.className = 'layer-name';
+      label.textContent = `${def.icon} ${def.name}`;
+      const add = document.createElement('button');
+      add.className = 'layer-add';
+      add.textContent = '+';
+      add.title = $(def.add).title || 'Poser un élément sur ce calque';
+      // « + » : arme la pose en relayant le clic du bouton add-xxx existant
+      add.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setCurrentLayer(def.key);
+        $(def.add).onclick ? $(def.add).onclick() : $(def.add).click?.();
+        syncLayersPanel();
+      });
+      // clic sur la ligne : désigne le calque courant (et l'affiche s'il est masqué)
+      row.addEventListener('click', () => {
+        if (!$(def.cb).checked) toggleLayerVisible(def);
+        setCurrentLayer(def.key);
+      });
+      row.append(eye, label, add);
+      host.appendChild(row);
+      layerRows[def.key] = { row, eye };
+    }
+    syncLayersPanel();
+  }
+  buildLayersPanel();
+
   // éditeur de quêtes : ouvre le panneau de chaîne (vue de haut niveau)
   $('open-quests')?.addEventListener('click', openQuestEditor);
   // « Tester ici » : arme le prochain clic pour téléporter le perso connecté en jeu
