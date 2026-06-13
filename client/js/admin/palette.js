@@ -138,7 +138,7 @@ export function buildPalette({ container, assets, onSelect }) {
   // `count` est affiché à droite de l'en-tête. Retourne le conteneur de corps
   // dans lequel ajouter des sous-sections. Plusieurs thèmes peuvent être ouverts.
   const themes = []; // { theme, head, body, text } pour le filtre et l'aplatissement
-  function makeTheme(id, label, count) {
+  function makeTheme(id, label, count, defaultOpen = false) {
     const theme = el('div', 'pal-theme');
     const head = el('button', 'pal-theme-head');
     head.type = 'button';
@@ -147,7 +147,7 @@ export function buildPalette({ container, assets, onSelect }) {
     if (count != null) head.appendChild(el('span', 'pal-theme-count', String(count)));
     const body = el('div', 'pal-theme-body');
     theme.append(head, body);
-    const open = openState[id] ?? false;
+    const open = openState[id] ?? defaultOpen;
     theme.classList.toggle('open', open);
     head.onclick = () => {
       const now = !theme.classList.contains('open');
@@ -171,11 +171,13 @@ export function buildPalette({ container, assets, onSelect }) {
     return { sub, row };
   }
 
-  // --- section sols ---
-  const groups = []; // { div, text } pour le filtre
+  // groupes plats : conservé pour la compat du filtre (désormais vide — tout est
+  // en accordéon, y compris les sols et décors de base d'Arakas).
+  const groups = [];
+
+  // --- section sols (accordéon, déplié par défaut : c'est le plus utilisé) ---
   {
-    const g = el('div', 'pal-group');
-    g.appendChild(el('h3', null, 'Sols'));
+    const body = makeTheme('base:sols', 'Sols', TILE_ORDER.length, true);
     const row = el('div', 'pal-row');
     for (const t of TILE_ORDER) {
       row.appendChild(makeChip(
@@ -184,15 +186,15 @@ export function buildPalette({ container, assets, onSelect }) {
         (cur) => cur.kind === 'tile' && cur.tile === t,
       ));
     }
-    g.appendChild(row);
-    root.appendChild(g);
-    groups.push({ div: g, text: 'sols ' + TILE_ORDER.map(t => TILE_NAMES[t]).join(' ') });
+    body.appendChild(row);
+    const text = 'sols ' + TILE_ORDER.map(t => TILE_NAMES[t]).join(' ');
+    themes[themes.length - 1].subGroups = [{ div: row, text }];
+    themes[themes.length - 1].text = text;
   }
 
-  // --- sections props : un groupe par type, toutes variantes en vignettes ---
+  // --- sections props d'Arakas : un ACCORDÉON par type, toutes variantes ---
   for (const [type, def] of Object.entries(PROP_TYPES)) {
-    const g = el('div', 'pal-group');
-    g.appendChild(el('h3', null, def.label));
+    const body = makeTheme('base:prop:' + type, def.label, def.variants.length);
     const row = el('div', 'pal-row');
     if (def.random && def.variants.length > 1) {
       row.appendChild(makeChip(
@@ -209,9 +211,10 @@ export function buildPalette({ container, assets, onSelect }) {
         (cur) => cur.kind === 'prop' && cur.type === type && cur.v === (def.variants.length > 1 || def.random ? va.v : null),
       ));
     }
-    g.appendChild(row);
-    root.appendChild(g);
-    groups.push({ div: g, text: (type + ' ' + def.label + ' ' + def.variants.map(v => v.label).join(' ')).toLowerCase() });
+    body.appendChild(row);
+    const text = (type + ' ' + def.label + ' ' + def.variants.map(v => v.label).join(' ')).toLowerCase();
+    themes[themes.length - 1].subGroups = [{ div: row, text }];
+    themes[themes.length - 1].text = text;
   }
 
   // --- thèmes Flare additionnels : un ACCORDÉON par famille, sous-sections par type ---
