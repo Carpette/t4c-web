@@ -2,8 +2,18 @@
 // Pool fixe pré-alloué : AUCUNE allocation par frame, on recycle les
 // emplacements les plus anciens. Coordonnées monde (x, z) + hauteur écran (h,
 // en pixels non zoomés) pour les effets qui montent ou retombent.
+import { settings } from '../settings.js';
 
 const MAX = 700;
+
+// Densité FX choisie dans les paramètres (0..1) : chaque émetteur multiplie son
+// nombre de particules par ce facteur. 0 = aucune particule ; sinon au moins 1
+// (un effet ne disparaît jamais totalement tant que la densité est > 0).
+function densify(count) {
+  const d = Number.isFinite(+settings.fxDensity) ? Math.max(0, Math.min(1, +settings.fxDensity)) : 1;
+  if (d <= 0) return 0;
+  return Math.max(1, Math.round(count * d));
+}
 
 export class Particles {
   constructor() {
@@ -82,7 +92,7 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 // Traînée d'un projectile (appelée chaque frame à la position de la tête)
 export function emitTrail(P, element, x, z, h = 40) {
   const st = styleOf(element);
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0, n = densify(2); i < n; i++) {
     P.spawn({
       x, z, h: h + (Math.random() - 0.5) * 10,
       vx: (Math.random() - 0.5) * st.spread, vz: (Math.random() - 0.5) * st.spread,
@@ -95,7 +105,7 @@ export function emitTrail(P, element, x, z, h = 40) {
 // Gerbe d'impact à l'arrivée d'un projectile
 export function emitImpact(P, element, x, z) {
   const st = styleOf(element);
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0, n = densify(14); i < n; i++) {
     const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 2.4;
     P.spawn({
       x, z, h: 30 + Math.random() * 20,
@@ -110,7 +120,7 @@ export function emitImpact(P, element, x, z) {
 // Onde au sol + particules pour les zones d'effet
 export function emitGround(P, element, x, z, radius = 3) {
   const st = styleOf(element);
-  const n = Math.min(40, 12 + radius * 7);
+  const n = densify(Math.min(40, 12 + radius * 7));
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * radius;
     P.spawn({
@@ -126,7 +136,7 @@ export function emitGround(P, element, x, z, radius = 3) {
 // Halo doux montant (soins / lumière)
 export function emitHeal(P, x, z) {
   const st = FX_STYLES.lumiere;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0, n = densify(10); i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = 0.3 + Math.random() * 0.6;
     P.spawn({
       x: x + Math.cos(a) * d, z: z + Math.sin(a) * d, h: 5 + Math.random() * 25,
@@ -138,8 +148,9 @@ export function emitHeal(P, x, z) {
 
 // Anneau lumineux ascendant (buffs)
 export function emitBuff(P, x, z, color = '#ffe48a') {
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
+  const n = densify(16);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
     P.spawn({
       x: x + Math.cos(a) * 0.7, z: z + Math.sin(a) * 0.7, h: 2,
       vx: Math.cos(a) * 0.4, vz: Math.sin(a) * 0.4, vh: 60 + Math.random() * 20,
@@ -152,7 +163,7 @@ export function emitBuff(P, x, z, color = '#ffe48a') {
 // l'application d'un buff défensif, puis se dissipe (purement visuel, ~0,8 s)
 export function emitShield(P, x, z, color = '#9ad4ff') {
   const R = 1.1;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0, n = densify(30); i < n; i++) {
     // point sur la sphère : azimut + élévation -> coquille autour du buste
     const a = Math.random() * Math.PI * 2;
     const e = (Math.random() - 0.5) * Math.PI;
@@ -171,7 +182,7 @@ export function emitShield(P, x, z, color = '#9ad4ff') {
 // Volutes sombres qui s'accrochent à la cible (malédiction)
 export function emitCurse(P, x, z) {
   const st = FX_STYLES.drain;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0, n = densify(12); i < n; i++) {
     const a = Math.random() * Math.PI * 2;
     P.spawn({
       x: x + Math.cos(a) * 0.5, z: z + Math.sin(a) * 0.5, h: 10 + Math.random() * 40,
@@ -183,7 +194,7 @@ export function emitCurse(P, x, z) {
 
 // Poussière de mort d'un monstre
 export function emitDeath(P, x, z) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0, n = densify(10); i < n; i++) {
     const a = Math.random() * Math.PI * 2, v = 0.6 + Math.random() * 1.2;
     P.spawn({
       x, z, h: 12 + Math.random() * 18,

@@ -1,6 +1,7 @@
 // Rendu isométrique 2D : sols, décors, entités triées en profondeur,
 // éclairage simulé (nuit teintée + halos de lumière), à la manière des RPG iso classiques.
 import { DAY_LENGTH } from '../../../shared/constants.js';
+import { settings, ZOOM_MIN, ZOOM_MAX } from '../settings.js';
 import {
   Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
 } from './particles.js';
@@ -18,7 +19,9 @@ export class Renderer {
     this.world = world;
     this.decor = decor;
     this.cam = { x: world.spawnPoint.x, z: world.spawnPoint.z };
-    this.scale = 1;
+    // zoom initial = « zoom par défaut » des paramètres (la molette ajuste ensuite)
+    const z0 = +settings.defaultZoom;
+    this.scale = Number.isFinite(z0) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z0)) : 1;
     this.grass = assets.images.get('tilesets/tileset_grassland.png');
     this.water = assets.images.get('tilesets/tileset_grassland_water.png');
 
@@ -71,7 +74,7 @@ export class Renderer {
   }
 
   zoom(delta) {
-    this.scale = Math.min(1.4, Math.max(0.55, this.scale * (delta > 0 ? 0.9 : 1.1)));
+    this.scale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.scale * (delta > 0 ? 0.9 : 1.1)));
   }
 
   follow(x, z) {
@@ -337,6 +340,27 @@ export class Renderer {
         const p = this.w2s(d.view.x, d.view.z);
         d.view.drawOverlay(ctx, p.x, p.y, s, selfId);
       }
+    }
+
+    // --- Luminosité / gamma : voile global appliqué TOUT À LA FIN ---
+    // Réglage simple et robuste qui ne touche pas à l'éclairage de zone :
+    //   gamma > 1 -> voile blanc en 'lighten' (éclaircit)
+    //   gamma < 1 -> voile noir en 'multiply'/source-over (assombrit)
+    // L'intensité suit l'écart à 1 (gamma = 1 -> aucun voile).
+    const gamma = Number.isFinite(+settings.gamma) ? +settings.gamma : 1;
+    if (Math.abs(gamma - 1) > 0.01) {
+      ctx.save();
+      if (gamma > 1) {
+        ctx.globalCompositeOperation = 'lighten';
+        ctx.globalAlpha = Math.min(0.6, (gamma - 1) * 0.9);
+        ctx.fillStyle = '#ffffff';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = Math.min(0.6, (1 - gamma) * 0.9);
+        ctx.fillStyle = '#000000';
+      }
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     }
 
     return daylight;
