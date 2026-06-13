@@ -20,6 +20,15 @@
 //     champs éditables : name, look, role ('merchant'|'teacher'|'bavard'),
 //     greetings (phrases d'ambiance), sells (objets vendus, ids), teaches
 //     (sorts enseignés, ids), dialogues (mots-clés, cf. server/game/dialogues.js)
+//   music — SOUS-ZONES musicales dessinées sur la carte (formes géométriques) :
+//     [{ id, shape:'rect'|'circle', x, z, w, h | r, track:{legacy,new}, priority }]
+//     Une sous-zone = une forme (rectangle x/z/w/h OU cercle centre x/z + rayon r,
+//     en tuiles) + une piste { legacy, new } (mêmes variantes que music.json).
+//     `priority` départage les chevauchements (plus haut = prioritaire).
+//     ABSENTE : comportement actuel inchangé (la musique reste celle de la zone
+//     entière, music.json). Quand le joueur n'est dans AUCUNE sous-zone, la
+//     musique de zone globale reste le FOND par défaut. La bascule entre pistes
+//     se fait avec hystérésis côté serveur (cf. game.js, MUSIC_ZONE_HYSTERESIS).
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
