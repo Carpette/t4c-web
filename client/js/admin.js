@@ -45,7 +45,10 @@ async function enter(name) {
   // la liste des sorts alimente la fiche PNJ de l'éditeur (rôle enseignant)
   let spells = [];
   try { spells = (await api('/api/admin/content/spells')).spells || []; } catch { /* optionnel */ }
-  await initMapEditor({ api, zones: zonesDef, npcDefs: zonesContent.npc || {}, spells });
+  // la liste des fichiers de /assets/music alimente les fiches « Zone musicale »
+  let musicFiles = [];
+  try { musicFiles = (await api('/api/admin/music')).files || []; } catch { /* optionnel */ }
+  await initMapEditor({ api, zones: zonesDef, npcDefs: zonesContent.npc || {}, spells, musicFiles });
   loadMusic();
   loadSkins();
   loadChars();
