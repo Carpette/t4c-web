@@ -29,6 +29,14 @@ button.secondary { background: #2a2444; }
 #login-error { color: #e86a6a; margin-top: 12px; min-height: 18px; font-size: 13px; }
 
 /* ---- HUD ---- */
+/* --hud-scale : taille du texte/HUD (Petit/Normal/Grand) appliquée à chaud.
+   Les conteneurs textuels mettent leur font-size à l'échelle de cette variable
+   (les éléments en em suivent ; on reste lisible et non cassant). */
+#hud { --hud-scale: 1; }
+#chat, #chat-input, .panel, #buffs-display, #zone-banner,
+#party-panel, #target-frame, #combat-indicator {
+  font-size: calc(13px * var(--hud-scale, 1));
+}
 #vitals { position: fixed; top: 12px; left: 12px; width: 230px; z-index: 10; }
 .bar {
   position: relative; height: 20px; margin-bottom: 5px; background: rgba(0,0,0,0.6);
@@ -50,12 +58,19 @@ button.secondary { background: #2a2444; }
   background: rgba(0,0,0,0.55); padding: 4px 10px; border-radius: 4px; z-index: 10;
 }
 #clock { position: fixed; top: 12px; right: 12px; font-size: 20px; z-index: 10; background: rgba(0,0,0,0.4); border-radius: 6px; padding: 2px 8px; }
+/* overlay discret ping / FPS, juste sous l'horloge (coin haut-droit) */
+#perf-overlay {
+  position: fixed; top: 46px; right: 12px; z-index: 10;
+  font-size: 11px; color: #8ae8c8; font-variant-numeric: tabular-nums;
+  background: rgba(0,0,0,0.4); border-radius: 4px; padding: 2px 7px;
+  pointer-events: none; text-shadow: 0 1px 2px #000;
+}
 
 #chat {
   position: fixed; bottom: 12px; left: 12px; width: 360px; z-index: 10;
 }
 #chat-messages {
-  max-height: 160px; overflow-y: auto; font-size: 12px; color: #e8e8e8;
+  max-height: 160px; overflow-y: auto; font-size: calc(12px * var(--hud-scale, 1)); color: #e8e8e8;
   text-shadow: 0 1px 2px #000; margin-bottom: 6px; scrollbar-width: thin;
 }
 #chat-messages .sys { color: #c8b87a; font-style: italic; }
@@ -67,7 +82,7 @@ button.secondary { background: #2a2444; }
 #chat-messages .channel-roleplay { color: #ffd8a8; }
 #chat-input {
   width: 100%; padding: 6px 10px; background: rgba(0,0,0,0.65); border: 1px solid #555;
-  border-radius: 4px; color: #fff; font-size: 13px; opacity: 0.5;
+  border-radius: 4px; color: #fff; font-size: calc(13px * var(--hud-scale, 1)); opacity: 0.5;
 }
 #chat-input:focus { opacity: 1; outline: none; border-color: #8a78c8; }
 
@@ -245,26 +260,44 @@ button.secondary { background: #2a2444; }
 }
 .potion-slot.empty { opacity: 0.4; filter: grayscale(0.8); }
 #settings-list {
-  width: 280px; max-height: 50vh; overflow-y: auto; margin: 0 auto;
+  width: 320px; max-height: 52vh; overflow-y: auto; margin: 0 auto;
   text-align: left; scrollbar-width: thin;
 }
 .setting-section {
   color: #c8b87a; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
-  margin: 12px 0 4px; padding-bottom: 3px; border-bottom: 1px solid #3a3458;
+  margin: 14px 0 4px; padding-bottom: 3px; border-bottom: 1px solid #3a3458;
 }
 .setting-section:first-child { margin-top: 0; }
+/* libellé à gauche (souple), contrôle aligné à droite (largeur homogène) */
 .setting-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 6px 2px; font-size: 13px; color: #d8d0f0; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 2px; font-size: 13px; color: #d8d0f0; cursor: pointer;
 }
 .setting-row:hover { color: #fff; }
-.setting-row input[type="checkbox"] {
-  accent-color: #8a78c8; cursor: pointer; width: 16px; height: 16px; flex: none;
+.setting-row .setting-label { flex: 1 1 auto; min-width: 0; }
+/* zone de contrôle alignée à droite, toujours de même largeur */
+.setting-row .setting-control,
+.setting-row > input[type="checkbox"],
+.setting-row > select { flex: 0 0 150px; }
+.setting-row > input[type="checkbox"] {
+  accent-color: #8a78c8; cursor: pointer; width: 16px; height: 16px;
+  flex-basis: auto; justify-self: end; margin-left: auto;
 }
-.setting-row select {
+.setting-row > select {
   background: #0c0a16; border: 1px solid #4a4070; border-radius: 4px;
-  color: #e8e0ff; padding: 3px 6px; font-size: 12px; cursor: pointer; flex: none;
+  color: #e8e0ff; padding: 3px 6px; font-size: 12px; cursor: pointer;
 }
+/* curseur + valeur courante affichée à droite (%, ou valeur brute) */
+.setting-row .setting-control { display: flex; align-items: center; gap: 8px; }
+.setting-row .setting-control input[type="range"] {
+  flex: 1 1 auto; min-width: 0; accent-color: #8a78c8; cursor: pointer;
+}
+.setting-row .setting-value {
+  flex: 0 0 42px; text-align: right; font-size: 11px; color: #b8a8e8;
+  font-variant-numeric: tabular-nums;
+}
+#settings-reset { display: block; width: 100%; background: #5a2a2a; border-color: #8a4a4a; }
+#settings-reset:hover { background: #6e3636; }
 #shop-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
 #shop-tabs button { padding: 4px 10px; font-size: 12px; background: #2a2444; }
 #shop-tabs button.active { background: #4a3a7a; }
