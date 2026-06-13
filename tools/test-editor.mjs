@@ -302,6 +302,54 @@ await new Promise(r => setTimeout(r, 60));
   ok('Ctrl+Z : pose de lumière annulée (section `lights` absente)', ed.getOverrides().lights === undefined);
 }
 
+// éditeur de quêtes : ouverture sans exception, génération cohérente, intégrité
+ed.loadZone && await ed.loadZone(0);
+await new Promise(r => setTimeout(r, 60));
+{
+  ed.openQuestEditor();
+  ok('panneau Quêtes ouvert sans exception', failures.length === 0);
+  // pose deux PNJ custom (déclencheurs des deux étapes)
+  ed.placeNpcAt(40, 40);
+  ed.placeNpcAt(42, 42);
+  const npcs = ed.getNpcs();
+  const a = npcs.find(n => Math.floor(n.x) === 40 && Math.floor(n.z) === 40);
+  const b = npcs.find(n => Math.floor(n.x) === 42 && Math.floor(n.z) === 42);
+  // construit une quête : PNJ A pose quete:t:1 sur « parle » + 100 or ;
+  // PNJ B exige quete:t:1 et pose quete:t:2 + 50 xp
+  ed.generateQuest({
+    id: 't', title: 'Test', desc: '', steps: [
+      { n: '1', flag: ed.questFlag('t', 1), npcId: a.npcId, keywords: ['parle'], reponse: 'A', reqFlag: '', reqLevel: 0, reqItem: '', consume: false, gold: 100, itemDefId: '', itemN: 1, xp: 0, tp: null },
+      { n: '2', flag: ed.questFlag('t', 2), npcId: b.npcId, keywords: ['suite'], reponse: 'B', reqFlag: ed.questFlag('t', 1), reqLevel: 0, reqItem: '', consume: false, gold: 0, itemDefId: '', itemN: 1, xp: 50, tp: null },
+    ],
+  });
+  // les dialogues générés sont dans les overrides npcs.add des deux PNJ
+  const adds = ed.getOverrides().npcs?.add || [];
+  const da = adds.find(n => n.id === a.npcId)?.dialogues || [];
+  const db = adds.find(n => n.id === b.npcId)?.dialogues || [];
+  const setsFlag = (dlgs, f) => dlgs.some(d => (d.reactions || []).some(r => r.type === 'flag' && r.key === f));
+  ok('génération : PNJ A pose le drapeau quete:t:1 (mot-clé + or)',
+    setsFlag(da, 'quete:t:1') && da.some(d => (d.keywords || []).includes('parle') && (d.reactions || []).some(r => r.type === 'gold' && r.amount === 100)));
+  ok('génération : PNJ B exige quete:t:1, pose quete:t:2 (+xp)',
+    db.some(d => d.conditions?.flag === 'quete:t:1') && setsFlag(db, 'quete:t:2') && db.some(d => (d.reactions || []).some(r => r.type === 'xp' && r.amount === 50)));
+  // scan : la quête est remontée avec ses deux étapes
+  const scanned = ed.scanQuests();
+  ok('scan : la quête « t » est remontée avec 2 étapes', scanned.get('t') && scanned.get('t').flags.size === 2);
+  // intégrité : ici quete:t:1 est exigé ET posé ; quete:t:2 est posé mais jamais exigé -> dead flag signalé
+  const integ = ed.questIntegrity('t');
+  ok('intégrité : quete:t:2 posé mais jamais exigé est signalé (sans effet)',
+    integ.deadFlags.includes('quete:t:2') && integ.orphanRefs.length === 0);
+  // ajoute une référence orpheline : un coffre exigeant un drapeau jamais posé
+  ed.placeChestAt(44, 44);
+  const chestIdx = ed.getChests().findIndex(c => Math.floor(c.x) === 44 && Math.floor(c.z) === 44);
+  ed.openChestPanel(chestIdx);
+  // simule la saisie du reqFlag puis Appliquer via l'API d'overrides directe :
+  (ed.getOverrides().chests ||= []).push({ x: 44, z: 44, gold: [0, 0], items: [], reqFlag: 'quete:t:9' });
+  ed.rebuildNow();
+  const integ2 = ed.questIntegrity('t');
+  ok('intégrité : drapeau exigé par un coffre mais jamais posé = étape inatteignable',
+    integ2.orphanRefs.includes('quete:t:9'));
+}
+
 // aperçu jour/nuit : bascule l'état d'aperçu (et le rendu ne lève pas d'exception)
 {
   ed.setDayPreview('night');

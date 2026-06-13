@@ -45,6 +45,22 @@
     .edit-dlg { background: #100c1e; border: 1px solid #3a3158; border-radius: 5px;
       padding: 6px; margin: 6px 0; }
     .edit-dlg input, .edit-dlg textarea { margin: 3px 0; }
+    /* éditeur de quêtes : large panneau modal au-dessus de la carte */
+    #quest-panel { display: none; position: absolute; left: 10px; right: 10px; top: 10px;
+      bottom: 10px; overflow-y: auto; background: #150f24f5; border: 1px solid #5a4a8a;
+      border-radius: 8px; padding: 14px; font-size: 12px; z-index: 20; }
+    #quest-panel h3 { color: #c8b87a; margin: 10px 0 4px; }
+    .quest-card { background: #100c1e; border: 1px solid #3a3158; border-radius: 6px;
+      padding: 8px 10px; margin: 8px 0; }
+    .quest-step { background: #181030; border: 1px solid #34507a; border-radius: 6px;
+      padding: 6px 8px; margin: 6px 0; }
+    .quest-chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+    .quest-link { background: #1d1636; border: 1px solid #4a4070; border-radius: 5px;
+      padding: 4px 8px; color: #cfc6ee; }
+    .quest-arrow { color: #c8b87a; font-weight: bold; }
+    .quest-warn { color: #e8b86a; }
+    .quest-bad { color: #e86a6a; }
+    .quest-ok { color: #8ae88a; }
     .pal-search { width: 100%; margin-bottom: 8px; }
     .pal-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
       padding: 6px 8px; background: #100c1e; border-radius: 5px; font-size: 12px; }
@@ -120,6 +136,7 @@
         <label><input type="checkbox" id="layer-lights"> 💡 Lumières</label>
         <button id="add-light" title="Pose une source de lumière (halo de rayon/couleur réglables) (clic sur la carte)">➕ Lumière</button>
         <button id="preview-daynight" title="Bascule l'aperçu de la carte entre jour et nuit (applique lumières et obscurité)">🌓 Aperçu jour/nuit</button>
+        <button id="open-quests" title="Éditeur de quêtes : voir et construire les quêtes de la zone comme des chaînes d'étapes">🗺 Quêtes</button>
         <button id="tp-here" title="Téléporte votre personnage connecté en jeu sur la case cliquée">🧍 Tester ici</button>
         <label style="margin-left:10px"><input type="checkbox" id="iso-view"> 🧭 Vue jeu (iso)</label>
         <label><input type="checkbox" id="show-players" checked> 🟢 Joueurs en direct</label>
@@ -137,6 +154,7 @@
           <canvas id="map-mini" width="168" height="168"></canvas>
           <div id="map-coords">—</div>
           <div id="edit-panel"></div>
+          <div id="quest-panel"></div>
         </div>
         <div id="map-palette"></div>
       </div>
