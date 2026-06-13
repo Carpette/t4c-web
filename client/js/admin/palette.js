@@ -4,7 +4,11 @@
 // — recherche/filtre, et options de pose (variante aléatoire, échelle, miroir).
 // La sélection devient l'outil de pose de l'éditeur (editor.js).
 import { TILE } from '../../../shared/worldgen.js';
-import { FLOOR_IDS, PROP_TYPES, SCALABLE_PROPS, FLIPPABLE_PROPS } from '../render2d/decormap.js';
+import {
+  FLOOR_IDS, PROP_TYPES, SCALABLE_PROPS, FLIPPABLE_PROPS,
+  TILESET_PROP_FAMILIES, tilesetPropId,
+} from '../render2d/decormap.js';
+import { resolveTile } from '../render2d/assets.js';
 
 // couleurs d'aplat (rendu rapide à faible zoom + repli sans assets)
 export const TILE_COLORS = {
@@ -32,11 +36,10 @@ const THUMB = 46; // côté d'une vignette (px)
 function drawThumb(canvas, assets, tileId) {
   const g = canvas.getContext('2d');
   g.clearRect(0, 0, canvas.width, canvas.height);
-  const rect = assets.manifest.tiles[tileId] || assets.manifest.waterTiles[tileId];
-  if (!rect) return false;
-  const img = assets.manifest.tiles[tileId] ? assets.grass : assets.water;
-  if (!img) return false;
-  const [x, y, w, h] = rect;
+  const r = resolveTile(assets, tileId, assets.grass, assets.water);
+  if (!r || !r.img) return false;
+  const img = r.img;
+  const [x, y, w, h] = r.rect;
   const k = Math.min(canvas.width / w, canvas.height / h);
   g.imageSmoothingEnabled = true;
   g.drawImage(img, x, y, w, h, (canvas.width - w * k) / 2, (canvas.height - h * k) / 2, w * k, h * k);
@@ -166,6 +169,33 @@ export function buildPalette({ container, assets, onSelect }) {
     g.appendChild(row);
     root.appendChild(g);
     groups.push({ div: g, text: (type + ' ' + def.label + ' ' + def.variants.map(v => v.label).join(' ')).toLowerCase() });
+  }
+
+  // --- sections tilesets Flare additionnels : un groupe par famille ---
+  // Énumère toutes les frames du tileset depuis le manifeste (cave/dungeon/ruins/
+  // neige) et en fait des vignettes. La pose enregistre un prop { type, v:frame }
+  // dont l'id de tuile rendu est « prefix:frame » (voir decormap.tilesetPropId).
+  const tilesets = assets?.manifest?.tilesets || {};
+  for (const [type, prefix, label, [glyph, color]] of TILESET_PROP_FAMILIES) {
+    const ts = tilesets[prefix];
+    if (!ts || !ts.tiles) continue;
+    const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
+    if (!frames.length) continue;
+    const g = el('div', 'pal-group');
+    g.appendChild(el('h3', null, label));
+    const row = el('div', 'pal-row');
+    for (const frame of frames) {
+      const n = Number(frame);
+      const tileId = tilesetPropId(type, n); // « prefix:frame »
+      row.appendChild(makeChip(
+        { label: `${label} ${frame}`, tileId, glyph, color },
+        () => ({ kind: 'prop', type, v: n }),
+        (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
+      ));
+    }
+    g.appendChild(row);
+    root.appendChild(g);
+    groups.push({ div: g, text: (type + ' ' + prefix + ' ' + label).toLowerCase() });
   }
 
   search.oninput = () => {
