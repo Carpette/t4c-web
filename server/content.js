@@ -6,7 +6,7 @@ import { FormulaEngine } from '../shared/formula-engine.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} }, skins: { items: {}, mobs: {} } };
+export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} }, skins: { items: {}, mobs: {} }, templates: [] };
 
 const engine = new FormulaEngine();
 
@@ -63,11 +63,17 @@ export function loadContent() {
     const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'skins.json'), 'utf8'));
     content.skins = { items: raw.items || {}, mobs: raw.mobs || {} };
   } catch { content.skins = { items: {}, mobs: {} }; }
+  // templates de l'éditeur de carte (assemblages réutilisables tuiles+décors) :
+  // pur outillage d'édition, jamais lu par le serveur de JEU. Tolérant si absent.
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'templates.json'), 'utf8'));
+    content.templates = Array.isArray(raw.templates) ? raw.templates : [];
+  } catch { content.templates = []; }
   return content;
 }
 
 export function saveContentFile(name, data) {
-  if (!['zones', 'spells', 'skills', 'music', 'skins'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'spells', 'skills', 'music', 'skins', 'templates'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }
