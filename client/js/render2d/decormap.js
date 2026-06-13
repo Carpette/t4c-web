@@ -41,6 +41,33 @@ export const CHEST_ID = 298;
 export const BANK_ID = 300;
 export const OBELISK_ID = 143;
 export const WALL_IDS = { seg1: 208, seg2: 215, corner: 214, gate: 212 };
+
+// --- Bâtiments & murs modulaires du tileset grassland (frames NUMÉRIQUES) ---
+// Le tileset grassland recèle bien plus de structures que ce qu'expose la palette
+// de base : façades de planches, parois, segments de remparts, pans de toiture,
+// plateforme de bois... On les EXPOSE comme variantes des familles « maison » et
+// « mur » (libellés explicites) SANS toucher aux variantes historiques (les
+// premières restent en tête, donc les cartes déjà éditées sont inchangées).
+// Ids relevés visuellement sur tileset_grassland.png (cf. tools/preview).
+export const HOUSE_FLARE_IDS = [
+  { v: 'cabane_a', id: 224, label: 'cabane / façade planches 1' },
+  { v: 'cabane_b', id: 227, label: 'cabane / façade planches 2' },
+  { v: 'cabane_c', id: 228, label: 'cabane / façade planches 3' },
+  { v: 'cabane_d', id: 231, label: 'cabane / façade planches 4' },
+  { v: 'beffroi', id: 219, label: 'beffroi / tour de bois' },
+];
+export const WALL_FLARE_IDS = [
+  { v: 'planche_a', id: 209, label: 'mur de planches haut' },
+  { v: 'planche_b', id: 235, label: 'mur de planches large' },
+  { v: 'poutre', id: 216, label: 'poutre verticale' },
+  { v: 'montant', id: 222, label: 'montant fin' },
+  { v: 'toit_petit', id: 232, label: 'pan de toit (petit)' },
+  { v: 'toit_moyen', id: 233, label: 'pan de toit (moyen)' },
+  { v: 'toit_grand', id: 234, label: 'pan de toit (grand)' },
+  { v: 'toit_petit2', id: 238, label: 'pan de toit miroir (petit)' },
+  { v: 'toit_moyen2', id: 237, label: 'pan de toit miroir (moyen)' },
+  { v: 'toit_grand2', id: 236, label: 'pan de toit miroir (grand)' },
+];
 export const FENCE_IDS = { x: 104, z: 107, corner: 108, post: 106 };
 export const BRIDGE_IDS = { x: 312, z: 313 };
 
@@ -64,6 +91,40 @@ export const TILESET_PROP_PREFIX = Object.fromEntries(
 export function tilesetPropId(type, v) {
   const prefix = TILESET_PROP_PREFIX[type];
   return prefix != null && v != null ? `${prefix}:${v}` : null;
+}
+
+// --- Famille générique « frame grassland » (ids NUMÉRIQUES) ---
+// Le tileset grassland (sol historique d'Arakas) est référencé par des ids
+// NUMÉRIQUES directs dans manifest.tiles (≠ les ids texte « cave:42 »). Pour
+// rendre TOUTES ses frames (maisons, cabanes, tentes, murs, remparts, props…)
+// pickables individuellement dans la palette, on définit un type de prop
+// dédié `flare_grass` dont la variante `v` EST le numéro de frame, et dont l'id
+// de tuile rendu est ce même nombre. Le rendu (resolveTile) sait déjà dessiner
+// un id numérique via manifest.tiles : aucune autre plomberie n'est requise.
+export const GRASS_PROP_TYPE = 'flare_grass';
+export const GRASS_PROP_LABEL = 'Plaines / Bâtiments (Flare)';
+// id de tuile rendu pour un prop « frame grassland » : la frame elle-même.
+export function grasslandPropId(v) {
+  return Number.isInteger(v) ? v : null;
+}
+
+// Classement géométrique d'une frame grassland en TYPE de palette
+// ('sol' | 'mur' | 'objet' | 'bati'). MÊME logique que build-manifest.js pour
+// les tilesets additionnels, AVEC un type « bâtiment » distinct pour les très
+// grandes structures (maisons/tours), afin de les regrouper à part dans la
+// palette. Heuristique sur le rectangle source [x, y, w, h, …] (base iso 192×96).
+//   sol  : h ≤ 100 ET w ≥ 160 (dalle de sol pleine posée à plat) ;
+//   mur  : 100 < h ≤ 190 (parois, segments de rempart, pans de toiture bas) ;
+//   bati : h > 280 ET w ≥ 150 (maisons, cabanes, tours, grosses structures) ;
+//   objet: le reste (props isolés, mobilier, débris, arbres…).
+const GRASS_H_SOL = 100, GRASS_H_MUR = 190, GRASS_W_SOL = 160;
+const GRASS_H_BATI = 280, GRASS_W_BATI = 150;
+export function classifyGrasslandFrame(rect) {
+  const [, , w, h] = rect;
+  if (h <= GRASS_H_SOL) return w >= GRASS_W_SOL ? 'sol' : 'objet';
+  if (h <= GRASS_H_MUR) return 'mur';
+  if (h > GRASS_H_BATI && w >= GRASS_W_BATI) return 'bati';
+  return 'objet';
 }
 
 // hachage déterministe d'une case : variantes stables d'une génération à l'autre
@@ -91,12 +152,15 @@ export const PROP_TYPES = {
   ruin: { label: 'ruine', random: true, variants: RUIN_IDS.map((id, i) => ({ v: i, id, label: `ruine ${i + 1}` })) },
   cave: { label: 'entrée de grotte', random: true, variants: CLIFF_IDS.map((id, i) => ({ v: i, id, label: `falaise ${i + 1}` })) },
   wall: {
-    label: 'palissade', random: true,
+    label: 'mur', random: true,
     variants: [
-      { v: 'seg1', id: WALL_IDS.seg1, label: 'pan plein 1' },
-      { v: 'seg2', id: WALL_IDS.seg2, label: 'pan plein 2' },
-      { v: 'corner', id: WALL_IDS.corner, label: 'angle (toit)' },
-      { v: 'gate', id: WALL_IDS.gate, label: 'montant de porte' },
+      // variantes HISTORIQUES de palissade (ids/`v` inchangés : rétrocompatibilité)
+      { v: 'seg1', id: WALL_IDS.seg1, label: 'palissade — pan plein 1' },
+      { v: 'seg2', id: WALL_IDS.seg2, label: 'palissade — pan plein 2' },
+      { v: 'corner', id: WALL_IDS.corner, label: 'palissade — angle (toit)' },
+      { v: 'gate', id: WALL_IDS.gate, label: 'palissade — montant de porte' },
+      // nouvelles variantes : murs de planches, poutres et pans de toiture grassland
+      ...WALL_FLARE_IDS,
     ],
   },
   fence: {
@@ -116,7 +180,15 @@ export const PROP_TYPES = {
     ],
   },
   torch: { label: 'feu de camp', variants: [{ v: 0, id: CAMPFIRE_ID, label: 'feu de camp' }] },
-  house: { label: 'maison', variants: [{ v: 0, id: HOUSE_ID, label: 'maison' }] },
+  house: {
+    label: 'maison',
+    variants: [
+      // variante HISTORIQUE (v:0, ancrage calibré) : rétrocompatibilité totale
+      { v: 0, id: HOUSE_ID, label: 'grande maison' },
+      // cabanes / façades / beffroi du tileset grassland (ancrage centré simple)
+      ...HOUSE_FLARE_IDS,
+    ],
+  },
   well: { label: 'dalle centrale', variants: [{ v: 0, id: WELL_ID, label: 'dalle' }] },
   obelisk: { label: 'obélisque', variants: [{ v: 0, id: OBELISK_ID, label: 'obélisque' }] },
   trialgate: { label: "portail d'Épreuve", variants: [{ v: 0, id: GATE_ID, label: 'portail' }] },
@@ -130,8 +202,8 @@ export const PROP_TYPES = {
 // transformés. Les éléments qui s'emboîtent (murs, ponts...) ou dont l'ancrage
 // est calibré (maison, portails) gardent leur taille d'origine.
 const TILESET_PROP_TYPES = TILESET_PROP_FAMILIES.map(([type]) => type);
-export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', ...TILESET_PROP_TYPES]);
-export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', ...TILESET_PROP_TYPES]);
+export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES]);
+export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES]);
 
 // échelle effective d'un prop (bornée, 1 pour les types non redimensionnables)
 export function propScale(p) {
@@ -149,6 +221,13 @@ function explicitId(type, v) {
   if (!Number.isInteger(v)) return null;
   return PROP_TYPES[type]?.variants[v]?.id ?? null;
 }
+// id de tuile pour une variante repérée par sa VALEUR `v` (nombre ou nom) :
+// cherche dans PROP_TYPES[type].variants la variante dont `v` correspond.
+// Sert aux familles à variantes nommées (maison, mur) enrichies de frames Flare.
+function explicitNamedId(type, v) {
+  if (v == null) return null;
+  return PROP_TYPES[type]?.variants.find(va => va.v === v)?.id ?? null;
+}
 
 // Sprites + lumières produits par UN prop du worldgen (ou d'un override).
 // `inCemetery` : les arbres plantés sur des tuiles de cimetière deviennent morts.
@@ -160,6 +239,12 @@ export function propSprites(p, { inCemetery = false } = {}) {
   if (TILESET_PROP_PREFIX[p.type]) {
     const id = tilesetPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
+  // frame grassland posée individuellement (id NUMÉRIQUE, cf. grasslandPropId)
+  if (p.type === GRASS_PROP_TYPE) {
+    const id = grasslandPropId(p.v);
+    if (id != null) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
   switch (p.type) {
@@ -176,10 +261,15 @@ export function propSprites(p, { inCemetery = false } = {}) {
       sprites.push({ tileId: CAMPFIRE_ID, x: p.x, z: p.z });
       lights.push({ x: p.x, z: p.z, r: 330, flicker: true });
       break;
-    case 'house':
-      // ancrage calibré : la base visuelle couvre l'empreinte bloquée
-      sprites.push({ tileId: HOUSE_ID, x: p.x - 1.5, z: p.z + 2.5, big: true });
+    case 'house': {
+      // v:0 (ou absent) = grande maison HISTORIQUE : ancrage calibré (la base
+      // visuelle couvre l'empreinte 5×4 bloquée). Variantes Flare (v texte) :
+      // cabanes/façades/beffroi, posées à l'ancrage simple de la case.
+      const id = explicitNamedId('house', p.v);
+      if (id != null && p.v !== 0) sprites.push({ tileId: id, x: p.x, z: p.z });
+      else sprites.push({ tileId: HOUSE_ID, x: p.x - 1.5, z: p.z + 2.5, big: true });
       break;
+    }
     case 'well':
       sprites.push({ tileId: WELL_ID, x: p.x, z: p.z });
       break;
@@ -208,11 +298,13 @@ export function propSprites(p, { inCemetery = false } = {}) {
       sprites.push({ tileId: explicitId('cave', p.v) ?? pick(CLIFF_IDS, r), x: p.x, z: p.z, interact: 'cave', name: p.name });
       break;
     case 'wall': {
-      // palissade de bois (remparts de Windhowl) : pans pleins, angles
-      // coiffés d'un toit, montants de porte de part et d'autre des accès.
-      // v explicite ('seg1'/'seg2'/'corner'/'gate') sinon pan aléatoire (legacy 'seg')
-      const id = WALL_IDS[p.v] ?? (p.v === 'corner' ? WALL_IDS.corner : p.v === 'gate' ? WALL_IDS.gate
-        : (hash(p.x * 3, p.z * 3) < 0.5 ? WALL_IDS.seg2 : WALL_IDS.seg1));
+      // palissade de bois (remparts de Windhowl) : pans pleins, angles coiffés
+      // d'un toit, montants de porte ; + variantes Flare (planches, poutres, toits).
+      // v explicite (nom de variante) sinon pan de palissade aléatoire (legacy 'seg').
+      // On essaie d'abord WALL_IDS (rétrocompat des noms historiques), puis la
+      // table des variantes (pour les nouvelles frames Flare comme 'planche_a').
+      const id = WALL_IDS[p.v] ?? explicitNamedId('wall', p.v)
+        ?? (hash(p.x * 3, p.z * 3) < 0.5 ? WALL_IDS.seg2 : WALL_IDS.seg1);
       sprites.push({ tileId: id, x: p.x, z: p.z });
       break;
     }
