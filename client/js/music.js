@@ -38,15 +38,22 @@ function stop() {
   if (audio) { audio.pause(); audio.src = ''; audio = null; }
 }
 
+// gain effectif de la musique : volume maître × volume musique, borné 0..1
+function musicGain() {
+  const master = Number.isFinite(+settings.masterVolume) ? +settings.masterVolume : 1;
+  const music = Number.isFinite(+settings.musicVolume) ? +settings.musicVolume : 0.6;
+  return Math.max(0, Math.min(1, master * music));
+}
+
 function apply() {
   const file = settings.musicOn ? pickFile() : null;
   if (!file) { stop(); return; }
-  if (audio && audio._file === file) return; // déjà en cours
+  if (audio && audio._file === file) { audio.volume = musicGain(); return; } // déjà en cours : on rafraîchit juste le volume
   stop();
   audio = new Audio(`/assets/music/${encodeURIComponent(file)}`);
   audio._file = file;
   audio.loop = true;
-  audio.volume = 0.4;
+  audio.volume = musicGain();
   audio.play().catch(() => startOnGesture());
 }
 

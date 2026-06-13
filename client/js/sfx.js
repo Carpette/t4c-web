@@ -26,8 +26,9 @@ let manifestLoaded = false;
 const files = new Map();  // nom -> AudioBuffer (fichier décodé) | 'none' (synthèse)
 
 function volume() {
-  const v = +settings.sfxVolume;
-  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.8;
+  const v = Number.isFinite(+settings.sfxVolume) ? +settings.sfxVolume : 0.8;
+  const master = Number.isFinite(+settings.masterVolume) ? +settings.masterVolume : 1;
+  return Math.max(0, Math.min(1, master * v)); // volume maître × volume des effets
 }
 
 function ensureCtx() {
