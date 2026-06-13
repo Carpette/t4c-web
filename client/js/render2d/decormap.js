@@ -44,6 +44,28 @@ export const WALL_IDS = { seg1: 208, seg2: 215, corner: 214, gate: 212 };
 export const FENCE_IDS = { x: 104, z: 107, corner: 108, post: 106 };
 export const BRIDGE_IDS = { x: 312, z: 313 };
 
+// --- Tuiles des tilesets Flare additionnels (cave, dungeon, ruins, neige) ---
+// Posées comme des décors « libres » : un prop dont le type est le préfixe du
+// tileset (flare_cave...) et la variante `v` le numéro de frame. L'id de tuile
+// rendu est la chaîne « tileset:frame » résolue par le manifeste généralisé.
+// Aucune dépendance au manifeste ici : la palette énumère les frames disponibles.
+// [type de prop, préfixe d'id de tileset, libellé groupe, glyphe de repli]
+export const TILESET_PROP_FAMILIES = [
+  ['flare_cave', 'cave', 'Caverne (Flare)', ['◓', '#9a8']],
+  ['flare_dungeon', 'dungeon', 'Donjon (Flare)', ['▤', '#aa8']],
+  ['flare_ruins', 'ruins', 'Ruines (Flare)', ['⌂', '#cb9']],
+  ['flare_snow', 'snow', 'Neige / Glace (Flare)', ['❄', '#cdf']],
+];
+// type de prop -> préfixe de tileset (pour propSprites)
+export const TILESET_PROP_PREFIX = Object.fromEntries(
+  TILESET_PROP_FAMILIES.map(([type, prefix]) => [type, prefix]),
+);
+// id de tuile rendu pour un prop de tileset Flare (type + frame `v`)
+export function tilesetPropId(type, v) {
+  const prefix = TILESET_PROP_PREFIX[type];
+  return prefix != null && v != null ? `${prefix}:${v}` : null;
+}
+
 // hachage déterministe d'une case : variantes stables d'une génération à l'autre
 export function hash(x, z) {
   let h = (x * 374761393 + z * 668265263) ^ 0x5bf03635;
@@ -107,8 +129,9 @@ export const PROP_TYPES = {
 // uniquement les décors « organiques » dont l'ancrage reste correct une fois
 // transformés. Les éléments qui s'emboîtent (murs, ponts...) ou dont l'ancrage
 // est calibré (maison, portails) gardent leur taille d'origine.
-export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch']);
-export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin']);
+const TILESET_PROP_TYPES = TILESET_PROP_FAMILIES.map(([type]) => type);
+export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', ...TILESET_PROP_TYPES]);
+export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', ...TILESET_PROP_TYPES]);
 
 // échelle effective d'un prop (bornée, 1 pour les types non redimensionnables)
 export function propScale(p) {
@@ -133,6 +156,12 @@ function explicitId(type, v) {
 export function propSprites(p, { inCemetery = false } = {}) {
   const sprites = [], lights = [];
   const r = hash(Math.floor(p.x * 7), Math.floor(p.z * 7));
+  // décors issus des tilesets Flare additionnels (cave/dungeon/ruins/snow)
+  if (TILESET_PROP_PREFIX[p.type]) {
+    const id = tilesetPropId(p.type, p.v);
+    if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
   switch (p.type) {
     case 'tree':
       sprites.push({ tileId: explicitId('tree', p.v) ?? pick(inCemetery ? DEAD_TREE_IDS : TREE_IDS, r), x: p.x, z: p.z });

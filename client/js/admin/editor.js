@@ -15,6 +15,7 @@ import { generateWorld, TILE, defaultNpcSpots, SPAWN_ZONES } from '../../../shar
 import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { buildDecor } from '../render2d/decor.js';
+import { resolveTile } from '../render2d/assets.js';
 import { PROP_TYPES, propScale, propFlip } from '../render2d/decormap.js';
 import { buildPalette, TILE_COLORS, TILE_NAMES, PROP_GLYPHS } from './palette.js';
 
@@ -140,7 +141,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       load('tilesets/tileset_grassland.png'),
       load('tilesets/tileset_grassland_water.png'),
     ]);
-    assets = { manifest, grass, water };
+    // images des tilesets additionnels (cave/dungeon/ruins/neige), résolues par
+    // resolveTile : on construit la même Map que loadAssets côté jeu.
+    const images = new Map([
+      ['tilesets/tileset_grassland.png', grass],
+      ['tilesets/tileset_grassland_water.png', water],
+    ]);
+    const extra = new Set();
+    for (const ts of Object.values(manifest.tilesets || {})) {
+      for (const img of ts.images) extra.add(img);
+    }
+    await Promise.all([...extra].map(async (p) => { images.set(p, await load(p)); }));
+    assets = { manifest, grass, water, images };
   } catch { /* mode dégradé : aplats + glyphes */ }
 
   // ---------- projections vue du dessus / iso ----------
@@ -216,10 +228,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   // dessine une tuile/un sprite du tileset dans un contexte donné (ancrage px, py)
   function drawTileInto(g, id, px, py, k, flip = false) {
     if (!assets) return;
-    let rect = assets.manifest.tiles[id], img = assets.grass;
-    if (!rect) { rect = assets.manifest.waterTiles[id]; img = assets.water; }
-    if (!rect) return;
-    const [x, y, w, h, ox, oy] = rect;
+    const r = resolveTile(assets, id, assets.grass, assets.water);
+    if (!r) return;
+    const img = r.img;
+    const [x, y, w, h, ox, oy] = r.rect;
     if (flip) {
       g.save(); g.translate(px, 0); g.scale(-1, 1);
       g.drawImage(img, x, y, w, h, -ox * k, py - oy * k, w * k, h * k);
@@ -254,7 +266,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     const c = document.createElement('canvas');
     c.width = c.height = CHUNK * zq;
     const g = c.getContext('2d');
-    const N = world.size, m = assets.manifest;
+    const N = world.size;
     for (let dz = 0; dz < CHUNK; dz++) {
       const z = cz * CHUNK + dz;
       if (z >= N) break;
@@ -262,14 +274,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
         const x = cx * CHUNK + dx;
         if (x >= N) break;
         const id = decor.floor[z * N + x];
-        let rect = m.tiles[id], img = assets.grass;
-        if (!rect) { rect = m.waterTiles[id]; img = assets.water; }
-        if (!rect) {
+        const r = resolveTile(assets, id, assets.grass, assets.water);
+        if (!r) {
           g.fillStyle = TILE_COLORS[world.tile[z * N + x]] || '#f0f';
           g.fillRect(dx * zq, dz * zq, zq, zq);
           continue;
         }
-        const [sx, sy, w, h] = rect;
+        const img = r.img;
+        const [sx, sy, w, h] = r.rect;
         g.drawImage(img, sx + w * 0.25, sy + h * 0.25, w * 0.5, h * 0.5, dx * zq, dz * zq, zq, zq);
       }
     }

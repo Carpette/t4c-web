@@ -1,3 +1,31 @@
+// Résolution d'un id de tuile -> image + rectangle source.
+// Deux familles d'ids coexistent SANS collision :
+//  - id NUMÉRIQUE  -> sol historique grassland/water (manifest.tiles / waterTiles),
+//    image grass/water passée en repli ;
+//  - id CHAÎNE « tileset:frame » (ex. "cave:42") -> manifest.tilesets[tileset],
+//    avec l'image choisie par l'index stocké dans la frame (snow a 4 images).
+// Retour : { img, rect:[x,y,w,h,ox,oy] } ou null si introuvable.
+// `assets.images` est la Map des images chargées ; `grass`/`water` les images
+// du sol historique (pré-chargées par l'appelant pour éviter un lookup par tuile).
+export function resolveTile(assets, id, grass, water) {
+  const m = assets.manifest;
+  if (typeof id === 'string') {
+    const sep = id.indexOf(':');
+    if (sep < 0) return null;
+    const ts = m.tilesets?.[id.slice(0, sep)];
+    if (!ts) return null;
+    const rect = ts.tiles[id.slice(sep + 1)];
+    if (!rect) return null;
+    const img = assets.images.get(ts.images[rect[6] || 0]);
+    return img ? { img, rect } : null;
+  }
+  let rect = m.tiles[id];
+  if (rect) return { img: grass, rect };
+  rect = m.waterTiles[id];
+  if (rect) return { img: water, rect };
+  return null;
+}
+
 // Chargement du manifest + images Flare + skins personnalisés (onglet admin)
 export async function loadAssets(onProgress) {
   const manifest = await (await fetch('/assets/manifest.json')).json();
@@ -9,6 +37,10 @@ export async function loadAssets(onProgress) {
   } catch { /* pas de skins configurés */ }
 
   const paths = new Set(['tilesets/tileset_grassland.png', 'tilesets/tileset_grassland_water.png']);
+  // images des tilesets additionnels (cave, dungeon, ruins, neige : 1 à 4 images chacun)
+  for (const ts of Object.values(manifest.tilesets || {})) {
+    for (const img of ts.images) paths.add(img);
+  }
   for (const e of Object.values(manifest.enemies)) paths.add(e.image);
   for (const sex of Object.values(manifest.avatar)) {
     for (const l of Object.values(sex)) paths.add(l.image);

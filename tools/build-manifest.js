@@ -100,11 +100,19 @@ const LOOT = ['coins5', 'coins25', 'coins100', 'hp_potion', 'mp_potion', 'dagger
   'club', 'reinforced_club', 'war_hammer', 'maul', 'battle_axe', 'staff', 'greatstaff',
   'shortbow', 'longbow', 'greatbow'];
 
-const tilesets = parseTilesetDef(path.join(FC, 'tilesetdefs', 'tileset_grassland.txt'));
+const grass = parseTilesetDef(path.join(FC, 'tilesetdefs', 'tileset_grassland.txt'));
 const manifest = {
   tileSize: [192, 96],
-  tiles: tilesets['images/tilesets/tileset_grassland.png'],
-  waterTiles: tilesets['images/tilesets/tileset_grassland_water.png'],
+  // --- Sol historique d'Arakas : ids NUMÉRIQUES inchangés (rétrocompatibilité) ---
+  // Le rendu/éditeur/decor connaissent ces ids tels quels (drawTile(16), etc.).
+  tiles: grass['images/tilesets/tileset_grassland.png'],
+  waterTiles: grass['images/tilesets/tileset_grassland_water.png'],
+  // --- Nouveaux tilesets Flare : indexés par NOM, ids de frame propres au tileset ---
+  // Schéma anti-collision : dans le jeu, ces tuiles sont référencées par une
+  // chaîne « tileset:frame » (ex. "cave:42"). Les ids numériques restent
+  // exclusivement grassland/water, donc aucune collision possible.
+  // Chaque tileset : { images:[chemins], tiles:{ frame:[x,y,w,h,ox,oy,imgIndex] } }.
+  tilesets: {},
   enemies: {}, avatar: {}, loot: {},
 };
 
@@ -112,6 +120,40 @@ const copies = [
   ['images/tilesets/tileset_grassland.png', 'tilesets/tileset_grassland.png'],
   ['images/tilesets/tileset_grassland_water.png', 'tilesets/tileset_grassland_water.png'],
 ];
+
+// Tilesets Flare additionnels : [nom logique, mod source, fichier de définition,
+// liste ordonnée des images (chemins relatifs au mod) — l'index dans cette liste
+// est l'imgIndex stocké pour chaque frame].
+const EXTRA_TILESETS = [
+  ['cave', 'fantasycore', 'tileset_cave.txt', ['images/tilesets/tileset_cave.png']],
+  ['dungeon', 'fantasycore', 'tileset_dungeon.txt', ['images/tilesets/tileset_dungeon.png']],
+  ['snow', 'fantasycore', 'tileset_snowplains.txt', [
+    'images/tilesets/tileset_snowplains.png',
+    'images/tilesets/tileset_snowplains_water.png',
+    'images/tilesets/tileset_snowplains_ice.png',
+    'images/tilesets/tileset_snowplains_other.png',
+  ]],
+  ['ruins', 'empyrean_campaign', 'tileset_ruins.txt', ['images/tilesets/tileset_ruins.png']],
+];
+
+for (const [name, mod, def, imgs] of EXTRA_TILESETS) {
+  const modDir = path.join(FLARE, 'mods', mod);
+  const parsed = parseTilesetDef(path.join(modDir, 'tilesetdefs', def));
+  // map chemin source -> index dans la liste d'images du tileset
+  const imgIndex = new Map(imgs.map((p, i) => [p, i]));
+  const tiles = {};
+  for (const [src, frames] of Object.entries(parsed)) {
+    const idx = imgIndex.get(src);
+    if (idx == null) continue; // image non retenue (ex. variante ignorée)
+    for (const [frame, rect] of Object.entries(frames)) {
+      tiles[frame] = [...rect.slice(0, 6), idx]; // [x,y,w,h,ox,oy,imgIndex]
+    }
+  }
+  // chemins de DESTINATION (sous client/assets/tilesets/), conservant le nom de fichier
+  const destImages = imgs.map(p => 'tilesets/' + path.basename(p));
+  manifest.tilesets[name] = { images: destImages, tiles };
+  imgs.forEach((src, i) => copies.push([path.join('..', mod, src), destImages[i]]));
+}
 
 for (const [e, animMod, imgMod] of ENEMIES) {
   const { anims } = parseAnim(path.join(FLARE, 'mods', animMod, 'animations', 'enemies', `${e}.txt`));
@@ -149,5 +191,7 @@ for (const [src, dst] of copies) {
   fs.copyFileSync(path.join(FC, src), d);
 }
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest));
-console.log('manifest généré :', Object.keys(manifest.tiles).length, 'tuiles,',
+const extraTiles = Object.values(manifest.tilesets).reduce((n, ts) => n + Object.keys(ts.tiles).length, 0);
+console.log('manifest généré :', Object.keys(manifest.tiles).length, 'tuiles grassland,',
+  extraTiles, 'tuiles', `(${Object.keys(manifest.tilesets).join('/')}),`,
   ENEMIES.length, 'ennemis,', AVATAR_LAYERS.length, 'couches avatar,', LOOT.length, 'butins');
