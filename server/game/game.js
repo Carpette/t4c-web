@@ -70,6 +70,7 @@ export class Game {
     const ov = loadOverrides(zi.zoneId);
     zi.camps = this.buildIslandCamps(zi, ov);
     zi.musicZones = this.buildMusicZones(ov);
+    zi.ambienceZones = this.buildAmbienceZones(ov); // sous-zones d'ambiance (teinte/obscurité)
     zi.chestLoot = this.buildChestLoot(ov);   // butin personnalisé par case de coffre
     zi.markers = this.buildMarkers(ov);       // points spéciaux (spawn / exit / teleport)
     this.applySpawnMarker(zi);                // un marqueur 'spawn' redéfinit le point d'apparition
@@ -158,6 +159,37 @@ export class Game {
         if (!zone.w || !zone.h) continue;
       } else {
         zone.r = Math.max(0, +m.r || 0);
+        if (!zone.r) continue;
+      }
+      out.push(zone);
+    }
+    out.sort((a, b) => b.priority - a.priority); // prioritaire en tête
+    return out;
+  }
+
+  // Sous-zones d'AMBIANCE d'une île (overrides `ambience`) : formes géométriques
+  // (mêmes que les zones musicales) + une teinte CSS et/ou une obscurité (0..1)
+  // appliquées par-dessus le cycle jour/nuit quand le joueur y entre. Validées et
+  // normalisées (id stable, forme, géométrie) ; une entrée sans teinte NI
+  // obscurité est ignorée (elle n'aurait aucun effet). Triées par priorité
+  // DÉCROISSANTE : la première qui contient un point l'emporte (cf. ambienceZoneAt).
+  buildAmbienceZones(ov) {
+    if (!Array.isArray(ov?.ambience)) return [];
+    const out = [];
+    for (const a of ov.ambience) {
+      const shape = a?.shape === 'circle' ? 'circle' : (a?.shape === 'rect' ? 'rect' : null);
+      const x = +a?.x, z = +a?.z;
+      if (!shape || !Number.isFinite(x) || !Number.isFinite(z)) continue;
+      const tint = typeof a?.tint === 'string' && a.tint ? a.tint : null;
+      const darkness = Math.max(0, Math.min(1, +a?.darkness || 0));
+      if (!tint && !darkness) continue; // une zone sans effet n'a pas de sens
+      const zone = { id: String(a.id ?? out.length), shape, x, z, tint, darkness, priority: +a.priority || 0 };
+      if (shape === 'rect') {
+        zone.w = Math.max(0, +a.w || 0);
+        zone.h = Math.max(0, +a.h || 0);
+        if (!zone.w || !zone.h) continue;
+      } else {
+        zone.r = Math.max(0, +a.r || 0);
         if (!zone.r) continue;
       }
       out.push(zone);
@@ -333,6 +365,7 @@ export class Game {
     zi.world = applyOverrides(generateWorld(def.seed, def.map), ov);
     this.refreshCamps(zi, ov);
     zi.musicZones = this.buildMusicZones(ov); // sous-zones musicales rebranchées
+    zi.ambienceZones = this.buildAmbienceZones(ov); // sous-zones d'ambiance rebranchées
     zi.chestLoot = this.buildChestLoot(ov);   // butin personnalisé des coffres
     zi.markers = this.buildMarkers(ov);       // points spéciaux
     this.applySpawnMarker(zi);                // 'spawn' éventuel redéfini
@@ -340,10 +373,10 @@ export class Game {
       if (e.kind === C.KIND.NPC) zi.remove(e);
     }
     this.spawnNpc(zi, ov);
-    // les joueurs présents réévaluent leur sous-zone musicale SANS hystérésis
-    // (l'édition admin doit s'entendre immédiatement)
+    // les joueurs présents réévaluent leur sous-zone musicale ET d'ambiance SANS
+    // hystérésis (l'édition admin doit s'appliquer immédiatement)
     for (const p of this.players.values()) {
-      if (p.zi === zi) this.refreshPlayerMusic(p);
+      if (p.zi === zi) { this.refreshPlayerMusic(p); this.refreshPlayerAmbience(p); }
     }
   }
 
@@ -412,6 +445,12 @@ export class Game {
     p.musicZoneId = candidate ? candidate.id : null;
     const music = this.musicTrackFor(p);
     p.lastMusicSent = JSON.stringify(music);
+    // ambiance d'arrivée (teinte/obscurité), SANS hystérésis comme la musique :
+    // jointe au message `zone` pour s'appliquer dès le chargement de la carte
+    const ambCand = this.shapeZoneAt(zi.ambienceZones, p.x, p.z, 0);
+    p.ambienceZoneId = ambCand ? ambCand.id : null;
+    const ambience = this.ambienceFor(p);
+    p.lastAmbienceSent = JSON.stringify(ambience);
     if (zi.isCave) {
       // caverne : le client régénère le même intérieur avec ces paramètres
       const { seed, size, depth } = zi.caveDef;
@@ -422,6 +461,7 @@ export class Game {
         name: zi.caveName,
         cave: { seed, size, depth },
         music,
+        ambience,
         tint: CAVE_TINT,
         levels: null,
         x: p.x, z: p.z,
@@ -439,6 +479,7 @@ export class Game {
       seed: def.seed,
       map: zi.isTrial ? null : def.map || null,
       music,
+      ambience,
       tint: zi.isTrial ? 'rgba(40, 20, 60, 0.18)' : def.tint,
       levels: def.levels,
       x: p.x, z: p.z,
@@ -668,10 +709,11 @@ export class Game {
     return (s && (s.legacy || s.new)) ? s : null;
   }
 
-  // ---------- Sous-zones musicales dessinées + bascule à HYSTÉRÉSIS ----------
-  // Un point est-il dans une sous-zone, sa frontière rétrécie de `margin` ?
-  // (margin = 0 : frontière réelle ; margin > 0 : « enfoncé d'au moins margin »).
-  pointInMusicZone(zone, x, z, margin = 0) {
+  // ---------- Sous-zones dessinées (musique & ambiance) + bascule à HYSTÉRÉSIS ----------
+  // Un point est-il dans une sous-zone (forme rect/cercle), sa frontière rétrécie
+  // de `margin` ? (margin = 0 : frontière réelle ; margin > 0 : « enfoncé d'au
+  // moins margin »). Géométrie commune aux zones musicales ET d'ambiance.
+  pointInShapeZone(zone, x, z, margin = 0) {
     if (zone.shape === 'circle') {
       const rr = zone.r - margin;
       return rr > 0 && Math.hypot(x - zone.x, z - zone.z) <= rr;
@@ -681,14 +723,38 @@ export class Game {
       && z >= zone.z + margin && z <= zone.z + zone.h - margin;
   }
 
-  // Sous-zone musicale prioritaire contenant (x, z) à la marge donnée, ou null.
-  // `zi.musicZones` est trié par priorité décroissante : la 1re qui contient
-  // l'emporte sur les chevauchements.
-  musicZoneAt(zi, x, z, margin = 0) {
-    for (const zone of zi.musicZones || []) {
-      if (this.pointInMusicZone(zone, x, z, margin)) return zone;
+  // Sous-zone prioritaire d'une liste (triée par priorité décroissante)
+  // contenant (x, z) à la marge donnée, ou null — la 1re qui contient l'emporte.
+  shapeZoneAt(zones, x, z, margin = 0) {
+    for (const zone of zones || []) {
+      if (this.pointInShapeZone(zone, x, z, margin)) return zone;
     }
     return null;
+  }
+
+  // Bascule à HYSTÉRÉSIS partagée par la musique et l'ambiance. Renvoie l'id de
+  // la sous-zone active après mouvement (ou null = fond), selon les MÊMES règles
+  // pour les deux systèmes :
+  //  - on BASCULE sur une nouvelle sous-zone seulement si le joueur s'y est
+  //    enfoncé d'au moins `margin` (point dans la forme rétrécie) ;
+  //  - on QUITTE la sous-zone courante seulement en sortant de sa frontière
+  //    RÉELLE — au ras du bord, l'état ne change pas (pas de clignotement).
+  hysteresisNextId(zones, curId, x, z, margin) {
+    const current = curId != null ? zones.find(s => s.id === curId) : null;
+    const stillInCurrent = current && this.pointInShapeZone(current, x, z, 0);
+    const deep = this.shapeZoneAt(zones, x, z, margin); // enfoncé de la marge
+    if (deep && deep.id !== curId
+        && (!current || !stillInCurrent || deep.priority > current.priority)) {
+      return deep.id; // franchissement réel (ou chevauchement plus prioritaire)
+    }
+    if (stillInCurrent) return current.id; // toujours dedans (même au ras du bord)
+    const shallow = this.shapeZoneAt(zones, x, z, 0); // courante disparue ?
+    return shallow ? shallow.id : null;
+  }
+
+  // Compat. : la sous-zone musicale prioritaire contenant (x, z) à la marge donnée.
+  musicZoneAt(zi, x, z, margin = 0) {
+    return this.shapeZoneAt(zi.musicZones, x, z, margin);
   }
 
   // Piste { legacy, new } à jouer pour le joueur selon sa sous-zone active.
@@ -723,32 +789,7 @@ export class Game {
   //    limite ne fait donc pas clignoter la musique.
   // Ne pousse un message `music` que sur un VRAI changement de piste (anti-spam).
   evalPlayerMusic(p) {
-    const zi = p.zi;
-    const zones = zi.musicZones || [];
-    // sous-zone courante : encore valide tant que le joueur est dans sa frontière réelle
-    const current = p.musicZoneId != null ? zones.find(s => s.id === p.musicZoneId) : null;
-    const stillInCurrent = current && this.pointInMusicZone(current, p.x, p.z, 0);
-
-    // candidate à bascule : sous-zone prioritaire où le joueur est enfoncé de la marge
-    const deep = this.musicZoneAt(zi, p.x, p.z, C.MUSIC_ZONE_HYSTERESIS);
-
-    let nextId;
-    if (deep && deep.id !== p.musicZoneId
-        && (!current || !stillInCurrent || deep.priority > current.priority)) {
-      // franchissement réel : enfoncé dans une nouvelle sous-zone (ou une plus
-      // prioritaire qui chevauche la courante) -> on bascule
-      nextId = deep.id;
-    } else if (stillInCurrent) {
-      // toujours dans la sous-zone courante (même au ras du bord) -> on reste
-      nextId = current.id;
-    } else {
-      // sorti de la sous-zone courante sans en avoir franchi de nouvelle à la
-      // marge -> retour au fond de zone (ou à une sous-zone qui nous contient
-      // encore à pleine frontière, si la courante a disparu)
-      const shallow = this.musicZoneAt(zi, p.x, p.z, 0);
-      nextId = shallow ? shallow.id : null;
-    }
-
+    const nextId = this.hysteresisNextId(p.zi.musicZones || [], p.musicZoneId, p.x, p.z, C.MUSIC_ZONE_HYSTERESIS);
     if (nextId === p.musicZoneId) return; // pas de changement d'état
     p.musicZoneId = nextId;
     const slot = this.musicTrackFor(p);
@@ -763,6 +804,48 @@ export class Game {
     for (const p of this.players.values()) {
       if (p.dead || !p.zi.musicZones?.length) continue;
       this.evalPlayerMusic(p);
+    }
+  }
+
+  // ---------- Sous-zones d'AMBIANCE (teinte/obscurité) ----------
+  // Effet d'ambiance courant du joueur ({ tint, darkness }) selon sa sous-zone
+  // active, ou null quand il n'est dans AUCUNE (le cycle jour/nuit seul s'applique).
+  ambienceFor(p) {
+    const zi = p.zi;
+    if (p.ambienceZoneId == null) return null;
+    const a = (zi.ambienceZones || []).find(s => s.id === p.ambienceZoneId);
+    return a ? { tint: a.tint || null, darkness: a.darkness || 0 } : null;
+  }
+
+  // Réévalue la sous-zone d'ambiance SANS hystérésis et pousse l'effet : aux
+  // transitions franches (entrée en jeu, changement de zone, édition admin).
+  refreshPlayerAmbience(p) {
+    const candidate = this.shapeZoneAt(p.zi.ambienceZones, p.x, p.z, 0);
+    p.ambienceZoneId = candidate ? candidate.id : null;
+    const eff = this.ambienceFor(p);
+    p.lastAmbienceSent = JSON.stringify(eff);
+    this.send(p, { t: 'ambience', ambience: eff });
+  }
+
+  // Réévalue la sous-zone d'ambiance AVEC hystérésis (pendant les déplacements) :
+  // MÊME règle frontalière que la musique. Ne pousse un message `ambience` que
+  // sur un VRAI changement d'effet (anti-spam).
+  evalPlayerAmbience(p) {
+    const nextId = this.hysteresisNextId(p.zi.ambienceZones || [], p.ambienceZoneId, p.x, p.z, C.AMBIENCE_ZONE_HYSTERESIS);
+    if (nextId === p.ambienceZoneId) return; // pas de changement d'état
+    p.ambienceZoneId = nextId;
+    const eff = this.ambienceFor(p);
+    const key = JSON.stringify(eff);
+    if (key === p.lastAmbienceSent) return; // même effet : pas de push inutile
+    p.lastAmbienceSent = key;
+    this.send(p, { t: 'ambience', ambience: eff });
+  }
+
+  // Réévalue l'ambiance de tous les joueurs sur un tick (cadence réduite).
+  ambienceTick() {
+    for (const p of this.players.values()) {
+      if (p.dead || !p.zi.ambienceZones?.length) continue;
+      this.evalPlayerAmbience(p);
     }
   }
 
@@ -1779,6 +1862,9 @@ export class Game {
     // sous-zones musicales : bascule à hystérésis pendant les déplacements
     // (cadence réduite ; les déplacements significatifs suffisent largement)
     if (this.tickCount % C.MUSIC_EVAL_EVERY_TICKS === 0) this.musicTick();
+
+    // sous-zones d'ambiance : même bascule à hystérésis, même cadence réduite
+    if (this.tickCount % C.AMBIENCE_EVAL_EVERY_TICKS === 0) this.ambienceTick();
 
     // PV des membres de groupe (panneau de groupe côté client)
     if (this.tickCount % PARTY_VITALS_EVERY_TICKS === 0) {

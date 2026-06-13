@@ -40,6 +40,19 @@
 //     entière, music.json). Quand le joueur n'est dans AUCUNE sous-zone, la
 //     musique de zone globale reste le FOND par défaut. La bascule entre pistes
 //     se fait avec hystérésis côté serveur (cf. game.js, MUSIC_ZONE_HYSTERESIS).
+//   lights — SOURCES DE LUMIÈRE posées sur la carte (au-delà des torches déco) :
+//     [{ id, x, z, r, color?, flicker? }]  (centre x/z en tuiles, rayon r en px
+//     écran comme les torches, couleur CSS du halo, scintillement optionnel)
+//     Appliquées sur `world.lights` ici (géométrie du monde) ; le client les
+//     fusionne aux lumières des décors (buildDecor) et les rend à l'identique.
+//     ABSENTE : aucune lumière supplémentaire (comportement actuel).
+//   ambience — SOUS-ZONES d'ambiance dessinées (teinte/obscurité par-dessus le
+//     cycle jour/nuit) : [{ id, shape:'rect'|'circle', x, z, w, h | r, tint?,
+//     darkness?, priority }]. Section appliquée par le SERVEUR DE JEU (game.js,
+//     comme `music`), pas ici : quand le joueur entre dans la zone, le serveur
+//     pousse un message `ambience` { tint, darkness } (bascule à hystérésis,
+//     cf. AMBIENCE_ZONE_HYSTERESIS) ; le client applique l'effet dans le rendu.
+//     ABSENTE : seul le cycle jour/nuit s'applique (comportement actuel).
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
@@ -92,6 +105,23 @@ export function applyOverrides(world, ov) {
         world.walk[idx(x, z)] = 0;
       }
     }
+  }
+
+  // 4. sources de lumière posées (overrides `lights`) : attachées au monde pour
+  // que buildDecor (client) les fusionne aux lumières des décors. Validées :
+  // coordonnées finies + rayon > 0 ; couleur/scintillement optionnels.
+  if (Array.isArray(ov.lights)) {
+    world.lights = ov.lights.reduce((out, l) => {
+      const x = +l?.x, z = +l?.z, r = +l?.r;
+      if (Number.isFinite(x) && Number.isFinite(z) && r > 0) {
+        out.push({
+          x, z, r,
+          flicker: !!l?.flicker,
+          color: typeof l?.color === 'string' && l.color ? l.color : null,
+        });
+      }
+      return out;
+    }, []);
   }
   return world;
 }

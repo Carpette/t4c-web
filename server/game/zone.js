@@ -19,6 +19,9 @@ export class ZoneInstance {
     // sous-zones musicales dessinées (overrides `music`) ; vide = aucune
     // (caves/Épreuves n'en ont pas : seul le fond de zone s'applique)
     this.musicZones = [];
+    // sous-zones d'ambiance dessinées (overrides `ambience`) : teinte/obscurité
+    // appliquée par-dessus le cycle jour/nuit quand le joueur y entre ; vide = aucune
+    this.ambienceZones = [];
   }
   cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
   gridAdd(e) {

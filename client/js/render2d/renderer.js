@@ -30,6 +30,11 @@ export class Renderer {
     this.lctx = this.lightCanvas.getContext('2d');
 
     this.tint = null;   // voile coloré propre à la zone
+    // ambiance de sous-zone courante ({ tint, darkness }) poussée par le serveur :
+    // teinte/obscurité appliquées PAR-DESSUS le cycle jour/nuit (null = aucune)
+    this.ambience = null;
+    // aperçu jour/nuit forcé (éditeur) : null = horloge réelle, sinon 0..1
+    this.previewDaylight = null;
     this.fx = [];       // effets éphémères (projectiles, zones d'effet)
     this.particles = new Particles(); // flammèches, éclats, bulles... (pool fixe)
     this._fxClock = 0;  // horloge des particules (dt borné)
@@ -44,6 +49,7 @@ export class Renderer {
     this.world = world;
     this.decor = decor;
     this.tint = tint;
+    this.ambience = null; // le serveur repousse l'ambiance d'arrivée (message `zone`)
     this.cam = { x: world.spawnPoint.x, z: world.spawnPoint.z };
     this.props = decor.props.map(p => ({
       ...p,
@@ -146,7 +152,10 @@ export class Renderer {
     const s = this.scale;
     const frac = (worldTime % DAY_LENGTH) / DAY_LENGTH;
     const sunHeight = Math.sin((frac - 0.25) * Math.PI * 2);
-    const daylight = Math.max(0, Math.min(1, sunHeight * 1.6 + 0.1));
+    // aperçu jour/nuit forcé (éditeur) : court-circuite l'horloge réelle
+    const daylight = this.previewDaylight != null
+      ? this.previewDaylight
+      : Math.max(0, Math.min(1, sunHeight * 1.6 + 0.1));
 
     ctx.fillStyle = '#06070c';
     ctx.fillRect(0, 0, W, H);
@@ -273,14 +282,20 @@ export class Renderer {
     this.particles.update(fdt);
     this.particles.draw(ctx, (x, z) => this.w2s(x, z), s);
 
-    // --- Voile coloré de la zone ---
+    // --- Voile coloré de la zone, puis teinte d'ambiance de sous-zone ---
     if (this.tint) {
       ctx.fillStyle = this.tint;
       ctx.fillRect(0, 0, W, H);
     }
+    if (this.ambience?.tint) {
+      ctx.fillStyle = this.ambience.tint;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     // --- Éclairage : obscurité + trous de lumière ---
-    const outdoorDarkness = (1 - daylight) * 0.78;
+    // l'obscurité d'ambiance de sous-zone s'ajoute à la nuit (cumul borné à 1)
+    const ambDark = Math.max(0, Math.min(1, this.ambience?.darkness || 0));
+    const outdoorDarkness = Math.min(1, (1 - daylight) * 0.78 + ambDark);
     const darkness = this.world.kind === 'cave' ? Math.max(CAVE_DARKNESS, outdoorDarkness) : outdoorDarkness;
     if (darkness > 0.02) {
       const l = this.lctx;
