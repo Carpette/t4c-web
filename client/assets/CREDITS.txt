@@ -41,6 +41,16 @@ Tilesets de décor (sols, murs, props isométriques) inclus depuis flare-game :
 Licence : Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA 3.0)
 https://creativecommons.org/licenses/by-sa/3.0/
 
+Assets PROPRES au projet (hors Flare)
+-------------------------------------
+- Murs (rondins, brique rouge, colombage, terre, planches, pierre médiévale,
+  brique grise) — tilesets/walls/*.png : atlas de pièces de murs isométriques
+  (segments, coins, T, croix, embouts, portes, pilier, créneaux, ruine).
+  Générés par IA pour ce projet, puis détourés et découpés à la main.
+  Ce sont des assets propres au jeu (PAS issus de Flare) : ils ne sont donc pas
+  couverts par la licence CC-BY-SA 3.0 ci-dessus ; ils suivent la licence du
+  projet lui-même.
+
 Artistes principaux (voir CREDITS.txt de flare-game pour la liste complète) :
 - Clint Bellanger — https://clintbellanger.net
 - rubberduck (cavernes, donjons, ruines, neige)
