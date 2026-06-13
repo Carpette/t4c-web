@@ -10,6 +10,7 @@ import { Renderer } from './render2d/renderer.js';
 import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
+import { initDraggableWindows } from './drag.js';
 import { settings } from './settings.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
@@ -19,6 +20,7 @@ const INTERP_DELAY = 0.15;
 const canvas = document.getElementById('game');
 const net = new Net();
 const ui = new UI(net);
+initDraggableWindows(); // fenêtres de verre déplaçables par leur barre de titre
 
 let renderer = null, em = null;
 let world = null;
