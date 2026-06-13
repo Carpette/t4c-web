@@ -106,10 +106,13 @@ net.on('zone', async (m) => {
   renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
   ui.zoneBanner(m.name, m.levels || null);
+  renderer.ambience = m.ambience || null; // ambiance d'arrivée (teinte/obscurité)
   playMusic(m.music); // musique de la zone (null = silence)
   if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');
 });
 net.on('music', (m) => playMusic(m.file)); // changement à chaud par l'admin
+// ambiance de sous-zone (teinte/obscurité) : bascule à hystérésis côté serveur
+net.on('ambience', (m) => { renderer.ambience = m.ambience || null; });
 net.on('self', (m) => {
   ui.updateSelf(m);
   if (m.hp > 0) ui.hideDeath();

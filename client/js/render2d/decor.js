@@ -99,5 +99,13 @@ export function buildDecor(world) {
     }
   }
 
+  // sources de lumière posées par l'admin (overrides `lights` -> world.lights) :
+  // fusionnées aux halos des décors, rendues à l'identique par le renderer
+  // (rayon r, couleur, scintillement). Champ absent : aucune lumière ajoutée.
+  for (const li of Array.isArray(world.lights) ? world.lights : []) {
+    if (!Number.isFinite(li.x) || !Number.isFinite(li.z) || !(li.r > 0)) continue;
+    lights.push({ x: li.x, z: li.z, r: li.r, flicker: !!li.flicker, color: li.color || null });
+  }
+
   return { floor, isWater, props: props.concat(smallProps), lights };
 }

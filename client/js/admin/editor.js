@@ -41,6 +41,18 @@ const MUSIC_MIN_SIZE = 2;        // côté/rayon minimal d'une sous-zone musical
 const MUSIC_DEFAULT_W = 16, MUSIC_DEFAULT_H = 16, MUSIC_DEFAULT_R = 8;
 const MUSIC_COLOR = '#c77dff';   // teinte du calque musique (violet)
 
+// sous-zones d'ambiance : mêmes dimensions/couleur de calque que la musique
+const AMBIENCE_MIN_SIZE = 2;
+const AMBIENCE_DEFAULT_W = 16, AMBIENCE_DEFAULT_H = 16, AMBIENCE_DEFAULT_R = 8;
+const AMBIENCE_COLOR = '#5fd0a0';   // teinte du calque ambiance (vert d'eau)
+const AMBIENCE_DEFAULT_TINT = 'rgba(40, 80, 50, 0.30)'; // marais verdâtre par défaut
+
+// sources de lumière posées : rayon par défaut (px écran, comme les torches) et couleur
+const LIGHT_DEFAULT_R = 300;
+const LIGHT_COLOR = '#ffd36a';   // teinte du calque lumières (ambre chaud)
+const LIGHT_DEFAULT_COLOR = 'rgba(255, 170, 70, 0.18)';
+const LIGHT_R_MIN = 60, LIGHT_R_MAX = 900;
+
 // calques coffres / points spéciaux : teintes et icônes
 const CHEST_COLOR = '#ffae42';   // teinte du calque coffres (ambre)
 const MARKER_COLORS = { spawn: '#4dff8a', exit: '#ff6a6a', teleport: '#5ab9ff' };
@@ -81,12 +93,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   // index des décors pour le rendu : par chunk (iso), triés (vue du dessus), gros sprites
   let chunkProps = new Map(), bigProps = [], propsByZ = [];
   let miniBase = null;   // fond de mini-carte (1 px par tuile)
-  // calques d'édition « Camps », « PNJ », « Musique », « Coffres », « Points »
+  // calques d'édition « Camps », « PNJ », « Musique », « Coffres », « Points », « Ambiance », « Lumières »
   let showCamps = false, showNpcs = false, showMusic = false, showChests = false, showMarkers = false;
-  let pendingPlace = null;            // 'camp'|'npc'|'music'|'chest'|'marker'|'teleport-test' : le prochain geste pose/agit
+  let showAmbience = false, showLights = false;
+  let pendingPlace = null;            // 'camp'|'npc'|'music'|'chest'|'marker'|'ambience'|'light'|'teleport-test'
   let campsList = [], npcsList = [];  // listes effectives (overrides ou défauts du worldgen)
   let musicList = [];                 // sous-zones musicales (overrides `music`)
   let chestsList = [], markersList = []; // coffres (props 'chest') et points spéciaux (overrides `markers`)
+  let ambienceList = [], lightsList = []; // sous-zones d'ambiance + sources de lumière
+  let dayPreview = null;              // aperçu jour/nuit éditeur : null | 'day' | 'night'
   const NPC_ROLE_COLORS = { merchant: '#ffd24a', teacher: '#7ad1ff', bavard: '#8ae88a' };
   const NPC_ROLE_NAMES = { merchant: 'marchand', teacher: 'enseignant', bavard: 'bavard' };
 
@@ -106,6 +121,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (Array.isArray(n.music)) out.music = n.music; // sous-zones musicales
     if (Array.isArray(n.chests)) out.chests = n.chests;   // butin de coffres
     if (Array.isArray(n.markers)) out.markers = n.markers; // points spéciaux
+    if (Array.isArray(n.ambience)) out.ambience = n.ambience; // sous-zones d'ambiance
+    if (Array.isArray(n.lights)) out.lights = n.lights;   // sources de lumière
     return out;
   }
 
@@ -451,19 +468,22 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       ctx.strokeStyle = '#7ad1ff'; ctx.lineWidth = 1.5; ctx.stroke();
       return;
     }
-    // tracé d'une zone musicale en cours (glisser) : aperçu du rectangle
-    if (gesture?.mode === 'musicDraw') {
+    // tracé d'une zone musicale / d'ambiance en cours (glisser) : aperçu du rectangle
+    if (gesture?.mode === 'musicDraw' || gesture?.mode === 'ambienceDraw') {
+      const col = gesture.mode === 'ambienceDraw' ? AMBIENCE_COLOR : MUSIC_COLOR;
       fillCellPath(gesture.x0, gesture.z0, hover.x, hover.z);
       ctx.globalAlpha = 0.18;
-      ctx.fillStyle = MUSIC_COLOR;
+      ctx.fillStyle = col;
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = MUSIC_COLOR; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
       return;
     }
-    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale / ➕ Coffre / ➕ Point / Tester ici)
+    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale / ➕ Coffre / ➕ Point / ➕ Ambiance / ➕ Lumière / Tester ici)
     if (pendingPlace) {
       if (pendingPlace === 'music') strokeRing(hover.x, hover.z, view.z * (MUSIC_DEFAULT_W / 2), MUSIC_COLOR);
+      else if (pendingPlace === 'ambience') strokeRing(hover.x, hover.z, view.z * (AMBIENCE_DEFAULT_W / 2), AMBIENCE_COLOR);
+      else if (pendingPlace === 'light') strokeRing(hover.x, hover.z, view.z * lightTileRadius(LIGHT_DEFAULT_R), LIGHT_COLOR);
       else if (pendingPlace === 'chest') strokeRing(hover.x, hover.z, view.z * 0.6, CHEST_COLOR);
       else if (pendingPlace === 'marker') strokeRing(hover.x, hover.z, view.z * 0.6, MARKER_COLORS.teleport);
       else if (pendingPlace === 'teleport-test') strokeRing(hover.x, hover.z, view.z * 0.6, '#ffd34d');
@@ -613,6 +633,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     npcsList = effectiveNpcs();
     musicList = Array.isArray(ov.music) ? ov.music : [];
     markersList = Array.isArray(ov.markers) ? ov.markers : [];
+    ambienceList = Array.isArray(ov.ambience) ? ov.ambience : [];
+    lightsList = Array.isArray(ov.lights) ? ov.lights : [];
     // coffres effectifs : tous les props 'chest' du monde, enrichis du butin
     // personnalisé (ov.chests, indexé par case) le cas échéant
     chestsList = (world?.props || []).filter(p => p.type === 'chest').map(p => ({
@@ -707,6 +729,360 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       m.h = Math.max(MUSIC_MIN_SIZE, snap(hover.z - m.z));
     }
     refreshEditLayers();
+  }
+
+  // ---------- calque « Ambiance » : sous-zones de teinte/obscurité ----------
+  // Même géométrie que les zones musicales (rect/cercle, déplacer/redimensionner)
+  // + une teinte CSS et/ou une obscurité 0..1, et une priorité de chevauchement.
+  // Format de stockage dans ov.ambience : { id, shape, x, z, w, h | r, tint, darkness, priority }.
+  function ambienceOv() {
+    if (!Array.isArray(ov.ambience)) ov.ambience = [];
+    return ov.ambience;
+  }
+  function ambienceLabel(a) {
+    const bits = [];
+    if (a.darkness) bits.push(`obscurité ${Math.round(a.darkness * 100)}%`);
+    if (a.tint) bits.push('teinte');
+    const s = bits.join(' + ') || '(sans effet)';
+    return a.priority ? `${s} [${a.priority}]` : s;
+  }
+  function placeAmbienceZone(shape, geom) {
+    pendingPlace = null;
+    pushHistory();
+    const list = ambienceOv();
+    const base = { id: 'amb_' + Date.now().toString(36), shape, tint: AMBIENCE_DEFAULT_TINT, darkness: 0, priority: 0 };
+    list.push(shape === 'circle'
+      ? { ...base, x: geom.x, z: geom.z, r: geom.r }
+      : { ...base, x: geom.x, z: geom.z, w: geom.w, h: geom.h });
+    refreshEditLayers();
+    openAmbiencePanel(list.length - 1);
+  }
+  function placeAmbienceRect(x0, z0, x1, z1) {
+    const x = Math.min(x0, x1), z = Math.min(z0, z1);
+    const w = Math.max(AMBIENCE_MIN_SIZE, Math.abs(x1 - x0));
+    const h = Math.max(AMBIENCE_MIN_SIZE, Math.abs(z1 - z0));
+    placeAmbienceZone('rect', { x, z, w, h });
+  }
+  function placeAmbienceCircle(cx, cz, r) {
+    placeAmbienceZone('circle', { x: cx, z: cz, r: Math.max(AMBIENCE_MIN_SIZE, r) });
+  }
+  function ambienceCenter(a) {
+    return a.shape === 'circle' ? { x: a.x, z: a.z } : { x: a.x + a.w / 2, z: a.z + a.h / 2 };
+  }
+  function pickAmbience(wx, wz) {
+    const tol = Math.max(0.8, 8 / view.z);
+    for (let i = ambienceList.length - 1; i >= 0; i--) {
+      const a = ambienceList[i];
+      if (a.shape === 'circle') {
+        if (Math.abs(Math.hypot(wx - a.x, wz - a.z) - a.r) <= tol) return { index: i, kind: 'edge' };
+      } else if (Math.hypot(wx - (a.x + a.w), wz - (a.z + a.h)) <= tol * 1.5) return { index: i, kind: 'edge' };
+    }
+    for (let i = ambienceList.length - 1; i >= 0; i--) {
+      const a = ambienceList[i];
+      const inside = a.shape === 'circle'
+        ? Math.hypot(wx - a.x, wz - a.z) <= a.r
+        : (wx >= a.x && wx <= a.x + a.w && wz >= a.z && wz <= a.z + a.h);
+      if (inside) return { index: i, kind: 'center' };
+    }
+    return null;
+  }
+  function dragAmbience(g) {
+    if (!g.moved && Math.hypot(hover.x - g.w0.x, hover.z - g.w0.z) < 0.35) return;
+    if (!g.pushed) { pushHistory(); g.pushed = true; }
+    g.moved = true;
+    const snap = (v) => Math.round(v * 2) / 2;
+    const a = ambienceOv()[g.index];
+    if (!a) return;
+    if (g.kind === 'center') {
+      const c = ambienceCenter(a);
+      const dx = snap(hover.x) - c.x, dz = snap(hover.z) - c.z;
+      if (a.shape === 'circle') { a.x += dx; a.z += dz; }
+      else { a.x = snap(a.x + dx); a.z = snap(a.z + dz); }
+    } else if (a.shape === 'circle') {
+      a.r = Math.max(AMBIENCE_MIN_SIZE, snap(Math.hypot(hover.x - a.x, hover.z - a.z)));
+    } else {
+      a.w = Math.max(AMBIENCE_MIN_SIZE, snap(hover.x - a.x));
+      a.h = Math.max(AMBIENCE_MIN_SIZE, snap(hover.z - a.z));
+    }
+    refreshEditLayers();
+  }
+  function drawAmbience() {
+    if (!showAmbience) return;
+    for (const a of ambienceList) {
+      // remplit avec la teinte réelle de la zone (aperçu) + cadre du calque
+      const fill = a.tint || AMBIENCE_COLOR;
+      ctx.strokeStyle = AMBIENCE_COLOR;
+      ctx.lineWidth = 2;
+      if (a.shape === 'circle') {
+        const s = w2s(a.x, a.z), r = a.r * view.z;
+        ctx.beginPath();
+        if (view.iso) ctx.ellipse(s.x, s.y, r, r / 2, 0, 0, Math.PI * 2);
+        else ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = fill; ctx.globalAlpha = a.tint ? 0.5 : 0.16; ctx.fill();
+        ctx.globalAlpha = 1; ctx.stroke();
+        const e = w2s(a.x + a.r, a.z);
+        ctx.fillStyle = AMBIENCE_COLOR;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
+      } else {
+        fillCellPath(a.x, a.z, a.x + a.w, a.z + a.h);
+        ctx.fillStyle = fill; ctx.globalAlpha = a.tint ? 0.5 : 0.16; ctx.fill();
+        ctx.globalAlpha = 1; ctx.stroke();
+        const e = w2s(a.x + a.w, a.z + a.h);
+        ctx.fillStyle = AMBIENCE_COLOR;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
+      }
+      const c = ambienceCenter(a), cs = w2s(c.x, c.z);
+      ctx.fillStyle = AMBIENCE_COLOR;
+      ctx.beginPath(); ctx.arc(cs.x, cs.y, 4, 0, Math.PI * 2); ctx.fill();
+      labelText(cs.x, cs.y - 8, ambienceLabel(a), AMBIENCE_COLOR);
+    }
+  }
+
+  // ---------- calque « Lumières » : sources ponctuelles (halo paramétrable) ----------
+  // Format de stockage dans ov.lights : { id, x, z, r, color, flicker }.
+  function lightsOv() {
+    if (!Array.isArray(ov.lights)) ov.lights = [];
+    return ov.lights;
+  }
+  function placeLightAt(tx, tz) {
+    pendingPlace = null;
+    pushHistory();
+    const list = lightsOv();
+    list.push({ id: 'light_' + Date.now().toString(36), x: tx + 0.5, z: tz + 0.5, r: LIGHT_DEFAULT_R, color: LIGHT_DEFAULT_COLOR, flicker: true });
+    refreshEditLayers();
+    openLightPanel(list.length - 1);
+  }
+  // rayon de lumière (px écran) -> rayon visuel en tuiles (≈ GAME_PX px/tuile au zoom 1)
+  function lightTileRadius(r) { return (r || LIGHT_DEFAULT_R) / GAME_PX; }
+  function pickLight(wx, wz) {
+    const tol = Math.max(0.8, 8 / view.z);
+    // bord (redimensionnement du rayon) d'abord, puis centre (déplacement/fiche)
+    for (let i = lightsList.length - 1; i >= 0; i--) {
+      const l = lightsList[i];
+      if (Math.abs(Math.hypot(wx - l.x, wz - l.z) - lightTileRadius(l.r)) <= tol) return { index: i, kind: 'edge' };
+    }
+    for (let i = lightsList.length - 1; i >= 0; i--) {
+      const l = lightsList[i];
+      if (Math.hypot(wx - l.x, wz - l.z) <= Math.max(1, tol)) return { index: i, kind: 'center' };
+    }
+    return null;
+  }
+  function dragLight(g) {
+    if (!g.moved && Math.hypot(hover.x - g.w0.x, hover.z - g.w0.z) < 0.35) return;
+    if (!g.pushed) { pushHistory(); g.pushed = true; }
+    g.moved = true;
+    const snap = (v) => Math.round(v * 2) / 2;
+    const l = lightsOv()[g.index];
+    if (!l) return;
+    if (g.kind === 'center') { l.x = snap(hover.x); l.z = snap(hover.z); }
+    else l.r = Math.max(LIGHT_R_MIN, Math.min(LIGHT_R_MAX, Math.round(Math.hypot(hover.x - l.x, hover.z - l.z) * GAME_PX)));
+    refreshEditLayers();
+  }
+  function drawLights() {
+    if (!showLights) return;
+    for (const l of lightsList) {
+      const s = w2s(l.x, l.z), r = lightTileRadius(l.r) * view.z;
+      // halo de portée (cercle) + point central
+      ctx.strokeStyle = LIGHT_COLOR; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (view.iso) ctx.ellipse(s.x, s.y, r, r / 2, 0, 0, Math.PI * 2);
+      else ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
+      // poignée de bord (rayon)
+      const e = w2s(l.x + lightTileRadius(l.r), l.z);
+      ctx.fillStyle = LIGHT_COLOR;
+      ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
+      // ampoule au centre
+      ctx.font = `${Math.max(12, view.z)}px sans-serif`;
+      ctx.textAlign = 'center';
+      labelText(s.x, s.y + view.z * 0.3, l.flicker ? '🔥' : '💡', LIGHT_COLOR);
+    }
+  }
+  // Aperçu jour/nuit dans l'éditeur : reproduit l'éclairage du jeu sur le canvas
+  // de la carte (voile d'obscurité percé par les sources de lumière + teinte et
+  // obscurité des zones d'ambiance) pour juger le rendu sans lancer le jeu.
+  // dayPreview = null : aucun voile (édition normale, pleine lumière).
+  function drawDayNightPreview() {
+    if (!dayPreview) return;
+    const nightDark = dayPreview === 'night' ? 0.74 : 0.0; // jour : seules les ambiances assombrissent
+    // teintes d'ambiance d'abord (sous le voile d'obscurité)
+    for (const a of ambienceList) {
+      if (!a.tint) continue;
+      ctx.save();
+      shapeClip(a);
+      ctx.fillStyle = a.tint;
+      ctx.fillRect(0, 0, W(), H());
+      ctx.restore();
+    }
+    // voile d'obscurité (nuit globale + obscurité d'ambiance cumulée par zone)
+    const off = document.createElement('canvas');
+    off.width = W(); off.height = H();
+    const l = off.getContext('2d');
+    if (nightDark > 0.01) { l.fillStyle = `rgba(8, 11, 34, ${nightDark})`; l.fillRect(0, 0, W(), H()); }
+    for (const a of ambienceList) {
+      if (!a.darkness) continue;
+      l.save(); shapeClipOn(l, a);
+      l.fillStyle = `rgba(8, 11, 34, ${Math.min(1, a.darkness)})`;
+      l.fillRect(0, 0, W(), H());
+      l.restore();
+    }
+    // les sources de lumière percent le voile (halo radial)
+    l.globalCompositeOperation = 'destination-out';
+    for (const li of lightsList) {
+      const s = w2s(li.x, li.z), r = lightTileRadius(li.r) * view.z;
+      const g = l.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
+      g.addColorStop(0, 'rgba(0,0,0,0.95)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      l.fillStyle = g; l.fillRect(s.x - r, s.y - r, r * 2, r * 2);
+    }
+    l.globalCompositeOperation = 'source-over';
+    ctx.drawImage(off, 0, 0);
+    // halos chauds par-dessus
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const li of lightsList) {
+      const s = w2s(li.x, li.z), r = lightTileRadius(li.r) * view.z * 0.75;
+      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
+      g.addColorStop(0, li.color || LIGHT_DEFAULT_COLOR); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(s.x - r, s.y - r, r * 2, r * 2);
+    }
+    ctx.restore();
+  }
+  // chemin de découpe d'une forme d'ambiance sur un contexte donné (aperçu)
+  function shapeClipOn(g, a) {
+    g.beginPath();
+    if (a.shape === 'circle') {
+      const s = w2s(a.x, a.z), r = a.r * view.z;
+      if (view.iso) g.ellipse(s.x, s.y, r, r / 2, 0, 0, Math.PI * 2);
+      else g.arc(s.x, s.y, r, 0, Math.PI * 2);
+    } else {
+      const p0 = w2s(a.x, a.z), p1 = w2s(a.x + a.w, a.z), p2 = w2s(a.x + a.w, a.z + a.h), p3 = w2s(a.x, a.z + a.h);
+      g.moveTo(p0.x, p0.y); g.lineTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.lineTo(p3.x, p3.y); g.closePath();
+    }
+    g.clip();
+  }
+  function shapeClip(a) { shapeClipOn(ctx, a); }
+
+  function openLightPanel(index) {
+    const l = lightsList[index];
+    if (!l) return;
+    closePanel();
+    const rInput = h('input', { type: 'number', min: String(LIGHT_R_MIN), max: String(LIGHT_R_MAX), step: '10', value: String(Math.round(l.r || LIGHT_DEFAULT_R)), style: { width: '70px' } });
+    // couleur : un sélecteur HTML #rrggbb + une opacité 0..1 (le halo est en rgba)
+    const parsed = parseCssColor(l.color || LIGHT_DEFAULT_COLOR);
+    const colorInput = h('input', { type: 'color', value: parsed.hex });
+    const alphaInput = h('input', { type: 'number', min: '0', max: '1', step: '0.02', value: String(parsed.a), style: { width: '64px' } });
+    const flickInput = h('input', { type: 'checkbox', checked: l.flicker !== false });
+    flickInput.onchange = () => { flickInput.checked = flickInput.checked; };
+    panelEl.append(
+      panelTitle('Source de lumière'),
+      h('div', { className: 'hint', textContent: 'Glissez le point pour déplacer, le bord pour régler le rayon. Le halo se rend comme une torche.' }),
+      h('div', { className: 'edit-row' }, 'Rayon : ', rInput, ' px'),
+      h('div', { className: 'edit-row' }, 'Couleur : ', colorInput, ' opacité ', alphaInput),
+      h('label', { className: 'edit-check' }, flickInput, ' scintillement (flamme)'),
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const real = lightsOv()[index];
+            if (!real) return;
+            real.r = Math.max(LIGHT_R_MIN, Math.min(LIGHT_R_MAX, Math.round(+rInput.value || LIGHT_DEFAULT_R)));
+            real.color = hexToRgba(colorInput.value, Math.max(0, Math.min(1, +alphaInput.value || 0)));
+            real.flicker = flickInput.checked;
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Lumière réglée — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => { pushHistory(); lightsOv().splice(index, 1); refreshEditLayers(); closePanel(); },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+  // fiche d'une sous-zone d'ambiance : forme, dimensions, teinte, obscurité, priorité
+  function openAmbiencePanel(index) {
+    const a = ambienceList[index];
+    if (!a) return;
+    closePanel();
+    const shapeSel = h('select', {
+      innerHTML: ['rect', 'circle'].map(s =>
+        `<option value="${s}"${s === a.shape ? ' selected' : ''}>${s === 'rect' ? 'Rectangle' : 'Cercle'}</option>`).join(''),
+    });
+    const num = (val) => h('input', { type: 'number', min: String(AMBIENCE_MIN_SIZE), step: '1', value: String(Math.round(val)), style: { width: '60px' } });
+    const rInput = num(a.r || AMBIENCE_DEFAULT_R);
+    const wInput = num(a.w || AMBIENCE_DEFAULT_W);
+    const hInput = num(a.h || AMBIENCE_DEFAULT_H);
+    const sizeCircle = h('div', { className: 'edit-row' }, 'Rayon : ', rInput, ' tuiles');
+    const sizeRect = h('div', { className: 'edit-row' }, 'Largeur : ', wInput, ' Hauteur : ', hInput);
+    const refreshSizeRows = () => {
+      sizeCircle.style.display = shapeSel.value === 'circle' ? '' : 'none';
+      sizeRect.style.display = shapeSel.value === 'rect' ? '' : 'none';
+    };
+    refreshSizeRows();
+    shapeSel.addEventListener('change', refreshSizeRows);
+    // teinte : activable, couleur + opacité (la teinte stockée est en rgba)
+    const tintOn = h('input', { type: 'checkbox', checked: !!a.tint });
+    const tp = parseCssColor(a.tint || AMBIENCE_DEFAULT_TINT);
+    const tintColor = h('input', { type: 'color', value: tp.hex });
+    const tintAlpha = h('input', { type: 'number', min: '0', max: '1', step: '0.02', value: String(tp.a), style: { width: '64px' } });
+    const darknessInput = h('input', { type: 'number', min: '0', max: '1', step: '0.05', value: String(a.darkness || 0), style: { width: '70px' } });
+    const prioInput = h('input', { type: 'number', value: String(a.priority || 0), style: { width: '60px' } });
+    panelEl.append(
+      panelTitle('Zone d\'ambiance'),
+      h('div', { className: 'hint', textContent: 'Teinte/obscurité appliquées par-dessus le cycle jour/nuit quand le joueur entre. Glissez le centre / le bord pour déplacer / redimensionner.' }),
+      h('div', { className: 'edit-row' }, 'Forme : ', shapeSel),
+      sizeCircle, sizeRect,
+      h('div', { className: 'edit-row' }, h('label', { className: 'edit-check' }, tintOn, ' teinte'), ' ', tintColor, ' opacité ', tintAlpha),
+      h('div', { className: 'edit-row' }, 'Obscurité (0..1) : ', darknessInput),
+      h('div', { className: 'edit-row' }, 'Priorité (chevauchements) : ', prioInput),
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const real = ambienceOv()[index];
+            if (!real) return;
+            const c = ambienceCenter(real);
+            const clamp = (v) => Math.max(AMBIENCE_MIN_SIZE, Math.round(Number(v) || 0));
+            if (shapeSel.value === 'circle') {
+              real.shape = 'circle'; real.r = clamp(rInput.value);
+              real.x = c.x; real.z = c.z; delete real.w; delete real.h;
+            } else {
+              real.shape = 'rect'; real.w = clamp(wInput.value); real.h = clamp(hInput.value);
+              real.x = c.x - real.w / 2; real.z = c.z - real.h / 2; delete real.r;
+            }
+            real.tint = tintOn.checked ? hexToRgba(tintColor.value, Math.max(0, Math.min(1, +tintAlpha.value || 0))) : null;
+            real.darkness = Math.max(0, Math.min(1, +darknessInput.value || 0));
+            real.priority = prioInput.value | 0;
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Zone d\'ambiance modifiée — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => { pushHistory(); ambienceOv().splice(index, 1); refreshEditLayers(); closePanel(); },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
+  // --- utilitaires couleur : rgba <-> #rrggbb + opacité (fiches lumière/ambiance) ---
+  function parseCssColor(s) {
+    const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/i.exec(String(s || ''));
+    if (m) {
+      const hex = '#' + [m[1], m[2], m[3]].map(v => Math.max(0, Math.min(255, +v)).toString(16).padStart(2, '0')).join('');
+      return { hex, a: m[4] != null ? Math.max(0, Math.min(1, +m[4])) : 1 };
+    }
+    if (/^#[0-9a-f]{6}$/i.test(s)) return { hex: s, a: 1 };
+    return { hex: '#ffaa46', a: 0.18 };
+  }
+  function hexToRgba(hex, a) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
+    if (!m) return `rgba(255, 170, 70, ${a})`;
+    return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
   }
 
   function campLabel(c) {
@@ -1520,12 +1896,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     else drawTopSprites();
     drawPendingTiles();
     if (!sprites) drawGlyphProps();
+    drawDayNightPreview(); // aperçu jour/nuit : voile d'obscurité + halos de lumière
     drawGrid();
     drawSelection();
     drawOverlays();
     drawCamps();
     drawNpcs();
     drawMusic();
+    drawAmbience();
+    drawLights();
     drawChests();
     drawMarkers();
     drawPlayers();
@@ -1805,9 +2184,11 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (pendingPlace === 'npc') { placeNpcAt(tx, tz); return; }
     if (pendingPlace === 'chest') { placeChestAt(tx, tz); return; }
     if (pendingPlace === 'marker') { placeMarkerAt(tx, tz); return; }
+    if (pendingPlace === 'light') { placeLightAt(tx, tz); return; }
     if (pendingPlace === 'teleport-test') { teleportTestAt(tx, tz); return; }
-    // pose d'une zone musicale : glisser pour dessiner le rectangle (relâcher = poser)
+    // pose d'une zone musicale / d'ambiance : glisser pour dessiner le rectangle (relâcher = poser)
     if (pendingPlace === 'music') { gesture = { mode: 'musicDraw', x0: wpt.x, z0: wpt.z }; return; }
+    if (pendingPlace === 'ambience') { gesture = { mode: 'ambienceDraw', x0: wpt.x, z0: wpt.z }; return; }
     // pot de peinture : remplissage par contiguïté (Maj+clic : toute la zone)
     if (mode === 'fill') { floodFill(tx, tz, e.shiftKey); return; }
     // outil sélection : glisser pour définir la région à copier
@@ -1831,6 +2212,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
         gesture = { mode: 'musicEdit', kind: hit.kind, index: hit.index, w0: wpt, moved: false, pushed: false };
         return;
       }
+    }
+    if (showLights) {
+      const hit = pickLight(wpt.x, wpt.z);
+      if (hit) { gesture = { mode: 'lightEdit', kind: hit.kind, index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
+    }
+    if (showAmbience) {
+      const hit = pickAmbience(wpt.x, wpt.z);
+      if (hit) { gesture = { mode: 'ambienceEdit', kind: hit.kind, index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
     }
     if (showCamps) {
       const hit = pickCamp(wpt.x, wpt.z);
@@ -1868,6 +2257,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       dragEditLayer(gesture);
     } else if (gesture?.mode === 'musicEdit') {
       dragMusic(gesture);
+    } else if (gesture?.mode === 'ambienceEdit') {
+      dragAmbience(gesture);
+    } else if (gesture?.mode === 'lightEdit') {
+      dragLight(gesture);
     } else if (gesture?.mode === 'chestMove' || gesture?.mode === 'markerMove') {
       dragChestOrMarker(gesture);
     }
@@ -1909,6 +2302,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
         gesture.x0 + MUSIC_DEFAULT_W / 2, gesture.z0 + MUSIC_DEFAULT_H / 2);
     } else if (gesture.mode === 'musicEdit' && !gesture.moved) {
       openMusicPanel(gesture.index); // simple clic : la fiche de la zone musicale
+    } else if (gesture.mode === 'ambienceDraw' && hover) {
+      const dx = Math.abs(hover.x - gesture.x0), dz = Math.abs(hover.z - gesture.z0);
+      if (dx >= AMBIENCE_MIN_SIZE || dz >= AMBIENCE_MIN_SIZE) placeAmbienceRect(gesture.x0, gesture.z0, hover.x, hover.z);
+      else placeAmbienceRect(gesture.x0 - AMBIENCE_DEFAULT_W / 2, gesture.z0 - AMBIENCE_DEFAULT_H / 2,
+        gesture.x0 + AMBIENCE_DEFAULT_W / 2, gesture.z0 + AMBIENCE_DEFAULT_H / 2);
+    } else if (gesture.mode === 'ambienceEdit' && !gesture.moved) {
+      openAmbiencePanel(gesture.index); // simple clic : la fiche de la zone d'ambiance
+    } else if (gesture.mode === 'lightEdit' && !gesture.moved) {
+      openLightPanel(gesture.index); // simple clic : la fiche de la lumière
     } else if (gesture.mode === 'select' && hover) {
       // fige la région sélectionnée (prête à copier)
       selection = { x0: gesture.x0, z0: gesture.z0, x1: Math.floor(hover.x), z1: Math.floor(hover.z) };
@@ -1982,6 +2384,27 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     $('layer-music').checked = true; showMusic = true;
     pendingPlace = 'music';
     msg('Glissez sur la carte pour dessiner la zone musicale (la fiche permet de la passer en cercle).');
+  });
+  // calques Ambiance / Lumières
+  $('layer-ambience')?.addEventListener('change', () => { showAmbience = $('layer-ambience').checked; markDirty(); });
+  $('layer-lights')?.addEventListener('change', () => { showLights = $('layer-lights').checked; markDirty(); });
+  $('add-ambience')?.addEventListener('click', () => {
+    $('layer-ambience').checked = true; showAmbience = true;
+    pendingPlace = 'ambience';
+    msg('Glissez sur la carte pour dessiner la zone d\'ambiance (teinte/obscurité ; passable en cercle dans la fiche).');
+  });
+  $('add-light')?.addEventListener('click', () => {
+    $('layer-lights').checked = true; showLights = true;
+    pendingPlace = 'light';
+    msg('Cliquez sur la carte pour poser une source de lumière (sa fiche règle rayon/couleur/scintillement).');
+  });
+  // aperçu jour/nuit : bascule l'éclairage de l'éditeur sans lancer le jeu
+  $('preview-daynight')?.addEventListener('click', () => {
+    dayPreview = dayPreview === 'night' ? null : (dayPreview === 'day' ? 'night' : 'day');
+    const label = dayPreview === 'day' ? '☀ Aperçu : jour' : dayPreview === 'night' ? '🌙 Aperçu : nuit' : '🌓 Aperçu jour/nuit';
+    const btn = $('preview-daynight');
+    if (btn) btn.textContent = label;
+    markDirty();
   });
   // calques Coffres / Points spéciaux
   $('layer-chests')?.addEventListener('change', () => { showChests = $('layer-chests').checked; markDirty(); });
@@ -2135,5 +2558,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     placeMarkerAt,
     openChestPanel,
     openMarkerPanel,
+    // calques ambiance / lumières + aperçu jour/nuit
+    getAmbience: () => ambienceList,
+    getLights: () => lightsList,
+    placeAmbienceRect,
+    placeAmbienceCircle,
+    placeLightAt,
+    openAmbiencePanel,
+    openLightPanel,
+    setDayPreview: (v) => { dayPreview = v; markDirty(); },
+    getDayPreview: () => dayPreview,
   };
 }

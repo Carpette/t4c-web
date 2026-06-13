@@ -269,6 +269,56 @@ await new Promise(r => setTimeout(r, 60));
   ok('Ctrl+Z : pose du point annulée (section `markers` absente)', ed.getOverrides().markers === undefined);
 }
 
+// calque Ambiance : pose d'une zone (rect puis cercle), réglage teinte/obscurité, undo
+ed.loadZone && await ed.loadZone(0);
+await new Promise(r => setTimeout(r, 60));
+{
+  ed.placeAmbienceRect(40, 40, 60, 56);
+  let az = ed.getAmbience();
+  ok('pose d\'une zone d\'ambiance rectangle : entrée `ambience` dans les overrides',
+    ed.getOverrides().ambience?.length === 1 && az[0].shape === 'rect' && az[0].w === 20 && az[0].h === 16);
+  // une zone fraîche a une teinte par défaut (marais verdâtre) et obscurité 0
+  ok('zone d\'ambiance : teinte par défaut posée', typeof az[0].tint === 'string' && az[0].tint.startsWith('rgba'));
+  ed.placeAmbienceCircle(80, 80, 10);
+  az = ed.getAmbience();
+  ok('pose d\'une zone d\'ambiance cercle : 2e entrée, forme + rayon',
+    ed.getOverrides().ambience?.length === 2 && az[1].shape === 'circle' && az[1].r === 10);
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ok('Ctrl+Z ×2 : poses de zones d\'ambiance annulées (section `ambience` absente)',
+    ed.getOverrides().ambience === undefined && ed.getAmbience().length === 0);
+}
+
+// calque Lumières : pose d'une source + undo ; format { x, z, r, color, flicker }
+{
+  const lightsBefore = ed.getLights().length;
+  ed.placeLightAt(70, 70);
+  const lz = ed.getLights();
+  ok('pose d\'une lumière : entrée `lights` (rayon + couleur + scintillement)',
+    ed.getOverrides().lights?.length === lightsBefore + 1
+    && Math.floor(lz[lz.length - 1].x) === 70 && lz[lz.length - 1].r > 0
+    && typeof lz[lz.length - 1].color === 'string');
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ok('Ctrl+Z : pose de lumière annulée (section `lights` absente)', ed.getOverrides().lights === undefined);
+}
+
+// aperçu jour/nuit : bascule l'état d'aperçu (et le rendu ne lève pas d'exception)
+{
+  ed.setDayPreview('night');
+  ok('aperçu nuit activé', ed.getDayPreview() === 'night');
+  // pose une zone d'ambiance + une lumière, puis force quelques frames de rendu
+  ed.placeAmbienceCircle(64, 64, 12);
+  ed.placeLightAt(64, 64);
+  ed.rebuildNow();
+}
+await new Promise(r => setTimeout(r, 200));
+{
+  ed.setDayPreview('day');
+  ok('aperçu jour activé', ed.getDayPreview() === 'day');
+  ed.setDayPreview(null);
+  ok('aperçu jour/nuit désactivable', ed.getDayPreview() === null);
+}
+
 // laisse la boucle de rendu dessiner quelques frames en mode sprites (chunks)
 await new Promise(r => setTimeout(r, 400));
 ok('aucune exception (chargement, rendu chunks, outils)', failures.length === 0);

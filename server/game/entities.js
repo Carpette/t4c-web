@@ -205,6 +205,10 @@ export class Player extends Character {
     // pilotent la bascule à hystérésis (cf. game.js evalPlayerMusic)
     this.musicZoneId = null;
     this.lastMusicSent = null;
+    // sous-zone d'ambiance active (id) et dernière ambiance poussée (anti-spam) :
+    // même bascule à hystérésis que la musique (cf. game.js evalPlayerAmbience)
+    this.ambienceZoneId = null;
+    this.lastAmbienceSent = null;
     // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
     this.hpAcc = data.hpAcc ?? C.maxHp(this.stats, this.level);
     this.manaAcc = data.manaAcc ?? C.maxMana(this.stats, this.level);

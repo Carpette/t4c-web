@@ -165,3 +165,10 @@ export const MUSIC_ZONE_HYSTERESIS = 3.5;
 // Cadence de réévaluation de la zone musicale d'un joueur (en ticks serveur) :
 // inutile de tester à chaque tick, un quart de seconde suffit largement.
 export const MUSIC_EVAL_EVERY_TICKS = 3;
+
+// ---------- Zones d'ambiance (teinte/obscurité par sous-zone, overrides `ambience`) ----------
+// Mêmes formes dessinées + MÊME bascule à hystérésis que les zones musicales :
+// on factorise les seuils pour garantir un comportement frontalier identique
+// (pas de clignotement de la teinte au ras d'une frontière de zone d'ambiance).
+export const AMBIENCE_ZONE_HYSTERESIS = MUSIC_ZONE_HYSTERESIS;
+export const AMBIENCE_EVAL_EVERY_TICKS = MUSIC_EVAL_EVERY_TICKS;
