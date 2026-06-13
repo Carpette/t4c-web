@@ -28,6 +28,12 @@ export class Renderer {
     // cache id -> { img, rect } : résolution faite une fois par id (sols + props).
     // Évite toute recherche dans le manifeste à chaque tuile dessinée.
     this._tileCache = new Map();
+    // cache des pièces MIROITÉES pré-cuites : id -> { canvas, w, h, ox, oy }.
+    // À la première demande d'un (id, flip=true), on découpe la pièce dans son
+    // atlas, on la miroite UNE FOIS sur un petit canvas hors écran (comme le cache
+    // de teintes des monstres, entities2d.TINT_CACHE), puis on réutilise ce canvas
+    // par un drawImage simple — aucun ctx.scale/translate ni allocation par frame.
+    this._flipCache = new Map();
 
     // canvas d'éclairage
     this.lightCanvas = document.createElement('canvas');
@@ -118,19 +124,35 @@ export class Renderer {
       this._tileCache.set(id, r);
     }
     if (!r) return;
-    const img = r.img;
     const [x, y, w, h, ox, oy] = r.rect;
     const s = this.scale * k;
     if (flip) {
-      const ctx = this.ctx;
-      ctx.save();
-      ctx.translate(px, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, x, y, w, h, -ox * s, py - oy * s, w * s, h * s);
-      ctx.restore();
+      // pièce miroitée PRÉ-CUITE : un seul drawImage, sans transform par frame.
+      // L'ancre miroir : le bord droit de la pièce (w-ox) devient le bord gauche,
+      // donc l'origine X dessinée est px - (w - ox) * s (équivalent au scale(-1)).
+      const fc = this._flippedPiece(r.img, x, y, w, h);
+      this.ctx.drawImage(fc, px - (w - ox) * s, py - oy * s, w * s, h * s);
     } else {
-      this.ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+      this.ctx.drawImage(r.img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
     }
+  }
+
+  // Renvoie un canvas hors écran contenant la pièce (x,y,w,h) de `img` miroitée
+  // horizontalement, à sa taille NATIVE. Mémoïsé par (image + rectangle) : la
+  // symétrie n'est calculée qu'une fois, puis réutilisée tel quel (drawImage).
+  _flippedPiece(img, x, y, w, h) {
+    const key = `${img.src}|${x},${y},${w},${h}`;
+    let cv = this._flipCache.get(key);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const g = cv.getContext('2d');
+      g.translate(w, 0);
+      g.scale(-1, 1);
+      g.drawImage(img, x, y, w, h, 0, 0, w, h);
+      this._flipCache.set(key, cv);
+    }
+    return cv;
   }
 
   // cercle de sélection au sol (sous les pieds d'une entité)
