@@ -6,8 +6,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { register } from 'node:module';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// En production, le serveur sert /shared/ depuis la RACINE : admin.js (servi
+// sous /js/) importe donc « ../shared/defs.js » -> /shared/defs.js. Hors
+// navigateur, ce chemin tombe sur client/shared/ (inexistant). Ce hook de
+// résolution renvoie le vrai dossier shared/ pour exécuter le code tel quel.
+register('data:text/javascript,' + encodeURIComponent(`
+  import { pathToFileURL } from 'node:url';
+  const SHARED = ${JSON.stringify(pathToFileURLString())};
+  export async function resolve(spec, ctx, next) {
+    if (spec.startsWith('../shared/') && ctx.parentURL && ctx.parentURL.endsWith('/client/js/admin.js')) {
+      return next(SHARED + spec.slice('../shared/'.length), ctx);
+    }
+    return next(spec, ctx);
+  }
+`), import.meta.url);
+function pathToFileURLString() {
+  return new URL('file://' + path.join(ROOT, 'shared') + '/').href;
+}
 const failures = [];
 process.on('uncaughtException', (e) => { failures.push(e); console.error('✘ EXCEPTION:', e.stack?.split('\n').slice(0, 4).join('\n')); });
 process.on('unhandledRejection', (e) => { failures.push(e); console.error('✘ REJET:', (e?.stack || e)?.toString().split('\n').slice(0, 4).join('\n')); });
@@ -102,10 +121,12 @@ mini.width = 168; mini.height = 168;
 
 // ---------- API admin simulée ----------
 const zonesData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/zones.json'), 'utf8'));
+const MUSIC_FILES = ['exterieur.mp3', 'Velours Moteur.mp3', 'Gravel Starlight.mp3'];
 const api = async (url) => {
   if (url === '/api/admin/content/zones') return zonesData;
   if (url.startsWith('/api/admin/overrides/')) return { tiles: [], props: { add: [], remove: [] } };
   if (url === '/api/admin/players') return { players: [] };
+  if (url === '/api/admin/music') return { files: MUSIC_FILES, map: {} };
   return { ok: true };
 };
 
@@ -116,7 +137,7 @@ const ok = (name, cond) => { checks.push([name, !!cond]); console.log(cond ? '  
 await import('../client/js/admin.js'); // graphe complet (sans connexion : token absent)
 console.log('✔ admin.js chargé');
 const { initMapEditor } = await import('../client/js/admin/editor.js');
-const ed = await initMapEditor({ api, zones: zonesData.zones });
+const ed = await initMapEditor({ api, zones: zonesData.zones, musicFiles: MUSIC_FILES });
 ok('éditeur initialisé (zone 0 générée, vue ajustée)', ed && ed.getView().z > 0);
 
 // palette : sols + tous les props avec variantes
@@ -175,6 +196,21 @@ ok('Ctrl+Z ×2 : pose de camp et de PNJ annulées (retour aux défauts)',
   ed.getOverrides().camps === undefined
   && (ed.getOverrides().npcs?.add?.length ?? 0) === 0
   && ed.getCamps().length === campsBefore);
+
+// calque Musique : pose d'une zone rectangle puis cercle, fiche, undo
+ed.placeMusicRect(40, 40, 60, 56);
+let mz = ed.getMusicZones();
+ok('pose d\'une zone musicale rectangle : entrée `music` dans les overrides',
+  ed.getOverrides().music?.length === 1 && mz[0].shape === 'rect'
+  && mz[0].w === 20 && mz[0].h === 16 && mz[0].track?.new === MUSIC_FILES[0]);
+ed.placeMusicCircle(80, 80, 12);
+mz = ed.getMusicZones();
+ok('pose d\'une zone musicale cercle : 2e entrée, forme + rayon',
+  ed.getOverrides().music?.length === 2 && mz[1].shape === 'circle' && mz[1].r === 12);
+win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+ok('Ctrl+Z ×2 : poses de zones musicales annulées (section `music` absente)',
+  ed.getOverrides().music === undefined && ed.getMusicZones().length === 0);
 
 // laisse la boucle de rendu dessiner quelques frames en mode sprites (chunks)
 await new Promise(r => setTimeout(r, 400));
