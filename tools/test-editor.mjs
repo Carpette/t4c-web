@@ -105,8 +105,9 @@ globalThis.window = win;
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.requestAnimationFrame = (fn) => setTimeout(() => fn(performance.now()), 16);
 globalThis.Image = class { set src(v) { setTimeout(() => this.onload?.(), 0); } };
-globalThis.confirm = () => false;
+globalThis.confirm = () => true;
 globalThis.alert = () => {};
+globalThis.prompt = (_label, def = '') => def;
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'client/assets/manifest.json'), 'utf8'));
 globalThis.fetch = async (url) => {
   if (String(url).includes('manifest.json')) return { ok: true, json: async () => manifest };
@@ -122,11 +123,16 @@ mini.width = 168; mini.height = 168;
 // ---------- API admin simulée ----------
 const zonesData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/zones.json'), 'utf8'));
 const MUSIC_FILES = ['exterieur.mp3', 'Velours Moteur.mp3', 'Gravel Starlight.mp3'];
-const api = async (url) => {
+let tplStore = []; // persistance serveur simulée des templates
+const api = async (url, method = 'GET', body = null) => {
   if (url === '/api/admin/content/zones') return zonesData;
   if (url.startsWith('/api/admin/overrides/')) return { tiles: [], props: { add: [], remove: [] } };
   if (url === '/api/admin/players') return { players: [] };
   if (url === '/api/admin/music') return { files: MUSIC_FILES, map: {} };
+  if (url === '/api/admin/templates') {
+    if (method === 'PUT') { tplStore = body?.templates || []; return { ok: true, count: tplStore.length }; }
+    return { templates: tplStore };
+  }
   return { ok: true };
 };
 
@@ -247,6 +253,42 @@ await new Promise(r => setTimeout(r, 60));
   ok('coller : la région est décalée (COBBLE recopiée à la nouvelle position)', !!pasted);
   ok('coller : de nouvelles tuiles ont été écrites', ed.getOverrides().tiles.length > tilesBefore);
   void addBefore;
+}
+
+// onglet Templates : ouverture, enregistrement depuis une sélection, collage
+{
+  ed.showSideTab('templates'); // bascule sans exception
+  ok('onglet Templates affiché sans exception', failures.length === 0);
+  // pose un repère puis sélectionne une région et enregistre un template
+  ed.setTool({ kind: 'tile', tile: 3 }); // COBBLE
+  ed.paintAt(15, 15);
+  ed.rebuildNow();
+  ed.selectRegion(15, 15, 17, 17);
+  const tplBefore = ed.getTemplates().length;
+  await ed.saveTemplateFromSelection('MaTour'); // nom fourni (pas de prompt)
+  const tpls = ed.getTemplates();
+  ok('enregistrer : un template est ajouté à la liste',
+    tpls.length === tplBefore + 1 && tpls.some(t => t.name === 'MaTour'));
+  const tpl = tpls.find(t => t.name === 'MaTour');
+  ok('template : forme correcte (w/h + tuiles relatives)',
+    tpl && tpl.w === 3 && tpl.h === 3 && tpl.tiles.length === 9
+    && tpl.tiles.some(([dx, dz, t]) => dx === 0 && dz === 0 && t === 3));
+  ok('template : persisté côté serveur (PUT reçu)', tplStore.some(t => t.name === 'MaTour'));
+  // ré-enregistrer sous le même nom écrase (pas de doublon)
+  ed.selectRegion(15, 15, 16, 16);
+  await ed.saveTemplateFromSelection('MaTour');
+  const after = ed.getTemplates().filter(t => t.name === 'MaTour');
+  ok('ré-enregistrer même nom : écrase (pas de doublon, nouvelle taille)',
+    after.length === 1 && after[0].w === 2 && after[0].h === 2);
+  // « Coller » arme le collage (même chemin que Ctrl+V) sans exception
+  ed.armTemplatePaste(tpl);
+  ok('coller un template : collage armé sans exception', ed.isPasting() === true && failures.length === 0);
+  // un clic sur la carte valide la pose (réutilise pasteAt)
+  const tilesBefore = ed.getOverrides().tiles.length;
+  canvas.fire('pointerdown', { clientX: 500, clientY: 352, button: 0 });
+  win.fire('pointerup', {});
+  ok('coller un template : le clic écrit des tuiles (chemin pasteAt)',
+    ed.getOverrides().tiles.length > tilesBefore && ed.isPasting() === false);
 }
 
 // calque Coffres : pose d'un coffre + édition du butin (ov.chests)
