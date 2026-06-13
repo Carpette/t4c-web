@@ -93,6 +93,33 @@ export function tilesetPropId(type, v) {
   return prefix != null && v != null ? `${prefix}:${v}` : null;
 }
 
+// --- Murs IA (assets PROPRES au projet, pas Flare) : un tileset par matériau ---
+// Chaque matériau a son atlas PNG (manifest.tilesets["wall_<mat>"]) et 16 pièces
+// (frames 0..15 : segments /, \, coins, T, croix, embouts, portes, pilier,
+// créneaux, ruine). Posés comme des props « libres » exactement comme les tilesets
+// Flare : le type de prop est `wall_<mat>` et la variante `v` le numéro de pièce ;
+// l'id de tuile rendu est la chaîne « wall_<mat>:frame » résolue par le manifeste.
+// Scalables ET flippables (cf. SCALABLE_PROPS / FLIPPABLE_PROPS plus bas).
+// [clé de matériau (= suffixe de tileset), libellé affiché]
+export const WALL_MATERIALS = [
+  ['rondins', 'Rondins'],
+  ['brique_rouge', 'Brique rouge'],
+  ['colombage', 'Colombage'],
+  ['terre', 'Terre'],
+  ['planches', 'Planches'],
+  ['pierre', 'Pierre médiévale'],
+  ['brique_grise', 'Brique grise'],
+];
+export const WALL_PIECES = 16; // nombre de pièces par matériau (walls.json)
+// type de prop d'un matériau de mur : « wall_rondins », « wall_pierre », etc.
+// (le type EST déjà le nom du tileset : pas de table de préfixe séparée).
+export const WALL_PROP_TYPES = WALL_MATERIALS.map(([mat]) => `wall_${mat}`);
+const WALL_PROP_SET = new Set(WALL_PROP_TYPES);
+// id de tuile rendu pour une pièce de mur (type `wall_<mat>` + frame `v`)
+export function wallPropId(type, v) {
+  return WALL_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
+}
+
 // --- Famille générique « frame grassland » (ids NUMÉRIQUES) ---
 // Le tileset grassland (sol historique d'Arakas) est référencé par des ids
 // NUMÉRIQUES directs dans manifest.tiles (≠ les ids texte « cave:42 »). Pour
@@ -202,8 +229,8 @@ export const PROP_TYPES = {
 // transformés. Les éléments qui s'emboîtent (murs, ponts...) ou dont l'ancrage
 // est calibré (maison, portails) gardent leur taille d'origine.
 const TILESET_PROP_TYPES = TILESET_PROP_FAMILIES.map(([type]) => type);
-export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES]);
-export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES]);
+export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES, ...WALL_PROP_TYPES]);
+export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES, ...WALL_PROP_TYPES]);
 
 // échelle effective d'un prop (bornée, 1 pour les types non redimensionnables)
 export function propScale(p) {
@@ -238,6 +265,12 @@ export function propSprites(p, { inCemetery = false } = {}) {
   // décors issus des tilesets Flare additionnels (cave/dungeon/ruins/snow)
   if (TILESET_PROP_PREFIX[p.type]) {
     const id = tilesetPropId(p.type, p.v);
+    if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
+  // pièce de mur IA (un tileset par matériau) : id « wall_<mat>:frame »
+  if (WALL_PROP_SET.has(p.type)) {
+    const id = wallPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
