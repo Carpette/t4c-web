@@ -175,11 +175,23 @@ ok(`palette construite (${chips.length} vignettes, sols + variantes de props)`, 
   win.fire('pointerup', {});
   ok('variante « mur » Flare (toit_grand) posable',
     ed.getOverrides().props.add.some(p => p.type === 'wall' && p.v === 'toit_grand'));
-  // remet l'état initial pour ne pas perturber les tests suivants (3 poses annulées)
+  // thème « Murs » (murs IA propres au projet) : présent + pièce posable avec miroir
+  const palRoot = doc.getElementById('map-palette');
+  const wallTheme = palRoot._descendants().some(e => e.classList.contains('pal-theme-head')
+    && (e.children || []).some(c => c && c.textContent === 'Murs'));
+  ok('palette : thème « Murs » chargé', wallTheme);
+  // pose d'une pièce de mur pierre (frame 5) avec miroir : prop wall_pierre v=5 rot=PI
+  ed.setTool({ kind: 'prop', type: 'wall_pierre', v: 5, flip: true });
+  canvas.fire('pointerdown', { clientX: 600, clientY: 396, button: 0 });
+  win.fire('pointerup', {});
+  ok('pose d\'une pièce de mur + miroir : prop { type:wall_pierre, v:5, rot:PI } armé',
+    ed.getOverrides().props.add.some(p => p.type === 'wall_pierre' && p.v === 5 && p.rot === Math.PI));
+  // remet l'état initial pour ne pas perturber les tests suivants (4 poses annulées)
   win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
   win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
   win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
-  ok('grassland/variantes : poses annulées (retour à l\'état initial)',
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ok('grassland/variantes/murs : poses annulées (retour à l\'état initial)',
     ed.getOverrides().props.add.length === 0);
   ed.setTool({ kind: 'tile', tile: 2 }); // restaure l'outil par défaut (herbe = TILE.GRASS=2)
 }

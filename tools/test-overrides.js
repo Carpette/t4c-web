@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 import { generateWorld, TILE } from '../shared/worldgen.js';
 import { applyOverrides } from '../shared/overrides.js';
 import { buildDecor } from '../client/js/render2d/decor.js';
-import { TREE_IDS, DEAD_TREE_IDS, WALL_IDS, HOUSE_FLARE_IDS, WALL_FLARE_IDS } from '../client/js/render2d/decormap.js';
+import { TREE_IDS, DEAD_TREE_IDS, WALL_IDS, HOUSE_FLARE_IDS, WALL_FLARE_IDS, WALL_MATERIALS, wallPropId } from '../client/js/render2d/decormap.js';
 import { PROTOCOL_VERSION } from '../shared/constants.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +111,35 @@ const idx = (x, z) => z * N + x;
   }));
   const h0 = w0.props.find(p => p.big && p.tileId === 296);
   ok('rétrocompat : maison v:0 -> tuile 296 ancrée (big), inchangée', !!h0);
+}
+
+// --- 3c. murs IA (assets propres) : un prop wall_<mat> posé se résout ---
+// Une pièce de mur posée via overrides produit un id « wall_<mat>:frame » que le
+// manifeste résout vers la bonne image + rectangle ; miroir honoré (flip).
+{
+  const [mat] = WALL_MATERIALS[5]; // pierre médiévale (cf. validation « wall_pierre:5 »)
+  const type = `wall_${mat}`;
+  const w = applyOverrides(clone(base), {
+    tiles: [],
+    props: { add: [{ type, x: 50, z: 50, v: 5, s: 1.5, rot: Math.PI }], remove: [] },
+  });
+  const decor = buildDecor(w);
+  const wp = decor.props.find(p => p.x === 50.5 && p.z === 50.5);
+  const id = wallPropId(type, 5); // « wall_pierre:5 »
+  ok('décor : pièce de mur -> id « wall_<mat>:frame », miroir + échelle honorés',
+    wp && wp.tileId === id && wp.flip === true && wp.s === 1.5);
+  // résolution manifeste : le tileset existe et contient la frame 5
+  const ts = MANIFEST.tilesets[type];
+  const rect = ts?.tiles?.['5'];
+  ok('manifeste : « wall_pierre:5 » résout vers image + rect (atlas du matériau)',
+    ts && Array.isArray(rect) && rect.length >= 6 && ts.images[rect[6] || 0] === `tilesets/walls/${mat}.png`);
+  // les 7 matériaux × 16 pièces sont présents
+  let entries = 0, frames = 0;
+  for (const [m] of WALL_MATERIALS) {
+    const t = MANIFEST.tilesets[`wall_${m}`];
+    if (t) { entries++; frames += Object.keys(t.tiles).length; }
+  }
+  ok('manifeste : 7 matériaux de murs × 16 pièces présents', entries === 7 && frames === 112);
 }
 
 // --- 4. aller-retour serveur : PUT puis GET via l'API admin ---
