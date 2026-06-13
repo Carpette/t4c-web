@@ -2350,6 +2350,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       // fige la région sélectionnée (prête à copier)
       selection = { x0: gesture.x0, z0: gesture.z0, x1: Math.floor(hover.x), z1: Math.floor(hover.z) };
       msg('Région sélectionnée — Ctrl+C pour copier, Échap pour annuler.');
+      updateTplSaveBtn(); // « Enregistrer la sélection » devient actif
     } else if (gesture.mode === 'chestMove' && !gesture.moved) {
       openChestPanel(gesture.index); // simple clic : la fiche du coffre
     } else if (gesture.mode === 'markerMove' && !gesture.moved) {
@@ -2368,13 +2369,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       if (e.shiftKey) redo(); else undo();
     } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault?.(); redo(); }
     // copier / coller une région (presse-papier interne)
-    else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault?.(); copySelection(); }
+    else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault?.(); copySelection(); updateTplSaveBtn(); }
     else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
       e.preventDefault?.();
       if (clipboard) { pasting = true; msg('Collage : cliquez pour valider la position (Échap pour annuler).'); markDirty(); }
     }
     // Échap : annule sélection et collage en cours
-    else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; markDirty(); }
+    else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; updateTplSaveBtn(); markDirty(); }
   });
   window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
 
@@ -2783,13 +2784,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     pendingPlace = 'marker';
     msg('Cliquez sur la carte pour poser le point spécial (sa fiche choisit le type et la destination).');
   });
-  // ---------- panneau droit : onglets « Palette » / « Calques » ----------
-  // Bascule entre la palette (sols/décors) et la liste des calques d'édition.
+  // ---------- panneau droit : onglets « Palette » / « Calques » / « Templates » ----------
+  // Bascule entre la palette (sols/décors), la liste des calques et les templates.
   function showSideTab(name) {
     for (const b of document.querySelectorAll('#map-side-tabs button'))
       b.classList.toggle('active', b.dataset.side === name);
     $('map-pane-palette')?.classList.toggle('visible', name === 'palette');
     $('map-pane-layers')?.classList.toggle('visible', name === 'layers');
+    $('map-pane-templates')?.classList.toggle('visible', name === 'templates');
+    if (name === 'templates') refreshTemplatesPanel();
   }
   for (const b of document.querySelectorAll('#map-side-tabs button'))
     b.addEventListener('click', () => showSideTab(b.dataset.side));
@@ -2869,6 +2872,167 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     syncLayersPanel();
   }
   buildLayersPanel();
+
+  // ---------- onglet « Templates » : assemblages réutilisables ----------
+  // Un template a la MÊME forme que le presse-papier interne (coordonnées
+  // relatives) : { id, name, w, h, tiles:[[dx,dz,tileId]], props:[{type,dx,dz,v?,s?,rot?}] }.
+  // Persistance serveur partagée (GET/PUT /api/admin/templates) avec repli
+  // localStorage pour ne rien perdre si la route échoue.
+  const TPL_LS_KEY = 't4c-editor-templates';
+  let templates = [];           // liste en mémoire (source de vérité de l'UI)
+  // capture la région sélectionnée comme template (réutilise la logique de copySelection)
+  function selectionToAssembly() {
+    if (!selection || !world) return null;
+    const b = selBounds(selection);
+    const N = world.size;
+    const tiles = [];
+    for (let z = b.z0; z <= b.z1; z++) for (let x = b.x0; x <= b.x1; x++)
+      tiles.push([x - b.x0, z - b.z0, world.tile[z * N + x]]);
+    const props = [];
+    for (const p of world.props) {
+      const px = Math.floor(p.x), pz = Math.floor(p.z);
+      if (px < b.x0 || px > b.x1 || pz < b.z0 || pz > b.z1) continue;
+      const e = { type: p.type, dx: px - b.x0, dz: pz - b.z0 };
+      if (p.v != null) e.v = p.v;
+      if (Number.isFinite(p.s) && p.s !== 1) e.s = p.s;
+      if (p.rot) e.rot = p.rot;
+      props.push(e);
+    }
+    return { w: b.x1 - b.x0 + 1, h: b.z1 - b.z0 + 1, tiles, props };
+  }
+  // l'enregistrement est possible s'il y a une sélection courante OU un presse-papier
+  function currentAssembly() {
+    return selectionToAssembly() || (clipboard && { w: clipboard.w, h: clipboard.h, tiles: clipboard.tiles, props: clipboard.props }) || null;
+  }
+  function updateTplSaveBtn() {
+    const btn = $('tpl-save');
+    if (btn) btn.disabled = !currentAssembly();
+  }
+  // persiste la liste : PUT serveur, repli localStorage si la route échoue
+  async function persistTemplates() {
+    try { localStorage.setItem(TPL_LS_KEY, JSON.stringify(templates)); } catch { /* quota */ }
+    try { await api('/api/admin/templates', 'PUT', { templates }); }
+    catch (e) { return e.message; }
+    return null;
+  }
+  // charge depuis le serveur ; repli sur localStorage si la route échoue
+  async function loadTemplates() {
+    try {
+      const r = await api('/api/admin/templates');
+      templates = Array.isArray(r?.templates) ? r.templates : [];
+    } catch {
+      try { templates = JSON.parse(localStorage.getItem(TPL_LS_KEY) || '[]'); }
+      catch { templates = []; }
+    }
+  }
+  // petite vignette d'aperçu (aplats de tuiles + points pour les décors)
+  function drawTemplateThumb(canvasEl, tpl) {
+    const cx = canvasEl.getContext?.('2d');
+    if (!cx) return;
+    const W2 = canvasEl.width || 40, H2 = canvasEl.height || 40;
+    const cell = Math.max(1, Math.floor(Math.min(W2 / tpl.w, H2 / tpl.h)));
+    const ox = Math.floor((W2 - cell * tpl.w) / 2), oy = Math.floor((H2 - cell * tpl.h) / 2);
+    cx.clearRect(0, 0, W2, H2);
+    for (const [dx, dz, t] of tpl.tiles) {
+      cx.fillStyle = TILE_COLORS[t] || '#333';
+      cx.fillRect(ox + dx * cell, oy + dz * cell, cell, cell);
+    }
+    cx.fillStyle = '#ffd24a';
+    for (const p of tpl.props) {
+      const r = Math.max(1, cell / 3);
+      cx.beginPath();
+      cx.arc(ox + (p.dx + 0.5) * cell, oy + (p.dz + 0.5) * cell, r, 0, Math.PI * 2);
+      cx.fill();
+    }
+  }
+  // (ré)affiche la liste des templates avec leurs actions
+  function refreshTemplatesPanel() {
+    updateTplSaveBtn();
+    const host = $('tpl-list');
+    if (!host) return;
+    host.innerHTML = '';
+    if (!templates.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'Aucun template enregistré pour le moment.';
+      host.appendChild(empty);
+      return;
+    }
+    for (const tpl of templates) {
+      const row = document.createElement('div');
+      row.className = 'tpl-row';
+      const thumb = document.createElement('canvas');
+      thumb.className = 'tpl-thumb';
+      thumb.width = 40; thumb.height = 40;
+      drawTemplateThumb(thumb, tpl);
+      const info = document.createElement('div');
+      info.className = 'tpl-info';
+      const nm = document.createElement('div');
+      nm.className = 'tpl-name';
+      nm.textContent = tpl.name;
+      const sum = document.createElement('div');
+      sum.className = 'tpl-sum';
+      sum.textContent = `${tpl.w}×${tpl.h}, ${tpl.tiles.length} tuiles, ${tpl.props.length} décor${tpl.props.length > 1 ? 's' : ''}`;
+      info.append(nm, sum);
+      const acts = document.createElement('div');
+      acts.className = 'tpl-acts';
+      const bPaste = document.createElement('button');
+      bPaste.textContent = 'Coller'; bPaste.title = 'Armer le collage (clic sur la carte pour valider)';
+      bPaste.addEventListener('click', () => armTemplatePaste(tpl));
+      const bRename = document.createElement('button');
+      bRename.textContent = 'Renommer';
+      bRename.addEventListener('click', () => renameTemplate(tpl));
+      const bDel = document.createElement('button');
+      bDel.textContent = 'Suppr.';
+      bDel.addEventListener('click', () => deleteTemplate(tpl));
+      acts.append(bPaste, bRename, bDel);
+      row.append(thumb, info, acts);
+      host.appendChild(row);
+    }
+  }
+  // enregistre la sélection/le presse-papier courant sous un nom (écrase si même nom)
+  async function saveTemplateFromSelection(name) {
+    const asm = currentAssembly();
+    if (!asm) { msg('Sélectionnez d\'abord une région (outil ⧉) ou copiez-en une (Ctrl+C).'); return; }
+    const finalName = (name != null ? name : prompt('Nom du template :', ''))?.trim();
+    if (!finalName) return;
+    const existing = templates.find(t => t.name === finalName);
+    if (existing) {
+      existing.w = asm.w; existing.h = asm.h; existing.tiles = asm.tiles; existing.props = asm.props;
+    } else {
+      templates.push({ id: 'tpl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: finalName, w: asm.w, h: asm.h, tiles: asm.tiles, props: asm.props });
+    }
+    refreshTemplatesPanel();
+    const err = await persistTemplates();
+    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : `✔ Template « ${finalName} » enregistré.`);
+  }
+  // arme le collage d'un template : injecte dans clipboard puis active le même
+  // mécanisme que Ctrl+V (aperçu fantôme + clic de validation + undo/redo)
+  function armTemplatePaste(tpl) {
+    clipboard = { w: tpl.w, h: tpl.h, tiles: tpl.tiles, props: tpl.props };
+    pasting = true;
+    updateTplSaveBtn();
+    msg(`Collage de « ${tpl.name} » : cliquez sur la carte pour valider (Échap pour annuler).`);
+    markDirty();
+  }
+  async function renameTemplate(tpl) {
+    const nv = prompt('Nouveau nom :', tpl.name)?.trim();
+    if (!nv || nv === tpl.name) return;
+    tpl.name = nv;
+    refreshTemplatesPanel();
+    const err = await persistTemplates();
+    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : '✔ Template renommé.');
+  }
+  async function deleteTemplate(tpl) {
+    if (!confirm(`Supprimer le template « ${tpl.name} » ?`)) return;
+    templates = templates.filter(t => t !== tpl);
+    refreshTemplatesPanel();
+    const err = await persistTemplates();
+    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : '✔ Template supprimé.');
+  }
+  $('tpl-save')?.addEventListener('click', () => saveTemplateFromSelection());
+  await loadTemplates();
+  updateTplSaveBtn();
 
   // éditeur de quêtes : ouvre le panneau de chaîne (vue de haut niveau)
   $('open-quests')?.addEventListener('click', openQuestEditor);
@@ -2994,6 +3158,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     copySelection,
     getClipboard: () => clipboard,
     pasteAt,
+    // templates (assemblages réutilisables, onglet « Templates »)
+    showSideTab,
+    getTemplates: () => templates,
+    saveTemplateFromSelection,
+    armTemplatePaste,
+    isPasting: () => pasting,
     // calques camps / PNJ / musique
     getCamps: () => campsList,
     getNpcs: () => npcsList,
