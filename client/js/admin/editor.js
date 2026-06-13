@@ -41,6 +41,12 @@ const MUSIC_MIN_SIZE = 2;        // côté/rayon minimal d'une sous-zone musical
 const MUSIC_DEFAULT_W = 16, MUSIC_DEFAULT_H = 16, MUSIC_DEFAULT_R = 8;
 const MUSIC_COLOR = '#c77dff';   // teinte du calque musique (violet)
 
+// calques coffres / points spéciaux : teintes et icônes
+const CHEST_COLOR = '#ffae42';   // teinte du calque coffres (ambre)
+const MARKER_COLORS = { spawn: '#4dff8a', exit: '#ff6a6a', teleport: '#5ab9ff' };
+const MARKER_GLYPHS = { spawn: '⚑', exit: '⮌', teleport: '✦' };
+const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'téléport' };
+
 export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], musicFiles = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
@@ -61,21 +67,26 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   let pendingTiles = []; // cases peintes pendant le trait, avant reconstruction
   let rebuildTimer = null;
   let dirty = true;      // une frame doit être redessinée
-  let mode = 'paint';    // paint | erase | move
+  let mode = 'paint';    // paint | erase | move | fill | select
   let palTool = { kind: 'tile', tile: TILE.GRASS }; // sélection de la palette
   let brushSize = 1;
   let hover = null;      // position monde sous le curseur (continue)
   let gesture = null;    // geste pointeur en cours (pan / paint / rect / moveProp)
   let spaceHeld = false;
   let livePlayers = [];
+  // copier/coller : région sélectionnée + presse-papier interne + collage en cours
+  let selection = null;  // { x0, z0, x1, z1 } (tuiles, inclus) en cours ou figée
+  let clipboard = null;  // { w, h, tiles:[[dx,dz,t]], props:[{type,dx,dz,...}] }
+  let pasting = false;   // collage armé : le prochain clic valide à la position du curseur
   // index des décors pour le rendu : par chunk (iso), triés (vue du dessus), gros sprites
   let chunkProps = new Map(), bigProps = [], propsByZ = [];
   let miniBase = null;   // fond de mini-carte (1 px par tuile)
-  // calques d'édition « Camps » (zones de spawn), « PNJ » et « Musique »
-  let showCamps = false, showNpcs = false, showMusic = false;
-  let pendingPlace = null;            // 'camp' | 'npc' | 'music' : le prochain geste pose l'élément
+  // calques d'édition « Camps », « PNJ », « Musique », « Coffres », « Points »
+  let showCamps = false, showNpcs = false, showMusic = false, showChests = false, showMarkers = false;
+  let pendingPlace = null;            // 'camp'|'npc'|'music'|'chest'|'marker'|'teleport-test' : le prochain geste pose/agit
   let campsList = [], npcsList = [];  // listes effectives (overrides ou défauts du worldgen)
   let musicList = [];                 // sous-zones musicales (overrides `music`)
+  let chestsList = [], markersList = []; // coffres (props 'chest') et points spéciaux (overrides `markers`)
   const NPC_ROLE_COLORS = { merchant: '#ffd24a', teacher: '#7ad1ff', bavard: '#8ae88a' };
   const NPC_ROLE_NAMES = { merchant: 'marchand', teacher: 'enseignant', bavard: 'bavard' };
 
@@ -93,6 +104,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (Array.isArray(n.camps)) out.camps = n.camps;
     if (n.npcs && typeof n.npcs === 'object') out.npcs = n.npcs;
     if (Array.isArray(n.music)) out.music = n.music; // sous-zones musicales
+    if (Array.isArray(n.chests)) out.chests = n.chests;   // butin de coffres
+    if (Array.isArray(n.markers)) out.markers = n.markers; // points spéciaux
     return out;
   }
 
@@ -407,9 +420,37 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     ctx.stroke();
   }
 
+  // région sélectionnée (copier/coller) + fantôme du collage en cours
+  function drawSelection() {
+    if (selection) {
+      const b = selBounds(selection);
+      fillCellPath(b.x0, b.z0, b.x1 + 1, b.z1 + 1);
+      ctx.globalAlpha = 0.12; ctx.fillStyle = '#7ad1ff'; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#7ad1ff'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (pasting && clipboard && hover) {
+      const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
+      fillCellPath(tx, tz, tx + clipboard.w, tz + clipboard.h);
+      ctx.globalAlpha = 0.18; ctx.fillStyle = '#ffd24a'; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+
   // surimpressions de l'outil courant : brosse, rectangle, fantôme, gomme, déplacement
   function drawOverlays() {
     if (!hover) return;
+    // pot de peinture : surligne la case visée
+    if (mode === 'fill') { strokeRing(hover.x, hover.z, view.z * 0.7, CHEST_COLOR); return; }
+    // sélection en cours (glisser de l'outil ⧉) : rectangle bleu animé
+    if (gesture?.mode === 'select') {
+      const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
+      const x0 = Math.min(gesture.x0, tx), x1 = Math.max(gesture.x0, tx);
+      const z0 = Math.min(gesture.z0, tz), z1 = Math.max(gesture.z0, tz);
+      fillCellPath(x0, z0, x1 + 1, z1 + 1);
+      ctx.globalAlpha = 0.14; ctx.fillStyle = '#7ad1ff'; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#7ad1ff'; ctx.lineWidth = 1.5; ctx.stroke();
+      return;
+    }
     // tracé d'une zone musicale en cours (glisser) : aperçu du rectangle
     if (gesture?.mode === 'musicDraw') {
       fillCellPath(gesture.x0, gesture.z0, hover.x, hover.z);
@@ -420,9 +461,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       ctx.strokeStyle = MUSIC_COLOR; ctx.lineWidth = 1.5; ctx.stroke();
       return;
     }
-    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale) : aperçu sous le curseur
+    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale / ➕ Coffre / ➕ Point / Tester ici)
     if (pendingPlace) {
       if (pendingPlace === 'music') strokeRing(hover.x, hover.z, view.z * (MUSIC_DEFAULT_W / 2), MUSIC_COLOR);
+      else if (pendingPlace === 'chest') strokeRing(hover.x, hover.z, view.z * 0.6, CHEST_COLOR);
+      else if (pendingPlace === 'marker') strokeRing(hover.x, hover.z, view.z * 0.6, MARKER_COLORS.teleport);
+      else if (pendingPlace === 'teleport-test') strokeRing(hover.x, hover.z, view.z * 0.6, '#ffd34d');
       else strokeRing(hover.x, hover.z, view.z * (pendingPlace === 'camp' ? CAMP_DEFAULT_RADIUS : 0.6), '#8ae88a');
       return;
     }
@@ -568,6 +612,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     campsList = Array.isArray(ov.camps) ? ov.camps : defaultCamps();
     npcsList = effectiveNpcs();
     musicList = Array.isArray(ov.music) ? ov.music : [];
+    markersList = Array.isArray(ov.markers) ? ov.markers : [];
+    // coffres effectifs : tous les props 'chest' du monde, enrichis du butin
+    // personnalisé (ov.chests, indexé par case) le cas échéant
+    chestsList = (world?.props || []).filter(p => p.type === 'chest').map(p => ({
+      x: p.x, z: p.z,
+      loot: chestLootAt(Math.floor(p.x), Math.floor(p.z)),
+    }));
     markDirty();
   }
 
@@ -1142,6 +1193,276 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     panelEl.style.display = 'block';
   }
 
+  // ---------- calque « Coffres » : pose + édition du butin ----------
+  // Un coffre EST un prop 'chest' (props.add) ; son contenu personnalisé vit
+  // dans ov.chests, indexé par case. Section ABSENTE / case non listée : le
+  // serveur garde le butin générique.
+  function chestsOv() {
+    if (!Array.isArray(ov.chests)) ov.chests = [];
+    return ov.chests;
+  }
+  function chestLootAt(x, z) {
+    return (ov.chests || []).find(c => Math.floor(+c.x) === x && Math.floor(+c.z) === z) || null;
+  }
+  function chestLabel(c) {
+    if (!c.loot) return 'butin générique';
+    const parts = [];
+    const g = c.loot.gold;
+    if (Array.isArray(g) && (g[0] || g[1])) parts.push(`${g[0]}-${g[1]} or`);
+    if (c.loot.items?.length) parts.push(`${c.loot.items.length} objet(s)`);
+    if (c.loot.reqFlag) parts.push('🔒');
+    return parts.join(', ') || 'coffre vide';
+  }
+  // pose un coffre : prop 'chest' + entrée de butin par défaut (générique tant
+  // qu'on n'a rien renseigné). Ouvre la fiche pour configurer le contenu.
+  function placeChestAt(tx, tz) {
+    pendingPlace = null;
+    pushHistory();
+    ov.props.add.push({ type: 'chest', x: tx, z: tz });
+    rebuild();
+    const idx = chestsList.findIndex(c => Math.floor(c.x) === tx && Math.floor(c.z) === tz);
+    if (idx >= 0) openChestPanel(idx);
+  }
+  function pickChest(wx, wz) {
+    let best = null, bd = Math.max(1.0, 10 / view.z);
+    chestsList.forEach((c, index) => {
+      const d = Math.hypot(c.x - wx, c.z - wz);
+      if (d < bd) { bd = d; best = { chest: c, index }; }
+    });
+    return best;
+  }
+  // déplace un coffre (prop 'chest') et reporte son butin sur la nouvelle case
+  function moveChestTo(index, tx, tz) {
+    const c = chestsList[index];
+    if (!c) return;
+    const ox = Math.floor(c.x), oz = Math.floor(c.z);
+    finishMove({ type: 'chest', x: c.x, z: c.z }, tx, tz); // déplace le prop (rebuild inclus)
+    const loot = chestLootAt(ox, oz);
+    if (loot) { loot.x = tx; loot.z = tz; }
+  }
+  function drawChests() {
+    if (!showChests) return;
+    const r = Math.max(6, view.z * 0.45);
+    for (const c of chestsList) {
+      const s = w2s(c.x, c.z);
+      ctx.beginPath();
+      ctx.rect(s.x - r, s.y - r, r * 2, r * 2);
+      ctx.fillStyle = CHEST_COLOR;
+      ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#10202a'; ctx.stroke();
+      ctx.font = `${Math.max(9, r * 1.1)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#10202a';
+      ctx.fillText('🧰', s.x, s.y + r * 0.4);
+      labelText(s.x, s.y - r - 5, chestLabel(c), CHEST_COLOR);
+    }
+  }
+  // fiche d'un coffre : or min/max, objets (id + quantité + probabilité), clé requise
+  function openChestPanel(index) {
+    const c = chestsList[index];
+    if (!c) return;
+    closePanel();
+    const tx = Math.floor(c.x), tz = Math.floor(c.z);
+    const loot = c.loot || {};
+    const gold = Array.isArray(loot.gold) ? [...loot.gold] : [0, 0];
+    const items = structuredClone(Array.isArray(loot.items) ? loot.items : []); // état de travail
+    const reqFlag = { v: typeof loot.reqFlag === 'string' ? loot.reqFlag : '' };
+    const gMin = h('input', { type: 'number', min: '0', value: String(gold[0] || 0), style: { width: '70px' } });
+    const gMax = h('input', { type: 'number', min: '0', value: String(gold[1] || 0), style: { width: '70px' } });
+    const itemDefs = Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy);
+    const rows = h('div');
+    const itemOptions = (sel) => itemDefs
+      .map(([id, d]) => `<option value="${id}"${id === sel ? ' selected' : ''}>${d.name}</option>`).join('');
+    const renderRows = () => {
+      rows.innerHTML = '';
+      items.forEach((it, i) => {
+        const search = h('input', { placeholder: '🔍 filtrer', value: '', style: { width: '110px' } });
+        const sel = h('select', { innerHTML: itemOptions(it.defId), style: { width: '150px' } });
+        sel.onchange = () => { it.defId = sel.value; };
+        search.oninput = () => {
+          const q = search.value.trim().toLowerCase();
+          sel.innerHTML = itemDefs.filter(([id, d]) => !q || `${id} ${d.name}`.toLowerCase().includes(q) || id === it.defId)
+            .map(([id, d]) => `<option value="${id}"${id === it.defId ? ' selected' : ''}>${d.name}</option>`).join('');
+        };
+        const n = h('input', { type: 'number', min: '1', max: '99', value: String(it.n || 1), title: 'quantité', style: { width: '48px' } });
+        n.onchange = () => { it.n = Math.max(1, n.value | 0); };
+        const ch = h('input', { type: 'number', min: '0', max: '1', step: '0.05', value: String(it.chance ?? 1), title: 'probabilité 0..1', style: { width: '60px' } });
+        ch.onchange = () => { it.chance = Math.max(0, Math.min(1, +ch.value || 0)); };
+        rows.append(h('div', { className: 'edit-dlg' },
+          h('div', { className: 'edit-row' }, search, sel),
+          h('div', { className: 'edit-row' }, 'n ', n, ' chance ', ch,
+            h('button', { textContent: '✕', onclick: () => { items.splice(i, 1); renderRows(); } }))));
+      });
+    };
+    renderRows();
+    const flagInput = h('input', { value: reqFlag.v, placeholder: 'ex : clef_olin (vide : aucune)', style: { width: '100%' } });
+    flagInput.onchange = () => { reqFlag.v = flagInput.value.trim(); };
+    panelEl.append(
+      panelTitle('Coffre au trésor'),
+      h('div', { className: 'hint', textContent: `Case ${tx}, ${tz}. Vide : butin générique de la zone. Glissez le coffre pour le déplacer.` }),
+      h('div', { className: 'edit-row' }, 'Or min ', gMin, ' max ', gMax),
+      h('h4', { textContent: 'Objets (id, quantité, probabilité)' }),
+      rows,
+      h('button', { textContent: '+ objet', onclick: () => { items.push({ defId: itemDefs[0]?.[0], n: 1, chance: 1 }); renderRows(); } }),
+      h('h4', { textContent: 'Clé requise (drapeau de quête)' }),
+      flagInput,
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const list = chestsOv();
+            let entry = list.find(e => Math.floor(+e.x) === tx && Math.floor(+e.z) === tz);
+            if (!entry) { entry = { x: tx, z: tz }; list.push(entry); }
+            entry.gold = [Math.max(0, gMin.value | 0), Math.max(gMin.value | 0, gMax.value | 0)];
+            entry.items = items.filter(it => ITEMS[it.defId]).map(it => ({
+              defId: it.defId, n: Math.max(1, it.n | 0 || 1), chance: Math.max(0, Math.min(1, +it.chance || 0)),
+            }));
+            if (reqFlag.v) entry.reqFlag = reqFlag.v; else delete entry.reqFlag;
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Coffre configuré — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => {
+            pushHistory();
+            // retire le prop 'chest' et l'éventuelle entrée de butin
+            const a0 = ov.props.add.length;
+            ov.props.add = ov.props.add.filter(p => !(p.type === 'chest' && Math.floor(p.x) === tx && Math.floor(p.z) === tz));
+            if (ov.props.add.length === a0) ov.props.remove.push([tx, tz]); // coffre du worldgen
+            if (Array.isArray(ov.chests)) ov.chests = ov.chests.filter(e => !(Math.floor(+e.x) === tx && Math.floor(+e.z) === tz));
+            rebuild();
+            closePanel();
+          },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
+  // ---------- calque « Points spéciaux » : spawn / exit / teleport ----------
+  function markersOv() {
+    if (!Array.isArray(ov.markers)) ov.markers = [];
+    return ov.markers;
+  }
+  function markerLabel(m) {
+    let s = MARKER_NAMES[m.kind] || m.kind;
+    if (m.target) s += ` → z${m.target.zoneId ?? '='} (${Math.floor(m.target.x)},${Math.floor(m.target.z)})`;
+    return s;
+  }
+  function placeMarkerAt(tx, tz) {
+    pendingPlace = null;
+    pushHistory();
+    const list = markersOv();
+    list.push({ id: 'mk_' + Date.now().toString(36), kind: 'teleport', x: tx + 0.5, z: tz + 0.5, target: { zoneId: curZone, x: tx + 0.5, z: tz + 0.5 } });
+    refreshEditLayers();
+    openMarkerPanel(list.length - 1);
+  }
+  function pickMarker(wx, wz) {
+    let best = null, bd = Math.max(1.0, 10 / view.z);
+    markersList.forEach((m, index) => {
+      const d = Math.hypot(m.x - wx, m.z - wz);
+      if (d < bd) { bd = d; best = { marker: m, index }; }
+    });
+    return best;
+  }
+  function drawMarkers() {
+    if (!showMarkers) return;
+    const r = Math.max(6, view.z * 0.45);
+    for (const m of markersList) {
+      const color = MARKER_COLORS[m.kind] || '#fff';
+      const s = w2s(m.x, m.z);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#10202a'; ctx.stroke();
+      ctx.font = `${Math.max(10, r * 1.2)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#10202a';
+      ctx.fillText(MARKER_GLYPHS[m.kind] || '?', s.x, s.y + r * 0.4);
+      labelText(s.x, s.y - r - 5, markerLabel(m), color);
+      // téléporteur : trait vers la destination si dans la même zone
+      if (m.target && (m.target.zoneId == null || m.target.zoneId === curZone)) {
+        const d = w2s(m.target.x, m.target.z);
+        ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(d.x, d.y); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  function moveMarkerTo(index, x, z) {
+    const m = markersOv()[index];
+    if (m) { m.x = x; m.z = z; }
+  }
+  // glisser un coffre ou un point spécial ; simple clic (sans mouvement) ouvre
+  // la fiche au relâchement (cf. pointerup)
+  function dragChestOrMarker(g) {
+    if (!g.moved && Math.hypot(hover.x - g.w0.x, hover.z - g.w0.z) < 0.35) return;
+    if (!g.pushed) { pushHistory(); g.pushed = true; }
+    g.moved = true;
+    const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
+    if (g.mode === 'chestMove') moveChestTo(g.index, tx, tz);
+    else moveMarkerTo(g.index, tx + 0.5, tz + 0.5);
+    refreshEditLayers();
+  }
+  // fiche d'un point spécial : type, et pour 'exit'/'teleport' la destination
+  function openMarkerPanel(index) {
+    const m = markersList[index];
+    if (!m) return;
+    closePanel();
+    const kindSel = h('select', {
+      innerHTML: ['spawn', 'exit', 'teleport'].map(k =>
+        `<option value="${k}"${k === m.kind ? ' selected' : ''}>${MARKER_NAMES[k]}</option>`).join(''),
+    });
+    const target = m.target ? { ...m.target } : { zoneId: curZone, x: Math.floor(m.x) + 0.5, z: Math.floor(m.z) + 0.5 };
+    const zoneSel = h('select', {
+      innerHTML: zones.map(z => `<option value="${z.id}"${z.id === (target.zoneId ?? curZone) ? ' selected' : ''}>${z.id} — ${z.name}</option>`).join(''),
+    });
+    const txInput = h('input', { type: 'number', step: '0.5', value: String(target.x), style: { width: '70px' } });
+    const tzInput = h('input', { type: 'number', step: '0.5', value: String(target.z), style: { width: '70px' } });
+    const targetBox = h('div', {},
+      h('h4', { textContent: 'Destination' }),
+      h('div', { className: 'edit-row' }, 'Zone : ', zoneSel),
+      h('div', { className: 'edit-row' }, 'x ', txInput, ' z ', tzInput),
+      h('div', { className: 'hint', textContent: 'Marcher sur ce point téléporte le joueur ici.' }));
+    const syncKind = () => { targetBox.style.display = kindSel.value === 'spawn' ? 'none' : ''; };
+    kindSel.onchange = syncKind;
+    syncKind();
+    panelEl.append(
+      panelTitle('Point spécial'),
+      h('div', { className: 'hint', textContent: 'Glissez l\'icône pour déplacer le point. « apparition » remplace le point de spawn de la zone.' }),
+      h('div', { className: 'edit-row' }, 'Type : ', kindSel),
+      targetBox,
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const real = markersOv()[index];
+            if (!real) return;
+            real.kind = kindSel.value;
+            if (real.kind === 'spawn') delete real.target;
+            else real.target = { zoneId: parseInt(zoneSel.value, 10), x: +txInput.value, z: +tzInput.value };
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Point spécial modifié — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => {
+            pushHistory();
+            markersOv().splice(index, 1);
+            refreshEditLayers();
+            closePanel();
+          },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
   // ---------- mini-carte ----------
   const TILE_RGB = {};
   for (const [t, hex] of Object.entries(TILE_COLORS)) {
@@ -1200,10 +1521,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     drawPendingTiles();
     if (!sprites) drawGlyphProps();
     drawGrid();
+    drawSelection();
     drawOverlays();
     drawCamps();
     drawNpcs();
     drawMusic();
+    drawChests();
+    drawMarkers();
     drawPlayers();
     if (view.iso) drawCompass();
     drawMini();
@@ -1262,6 +1586,44 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     scheduleRebuild();
     markDirty();
   }
+  // Pot de peinture : remplit par contiguïté (4-voisins) toutes les tuiles du
+  // MÊME type que la case cliquée, par la tuile sélectionnée. `global` = pas de
+  // contrainte de contiguïté (toute la zone). File itérative (pas de récursion)
+  // bornée à la zone entière (384² au pire). Intégré à undo/redo.
+  function floodFill(cx, cz, global = false) {
+    if (palTool.kind !== 'tile') return;
+    const N = world.size;
+    if (cx < 0 || cz < 0 || cx >= N || cz >= N) return;
+    const target = world.tile[cz * N + cx];
+    const replacement = palTool.tile;
+    if (target === replacement) return; // rien à faire (évite une boucle vide)
+    pushHistory();
+    if (global) {
+      for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+        if (world.tile[z * N + x] === target) {
+          setTile(x, z, replacement);
+          world.tile[z * N + x] = replacement; // suit l'état pour la 2e passe éventuelle
+        }
+      }
+    } else {
+      const seen = new Uint8Array(N * N);
+      const queue = [cx, cz]; // file plate [x0,z0,x1,z1,...]
+      seen[cz * N + cx] = 1;
+      let head = 0;
+      while (head < queue.length) {
+        const x = queue[head++], z = queue[head++];
+        setTile(x, z, replacement);
+        world.tile[z * N + x] = replacement;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, nz = z + dz;
+          if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+          const ni = nz * N + nx;
+          if (!seen[ni] && world.tile[ni] === target) { seen[ni] = 1; queue.push(nx, nz); }
+        }
+      }
+    }
+    rebuild(); // reconstruit le monde (l'état tile a déjà été modifié, rebuild le ré-applique proprement)
+  }
   function addPropAt(x, z) {
     const e = { type: palTool.type, x, z };
     if (palTool.v != null) e.v = palTool.v;
@@ -1308,6 +1670,62 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       const N = world.size, tx = Math.floor(wpt.x), tz = Math.floor(wpt.z);
       if (tx >= 0 && tz >= 0 && tx < N && tz < N) palette.selectTile(world.tile[tz * N + tx]);
     }
+  }
+
+  // ---------- copier / coller une région ----------
+  // bornes normalisées (entiers, inclus) d'une sélection bornée à la zone
+  function selBounds(s) {
+    const N = world.size;
+    return {
+      x0: Math.max(0, Math.min(s.x0, s.x1)), x1: Math.min(N - 1, Math.max(s.x0, s.x1)),
+      z0: Math.max(0, Math.min(s.z0, s.z1)), z1: Math.min(N - 1, Math.max(s.z0, s.z1)),
+    };
+  }
+  // copie la région sélectionnée : tuiles ET props add à l'intérieur, en
+  // coordonnées RELATIVES au coin haut-gauche (rejouables ailleurs).
+  function copySelection() {
+    if (!selection) { msg('Sélectionnez d\'abord une région (outil ⧉, glisser).'); return; }
+    const b = selBounds(selection);
+    const N = world.size;
+    const tiles = [];
+    for (let z = b.z0; z <= b.z1; z++) for (let x = b.x0; x <= b.x1; x++) {
+      tiles.push([x - b.x0, z - b.z0, world.tile[z * N + x]]);
+    }
+    // décors présents dans la région (worldgen + overrides) — la pose recrée des props.add
+    const props = [];
+    for (const p of world.props) {
+      const px = Math.floor(p.x), pz = Math.floor(p.z);
+      if (px < b.x0 || px > b.x1 || pz < b.z0 || pz > b.z1) continue;
+      const e = { type: p.type, dx: px - b.x0, dz: pz - b.z0 };
+      if (p.v != null) e.v = p.v;
+      if (Number.isFinite(p.s) && p.s !== 1) e.s = p.s;
+      if (p.rot) e.rot = p.rot;
+      props.push(e);
+    }
+    clipboard = { w: b.x1 - b.x0 + 1, h: b.z1 - b.z0 + 1, tiles, props };
+    msg(`✔ Région copiée (${clipboard.w}×${clipboard.h}, ${tiles.length} tuiles, ${props.length} décors). Ctrl+V pour coller.`);
+  }
+  // colle le presse-papier au coin haut-gauche (tx, tz) : tuiles + props add décalés
+  function pasteAt(tx, tz) {
+    if (!clipboard) return;
+    const N = world.size;
+    pushHistory();
+    for (const [dx, dz, t] of clipboard.tiles) {
+      const x = tx + dx, z = tz + dz;
+      if (x < 0 || z < 0 || x >= N || z >= N) continue;
+      setTile(x, z, t);
+    }
+    for (const p of clipboard.props) {
+      const x = tx + p.dx, z = tz + p.dz;
+      if (x < 0 || z < 0 || x >= N || z >= N) continue;
+      const e = { type: p.type, x, z };
+      if (p.v != null) e.v = p.v;
+      if (p.s != null) e.s = p.s;
+      if (p.rot != null) e.rot = p.rot;
+      ov.props.add.push(e);
+    }
+    rebuild();
+    msg('✔ Région collée — « Enregistrer » pour l\'appliquer au serveur.');
   }
 
   // index des décors par chunk + tris pour le rendu
@@ -1380,11 +1798,29 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (e.altKey) { pipette(wpt); return; } // pipette
     const N = world.size, tx = Math.floor(wpt.x), tz = Math.floor(wpt.z);
     if (tx < 0 || tz < 0 || tx >= N || tz >= N) return;
+    // collage en attente (Ctrl+V) : ce clic valide la pose au curseur
+    if (pasting) { pasteAt(tx, tz); pasting = false; return; }
     // calques d'édition : pose armée (➕), puis saisie d'un PNJ ou d'un camp
     if (pendingPlace === 'camp') { placeCampAt(tx, tz); return; }
     if (pendingPlace === 'npc') { placeNpcAt(tx, tz); return; }
+    if (pendingPlace === 'chest') { placeChestAt(tx, tz); return; }
+    if (pendingPlace === 'marker') { placeMarkerAt(tx, tz); return; }
+    if (pendingPlace === 'teleport-test') { teleportTestAt(tx, tz); return; }
     // pose d'une zone musicale : glisser pour dessiner le rectangle (relâcher = poser)
     if (pendingPlace === 'music') { gesture = { mode: 'musicDraw', x0: wpt.x, z0: wpt.z }; return; }
+    // pot de peinture : remplissage par contiguïté (Maj+clic : toute la zone)
+    if (mode === 'fill') { floodFill(tx, tz, e.shiftKey); return; }
+    // outil sélection : glisser pour définir la région à copier
+    if (mode === 'select') { selection = null; gesture = { mode: 'select', x0: tx, z0: tz }; markDirty(); return; }
+    // calques coffres / points : édition (clic sur l'icône) prioritaire
+    if (showChests) {
+      const hit = pickChest(wpt.x, wpt.z);
+      if (hit) { gesture = { mode: 'chestMove', index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
+    }
+    if (showMarkers) {
+      const hit = pickMarker(wpt.x, wpt.z);
+      if (hit) { gesture = { mode: 'markerMove', index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
+    }
     if (showNpcs) {
       const hit = pickNpc(wpt.x, wpt.z);
       if (hit) { gesture = { mode: 'npcMove', index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
@@ -1432,8 +1868,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       dragEditLayer(gesture);
     } else if (gesture?.mode === 'musicEdit') {
       dragMusic(gesture);
+    } else if (gesture?.mode === 'chestMove' || gesture?.mode === 'markerMove') {
+      dragChestOrMarker(gesture);
     }
-    // musicDraw : l'aperçu du rectangle est dessiné par drawOverlays (markDirty)
+    // musicDraw / select : l'aperçu du rectangle est dessiné par drawOverlays (markDirty)
     markDirty();
   });
 
@@ -1471,6 +1909,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
         gesture.x0 + MUSIC_DEFAULT_W / 2, gesture.z0 + MUSIC_DEFAULT_H / 2);
     } else if (gesture.mode === 'musicEdit' && !gesture.moved) {
       openMusicPanel(gesture.index); // simple clic : la fiche de la zone musicale
+    } else if (gesture.mode === 'select' && hover) {
+      // fige la région sélectionnée (prête à copier)
+      selection = { x0: gesture.x0, z0: gesture.z0, x1: Math.floor(hover.x), z1: Math.floor(hover.z) };
+      msg('Région sélectionnée — Ctrl+C pour copier, Échap pour annuler.');
+    } else if (gesture.mode === 'chestMove' && !gesture.moved) {
+      openChestPanel(gesture.index); // simple clic : la fiche du coffre
+    } else if (gesture.mode === 'markerMove' && !gesture.moved) {
+      openMarkerPanel(gesture.index); // simple clic : la fiche du point spécial
     }
     gesture = null;
     markDirty();
@@ -1484,18 +1930,32 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       e.preventDefault?.();
       if (e.shiftKey) redo(); else undo();
     } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault?.(); redo(); }
+    // copier / coller une région (presse-papier interne)
+    else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault?.(); copySelection(); }
+    else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
+      e.preventDefault?.();
+      if (clipboard) { pasting = true; msg('Collage : cliquez pour valider la position (Échap pour annuler).'); markDirty(); }
+    }
+    // Échap : annule sélection et collage en cours
+    else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; markDirty(); }
   });
   window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
 
   // ---------- barre d'outils ----------
   function setMode(m) {
     mode = m;
+    if (m !== 'select') selection = null; // quitter l'outil sélection efface la région
+    pasting = false;
     $('tool-paint').classList.toggle('active', m === 'paint');
+    $('tool-fill')?.classList.toggle('active', m === 'fill');
+    $('tool-select')?.classList.toggle('active', m === 'select');
     $('tool-erase').classList.toggle('active', m === 'erase');
     $('tool-move').classList.toggle('active', m === 'move');
     markDirty();
   }
   $('tool-paint').onclick = () => setMode('paint');
+  $('tool-fill')?.addEventListener('click', () => setMode('fill'));
+  $('tool-select')?.addEventListener('click', () => { setMode('select'); msg('Glissez pour sélectionner une région, puis Ctrl+C / Ctrl+V.'); });
   $('tool-erase').onclick = () => setMode('erase');
   $('tool-move').onclick = () => setMode('move');
   $('brush-size').onchange = () => { brushSize = parseInt($('brush-size').value, 10) || 1; };
@@ -1523,6 +1983,32 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     pendingPlace = 'music';
     msg('Glissez sur la carte pour dessiner la zone musicale (la fiche permet de la passer en cercle).');
   });
+  // calques Coffres / Points spéciaux
+  $('layer-chests')?.addEventListener('change', () => { showChests = $('layer-chests').checked; markDirty(); });
+  $('layer-markers')?.addEventListener('change', () => { showMarkers = $('layer-markers').checked; markDirty(); });
+  $('add-chest')?.addEventListener('click', () => {
+    $('layer-chests').checked = true; showChests = true;
+    pendingPlace = 'chest';
+    msg('Cliquez sur la carte pour poser le coffre (sa fiche configure le contenu).');
+  });
+  $('add-marker')?.addEventListener('click', () => {
+    $('layer-markers').checked = true; showMarkers = true;
+    pendingPlace = 'marker';
+    msg('Cliquez sur la carte pour poser le point spécial (sa fiche choisit le type et la destination).');
+  });
+  // « Tester ici » : arme le prochain clic pour téléporter le perso connecté en jeu
+  $('tp-here')?.addEventListener('click', () => {
+    pendingPlace = 'teleport-test';
+    msg('Cliquez sur la carte : votre personnage connecté en jeu y sera téléporté.');
+  });
+  // téléporte le personnage EN LIGNE de ce compte admin sur la case cliquée
+  async function teleportTestAt(tx, tz) {
+    pendingPlace = null;
+    try {
+      await api('/api/admin/teleport', 'POST', { zoneId: curZone, x: tx + 0.5, z: tz + 0.5 });
+      msg(`✔ Personnage téléporté en ${tx}, ${tz}.`);
+    } catch (e) { msg('✘ ' + e.message); }
+  }
 
   $('save-map').onclick = async () => {
     try {
@@ -1623,7 +2109,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     redo,
     paintAt: (x, z) => { pushHistory(); paintCells(x, z); },
     setTool: (t) => { palTool = t; setMode('paint'); },
+    setMode,
     rebuildNow: rebuild,
+    // pot de peinture / copier-coller
+    floodFill,
+    selectRegion: (x0, z0, x1, z1) => { selection = { x0, z0, x1, z1 }; markDirty(); },
+    copySelection,
+    getClipboard: () => clipboard,
+    pasteAt,
     // calques camps / PNJ / musique
     getCamps: () => campsList,
     getNpcs: () => npcsList,
@@ -1635,5 +2128,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     openCampPanel,
     openNpcPanel,
     openMusicPanel,
+    // calques coffres / points spéciaux
+    getChests: () => chestsList,
+    getMarkers: () => markersList,
+    placeChestAt,
+    placeMarkerAt,
+    openChestPanel,
+    openMarkerPanel,
   };
 }

@@ -91,6 +91,8 @@
       <div class="toolbar">
         <label>Zone : <select id="map-zone"></select></label>
         <button id="tool-paint" class="active" title="Pose la tuile ou le décor choisi dans la palette">🖌 Poser</button>
+        <button id="tool-fill" title="Pot de peinture : remplit par contiguïté les tuiles du même type (Maj+clic : toute la zone)">🪣 Remplir</button>
+        <button id="tool-select" title="Sélectionner une région (glisser), Ctrl+C copier, Ctrl+V coller, Échap annuler">⧉ Sélection</button>
         <button id="tool-erase" title="Supprime le décor cliqué">⌫ Gomme</button>
         <button id="tool-move" title="Glisser un décor existant vers une autre case">✥ Déplacer</button>
         <label>Pinceau : <select id="brush-size">
@@ -109,6 +111,11 @@
         <button id="add-npc" title="Pose un nouveau PNJ (clic sur la carte)">➕ PNJ</button>
         <label><input type="checkbox" id="layer-music"> 🎵 Zones musicales</label>
         <button id="add-music" title="Dessine une nouvelle zone musicale (glisser sur la carte ; passable en cercle dans la fiche)">➕ Zone musicale</button>
+        <label><input type="checkbox" id="layer-chests"> 🧰 Coffres</label>
+        <button id="add-chest" title="Pose un coffre au trésor au contenu configurable (clic sur la carte)">➕ Coffre</button>
+        <label><input type="checkbox" id="layer-markers"> 📍 Points spéciaux</label>
+        <button id="add-marker" title="Pose un point spécial (apparition / sortie / téléport) (clic sur la carte)">➕ Point</button>
+        <button id="tp-here" title="Téléporte votre personnage connecté en jeu sur la case cliquée">🧍 Tester ici</button>
         <label style="margin-left:10px"><input type="checkbox" id="iso-view"> 🧭 Vue jeu (iso)</label>
         <label><input type="checkbox" id="show-players" checked> 🟢 Joueurs en direct</label>
         <label><input type="checkbox" id="show-player-names"> Afficher les noms</label>
