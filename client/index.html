@@ -190,8 +190,9 @@
           <button id="menu-quit" class="danger-btn">Quitter la partie</button>
         </div>
         <div id="menu-settings-panel" class="hidden">
-          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Affichage</h2>
+          <h2 style="color:#c8b87a;font-size:14px;margin:12px 0 8px">Paramètres</h2>
           <div id="settings-list"></div>
+          <button id="settings-reset" class="secondary" style="margin-top:10px">Réinitialiser les paramètres</button>
           <button id="menu-back" class="secondary" style="margin-top:10px">Retour</button>
         </div>
         <div id="menu-about-panel" class="hidden">
@@ -212,6 +213,8 @@
     <div id="buffs-display"></div>
     <div id="floaters"></div>
     <div id="tooltip" class="hidden"></div>
+    <!-- overlay discret ping / FPS (coin haut-droit), activé dans les paramètres -->
+    <div id="perf-overlay" class="hidden"></div>
   </div>
 
   <!-- Écrans hors-jeu : DOIVENT rester hors de #hud (caché tant qu'on n'est

@@ -2,7 +2,7 @@
 import { STAT_NAMES, STATS, PROTOCOL_VERSION, GROUP_INVITE_TTL } from '../../shared/constants.js';
 import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../shared/defs.js';
 import { LAYER_ORDER } from './render2d/anim.js';
-import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting } from './settings.js';
+import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting, resetSettings, sliderMeta } from './settings.js';
 import { refreshMusic } from './music.js';
 import { refreshSfx, play as playSfx } from './sfx.js';
 
@@ -250,15 +250,62 @@ export class UI {
     }
   }
 
-  // ---- Paramètres (menu Échap) : libellé à gauche, contrôle aligné à droite ----
+  // ---- Réglages appliqués À CHAUD (sans reload) ----
+  // Applique TOUS les réglages qui touchent à l'interface/au rendu. Centralisé
+  // ici pour être rejoué après une réinitialisation et au démarrage du HUD.
+  applyLiveSettings() {
+    this.applyHudScale();
+    this.applyChatStyle();
+    this.applyPerfVisibility();
+    refreshMusic();
+    refreshSfx();
+  }
+
+  // Taille du texte / HUD : variable CSS héritée par le HUD (chat, panneaux…)
+  applyHudScale() {
+    const root = $('hud');
+    if (root) root.style.setProperty('--hud-scale', String(+settings.hudScale || 1));
+  }
+
+  // Opacité et nombre de lignes du chat
+  applyChatStyle() {
+    const box = $('chat-messages');
+    if (!box) return;
+    box.style.opacity = String(Math.max(0.2, Math.min(1, +settings.chatOpacity || 0.85)));
+    // ~16 px par ligne : la hauteur max suit le nombre de lignes choisi
+    const lines = Math.max(5, Math.min(20, Math.round(+settings.chatLines || 8)));
+    box.style.maxHeight = `${lines * 1.5}em`;
+  }
+
+  applyPerfVisibility() {
+    $('perf-overlay')?.classList.toggle('hidden', !settings.showPerf);
+  }
+
+  // ---- Paramètres (menu Échap) : sections claires, contrôle aligné à droite ----
+  // Répartition des réglages par section (un même réglage n'apparaît qu'une fois).
+  static SETTINGS_LAYOUT = {
+    Audio:     ['musicOn', 'sfxOn', 'masterVolume', 'musicVolume', 'sfxVolume', 'musicPack'],
+    Affichage: ['gamma', 'fxDensity', 'defaultZoom', 'showHpBars', 'showBubbles', 'showFloaters'],
+    Interface: ['showPlayerNames', 'showPlayerLevels', 'showSelfName', 'showMobNames', 'showMobLevels'],
+    Confort:   ['hudScale', 'chatOpacity', 'chatLines', 'showPerf'],
+  };
+
   renderSettings() {
     const div = $('settings-list');
     div.innerHTML = '';
-    const onChanged = (key) => { if (key === 'musicOn' || key === 'musicPack') refreshMusic(); };
+    // effets de bord à chaud, selon le réglage modifié
+    const onChanged = (key) => {
+      if (key === 'musicOn' || key === 'musicPack' || key === 'musicVolume' || key === 'masterVolume') refreshMusic();
+      if (key === 'sfxVolume' || key === 'sfxOn' || key === 'masterVolume') refreshSfx();
+      if (key === 'hudScale') this.applyHudScale();
+      if (key === 'chatOpacity' || key === 'chatLines') this.applyChatStyle();
+      if (key === 'showPerf') this.applyPerfVisibility();
+    };
     const addRow = (label, control) => {
       const row = document.createElement('label');
       row.className = 'setting-row';
       const span = document.createElement('span');
+      span.className = 'setting-label';
       span.textContent = label;
       row.append(span, control);
       div.appendChild(row);
@@ -270,38 +317,62 @@ export class UI {
       div.appendChild(h);
     };
 
-    addSection('Audio');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k === 'musicOn' || k === 'sfxOn')) {
+    // index des réglages par clé pour un rendu piloté par la disposition
+    const defByKey = Object.fromEntries(SETTING_DEFS.map(d => [d[0], d]));
+    const sliderByKey = Object.fromEntries(SETTING_SLIDERS.map(s => [sliderMeta(s).key, s]));
+    const choiceByKey = Object.fromEntries(SETTING_CHOICES.map(c => [c.key, c]));
+
+    const renderCheckbox = ([key, label]) => {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = settings[key];
       cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
       addRow(label, cb);
-    }
-    for (const [key, label] of SETTING_SLIDERS) {
+    };
+    const renderSlider = (decl) => {
+      const m = sliderMeta(decl);
+      // contrôle + valeur courante affichée à droite (% ou valeur brute)
+      const wrap = document.createElement('span');
+      wrap.className = 'setting-control';
       const sl = document.createElement('input');
       sl.type = 'range';
-      sl.min = '0'; sl.max = '1'; sl.step = '0.05';
-      sl.value = settings[key];
-      sl.oninput = () => { setSetting(key, +sl.value); refreshSfx(); };
-      sl.onchange = () => playSfx('or'); // petit aperçu du volume choisi
-      addRow(label, sl);
-    }
-    for (const c of SETTING_CHOICES) {
+      sl.min = String(m.min); sl.max = String(m.max); sl.step = String(m.step);
+      sl.value = settings[m.key];
+      const val = document.createElement('span');
+      val.className = 'setting-value';
+      const fmt = (v) => m.format === 'raw' ? String(Math.round(v)) : `${Math.round(v * 100)} %`;
+      val.textContent = fmt(+settings[m.key]);
+      sl.oninput = () => { setSetting(m.key, +sl.value); val.textContent = fmt(+sl.value); onChanged(m.key); };
+      // aperçu sonore du volume au relâchement
+      if (m.key === 'sfxVolume' || m.key === 'masterVolume') sl.onchange = () => playSfx('or');
+      wrap.append(sl, val);
+      addRow(m.label, wrap);
+    };
+    const renderChoice = (c) => {
       const sel = document.createElement('select');
       sel.innerHTML = c.options.map(([v, l]) =>
-        `<option value="${v}"${settings[c.key] === v ? ' selected' : ''}>${l}</option>`).join('');
+        `<option value="${v}"${String(settings[c.key]) === String(v) ? ' selected' : ''}>${l}</option>`).join('');
       sel.onchange = () => { setSetting(c.key, sel.value); onChanged(c.key); };
       addRow(c.label, sel);
+    };
+
+    for (const [section, keys] of Object.entries(UI.SETTINGS_LAYOUT)) {
+      addSection(section);
+      for (const key of keys) {
+        if (defByKey[key]) renderCheckbox(defByKey[key]);
+        else if (sliderByKey[key]) renderSlider(sliderByKey[key]);
+        else if (choiceByKey[key]) renderChoice(choiceByKey[key]);
+      }
     }
 
-    addSection('Affichage');
-    for (const [key, label] of SETTING_DEFS.filter(([k]) => k !== 'musicOn' && k !== 'sfxOn')) {
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = settings[key];
-      cb.onchange = () => { setSetting(key, cb.checked); onChanged(key); };
-      addRow(label, cb);
+    // bouton de réinitialisation (câblé une fois, à la création du menu)
+    const resetBtn = $('settings-reset');
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        resetSettings();
+        this.applyLiveSettings();
+        this.renderSettings(); // redessine les contrôles aux valeurs par défaut
+      };
     }
   }
 
@@ -688,6 +759,7 @@ export class UI {
   enterGame() {
     $('login').classList.add('hidden');
     $('hud').classList.remove('hidden');
+    this.applyLiveSettings(); // taille HUD, style du chat, overlay perf… à chaud
   }
 
   togglePanel(name) {

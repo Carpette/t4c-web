@@ -34,7 +34,9 @@ const allElements = []; // registre : permet de vrais querySelectorAll
 class FakeElement {
   constructor(tag = 'div', id = '') {
     this.tagName = tag.toUpperCase(); this.id = id;
-    this.children = []; this.parent = null; this.dataset = {}; this.style = {};
+    this.children = []; this.parent = null; this.dataset = {};
+    // style factice : propriétés directes + setProperty (variables CSS --x)
+    this.style = { setProperty() {}, removeProperty() {}, getPropertyValue() { return ''; } };
     this.classList = new FakeClassList(this);
     this.value = ''; this.textContent = ''; this._innerHTML = '';
     this.width = 1280; this.height = 800;
@@ -184,6 +186,23 @@ if (!doc.getElementById('creation').classList.contains('hidden')) {
   else { console.error('✘ bouton de confirmation non câblé'); }
 }
 
+// ---------- ouverture du panneau Paramètres (renderSettings) ----------
+// La lecture des réglages et le rendu des sections (Audio/Affichage/Confort/
+// Interface) ne doivent jamais jeter, même avec le DOM factice.
+let settingsOk = false;
+try {
+  doc.getElementById('menu-settings').onclick?.(); // ouvre + appelle renderSettings()
+  const list = doc.getElementById('settings-list');
+  settingsOk = (list?.children?.length || 0) > 0;
+  // bascule quelques contrôles puis réinitialise (tout doit rester sans exception)
+  for (const row of list.children) {
+    const ctrl = row.children[row.children.length - 1];
+    if (ctrl?.type === 'checkbox' && typeof ctrl.onchange === 'function') { ctrl.checked = !ctrl.checked; ctrl.onchange(); }
+  }
+  const reset = doc.getElementById('settings-reset');
+  if (typeof reset.onclick === 'function') reset.onclick();
+} catch (e) { failures.push(e); console.error('✘ EXCEPTION renderSettings:', e.message); }
+
 // ---------- observe pendant 6 s ----------
 await new Promise(r => setTimeout(r, 6000));
 const hud = doc.getElementById('hud');
@@ -193,6 +212,7 @@ const checks = [
   ['écran de connexion masqué', doc.getElementById('login').classList.contains('hidden')],
   ['barre de vie remplie', String(doc.getElementById('hp-text').textContent).includes('/')],
   ['bannière de zone (Arakas)', String(doc.getElementById('zone-banner').textContent).includes('Arakas')],
+  ['panneau Paramètres rendu (sections + contrôles)', settingsOk],
   ['aucune exception client', failures.length === 0],
 ];
 let bad = 0;
