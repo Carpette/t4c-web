@@ -20,6 +20,17 @@
 //     champs éditables : name, look, role ('merchant'|'teacher'|'bavard'),
 //     greetings (phrases d'ambiance), sells (objets vendus, ids), teaches
 //     (sorts enseignés, ids), dialogues (mots-clés, cf. server/game/dialogues.js)
+//   chests — BUTIN personnalisé des coffres posés sur la carte (prop 'chest') :
+//     [{ id, x, z, gold:[min,max], items:[{defId, n, chance}], reqFlag? }]
+//     Repéré par sa case (x, z entiers) ; ABSENT, le coffre garde le butin
+//     générique (pool de la zone). `gold` = fourchette d'or, `items` = objets
+//     possibles (defId d'ITEMS, n exemplaires, chance 0..1 chacun), `reqFlag` =
+//     drapeau de quête requis pour ouvrir (cf. p.flags des dialogues PNJ).
+//   markers — POINTS SPÉCIAUX nommés posés sur la carte :
+//     [{ id, kind:'spawn'|'exit'|'teleport', x, z, target? }]
+//     'spawn'   : remplace le point d'apparition par défaut de la zone ;
+//     'exit'/'teleport' : marcher dessus (rayon MARKER_TRIGGER_R) téléporte le
+//       joueur vers `target` = { zoneId, x, z } (sert aux quêtes, sous-lieux).
 //   music — SOUS-ZONES musicales dessinées sur la carte (formes géométriques) :
 //     [{ id, shape:'rect'|'circle', x, z, w, h | r, track:{legacy,new}, priority }]
 //     Une sous-zone = une forme (rectangle x/z/w/h OU cercle centre x/z + rayon r,

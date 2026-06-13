@@ -269,6 +269,18 @@ export async function handleAdmin(req, res, url, game) {
       return json(200, { players });
     }
 
+    // ---- téléport « tester ici » : envoie le perso EN LIGNE de ce compte admin
+    // à une case d'une zone (depuis l'éditeur de carte). Réutilise la logique de
+    // déplacement de zone du jeu ; refuse si le compte n'a pas de perso connecté.
+    if (url === '/api/admin/teleport' && req.method === 'POST') {
+      const { zoneId, x, z } = JSON.parse(await readBody(req));
+      const player = [...game.players.values()].find(p => p.accountId === session.accountId);
+      if (!player) return json(409, { error: 'Aucun personnage de ce compte n\'est connecté en jeu. Connectez-vous d\'abord côté joueur.' });
+      const r = game.teleportPlayerTo(player, zoneId | 0, +x, +z);
+      if (r.error) return json(400, { error: r.error });
+      return json(200, { ok: true });
+    }
+
     return json(404, { error: 'Route inconnue' });
   } catch (e) {
     return json(400, { error: e.message });
