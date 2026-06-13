@@ -36,7 +36,12 @@ const REBUILD_DELAY = 150; // ms après la fin d'un trait avant reconstruction c
 const CAMP_DEFAULT_RADIUS = 8;
 const CAMP_RADIUS_MIN = 1, CAMP_RADIUS_MAX = 40;
 
-export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
+// sous-zones musicales : dimensions minimales (tuiles) et couleur du calque
+const MUSIC_MIN_SIZE = 2;        // côté/rayon minimal d'une sous-zone musicale
+const MUSIC_DEFAULT_W = 16, MUSIC_DEFAULT_H = 16, MUSIC_DEFAULT_R = 8;
+const MUSIC_COLOR = '#c77dff';   // teinte du calque musique (violet)
+
+export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], musicFiles = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
   const ctx = canvas.getContext('2d');
@@ -66,10 +71,11 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
   // index des décors pour le rendu : par chunk (iso), triés (vue du dessus), gros sprites
   let chunkProps = new Map(), bigProps = [], propsByZ = [];
   let miniBase = null;   // fond de mini-carte (1 px par tuile)
-  // calques d'édition « Camps » (zones de spawn) et « PNJ »
-  let showCamps = false, showNpcs = false;
-  let pendingPlace = null;            // 'camp' | 'npc' : le prochain clic pose l'élément
+  // calques d'édition « Camps » (zones de spawn), « PNJ » et « Musique »
+  let showCamps = false, showNpcs = false, showMusic = false;
+  let pendingPlace = null;            // 'camp' | 'npc' | 'music' : le prochain geste pose l'élément
   let campsList = [], npcsList = [];  // listes effectives (overrides ou défauts du worldgen)
+  let musicList = [];                 // sous-zones musicales (overrides `music`)
   const NPC_ROLE_COLORS = { merchant: '#ffd24a', teacher: '#7ad1ff', bavard: '#8ae88a' };
   const NPC_ROLE_NAMES = { merchant: 'marchand', teacher: 'enseignant', bavard: 'bavard' };
 
@@ -86,6 +92,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     // sections optionnelles : ABSENTES, les défauts du worldgen restent en vigueur
     if (Array.isArray(n.camps)) out.camps = n.camps;
     if (n.npcs && typeof n.npcs === 'object') out.npcs = n.npcs;
+    if (Array.isArray(n.music)) out.music = n.music; // sous-zones musicales
     return out;
   }
 
@@ -403,9 +410,20 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
   // surimpressions de l'outil courant : brosse, rectangle, fantôme, gomme, déplacement
   function drawOverlays() {
     if (!hover) return;
-    // pose armée (➕ Camp / ➕ PNJ) : aperçu sous le curseur
+    // tracé d'une zone musicale en cours (glisser) : aperçu du rectangle
+    if (gesture?.mode === 'musicDraw') {
+      fillCellPath(gesture.x0, gesture.z0, hover.x, hover.z);
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = MUSIC_COLOR;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = MUSIC_COLOR; ctx.lineWidth = 1.5; ctx.stroke();
+      return;
+    }
+    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale) : aperçu sous le curseur
     if (pendingPlace) {
-      strokeRing(hover.x, hover.z, view.z * (pendingPlace === 'camp' ? CAMP_DEFAULT_RADIUS : 0.6), '#8ae88a');
+      if (pendingPlace === 'music') strokeRing(hover.x, hover.z, view.z * (MUSIC_DEFAULT_W / 2), MUSIC_COLOR);
+      else strokeRing(hover.x, hover.z, view.z * (pendingPlace === 'camp' ? CAMP_DEFAULT_RADIUS : 0.6), '#8ae88a');
       return;
     }
     const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
@@ -549,7 +567,95 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
   function refreshEditLayers() {
     campsList = Array.isArray(ov.camps) ? ov.camps : defaultCamps();
     npcsList = effectiveNpcs();
+    musicList = Array.isArray(ov.music) ? ov.music : [];
     markDirty();
+  }
+
+  // ---------- calque « Musique » : sous-zones musicales dessinées ----------
+  // Une sous-zone = forme (rect/cercle) + piste { legacy, new } + priorité.
+  // Format de stockage dans ov.music : { id, shape, x, z, w, h | r, track, priority }.
+  function musicOv() {
+    if (!Array.isArray(ov.music)) ov.music = [];
+    return ov.music;
+  }
+  function musicLabel(m) {
+    const f = m.track?.new || m.track?.legacy;
+    const name = f ? f.replace(/\.(mp3|ogg)$/i, '') : '(silence)';
+    return m.priority ? `${name} [${m.priority}]` : name;
+  }
+  // pose une sous-zone musicale (rectangle ou cercle) et ouvre sa fiche
+  function placeMusicZone(shape, geom) {
+    pendingPlace = null;
+    pushHistory();
+    const list = musicOv();
+    const base = {
+      id: 'music_' + Date.now().toString(36),
+      shape,
+      track: musicFiles[0] ? { legacy: null, new: musicFiles[0] } : { legacy: null, new: null },
+      priority: 0,
+    };
+    list.push(shape === 'circle'
+      ? { ...base, x: geom.x, z: geom.z, r: geom.r }
+      : { ...base, x: geom.x, z: geom.z, w: geom.w, h: geom.h });
+    refreshEditLayers();
+    openMusicPanel(list.length - 1);
+  }
+  function placeMusicRect(x0, z0, x1, z1) {
+    const x = Math.min(x0, x1), z = Math.min(z0, z1);
+    const w = Math.max(MUSIC_MIN_SIZE, Math.abs(x1 - x0));
+    const h = Math.max(MUSIC_MIN_SIZE, Math.abs(z1 - z0));
+    placeMusicZone('rect', { x, z, w, h });
+  }
+  function placeMusicCircle(cx, cz, r) {
+    placeMusicZone('circle', { x: cx, z: cz, r: Math.max(MUSIC_MIN_SIZE, r) });
+  }
+  // centre géométrique d'une sous-zone (poignée de déplacement)
+  function musicCenter(m) {
+    return m.shape === 'circle' ? { x: m.x, z: m.z } : { x: m.x + m.w / 2, z: m.z + m.h / 2 };
+  }
+  // sélection au pointeur : bord (redimensionnement) ou intérieur (déplacement/fiche)
+  function pickMusic(wx, wz) {
+    const tol = Math.max(0.8, 8 / view.z);
+    // bords d'abord (redimensionnement) — du dessus vers le dessous
+    for (let i = musicList.length - 1; i >= 0; i--) {
+      const m = musicList[i];
+      if (m.shape === 'circle') {
+        if (Math.abs(Math.hypot(wx - m.x, wz - m.z) - m.r) <= tol) return { index: i, kind: 'edge' };
+      } else {
+        // proche du coin bas-droit -> redimensionnement
+        if (Math.hypot(wx - (m.x + m.w), wz - (m.z + m.h)) <= tol * 1.5) return { index: i, kind: 'edge' };
+      }
+    }
+    // intérieur (déplacement / ouverture de fiche)
+    for (let i = musicList.length - 1; i >= 0; i--) {
+      const m = musicList[i];
+      const inside = m.shape === 'circle'
+        ? Math.hypot(wx - m.x, wz - m.z) <= m.r
+        : (wx >= m.x && wx <= m.x + m.w && wz >= m.z && wz <= m.z + m.h);
+      if (inside) return { index: i, kind: 'center' };
+    }
+    return null;
+  }
+  // glisser : déplacement (centre) ou redimensionnement (bord)
+  function dragMusic(g) {
+    if (!g.moved && Math.hypot(hover.x - g.w0.x, hover.z - g.w0.z) < 0.35) return;
+    if (!g.pushed) { pushHistory(); g.pushed = true; }
+    g.moved = true;
+    const snap = (v) => Math.round(v * 2) / 2;
+    const m = musicOv()[g.index];
+    if (!m) return;
+    if (g.kind === 'center') {
+      const c = musicCenter(m);
+      const dx = snap(hover.x) - c.x, dz = snap(hover.z) - c.z;
+      if (m.shape === 'circle') { m.x += dx; m.z += dz; }
+      else { m.x = snap(m.x + dx); m.z = snap(m.z + dz); }
+    } else if (m.shape === 'circle') {
+      m.r = Math.max(MUSIC_MIN_SIZE, snap(Math.hypot(hover.x - m.x, hover.z - m.z)));
+    } else {
+      m.w = Math.max(MUSIC_MIN_SIZE, snap(hover.x - m.x));
+      m.h = Math.max(MUSIC_MIN_SIZE, snap(hover.z - m.z));
+    }
+    refreshEditLayers();
   }
 
   function campLabel(c) {
@@ -612,6 +718,37 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
       ctx.fillStyle = '#10202a';
       ctx.fillText('☻', s.x, s.y + r * 0.45);
       labelText(s.x, s.y - r - 5, n.def.name || n.npcId, color);
+    }
+  }
+  // sous-zones musicales : forme semi-transparente colorée + étiquette (fichier)
+  function drawMusic() {
+    if (!showMusic) return;
+    for (const m of musicList) {
+      ctx.fillStyle = MUSIC_COLOR;
+      ctx.strokeStyle = MUSIC_COLOR;
+      ctx.lineWidth = 2;
+      if (m.shape === 'circle') {
+        const s = w2s(m.x, m.z), r = m.r * view.z;
+        ctx.beginPath();
+        if (view.iso) ctx.ellipse(s.x, s.y, r, r / 2, 0, 0, Math.PI * 2);
+        else ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.globalAlpha = 0.16; ctx.fill();
+        ctx.globalAlpha = 1; ctx.stroke();
+        // poignée de bord (redimensionnement)
+        const e = w2s(m.x + m.r, m.z);
+        ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
+      } else {
+        fillCellPath(m.x, m.z, m.x + m.w, m.z + m.h);
+        ctx.globalAlpha = 0.16; ctx.fill();
+        ctx.globalAlpha = 1; ctx.stroke();
+        // poignée de coin bas-droit (redimensionnement)
+        const e = w2s(m.x + m.w, m.z + m.h);
+        ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
+      }
+      // poignée centrale (déplacement) + étiquette
+      const c = musicCenter(m), cs = w2s(c.x, c.z);
+      ctx.beginPath(); ctx.arc(cs.x, cs.y, 4, 0, Math.PI * 2); ctx.fill();
+      labelText(cs.x, cs.y - 8, musicLabel(m), MUSIC_COLOR);
     }
   }
 
@@ -915,6 +1052,80 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     panelEl.style.display = 'block';
   }
 
+  // fiche d'une sous-zone musicale : forme, piste (new/legacy + pré-écoute),
+  // priorité, suppression
+  function openMusicPanel(index) {
+    const m = musicList[index];
+    if (!m) return;
+    closePanel();
+    const track = { legacy: m.track?.legacy || null, new: m.track?.new || null };
+    // sélecteur d'un fichier (variante) + bouton de pré-écoute
+    const fileRow = (variant, label) => {
+      const sel = h('select', { style: { width: '170px' } });
+      sel.innerHTML = '<option value="">— silence —</option>' +
+        musicFiles.map(f => `<option value="${f}"${track[variant] === f ? ' selected' : ''}>${f}</option>`).join('');
+      sel.onchange = () => { track[variant] = sel.value || null; };
+      const play = h('button', {
+        textContent: '▶', title: 'Pré-écouter',
+        onclick: () => {
+          if (!sel.value) return;
+          const a = document.getElementById('music-preview');
+          if (a) { a.src = `/assets/music/${encodeURIComponent(sel.value)}`; a.play?.(); }
+        },
+      });
+      return h('div', { className: 'edit-row' }, label, sel, play);
+    };
+    const shapeSel = h('select', {
+      innerHTML: ['rect', 'circle'].map(s =>
+        `<option value="${s}"${s === m.shape ? ' selected' : ''}>${s === 'rect' ? 'Rectangle' : 'Cercle'}</option>`).join(''),
+    });
+    const prioInput = h('input', { type: 'number', value: String(m.priority || 0), style: { width: '60px' } });
+    panelEl.append(
+      panelTitle('Zone musicale'),
+      h('div', { className: 'hint', textContent: 'Glissez le centre pour déplacer, le bord (ou le coin) pour redimensionner.' }),
+      h('div', { className: 'edit-row' }, 'Forme : ', shapeSel),
+      fileRow('new', 'Nouvelle : '),
+      fileRow('legacy', 'Ancienne (legacy) : '),
+      h('div', { className: 'edit-row' }, 'Priorité (chevauchements) : ', prioInput),
+      h('div', { className: 'edit-row' },
+        h('button', {
+          textContent: 'Appliquer',
+          onclick: () => {
+            pushHistory();
+            const real = musicOv()[index];
+            if (!real) return;
+            // conversion de forme : on garde le centre, dimensions par défaut
+            if (shapeSel.value !== real.shape) {
+              const c = musicCenter(real);
+              if (shapeSel.value === 'circle') {
+                real.shape = 'circle'; real.x = c.x; real.z = c.z; real.r = MUSIC_DEFAULT_R;
+                delete real.w; delete real.h;
+              } else {
+                real.shape = 'rect'; real.w = MUSIC_DEFAULT_W; real.h = MUSIC_DEFAULT_H;
+                real.x = c.x - real.w / 2; real.z = c.z - real.h / 2;
+                delete real.r;
+              }
+            }
+            real.track = { legacy: track.legacy, new: track.new };
+            real.priority = prioInput.value | 0;
+            refreshEditLayers();
+            closePanel();
+            msg('✔ Zone musicale modifiée — « Enregistrer » pour l\'appliquer au serveur.');
+          },
+        }),
+        h('button', {
+          textContent: 'Supprimer', className: 'danger',
+          onclick: () => {
+            pushHistory();
+            musicOv().splice(index, 1);
+            refreshEditLayers();
+            closePanel();
+          },
+        })),
+    );
+    panelEl.style.display = 'block';
+  }
+
   // ---------- mini-carte ----------
   const TILE_RGB = {};
   for (const [t, hex] of Object.entries(TILE_COLORS)) {
@@ -976,6 +1187,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     drawOverlays();
     drawCamps();
     drawNpcs();
+    drawMusic();
     drawPlayers();
     if (view.iso) drawCompass();
     drawMini();
@@ -1155,9 +1367,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     // calques d'édition : pose armée (➕), puis saisie d'un PNJ ou d'un camp
     if (pendingPlace === 'camp') { placeCampAt(tx, tz); return; }
     if (pendingPlace === 'npc') { placeNpcAt(tx, tz); return; }
+    // pose d'une zone musicale : glisser pour dessiner le rectangle (relâcher = poser)
+    if (pendingPlace === 'music') { gesture = { mode: 'musicDraw', x0: wpt.x, z0: wpt.z }; return; }
     if (showNpcs) {
       const hit = pickNpc(wpt.x, wpt.z);
       if (hit) { gesture = { mode: 'npcMove', index: hit.index, w0: wpt, moved: false, pushed: false }; return; }
+    }
+    if (showMusic) {
+      const hit = pickMusic(wpt.x, wpt.z);
+      if (hit) {
+        gesture = { mode: 'musicEdit', kind: hit.kind, index: hit.index, w0: wpt, moved: false, pushed: false };
+        return;
+      }
     }
     if (showCamps) {
       const hit = pickCamp(wpt.x, wpt.z);
@@ -1193,7 +1414,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
       paintCells(Math.floor(hover.x), Math.floor(hover.z));
     } else if (gesture?.mode === 'campMove' || gesture?.mode === 'campResize' || gesture?.mode === 'npcMove') {
       dragEditLayer(gesture);
+    } else if (gesture?.mode === 'musicEdit') {
+      dragMusic(gesture);
     }
+    // musicDraw : l'aperçu du rectangle est dessiné par drawOverlays (markDirty)
     markDirty();
   });
 
@@ -1222,6 +1446,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
       openNpcPanel(gesture.index); // simple clic : la fiche du PNJ
     } else if ((gesture.mode === 'campMove' || gesture.mode === 'campResize') && !gesture.moved) {
       openCampPanel(gesture.index); // simple clic : la fiche du camp
+    } else if (gesture.mode === 'musicDraw' && hover) {
+      // glisser = rectangle dessiné ; simple clic (sans déplacement réel) =
+      // rectangle de taille par défaut centré sur le point
+      const dx = Math.abs(hover.x - gesture.x0), dz = Math.abs(hover.z - gesture.z0);
+      if (dx >= MUSIC_MIN_SIZE || dz >= MUSIC_MIN_SIZE) placeMusicRect(gesture.x0, gesture.z0, hover.x, hover.z);
+      else placeMusicRect(gesture.x0 - MUSIC_DEFAULT_W / 2, gesture.z0 - MUSIC_DEFAULT_H / 2,
+        gesture.x0 + MUSIC_DEFAULT_W / 2, gesture.z0 + MUSIC_DEFAULT_H / 2);
+    } else if (gesture.mode === 'musicEdit' && !gesture.moved) {
+      openMusicPanel(gesture.index); // simple clic : la fiche de la zone musicale
     }
     gesture = null;
     markDirty();
@@ -1255,9 +1488,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
   $('iso-view').onchange = () => { view.iso = $('iso-view').checked; markDirty(); };
   $('show-players').onchange = () => { $('players-info').textContent = ''; pollPlayers(); };
   $('show-player-names').onchange = () => markDirty();
-  // calques Camps / PNJ : affichage + pose armée (le prochain clic pose l'élément)
+  // calques Camps / PNJ / Musique : affichage + pose armée (le prochain geste pose l'élément)
   $('layer-camps').onchange = () => { showCamps = $('layer-camps').checked; markDirty(); };
   $('layer-npcs').onchange = () => { showNpcs = $('layer-npcs').checked; markDirty(); };
+  $('layer-music')?.addEventListener('change', () => { showMusic = $('layer-music').checked; markDirty(); });
   $('add-camp').onclick = () => {
     $('layer-camps').checked = true; showCamps = true;
     pendingPlace = 'camp';
@@ -1268,6 +1502,11 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     pendingPlace = 'npc';
     msg('Cliquez sur la carte pour poser le PNJ.');
   };
+  $('add-music')?.addEventListener('click', () => {
+    $('layer-music').checked = true; showMusic = true;
+    pendingPlace = 'music';
+    msg('Glissez sur la carte pour dessiner la zone musicale (la fiche permet de la passer en cercle).');
+  });
 
   $('save-map').onclick = async () => {
     try {
@@ -1369,12 +1608,16 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [] }) {
     paintAt: (x, z) => { pushHistory(); paintCells(x, z); },
     setTool: (t) => { palTool = t; setMode('paint'); },
     rebuildNow: rebuild,
-    // calques camps / PNJ
+    // calques camps / PNJ / musique
     getCamps: () => campsList,
     getNpcs: () => npcsList,
+    getMusicZones: () => musicList,
     placeCampAt,
     placeNpcAt,
+    placeMusicRect,
+    placeMusicCircle,
     openCampPanel,
     openNpcPanel,
+    openMusicPanel,
   };
 }
