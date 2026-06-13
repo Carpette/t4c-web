@@ -56,6 +56,12 @@
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
+// Un décor bloque-t-il le passage ? Les familles de MURS IA (`wall_<matériau>`)
+// bloquent toutes (préfixe), en plus de la liste historique. Note : les pièces
+// de porte/arche de ces planches bloquent aussi pour l'instant — laisser un
+// trou d'une case pour le passage, ou on marquera les frames « porte »
+// franchissables plus tard.
+const isBlockingProp = (type) => BLOCKING_PROPS.has(type) || (typeof type === 'string' && type.startsWith('wall_'));
 const HOUSE_SIZE = { w: 5, d: 4 };
 
 export function applyOverrides(world, ov) {
@@ -95,7 +101,11 @@ export function applyOverrides(world, ov) {
     if (p.v != null) prop.v = p.v; // variante explicite (sinon : choix par hachage)
     if (p.type === 'house') { prop.w = HOUSE_SIZE.w; prop.d = HOUSE_SIZE.d; }
     world.props.push(prop);
-    if (BLOCKING_PROPS.has(p.type)) {
+    // Solidité : si l'éditeur a fixé `solid` (case à cocher), il fait foi —
+    // sinon, défaut historique par type (isBlockingProp). Permet de rendre un
+    // mur franchissable (porte) ou un décor normalement libre bloquant.
+    const solid = typeof p.solid === 'boolean' ? p.solid : isBlockingProp(p.type);
+    if (solid) {
       if (p.type === 'house') {
         for (let dz = 0; dz < HOUSE_SIZE.d; dz++) for (let dx = 0; dx < HOUSE_SIZE.w; dx++) {
           const X = x - 2 + dx, Z = z - 2 + dz;

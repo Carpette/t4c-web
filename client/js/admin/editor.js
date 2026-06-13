@@ -219,6 +219,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     $('tool-mirror')?.classList.toggle('active', mirror);
     markDirty(); // rafraîchit le fantôme de pose
   }
+  // Solidité des décors posés : si activée, tout décor posé BLOQUE le passage ;
+  // sinon il est franchissable. Stocké par pièce (champ `solid` de l'override).
+  let collide = true;
+  function toggleCollide(on) {
+    collide = on != null ? !!on : !collide;
+    $('tool-solid')?.classList.toggle('active', collide);
+  }
 
   const palette = buildPalette({
     container: $('map-palette'),
@@ -2058,6 +2065,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (palTool.v != null) e.v = palTool.v;
     if (palTool.s && palTool.s !== 1) e.s = palTool.s;
     if (poseFlip()) e.rot = Math.PI; // miroir horizontal (cf. propFlip, decormap.js)
+    e.solid = collide; // franchissable ou non (case « Solide » du rail)
     ov.props.add.push(e);
     rebuild();
   }
@@ -2391,10 +2399,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     }
     // M : bascule le miroir horizontal du décor à poser (murs, portes...)
     else if (e.code === 'KeyM') { e.preventDefault?.(); toggleMirror(); }
+    // B : bascule la solidité (bloque le passage) des décors posés
+    else if (e.code === 'KeyB') { e.preventDefault?.(); toggleCollide(); }
     // Échap : annule sélection et collage en cours
     else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; updateTplSaveBtn(); markDirty(); }
   });
   $('tool-mirror').onclick = () => toggleMirror();
+  $('tool-solid').onclick = () => toggleCollide();
+  toggleCollide(true); // état initial : décor solide par défaut
   window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
 
   // ====================================================================
