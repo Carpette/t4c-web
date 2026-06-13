@@ -11,11 +11,39 @@ boulder, goblin_minecart). Plusieurs créatures du bestiaire sont des
 RECOLORATIONS de ces planches (champ `tint` des monstres, recoloration au
 chargement côté client) : ces variantes restent couvertes par la même licence.
 
+Tilesets de décor (sols, murs, props isométriques) inclus depuis flare-game :
+- tileset_grassland (+ _water) — plaines herbeuses d'Arakas
+    Titre  : Flare grassland tileset
+    Auteur : Clint Bellanger (Flare team)
+    Source : https://opengameart.org/content/flare-grassland-tiles
+             https://github.com/flareteam/flare-game (mods/fantasycore)
+- tileset_cave — cavernes (parois rocheuses, sols de grotte)
+    Titre  : Flare cave / dungeon tileset
+    Auteur : Clint Bellanger, rubberduck (Flare team)
+    Source : https://opengameart.org/content/flares-cave-tileset
+             https://github.com/flareteam/flare-game (mods/fantasycore)
+- tileset_dungeon — donjons (dallages, murs taillés, portes)
+    Titre  : Flare cave / dungeon tileset
+    Auteur : Clint Bellanger, rubberduck (Flare team)
+    Source : https://opengameart.org/content/flares-cave-tileset
+             https://github.com/flareteam/flare-game (mods/fantasycore)
+- tileset_ruins — ruines (pierres effondrées, colonnes brisées)
+    Titre  : Flare ruins tileset
+    Auteur : rubberduck, Clint Bellanger (Flare team)
+    Source : https://opengameart.org/content/flare-ruins-tileset
+             https://github.com/flareteam/flare-game (mods/empyrean_campaign)
+- tileset_snowplains (+ _water, _ice, _other) — plaines enneigées, glace, divers
+    Titre  : Flare snow / winter tileset
+    Auteur : Clint Bellanger, rubberduck (Flare team)
+    Source : https://opengameart.org/content/flare-snow-tileset
+             https://github.com/flareteam/flare-game (mods/fantasycore)
+
 Licence : Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA 3.0)
 https://creativecommons.org/licenses/by-sa/3.0/
 
 Artistes principaux (voir CREDITS.txt de flare-game pour la liste complète) :
 - Clint Bellanger — https://clintbellanger.net
+- rubberduck (cavernes, donjons, ruines, neige)
 - Justin Nichol
 - Henrique "Danimal" Lazarini
 - Blarumyrran
