@@ -136,22 +136,50 @@ const EXTRA_TILESETS = [
   ['ruins', 'empyrean_campaign', 'tileset_ruins.txt', ['images/tilesets/tileset_ruins.png']],
 ];
 
+// --- Classement géométrique d'une tuile Flare en TYPE ('sol' | 'mur' | 'objet') ---
+// Les tuiles Flare n'ont aucun nom : seul le rectangle source [x,y,w,h,...]
+// permet de les trier. Base iso = 192×96. Heuristique réglée sur les données :
+//  - SOL   : losange de sol plein = hauteur basse (h ≤ 100) ET pleine largeur
+//            (w ≥ 160). C'est la dalle de base posée à plat.
+//  - MUR   : structure verticale basse/moyenne (100 < h ≤ 190) : murs, parois,
+//            falaises, segments de rempart.
+//  - OBJET : grande structure (h > 190 : bâtiments, gros mobilier, arbres) OU
+//            petit décor isolé (h ≤ 100 mais w < 160 : props, débris, buissons).
+// Seuils volontairement nets et documentés ; rétrocompatibles avec le rendu qui
+// ne lit que [x,y,w,h,ox,oy,imgIndex] (le type vit dans une table parallèle).
+const H_SOL = 100;   // hauteur max d'un losange de sol
+const H_MUR = 190;   // hauteur max d'une structure verticale (au-delà = objet)
+const W_SOL = 160;   // largeur min d'un sol plein (élimine les petits props bas)
+function tileType(rect) {
+  const [, , w, h] = rect;
+  if (h <= H_SOL) return w >= W_SOL ? 'sol' : 'objet';
+  if (h <= H_MUR) return 'mur';
+  return 'objet';
+}
+
+const typeRecap = {}; // { tileset: { sol, mur, objet } } pour le récap final
 for (const [name, mod, def, imgs] of EXTRA_TILESETS) {
   const modDir = path.join(FLARE, 'mods', mod);
   const parsed = parseTilesetDef(path.join(modDir, 'tilesetdefs', def));
   // map chemin source -> index dans la liste d'images du tileset
   const imgIndex = new Map(imgs.map((p, i) => [p, i]));
   const tiles = {};
+  const types = {}; // frame -> 'sol'|'mur'|'objet' (table parallèle, ignorée du rendu)
+  const recap = { sol: 0, mur: 0, objet: 0 };
   for (const [src, frames] of Object.entries(parsed)) {
     const idx = imgIndex.get(src);
     if (idx == null) continue; // image non retenue (ex. variante ignorée)
     for (const [frame, rect] of Object.entries(frames)) {
       tiles[frame] = [...rect.slice(0, 6), idx]; // [x,y,w,h,ox,oy,imgIndex]
+      const t = tileType(rect);
+      types[frame] = t;
+      recap[t]++;
     }
   }
+  typeRecap[name] = recap;
   // chemins de DESTINATION (sous client/assets/tilesets/), conservant le nom de fichier
   const destImages = imgs.map(p => 'tilesets/' + path.basename(p));
-  manifest.tilesets[name] = { images: destImages, tiles };
+  manifest.tilesets[name] = { images: destImages, tiles, types };
   imgs.forEach((src, i) => copies.push([path.join('..', mod, src), destImages[i]]));
 }
 
@@ -195,3 +223,7 @@ const extraTiles = Object.values(manifest.tilesets).reduce((n, ts) => n + Object
 console.log('manifest généré :', Object.keys(manifest.tiles).length, 'tuiles grassland,',
   extraTiles, 'tuiles', `(${Object.keys(manifest.tilesets).join('/')}),`,
   ENEMIES.length, 'ennemis,', AVATAR_LAYERS.length, 'couches avatar,', LOOT.length, 'butins');
+console.log('classification des tuiles Flare par type :');
+for (const [name, r] of Object.entries(typeRecap)) {
+  console.log(`  ${name.padEnd(8)} sol=${r.sol}  mur=${r.mur}  objet=${r.objet}  (total ${r.sol + r.mur + r.objet})`);
+}
