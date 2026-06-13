@@ -31,6 +31,10 @@ const PARTY_VITALS_EVERY_TICKS = 10; // PV des membres du groupe : 1 envoi/s
 const CAMP_RADIUS_MIN = 1, CAMP_RADIUS_MAX = 40; // rayon d'un camp (tuiles)
 const CAMP_QUOTA_MAX = 50;                       // population max par monstre d'un camp
 
+// Rayon de déclenchement d'un point spécial 'exit'/'teleport' (overrides
+// `markers`) : marcher à moins de cette distance du marqueur téléporte.
+const MARKER_TRIGGER_R = 0.9;
+
 // champs d'un PNJ que les overrides (`npcs.edit` / `npcs.add`) peuvent définir
 const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teaches', 'dialogues'];
 
@@ -66,7 +70,68 @@ export class Game {
     const ov = loadOverrides(zi.zoneId);
     zi.camps = this.buildIslandCamps(zi, ov);
     zi.musicZones = this.buildMusicZones(ov);
+    zi.chestLoot = this.buildChestLoot(ov);   // butin personnalisé par case de coffre
+    zi.markers = this.buildMarkers(ov);       // points spéciaux (spawn / exit / teleport)
+    this.applySpawnMarker(zi);                // un marqueur 'spawn' redéfinit le point d'apparition
     this.spawnNpc(zi, ov);
+  }
+
+  // Butin personnalisé des coffres (overrides `chests`), indexé par case
+  // « x,z » (entiers). Une entrée invalide (sans coordonnées) est ignorée.
+  // `gold` est borné à des entiers >= 0 ; les objets sont filtrés sur ITEMS.
+  buildChestLoot(ov) {
+    const map = new Map();
+    if (!Array.isArray(ov?.chests)) return map;
+    for (const c of ov.chests) {
+      const x = Math.floor(+c?.x), z = Math.floor(+c?.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+      const g = Array.isArray(c.gold) ? c.gold : [];
+      const gMin = Math.max(0, Math.round(+g[0] || 0));
+      const gMax = Math.max(gMin, Math.round(+g[1] || gMin));
+      const items = (Array.isArray(c.items) ? c.items : [])
+        .filter(it => ITEMS[it?.defId])
+        .map(it => ({
+          defId: it.defId,
+          n: Math.max(1, Math.min(99, it.n | 0 || 1)),
+          chance: Math.max(0, Math.min(1, +it.chance || 0)),
+        }));
+      map.set(`${x},${z}`, {
+        gold: [gMin, gMax],
+        items,
+        reqFlag: typeof c.reqFlag === 'string' && c.reqFlag ? c.reqFlag : null,
+      });
+    }
+    return map;
+  }
+
+  // Points spéciaux (overrides `markers`) validés : kind connu + coordonnées.
+  // Les téléporteurs sans cible exploitable sont conservés (inertes) plutôt que
+  // rejetés, pour ne pas perdre la pose à l'édition.
+  buildMarkers(ov) {
+    if (!Array.isArray(ov?.markers)) return [];
+    const out = [];
+    for (const m of ov.markers) {
+      const kind = m?.kind;
+      const x = +m?.x, z = +m?.z;
+      if (!['spawn', 'exit', 'teleport'].includes(kind)) continue;
+      if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+      const marker = { id: String(m.id ?? out.length), kind, x, z };
+      if (kind !== 'spawn' && m.target && Number.isFinite(+m.target.x) && Number.isFinite(+m.target.z)) {
+        marker.target = {
+          zoneId: Number.isFinite(+m.target.zoneId) ? (+m.target.zoneId | 0) : null,
+          x: +m.target.x, z: +m.target.z,
+        };
+      }
+      out.push(marker);
+    }
+    return out;
+  }
+
+  // Un marqueur 'spawn' (le 1er rencontré) redéfinit le point d'apparition de la
+  // zone : c'est par là qu'arrivent les nouveaux joueurs et les retours en zone.
+  applySpawnMarker(zi) {
+    const sp = (zi.markers || []).find(m => m.kind === 'spawn');
+    if (sp && zi.world.isWalkable(sp.x, sp.z)) zi.world.spawnPoint = { x: sp.x, z: sp.z };
   }
 
   // Sous-zones musicales d'une île (overrides `music`) : formes géométriques
@@ -268,6 +333,9 @@ export class Game {
     zi.world = applyOverrides(generateWorld(def.seed, def.map), ov);
     this.refreshCamps(zi, ov);
     zi.musicZones = this.buildMusicZones(ov); // sous-zones musicales rebranchées
+    zi.chestLoot = this.buildChestLoot(ov);   // butin personnalisé des coffres
+    zi.markers = this.buildMarkers(ov);       // points spéciaux
+    this.applySpawnMarker(zi);                // 'spawn' éventuel redéfini
     for (const e of [...zi.entities.values()]) {
       if (e.kind === C.KIND.NPC) zi.remove(e);
     }
@@ -391,6 +459,66 @@ export class Game {
     this.maybeDestroyTrial(old);
     this.sendZone(p); // réévalue et envoie la sous-zone musicale d'arrivée
     this.sendSelf(p);
+  }
+
+  // Points spéciaux 'exit'/'teleport' : si le joueur (vivant, sur une île) se
+  // trouve sur la case d'un marqueur, il est téléporté vers sa cible. Une fois
+  // déclenché, on mémorise le marqueur (p.lastMarkerId) pour ne pas reboucler
+  // tant que le joueur n'a pas quitté la case (sinon : aller-retour infini si la
+  // destination est elle-même proche d'un autre déclencheur).
+  checkMarkerTriggers(p) {
+    if (p.dead || p.zi.isTrial || p.zi.isCave) return;
+    const markers = p.zi.markers;
+    if (!markers || !markers.length) return;
+    let on = null;
+    for (const m of markers) {
+      if (m.kind === 'spawn' || !m.target) continue;
+      if (Math.hypot(p.x - m.x, p.z - m.z) <= MARKER_TRIGGER_R) { on = m; break; }
+    }
+    if (!on) { p.lastMarkerId = null; return; }
+    if (p.lastMarkerId === on.id) return; // déjà déclenché : on attend qu'il s'en aille
+    p.lastMarkerId = on.id;
+    const t = on.target;
+    const destZone = (t.zoneId == null || t.zoneId === p.zi.zoneId) ? p.zi : this.island(t.zoneId);
+    if (!destZone) return;
+    if (destZone === p.zi) {
+      // téléport intra-zone : pas de rechargement, juste un saut de position
+      p.x = t.x; p.z = t.z;
+      p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingCast = null;
+      p.zi.gridMove(p);
+      this.heatZone(p.zi);
+      this.sendSelf(p);
+    } else {
+      this.movePlayerToZone(p, destZone, t.x, t.z);
+    }
+  }
+
+  // Téléport admin « tester ici » (route HTTP /api/admin/teleport) : envoie le
+  // joueur sur une case d'une île. Sécurisé côté route (auth admin) ; ici on
+  // valide la destination (zone existante, case praticable). Pas depuis/vers une
+  // Épreuve (instance personnelle) ni une caverne (issues contrôlées).
+  teleportPlayerTo(p, zoneId, x, z) {
+    if (p.dead) return { error: 'Le personnage est mort.' };
+    if (p.zi.isTrial || p.zi.isCave) return { error: 'Impossible depuis une Épreuve ou une caverne.' };
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return { error: 'Coordonnées invalides.' };
+    const dest = this.island(zoneId);
+    if (!dest) return { error: 'Zone inconnue.' };
+    if (!dest.world.isWalkable(x, z)) return { error: 'Cette case n\'est pas praticable.' };
+    if (dest === p.zi) {
+      // même zone : saut de position sans rechargement
+      p.x = x; p.z = z;
+      p.path = null; p.moveDir = null; p.attackTarget = null; p.pendingCast = null;
+      p.lastMarkerId = null;
+      p.zi.gridMove(p);
+      this.heatZone(p.zi);
+      this.sendSelf(p);
+    } else {
+      if (!p.unlocked.includes(zoneId)) p.unlocked.push(zoneId);
+      p.lastMarkerId = null;
+      this.movePlayerToZone(p, dest, x, z);
+    }
+    this.send(p, { t: 'info', text: 'Un administrateur vous a déplacé.' });
+    return { ok: true };
   }
 
   // ---------- Épreuve ----------
@@ -1109,11 +1237,19 @@ export class Game {
     this.sendSelf(p);
   }
 
-  // Coffre au trésor : or généreux ou objet rare du palier, puis se referme un moment
+  // Coffre au trésor : or généreux ou objet rare du palier, puis se referme un
+  // moment. Si l'admin a défini un butin personnalisé pour cette case
+  // (overrides `chests`), c'est lui qui prime ; sinon, le butin générique.
   openChest(p, prop) {
     const zi = p.zi;
     if (!zi.chestState) zi.chestState = new Map();
     const key = `${Math.floor(prop.x)},${Math.floor(prop.z)}`;
+    const custom = zi.chestLoot?.get(key) || null;
+    // clé de quête requise : on n'ouvre pas sans le drapeau (ni ne consomme le respawn)
+    if (custom?.reqFlag && !p.flags?.[custom.reqFlag]) {
+      this.send(p, { t: 'info', text: 'Le coffre est fermé à clé. Il vous manque quelque chose...' });
+      return;
+    }
     const readyAt = zi.chestState.get(key) || 0;
     const now = this.now();
     if (now < readyAt) {
@@ -1122,6 +1258,21 @@ export class Game {
     }
     zi.chestState.set(key, now + CHESTS.respawn);
     const zid = zi.zoneId;
+    if (custom) {
+      // Butin personnalisé : l'or de la fourchette + chaque objet selon sa chance.
+      const [gMin, gMax] = custom.gold;
+      const gold = gMin + Math.floor(Math.random() * (gMax - gMin + 1));
+      if (gold > 0) this.spawnDrop(zi, prop.x, prop.z, { gold });
+      let dropped = false;
+      for (const it of custom.items) {
+        if (Math.random() >= it.chance) continue;
+        for (let k = 0; k < it.n; k++) this.spawnDrop(zi, prop.x, prop.z, { item: makeItem(it.defId, Math.random, zid) });
+        dropped = true;
+      }
+      if (dropped) this.eventNear(p, { t: 'say', id: p.id, text: 'Un trésor !' });
+      this.send(p, { t: 'loot', text: 'Vous ouvrez le coffre...' });
+      return;
+    }
     const pool = chestPool(zid);
     if (pool.length && Math.random() < CHESTS.itemChance) {
       const defId = pool[Math.floor(Math.random() * pool.length)];
@@ -1621,6 +1772,9 @@ export class Game {
     const now = this.now();
 
     for (const p of this.players.values()) p.tick(this, now, dt);
+
+    // points spéciaux 'exit'/'teleport' : un joueur qui marche dessus est téléporté
+    for (const p of this.players.values()) this.checkMarkerTriggers(p);
 
     // sous-zones musicales : bascule à hystérésis pendant les déplacements
     // (cadence réduite ; les déplacements significatifs suffisent largement)

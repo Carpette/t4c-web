@@ -198,6 +198,9 @@ export class Player extends Character {
     this.pendingInteract = null;
     this.trialOffer = null;
     this.obeliskUntil = 0;
+    // dernier point spécial 'exit'/'teleport' déclenché : évite le rebouclage
+    // tant que le joueur n'a pas quitté la case du marqueur (cf. game.js)
+    this.lastMarkerId = null;
     // sous-zone musicale active (id) et dernière piste poussée (anti-spam) :
     // pilotent la bascule à hystérésis (cf. game.js evalPlayerMusic)
     this.musicZoneId = null;
