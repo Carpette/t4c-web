@@ -5,6 +5,7 @@ import { settings, ZOOM_MIN, ZOOM_MAX } from '../settings.js';
 import {
   Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
 } from './particles.js';
+import { resolveTile } from './assets.js';
 
 export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
 // pénombre minimale des cavernes : il y fait nuit quel que soit le soleil —
@@ -24,6 +25,9 @@ export class Renderer {
     this.scale = Number.isFinite(z0) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z0)) : 1;
     this.grass = assets.images.get('tilesets/tileset_grassland.png');
     this.water = assets.images.get('tilesets/tileset_grassland_water.png');
+    // cache id -> { img, rect } : résolution faite une fois par id (sols + props).
+    // Évite toute recherche dans le manifeste à chaque tuile dessinée.
+    this._tileCache = new Map();
 
     // canvas d'éclairage
     this.lightCanvas = document.createElement('canvas');
@@ -108,11 +112,14 @@ export class Renderer {
   // k : échelle propre au prop (1 par défaut) ; flip : miroir horizontal
   // autour de l'ancrage (la « rotation » des sprites iso pré-rendus).
   drawTile(id, px, py, k = 1, flip = false) {
-    const m = this.assets.manifest;
-    let rect = m.tiles[id], img = this.grass;
-    if (!rect) { rect = m.waterTiles[id]; img = this.water; }
-    if (!rect) return;
-    const [x, y, w, h, ox, oy] = rect;
+    let r = this._tileCache.get(id);
+    if (r === undefined) {
+      r = resolveTile(this.assets, id, this.grass, this.water) || null;
+      this._tileCache.set(id, r);
+    }
+    if (!r) return;
+    const img = r.img;
+    const [x, y, w, h, ox, oy] = r.rect;
     const s = this.scale * k;
     if (flip) {
       const ctx = this.ctx;
