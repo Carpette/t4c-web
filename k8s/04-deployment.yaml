@@ -30,7 +30,7 @@ spec:
       containers:
         - name: t4c-web
           # Remplacez t4c-web:latest par l'image de votre registre de production (ex: registry.example.com/t4c-web:v0.1.0)
-          image: ghcr.io/carpette/t4c-web:latest
+          image: ghcr.io/carpette/t4c-web:main
           imagePullPolicy: Always # Toujours tirer la dernière image pour éviter les problèmes de cache
           ports:
             - containerPort: 8080
