@@ -7,6 +7,7 @@ import { TILE } from '../../../shared/worldgen.js';
 import {
   FLOOR_IDS, PROP_TYPES, SCALABLE_PROPS, FLIPPABLE_PROPS,
   TILESET_PROP_FAMILIES, tilesetPropId,
+  GRASS_PROP_TYPE, GRASS_PROP_LABEL, grasslandPropId, classifyGrasslandFrame,
 } from '../render2d/decormap.js';
 import { resolveTile } from '../render2d/assets.js';
 
@@ -28,6 +29,7 @@ export const PROP_GLYPHS = {
   grave: ['✝', '#ccc'], well: ['◎', '#9ad'], obelisk: ['▲', '#9af'], trialgate: ['◈', '#c9f'], exitgate: ['◈', '#9fd'],
   bank: ['▣', '#fc6'], chest: ['▢', '#fa0'], cave: ['Ω', '#ff6'],
   wall: ['▮', '#ca8'], fence: ['╪', '#b97'], ruin: ['⌐', '#987'], bridge: ['≡', '#a86'],
+  [GRASS_PROP_TYPE]: ['⌂', '#dcb37a'],
 };
 
 const THUMB = 72; // côté d'une vignette (px) — assez grand pour distinguer la tuile
@@ -256,6 +258,56 @@ export function buildPalette({ container, assets, onSelect }) {
     // ses sous-sections matche ; aplati (déplié) quand une recherche est active.
     themes[themes.length - 1].subGroups = subGroups;
     themes[themes.length - 1].text = (type + ' ' + prefix + ' ' + label).toLowerCase();
+  }
+
+  // --- thème « Plaines / Bâtiments (Flare) » : toutes les frames du tileset
+  // grassland (ids NUMÉRIQUES de manifest.tiles), pickables individuellement.
+  // Chaque frame est classée géométriquement (classifyGrasslandFrame) en
+  // Sols / Murs & falaises / Bâtiments / Mobilier & objets. La pose enregistre un
+  // prop { type:'flare_grass', v:<numéro de frame> } dont l'id de tuile rendu EST
+  // ce numéro (grasslandPropId) — même pipeline que les autres props.
+  {
+    const grassTiles = assets?.manifest?.tiles || {};
+    // frames numériques utiles à poser : on écarte les frames de sol/falaise
+    // d'autotiling (transitions de berge 144-191) qui n'ont pas de sens isolées.
+    const SKIP = new Set();
+    for (let id = 144; id <= 191; id++) SKIP.add(String(id));
+    const frames = Object.keys(grassTiles)
+      .filter(f => /^\d+$/.test(f) && !SKIP.has(f))
+      .sort((a, b) => Number(a) - Number(b));
+    if (frames.length) {
+      // libellés + ordre des sous-sections (4 types, dont « Bâtiments »)
+      const GRASS_SUBSECTIONS = [
+        ['bati', 'Bâtiments'],
+        ['mur', 'Murs & falaises'],
+        ['objet', 'Mobilier & objets'],
+        ['sol', 'Sols'],
+      ];
+      const byType = {};
+      for (const f of frames) {
+        const t = classifyGrasslandFrame(grassTiles[f]);
+        (byType[t] ||= []).push(f);
+      }
+      const body = makeTheme('flare:grass', GRASS_PROP_LABEL, frames.length);
+      const [glyph, color] = PROP_GLYPHS[GRASS_PROP_TYPE];
+      const subGroups = [];
+      for (const [tkey, subLabel] of GRASS_SUBSECTIONS) {
+        const inSec = byType[tkey] || [];
+        if (!inSec.length) continue;
+        const { sub, row } = makeSubsection(body, `${subLabel} (${inSec.length})`);
+        for (const f of inSec) {
+          const n = Number(f);
+          row.appendChild(makeChip(
+            { label: `${subLabel} — frame ${f}`, tileId: grasslandPropId(n), glyph, color },
+            () => ({ kind: 'prop', type: GRASS_PROP_TYPE, v: n }),
+            (cur) => cur.kind === 'prop' && cur.type === GRASS_PROP_TYPE && cur.v === n,
+          ));
+        }
+        subGroups.push({ div: sub, text: (GRASS_PROP_TYPE + ' grassland plaines ' + GRASS_PROP_LABEL + ' ' + subLabel).toLowerCase() });
+      }
+      themes[themes.length - 1].subGroups = subGroups;
+      themes[themes.length - 1].text = (GRASS_PROP_TYPE + ' grassland plaines ' + GRASS_PROP_LABEL).toLowerCase();
+    }
   }
 
   search.oninput = () => {
