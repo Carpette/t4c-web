@@ -65,7 +65,40 @@ export class Game {
   populateIsland(zi) {
     const ov = loadOverrides(zi.zoneId);
     zi.camps = this.buildIslandCamps(zi, ov);
+    zi.musicZones = this.buildMusicZones(ov);
     this.spawnNpc(zi, ov);
+  }
+
+  // Sous-zones musicales d'une île (overrides `music`) : formes géométriques
+  // validées + normalisées (id stable, forme, piste, priorité). Une entrée
+  // invalide (forme inconnue, géométrie/track absente) est ignorée. Triées par
+  // priorité DÉCROISSANTE : la première qui contient un point l'emporte sur les
+  // chevauchements (cf. musicZoneAt).
+  buildMusicZones(ov) {
+    if (!Array.isArray(ov?.music)) return [];
+    const out = [];
+    for (const m of ov.music) {
+      const shape = m?.shape === 'circle' ? 'circle' : (m?.shape === 'rect' ? 'rect' : null);
+      const x = +m?.x, z = +m?.z;
+      if (!shape || !Number.isFinite(x) || !Number.isFinite(z)) continue;
+      const track = {
+        legacy: typeof m?.track?.legacy === 'string' && m.track.legacy ? m.track.legacy : null,
+        new: typeof m?.track?.new === 'string' && m.track.new ? m.track.new : null,
+      };
+      if (!track.legacy && !track.new) continue; // une sous-zone sans piste n'a pas de sens
+      const zone = { id: String(m.id ?? out.length), shape, x, z, track, priority: +m.priority || 0 };
+      if (shape === 'rect') {
+        zone.w = Math.max(0, +m.w || 0);
+        zone.h = Math.max(0, +m.h || 0);
+        if (!zone.w || !zone.h) continue;
+      } else {
+        zone.r = Math.max(0, +m.r || 0);
+        if (!zone.r) continue;
+      }
+      out.push(zone);
+    }
+    out.sort((a, b) => b.priority - a.priority); // prioritaire en tête
+    return out;
   }
 
   // Un camp = centre + rayon + quota de population PAR monstre. `aliveBy`
@@ -234,10 +267,16 @@ export class Game {
     if (!def || !zi) return;
     zi.world = applyOverrides(generateWorld(def.seed, def.map), ov);
     this.refreshCamps(zi, ov);
+    zi.musicZones = this.buildMusicZones(ov); // sous-zones musicales rebranchées
     for (const e of [...zi.entities.values()]) {
       if (e.kind === C.KIND.NPC) zi.remove(e);
     }
     this.spawnNpc(zi, ov);
+    // les joueurs présents réévaluent leur sous-zone musicale SANS hystérésis
+    // (l'édition admin doit s'entendre immédiatement)
+    for (const p of this.players.values()) {
+      if (p.zi === zi) this.refreshPlayerMusic(p);
+    }
   }
 
   // ---------- Joueurs ----------
@@ -298,6 +337,13 @@ export class Game {
 
   sendZone(p) {
     const zi = p.zi;
+    // la sous-zone musicale est réévaluée SANS hystérésis à toute (re)entrée de
+    // zone (téléport compris) : la piste envoyée dans le message `zone` est déjà
+    // celle de la sous-zone qui contient le point d'arrivée, sinon le fond.
+    const candidate = this.musicZoneAt(zi, p.x, p.z, 0);
+    p.musicZoneId = candidate ? candidate.id : null;
+    const music = this.musicTrackFor(p);
+    p.lastMusicSent = JSON.stringify(music);
     if (zi.isCave) {
       // caverne : le client régénère le même intérieur avec ces paramètres
       const { seed, size, depth } = zi.caveDef;
@@ -307,7 +353,7 @@ export class Game {
         zoneId: zi.zoneId,
         name: zi.caveName,
         cave: { seed, size, depth },
-        music: this.musicFor(zi),
+        music,
         tint: CAVE_TINT,
         levels: null,
         x: p.x, z: p.z,
@@ -324,7 +370,7 @@ export class Game {
       name: zi.isTrial ? `L'Épreuve — vers ${def.name}` : def.name,
       seed: def.seed,
       map: zi.isTrial ? null : def.map || null,
-      music: this.musicFor(zi),
+      music,
       tint: zi.isTrial ? 'rgba(40, 20, 60, 0.18)' : def.tint,
       levels: def.levels,
       x: p.x, z: p.z,
@@ -343,7 +389,7 @@ export class Game {
     zi.players++;
     this.heatZone(zi); // l'arrivée d'un joueur compte comme un mouvement
     this.maybeDestroyTrial(old);
-    this.sendZone(p);
+    this.sendZone(p); // réévalue et envoie la sous-zone musicale d'arrivée
     this.sendSelf(p);
   }
 
@@ -484,20 +530,118 @@ export class Game {
     });
   }
 
-  // Musique de la zone (mapping administrable dans content/music.json).
+  // Musique de FOND d'une zone (mapping administrable dans content/music.json).
   // Renvoie les deux variantes { legacy, new } : le client choisit selon
-  // le pack sélectionné dans ses paramètres.
+  // le pack sélectionné dans ses paramètres. C'est le défaut quand le joueur
+  // n'est dans AUCUNE sous-zone musicale dessinée.
   musicFor(zi) {
     // les cavernes partagent l'ambiance oppressante de l'Épreuve
     const s = (zi.isTrial || zi.isCave) ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
     return (s && (s.legacy || s.new)) ? s : null;
   }
 
-  // Pousse la musique à jour à tous les joueurs connectés (après édition admin)
-  refreshMusic() {
-    for (const p of this.players.values()) {
-      this.send(p, { t: 'music', file: this.musicFor(p.zi) });
+  // ---------- Sous-zones musicales dessinées + bascule à HYSTÉRÉSIS ----------
+  // Un point est-il dans une sous-zone, sa frontière rétrécie de `margin` ?
+  // (margin = 0 : frontière réelle ; margin > 0 : « enfoncé d'au moins margin »).
+  pointInMusicZone(zone, x, z, margin = 0) {
+    if (zone.shape === 'circle') {
+      const rr = zone.r - margin;
+      return rr > 0 && Math.hypot(x - zone.x, z - zone.z) <= rr;
     }
+    // rectangle : (x, z) coin haut-gauche, (x+w, z+h) coin bas-droit
+    return x >= zone.x + margin && x <= zone.x + zone.w - margin
+      && z >= zone.z + margin && z <= zone.z + zone.h - margin;
+  }
+
+  // Sous-zone musicale prioritaire contenant (x, z) à la marge donnée, ou null.
+  // `zi.musicZones` est trié par priorité décroissante : la 1re qui contient
+  // l'emporte sur les chevauchements.
+  musicZoneAt(zi, x, z, margin = 0) {
+    for (const zone of zi.musicZones || []) {
+      if (this.pointInMusicZone(zone, x, z, margin)) return zone;
+    }
+    return null;
+  }
+
+  // Piste { legacy, new } à jouer pour le joueur selon sa sous-zone active.
+  // `p.musicZoneId` mémorise la sous-zone musicale active (null = fond de zone).
+  musicTrackFor(p) {
+    const zi = p.zi;
+    if (p.musicZoneId != null) {
+      const z = (zi.musicZones || []).find(s => s.id === p.musicZoneId);
+      if (z) return z.track;
+    }
+    return this.musicFor(zi);
+  }
+
+  // Réévalue la sous-zone musicale active du joueur SANS hystérésis et pousse la
+  // piste correspondante : utilisé aux transitions franches (entrée en jeu,
+  // changement de zone, téléport obélisque/grotte/épreuve, édition admin). Le
+  // joueur prend immédiatement la sous-zone prioritaire qui le contient.
+  refreshPlayerMusic(p) {
+    const candidate = this.musicZoneAt(p.zi, p.x, p.z, 0);
+    p.musicZoneId = candidate ? candidate.id : null;
+    p.lastMusicSent = JSON.stringify(this.musicTrackFor(p));
+    this.send(p, { t: 'music', file: this.musicTrackFor(p) });
+  }
+
+  // Réévalue la sous-zone musicale AVEC hystérésis (appelée pendant les
+  // déplacements). RÈGLE :
+  //  - on ne BASCULE sur une nouvelle sous-zone que si le joueur s'y est enfoncé
+  //    d'au moins MUSIC_ZONE_HYSTERESIS (point dans la forme rétrécie de la marge) ;
+  //  - on QUITTE la sous-zone courante (retour au fond, ou autre sous-zone) seulement
+  //    quand le joueur sort de sa frontière RÉELLE — tant qu'il reste dedans, même
+  //    au ras du bord, la piste ne change pas. Faire des allers-retours pile sur la
+  //    limite ne fait donc pas clignoter la musique.
+  // Ne pousse un message `music` que sur un VRAI changement de piste (anti-spam).
+  evalPlayerMusic(p) {
+    const zi = p.zi;
+    const zones = zi.musicZones || [];
+    // sous-zone courante : encore valide tant que le joueur est dans sa frontière réelle
+    const current = p.musicZoneId != null ? zones.find(s => s.id === p.musicZoneId) : null;
+    const stillInCurrent = current && this.pointInMusicZone(current, p.x, p.z, 0);
+
+    // candidate à bascule : sous-zone prioritaire où le joueur est enfoncé de la marge
+    const deep = this.musicZoneAt(zi, p.x, p.z, C.MUSIC_ZONE_HYSTERESIS);
+
+    let nextId;
+    if (deep && deep.id !== p.musicZoneId
+        && (!current || !stillInCurrent || deep.priority > current.priority)) {
+      // franchissement réel : enfoncé dans une nouvelle sous-zone (ou une plus
+      // prioritaire qui chevauche la courante) -> on bascule
+      nextId = deep.id;
+    } else if (stillInCurrent) {
+      // toujours dans la sous-zone courante (même au ras du bord) -> on reste
+      nextId = current.id;
+    } else {
+      // sorti de la sous-zone courante sans en avoir franchi de nouvelle à la
+      // marge -> retour au fond de zone (ou à une sous-zone qui nous contient
+      // encore à pleine frontière, si la courante a disparu)
+      const shallow = this.musicZoneAt(zi, p.x, p.z, 0);
+      nextId = shallow ? shallow.id : null;
+    }
+
+    if (nextId === p.musicZoneId) return; // pas de changement d'état
+    p.musicZoneId = nextId;
+    const slot = this.musicTrackFor(p);
+    const key = JSON.stringify(slot);
+    if (key === p.lastMusicSent) return; // même piste effective : pas de push inutile
+    p.lastMusicSent = key;
+    this.send(p, { t: 'music', file: slot });
+  }
+
+  // Réévalue la musique de tous les joueurs sur un tick (cadence réduite).
+  musicTick() {
+    for (const p of this.players.values()) {
+      if (p.dead || !p.zi.musicZones?.length) continue;
+      this.evalPlayerMusic(p);
+    }
+  }
+
+  // Pousse la musique à jour à tous les joueurs connectés (après édition admin
+  // du mapping global content/music.json) : on réévalue aussi la sous-zone.
+  refreshMusic() {
+    for (const p of this.players.values()) this.refreshPlayerMusic(p);
   }
 
   send(p, obj) { if (p.ws.readyState === 1) p.ws.send(JSON.stringify(obj)); }
@@ -1474,6 +1618,10 @@ export class Game {
     const now = this.now();
 
     for (const p of this.players.values()) p.tick(this, now, dt);
+
+    // sous-zones musicales : bascule à hystérésis pendant les déplacements
+    // (cadence réduite ; les déplacements significatifs suffisent largement)
+    if (this.tickCount % C.MUSIC_EVAL_EVERY_TICKS === 0) this.musicTick();
 
     // PV des membres de groupe (panneau de groupe côté client)
     if (this.tickCount % PARTY_VITALS_EVERY_TICKS === 0) {

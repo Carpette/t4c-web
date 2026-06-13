@@ -13,8 +13,14 @@ const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
 const tokens = new Map(); // token -> { accountId, expires }
 
+// Dossier des overrides de carte (overrides_<zone>.json). Par défaut le dossier
+// content/ ; T4C_OVERRIDES_DIR l'isole (les suites de test l'imposent pour ne
+// PAS polluer — ni lire — les overrides locaux du dépôt).
+const OVERRIDES_DIR = process.env.T4C_OVERRIDES_DIR || CONTENT_DIR;
+try { fs.mkdirSync(OVERRIDES_DIR, { recursive: true }); } catch { /* déjà présent */ }
+
 export function overridesPath(zoneId) {
-  return path.join(CONTENT_DIR, `overrides_${zoneId}.json`);
+  return path.join(OVERRIDES_DIR, `overrides_${zoneId}.json`);
 }
 export function loadOverrides(zoneId) {
   try { return JSON.parse(fs.readFileSync(overridesPath(zoneId), 'utf8')); } catch { return null; }

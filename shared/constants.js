@@ -154,3 +154,14 @@ export const INTERACT_RANGE = 3.2;
 export const NPC_DIALOGUE_RANGE = 6;
 // Voyage entre les obélisques d'une même zone (réseau local) : coût fixe en or
 export const OBELISK_TRAVEL_COST = 10;
+
+// ---------- Zones musicales (sous-zones dessinées sur la carte) ----------
+// Marge d'hystérésis (en tuiles) : on ne bascule sur une nouvelle sous-zone
+// musicale que lorsque le joueur s'y est enfoncé d'au moins cette distance
+// À L'INTÉRIEUR de sa frontière. Tant qu'il reste à moins de cette marge du
+// bord de sa zone musicale courante, la musique NE CHANGE PAS — un aller-retour
+// pile sur la limite ne fait donc PAS clignoter la piste (cf. game.js musicTick).
+export const MUSIC_ZONE_HYSTERESIS = 3.5;
+// Cadence de réévaluation de la zone musicale d'un joueur (en ticks serveur) :
+// inutile de tester à chaque tick, un quart de seconde suffit largement.
+export const MUSIC_EVAL_EVERY_TICKS = 3;

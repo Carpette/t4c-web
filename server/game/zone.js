@@ -16,6 +16,9 @@ export class ZoneInstance {
     this.camps = [];
     this.hotUntil = 0;       // la zone est chaude tant que now <= hotUntil
     this.nextSpawnAt = 0;    // prochain tick de spawn autorisé
+    // sous-zones musicales dessinées (overrides `music`) ; vide = aucune
+    // (caves/Épreuves n'en ont pas : seul le fond de zone s'applique)
+    this.musicZones = [];
   }
   cellKey(x, z) { return (Math.floor(x / CELL) << 8) | (Math.floor(z / CELL) & 0xff); }
   gridAdd(e) {

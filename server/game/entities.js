@@ -198,6 +198,10 @@ export class Player extends Character {
     this.pendingInteract = null;
     this.trialOffer = null;
     this.obeliskUntil = 0;
+    // sous-zone musicale active (id) et dernière piste poussée (anti-spam) :
+    // pilotent la bascule à hystérésis (cf. game.js evalPlayerMusic)
+    this.musicZoneId = null;
+    this.lastMusicSent = null;
     // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
     this.hpAcc = data.hpAcc ?? C.maxHp(this.stats, this.level);
     this.manaAcc = data.manaAcc ?? C.maxMana(this.stats, this.level);
