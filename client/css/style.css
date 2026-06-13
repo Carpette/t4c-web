@@ -42,13 +42,48 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-d
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   background: radial-gradient(ellipse at center, var(--bg-2) 0%, var(--bg-deep) 100%); z-index: 50;
 }
-#death-screen { background: rgba(20, 0, 0, 0.75); }
-.login-box {
-  background: rgba(18, 14, 30, 0.95); border: 1px solid #5a4a8a; border-radius: 10px;
-  padding: 36px 44px; text-align: center; color: #d8d0f0; box-shadow: 0 0 60px rgba(90, 70, 160, 0.4);
+
+/* ---- Écrans HORS-JEU : illustration de fond + voile sombre ----
+   L'utilisateur dépose l'image dans client/assets/ui/login-bg.png.
+   On la pose en couche basse (background-image) et on superpose un voile radial
+   sombre pour garder le centre lisible. Si l'image manque, --bg-deep reste
+   visible (aucune image cassée bloquante) et l'écran reste sobre. */
+#login, #creation, #death-screen {
+  background: var(--bg-deep) center / cover no-repeat;
+  background-image:
+    radial-gradient(ellipse at center, rgba(8,12,20,0) 0%, rgba(8,12,20,0.72) 100%),
+    url('/assets/ui/login-bg.png');
 }
-.login-box h1 { font-size: 26px; color: #c8b87a; margin-bottom: 4px; letter-spacing: 1px; }
-.login-box .subtitle { color: #8a80a8; margin-bottom: 22px; font-style: italic; }
+/* l'écran de mort garde une teinte rouge sang par-dessus l'image */
+#death-screen {
+  background-image:
+    radial-gradient(ellipse at center, rgba(30,4,4,0.45) 0%, rgba(10,2,2,0.82) 100%),
+    url('/assets/ui/login-bg.png');
+}
+
+/* ---- Panneaux « verre dépoli » (écrans + menu) ----
+   L'image (ou le jeu, pour le menu Échap) transparaît diffusée derrière. */
+.login-box {
+  position: relative;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2) brightness(0.9);
+  backdrop-filter: blur(14px) saturate(1.2) brightness(0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 36px 44px; text-align: center; color: var(--text);
+  /* ombre profonde + liseré ambre interne (doublure du bord clair) */
+  box-shadow:
+    0 12px 50px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(199, 154, 78, 0.28);
+}
+/* léger reflet en haut : renforce l'effet « plaque de verre » */
+.login-box::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 45%);
+}
+.login-box > * { position: relative; }
+.login-box h1 { font-size: 26px; color: var(--gold); margin-bottom: 4px; letter-spacing: 1px; }
+.login-box .subtitle { color: var(--text-muted); margin-bottom: 22px; font-style: italic; }
 .login-box input {
   display: block; width: 240px; margin: 8px auto; padding: 9px 12px;
   background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 14px;
