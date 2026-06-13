@@ -30,7 +30,7 @@ export const PROP_GLYPHS = {
   wall: ['▮', '#ca8'], fence: ['╪', '#b97'], ruin: ['⌐', '#987'], bridge: ['≡', '#a86'],
 };
 
-const THUMB = 46; // côté d'une vignette (px)
+const THUMB = 72; // côté d'une vignette (px) — assez grand pour distinguer la tuile
 
 // dessine un sprite du tileset, ajusté au cadre de la vignette
 function drawThumb(canvas, assets, tileId) {
