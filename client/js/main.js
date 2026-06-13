@@ -10,6 +10,7 @@ import { Renderer } from './render2d/renderer.js';
 import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
+import { settings } from './settings.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
 
@@ -219,6 +220,16 @@ net.on('events', (m) => {
   }
 });
 net.on('disconnected', () => ui.addChat('sys', 'Déconnecté du serveur. Rechargez la page.'));
+
+// ---------- Mesure de latence (ping) ----------
+// Aller-retour WebSocket périodique : on envoie {t:'ping', ts}, le serveur
+// renvoie {t:'pong', ts} et on en déduit le RTT. Affiché seulement si activé.
+let lastPing = null; // ms, dernier aller-retour mesuré
+const PING_INTERVAL_MS = 2000;
+net.on('pong', (m) => { if (Number.isFinite(m.ts)) lastPing = Math.max(0, performance.now() - m.ts); });
+setInterval(() => {
+  if (selfId != null && settings.showPerf) net.send({ t: 'ping', ts: performance.now() });
+}, PING_INTERVAL_MS);
 
 function headPos(v) {
   const p = renderer.w2s(v.x, v.z);
@@ -576,11 +587,19 @@ function updateTargetFrame() {
 // ---------- Boucle de rendu ----------
 let lastT = performance.now() / 1000;
 let frameN = 0;
+let fps = 0; // FPS lissé sur la boucle de rendu
+function updatePerfOverlay() {
+  const el = document.getElementById('perf-overlay');
+  if (!el || !settings.showPerf) return;
+  const pingTxt = lastPing != null ? `${Math.round(lastPing)} ms` : '— ms';
+  el.textContent = `${Math.round(fps)} FPS · ${pingTxt}`;
+}
 function frame() {
   requestAnimationFrame(frame);
   const now = performance.now() / 1000;
   const dt = Math.min(0.1, now - lastT);
   lastT = now;
+  if (dt > 0) fps = fps * 0.9 + (1 / dt) * 0.1; // moyenne glissante
 
   worldTime += dt; // resynchronisé à chaque snapshot
   em.update(now - INTERP_DELAY, now, dt);
@@ -606,6 +625,6 @@ function frame() {
 
   processHover();
   if (frameN % 6 === 0) tickAutoCast();
-  if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); }
+  if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); updatePerfOverlay(); }
 }
 frame();
