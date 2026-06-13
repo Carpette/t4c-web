@@ -8,8 +8,13 @@ import WebSocket from 'ws';
 import { generateWorld, TILE } from '../shared/worldgen.js';
 import { applyOverrides } from '../shared/overrides.js';
 import { buildDecor } from '../client/js/render2d/decor.js';
-import { TREE_IDS, DEAD_TREE_IDS, WALL_IDS } from '../client/js/render2d/decormap.js';
+import { TREE_IDS, DEAD_TREE_IDS, WALL_IDS, HOUSE_FLARE_IDS, WALL_FLARE_IDS } from '../client/js/render2d/decormap.js';
 import { PROTOCOL_VERSION } from '../shared/constants.js';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const MANIFEST = JSON.parse(fs.readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '../client/assets/manifest.json'), 'utf8'));
 
 const BASE = process.argv[2] || 'http://localhost:8090';
 const checks = [];
@@ -67,6 +72,45 @@ const idx = (x, z) => z * N + x;
     s1 && s1.tileId === DEAD_TREE_IDS[7 - TREE_IDS.length] && s1.flip === true && s1.s === 1.8);
   const s3 = decor.props.find(p => p.x === 26.5 && p.z === 20.5);
   ok('décor : wall corner -> tuile angle de palissade', s3 && s3.tileId === WALL_IDS.corner);
+}
+
+// --- 3b. frames grassland + variantes Flare de maison/mur (Voie A) ---
+// Une frame grassland posée doit rendre un id NUMÉRIQUE existant dans le
+// manifeste (manifest.tiles) ; les variantes Flare de maison/mur aussi.
+{
+  const houseV = HOUSE_FLARE_IDS[0]; // ex. cabane_a -> 224
+  const wallV = WALL_FLARE_IDS[0];   // ex. planche_a -> 209
+  const w = applyOverrides(clone(base), {
+    tiles: [],
+    props: {
+      add: [
+        { type: 'flare_grass', x: 40, z: 40, v: 296 },          // grande maison par numéro
+        { type: 'flare_grass', x: 42, z: 40, v: 232 },          // pan de toit par numéro
+        { type: 'house', x: 44, z: 40, v: houseV.v },           // variante maison Flare
+        { type: 'wall', x: 46, z: 40, v: wallV.v },             // variante mur Flare
+      ],
+      remove: [],
+    },
+  });
+  const decor = buildDecor(w);
+  const g1 = decor.props.find(p => p.x === 40.5 && p.z === 40.5);
+  const g2 = decor.props.find(p => p.x === 42.5 && p.z === 40.5);
+  ok('décor : flare_grass v=296 -> id NUMÉRIQUE 296 présent au manifeste',
+    g1 && g1.tileId === 296 && MANIFEST.tiles['296']);
+  ok('décor : flare_grass v=232 -> id NUMÉRIQUE 232 présent au manifeste',
+    g2 && g2.tileId === 232 && MANIFEST.tiles['232']);
+  const h = decor.props.find(p => p.x === 44.5 && p.z === 40.5);
+  ok('décor : maison variante Flare -> frame attendue présente au manifeste',
+    h && h.tileId === houseV.id && MANIFEST.tiles[String(houseV.id)]);
+  const wl = decor.props.find(p => p.x === 46.5 && p.z === 40.5);
+  ok('décor : mur variante Flare -> frame attendue présente au manifeste',
+    wl && wl.tileId === wallV.id && MANIFEST.tiles[String(wallV.id)]);
+  // rétrocompat : la maison HISTORIQUE (v:0) garde son ancrage calibré (big)
+  const w0 = buildDecor(applyOverrides(clone(base), {
+    tiles: [], props: { add: [{ type: 'house', x: 48, z: 40, v: 0 }], remove: [] },
+  }));
+  const h0 = w0.props.find(p => p.big && p.tileId === 296);
+  ok('rétrocompat : maison v:0 -> tuile 296 ancrée (big), inchangée', !!h0);
 }
 
 // --- 4. aller-retour serveur : PUT puis GET via l'API admin ---
