@@ -16,7 +16,7 @@ import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { buildDecor } from '../render2d/decor.js';
 import { resolveTile } from '../render2d/assets.js';
-import { PROP_TYPES, propScale, propFlip, FLIPPABLE_PROPS } from '../render2d/decormap.js';
+import { PROP_TYPES, propScale, propFlip, FLIPPABLE_PROPS, propSprites } from '../render2d/decormap.js';
 import { buildPalette, TILE_COLORS, TILE_NAMES, PROP_GLYPHS } from './palette.js';
 
 // --- réglages du rendu ---
@@ -544,15 +544,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       ctx.globalAlpha = 1;
       ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; ctx.stroke();
     } else {
-      // fantôme du décor à poser
-      const def = PROP_TYPES[palTool.type];
-      if (!def) return;
-      const id = (palTool.v != null ? def.variants.find(va => va.v === palTool.v)?.id : null) ?? def.variants[0].id;
-      const c = w2s(tx + 0.5, tz + 0.5);
-      ctx.globalAlpha = 0.65;
-      if (assets && view.z >= SPRITE_ZOOM) {
-        drawTileInto(ctx, id, c.x, c.y, (view.z / GAME_PX) * (palTool.s || 1), poseFlip());
+      // fantôme du décor à poser : on résout l'image EXACTEMENT comme la pose
+      // (propSprites gère toutes les familles : props d'Arakas, tuiles Flare,
+      // murs IA, frame grassland — y compris l'ancrage spécial de la maison).
+      ctx.globalAlpha = 0.6;
+      const spr = propSprites({ type: palTool.type, v: palTool.v, x: tx + 0.5, z: tz + 0.5 }).sprites;
+      if (assets && view.z >= SPRITE_ZOOM && spr.length) {
+        for (const sp of spr) {
+          const c = w2s(sp.x, sp.z);
+          drawTileInto(ctx, sp.tileId, c.x, c.y, (view.z / GAME_PX) * (palTool.s || 1), poseFlip());
+        }
       } else {
+        const c = w2s(tx + 0.5, tz + 0.5);
         const [glyph, color] = PROP_GLYPHS[palTool.type] || ['?', '#fff'];
         ctx.font = `${Math.max(10, view.z * 1.2)}px sans-serif`;
         ctx.textAlign = 'center';
