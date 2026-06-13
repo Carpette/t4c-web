@@ -8,6 +8,7 @@ import {
   FLOOR_IDS, PROP_TYPES, SCALABLE_PROPS, FLIPPABLE_PROPS,
   TILESET_PROP_FAMILIES, tilesetPropId,
   GRASS_PROP_TYPE, GRASS_PROP_LABEL, grasslandPropId, classifyGrasslandFrame,
+  WALL_MATERIALS, WALL_PIECES, wallPropId,
 } from '../render2d/decormap.js';
 import { resolveTile } from '../render2d/assets.js';
 
@@ -309,6 +310,44 @@ export function buildPalette({ container, assets, onSelect }) {
       themes[themes.length - 1].text = (GRASS_PROP_TYPE + ' grassland plaines ' + GRASS_PROP_LABEL).toLowerCase();
     }
   }
+
+  // --- thème « Murs » : murs IA (assets propres au projet, pas Flare) ---
+  // Un ACCORDÉON « Murs » avec une SOUS-SECTION par matériau (Rondins, Brique
+  // rouge, Colombage, Terre, Planches, Pierre médiévale, Brique grise), chacune
+  // exposant ses 16 pièces (segments, coins, T, croix, embouts, portes, pilier,
+  // créneaux, ruine). La pose enregistre un prop { type:'wall_<mat>', v:frame }
+  // dont l'id de tuile rendu est « wall_<mat>:frame » (cf. decormap.wallPropId).
+  // Les pièces de mur sont flippables : l'option « Miroir horizontal » s'affiche.
+  {
+    const tilesets = assets?.manifest?.tilesets || {};
+    // ne garder que les matériaux réellement présents au manifeste
+    const present = WALL_MATERIALS.filter(([mat]) => tilesets[`wall_${mat}`]?.tiles);
+    if (present.length) {
+      const total = present.reduce((n, [mat]) =>
+        n + Object.keys(tilesets[`wall_${mat}`].tiles).length, 0);
+      const body = makeTheme('walls', 'Murs', total);
+      const subGroups = [];
+      for (const [mat, label] of present) {
+        const type = `wall_${mat}`;
+        const frames = Object.keys(tilesets[type].tiles).sort((a, b) => Number(a) - Number(b));
+        if (!frames.length) continue;
+        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
+        for (const frame of frames) {
+          const n = Number(frame);
+          const tileId = wallPropId(type, n); // « wall_<mat>:frame »
+          row.appendChild(makeChip(
+            { label: `${label} — pièce ${frame}`, tileId, glyph: '▮', color: '#ca8' },
+            () => ({ kind: 'prop', type, v: n }),
+            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
+          ));
+        }
+        subGroups.push({ div: sub, text: ('mur murs ' + mat + ' ' + label).toLowerCase() });
+      }
+      themes[themes.length - 1].subGroups = subGroups;
+      themes[themes.length - 1].text = ('murs ' + present.map(([, l]) => l).join(' ')).toLowerCase();
+    }
+  }
+  void WALL_PIECES; // documentation : 16 pièces par matériau (cf. walls.json)
 
   search.oninput = () => {
     const q = search.value.trim().toLowerCase();
