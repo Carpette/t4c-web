@@ -1080,10 +1080,25 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
         `<option value="${s}"${s === m.shape ? ' selected' : ''}>${s === 'rect' ? 'Rectangle' : 'Cercle'}</option>`).join(''),
     });
     const prioInput = h('input', { type: 'number', value: String(m.priority || 0), style: { width: '60px' } });
+    // dimensions numériques (en tuiles) : rayon pour un cercle, largeur×hauteur
+    // pour un rectangle — alternative précise au redimensionnement à la souris
+    const num = (val) => h('input', { type: 'number', min: String(MUSIC_MIN_SIZE), step: '1', value: String(Math.round(val)), style: { width: '60px' } });
+    const rInput = num(m.r || MUSIC_DEFAULT_R);
+    const wInput = num(m.w || MUSIC_DEFAULT_W);
+    const hInput = num(m.h || MUSIC_DEFAULT_H);
+    const sizeCircle = h('div', { className: 'edit-row' }, 'Rayon : ', rInput, ' tuiles');
+    const sizeRect = h('div', { className: 'edit-row' }, 'Largeur : ', wInput, ' Hauteur : ', hInput);
+    const refreshSizeRows = () => {
+      sizeCircle.style.display = shapeSel.value === 'circle' ? '' : 'none';
+      sizeRect.style.display = shapeSel.value === 'rect' ? '' : 'none';
+    };
+    refreshSizeRows();
+    shapeSel.addEventListener('change', refreshSizeRows);
     panelEl.append(
       panelTitle('Zone musicale'),
-      h('div', { className: 'hint', textContent: 'Glissez le centre pour déplacer, le bord (ou le coin) pour redimensionner.' }),
+      h('div', { className: 'hint', textContent: 'Réglez les dimensions ci-dessous, ou glissez le centre pour déplacer et le bord (ou le coin) pour redimensionner.' }),
       h('div', { className: 'edit-row' }, 'Forme : ', shapeSel),
+      sizeCircle, sizeRect,
       fileRow('new', 'Nouvelle : '),
       fileRow('legacy', 'Ancienne (legacy) : '),
       h('div', { className: 'edit-row' }, 'Priorité (chevauchements) : ', prioInput),
@@ -1094,17 +1109,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
             pushHistory();
             const real = musicOv()[index];
             if (!real) return;
-            // conversion de forme : on garde le centre, dimensions par défaut
-            if (shapeSel.value !== real.shape) {
-              const c = musicCenter(real);
-              if (shapeSel.value === 'circle') {
-                real.shape = 'circle'; real.x = c.x; real.z = c.z; real.r = MUSIC_DEFAULT_R;
-                delete real.w; delete real.h;
-              } else {
-                real.shape = 'rect'; real.w = MUSIC_DEFAULT_W; real.h = MUSIC_DEFAULT_H;
-                real.x = c.x - real.w / 2; real.z = c.z - real.h / 2;
-                delete real.r;
-              }
+            const c = musicCenter(real); // centre conservé quels que soient forme/taille
+            const clamp = (v) => Math.max(MUSIC_MIN_SIZE, Math.round(Number(v) || 0));
+            if (shapeSel.value === 'circle') {
+              real.shape = 'circle';
+              real.r = clamp(rInput.value);
+              real.x = c.x; real.z = c.z;            // centre du cercle
+              delete real.w; delete real.h;
+            } else {
+              real.shape = 'rect';
+              real.w = clamp(wInput.value); real.h = clamp(hInput.value);
+              real.x = c.x - real.w / 2; real.z = c.z - real.h / 2; // recentré
+              delete real.r;
             }
             real.track = { legacy: track.legacy, new: track.new };
             real.priority = prioInput.value | 0;
