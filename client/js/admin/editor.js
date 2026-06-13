@@ -16,7 +16,7 @@ import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { buildDecor } from '../render2d/decor.js';
 import { resolveTile } from '../render2d/assets.js';
-import { PROP_TYPES, propScale, propFlip } from '../render2d/decormap.js';
+import { PROP_TYPES, propScale, propFlip, FLIPPABLE_PROPS } from '../render2d/decormap.js';
 import { buildPalette, TILE_COLORS, TILE_NAMES, PROP_GLYPHS } from './palette.js';
 
 // --- réglages du rendu ---
@@ -208,6 +208,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   }
 
   // ---------- palette ----------
+  // miroir global (bouton du rail + touche M) : s'applique à la pose d'un décor
+  // flippable, en plus de la case « Miroir » de la palette. Évite d'avoir à
+  // fouiller la palette ; pratique sans touche Alt (Mac).
+  let mirror = false;
+  const palFlippable = () => palTool.kind === 'prop' && FLIPPABLE_PROPS.has(palTool.type);
+  const poseFlip = () => (palTool.flip || mirror) && palFlippable();
+  function toggleMirror(on) {
+    mirror = on != null ? !!on : !mirror;
+    $('tool-mirror')?.classList.toggle('active', mirror);
+    markDirty(); // rafraîchit le fantôme de pose
+  }
+
   const palette = buildPalette({
     container: $('map-palette'),
     assets,
@@ -539,7 +551,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       const c = w2s(tx + 0.5, tz + 0.5);
       ctx.globalAlpha = 0.65;
       if (assets && view.z >= SPRITE_ZOOM) {
-        drawTileInto(ctx, id, c.x, c.y, (view.z / GAME_PX) * (palTool.s || 1), palTool.flip);
+        drawTileInto(ctx, id, c.x, c.y, (view.z / GAME_PX) * (palTool.s || 1), poseFlip());
       } else {
         const [glyph, color] = PROP_GLYPHS[palTool.type] || ['?', '#fff'];
         ctx.font = `${Math.max(10, view.z * 1.2)}px sans-serif`;
@@ -2042,7 +2054,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     const e = { type: palTool.type, x, z };
     if (palTool.v != null) e.v = palTool.v;
     if (palTool.s && palTool.s !== 1) e.s = palTool.s;
-    if (palTool.flip) e.rot = Math.PI; // miroir horizontal (cf. propFlip, decormap.js)
+    if (poseFlip()) e.rot = Math.PI; // miroir horizontal (cf. propFlip, decormap.js)
     ov.props.add.push(e);
     rebuild();
   }
@@ -2374,9 +2386,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       e.preventDefault?.();
       if (clipboard) { pasting = true; msg('Collage : cliquez pour valider la position (Échap pour annuler).'); markDirty(); }
     }
+    // M : bascule le miroir horizontal du décor à poser (murs, portes...)
+    else if (e.code === 'KeyM') { e.preventDefault?.(); toggleMirror(); }
     // Échap : annule sélection et collage en cours
     else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; updateTplSaveBtn(); markDirty(); }
   });
+  $('tool-mirror').onclick = () => toggleMirror();
   window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
 
   // ====================================================================
