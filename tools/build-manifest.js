@@ -213,6 +213,28 @@ for (const l of LOOT) {
   copies.push([`images/loot/${l}.png`, `loot/${l}.png`]);
 }
 
+// ---- Murs IA (assets PROPRES au projet, pas Flare) ----
+// Les atlas de murs (un PNG par matériau) et leur découpe (walls/walls.json) sont
+// COMMITÉS dans le repo (pas générés depuis FLARE_DIR) : on les expose en tilesets
+// supplémentaires « wall_<matériau> » au MÊME schéma que les tilesets Flare, pour
+// que resolveTile les résolve sans aucune modification. Chaque matériau devient une
+// entrée { images:[un PNG], tiles:{ frame:[x,y,w,h,ox,oy,0] } } ; la pièce `frame`
+// (0..15) reprend l'ordre de walls.json. Bloc indépendant de FLARE : il s'exécute
+// même si le reste a échoué côté Flare, mais ici il vient compléter le manifeste.
+const WALLS_DIR = path.join(OUT, 'tilesets', 'walls');
+const wallsJson = JSON.parse(fs.readFileSync(path.join(WALLS_DIR, 'walls.json'), 'utf8'));
+let wallEntries = 0, wallFrames = 0;
+for (const [material, pieces] of Object.entries(wallsJson)) {
+  const tiles = {};
+  pieces.forEach((rect, frame) => { tiles[frame] = [...rect.slice(0, 6), 0]; }); // [x,y,w,h,ox,oy,imgIndex=0]
+  manifest.tilesets[`wall_${material}`] = {
+    images: [`tilesets/walls/${material}.png`],
+    tiles,
+  };
+  wallEntries++;
+  wallFrames += pieces.length;
+}
+
 for (const [src, dst] of copies) {
   const d = path.join(OUT, dst);
   fs.mkdirSync(path.dirname(d), { recursive: true });
@@ -223,6 +245,7 @@ const extraTiles = Object.values(manifest.tilesets).reduce((n, ts) => n + Object
 console.log('manifest généré :', Object.keys(manifest.tiles).length, 'tuiles grassland,',
   extraTiles, 'tuiles', `(${Object.keys(manifest.tilesets).join('/')}),`,
   ENEMIES.length, 'ennemis,', AVATAR_LAYERS.length, 'couches avatar,', LOOT.length, 'butins');
+console.log('murs IA (assets propres) :', wallEntries, 'matériaux,', wallFrames, 'pièces');
 console.log('classification des tuiles Flare par type :');
 for (const [name, r] of Object.entries(typeRecap)) {
   console.log(`  ${name.padEnd(8)} sol=${r.sol}  mur=${r.mur}  objet=${r.objet}  (total ${r.sol + r.mur + r.objet})`);
