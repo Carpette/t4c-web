@@ -42,6 +42,32 @@ function safeName(name) {
   return clean;
 }
 
+// Normalise un template de l'éditeur (même forme que le presse-papier) :
+// { id, name, w, h, tiles:[[dx,dz,tileId]...], props:[{type,dx,dz,v?,s?,rot?}...] }.
+// Rejette (null) les entrées sans nom ou sans contenu valide.
+function cleanTemplate(t) {
+  if (!t || typeof t !== 'object') return null;
+  const name = String(t.name || '').trim().slice(0, 60);
+  if (!name) return null;
+  const w = Math.max(1, Math.min(512, t.w | 0));
+  const h = Math.max(1, Math.min(512, t.h | 0));
+  const tiles = (Array.isArray(t.tiles) ? t.tiles : [])
+    .filter(c => Array.isArray(c) && c.length === 3 && c.every(Number.isFinite))
+    .map(([dx, dz, id]) => [dx | 0, dz | 0, id | 0]);
+  const props = (Array.isArray(t.props) ? t.props : [])
+    .filter(p => p && typeof p.type === 'string' && Number.isFinite(p.dx) && Number.isFinite(p.dz))
+    .map(p => {
+      const e = { type: p.type, dx: p.dx | 0, dz: p.dz | 0 };
+      if (p.v != null) e.v = p.v;
+      if (Number.isFinite(p.s) && p.s !== 1) e.s = p.s;
+      if (Number.isFinite(p.rot) && p.rot) e.rot = p.rot;
+      return e;
+    });
+  if (!tiles.length && !props.length) return null; // assemblage vide : ignoré
+  const id = String(t.id || '').trim().slice(0, 48) || ('tpl_' + crypto.randomBytes(6).toString('hex'));
+  return { id, name, w, h, tiles, props };
+}
+
 function auth(req) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const s = tokens.get(token);
@@ -180,6 +206,22 @@ export async function handleAdmin(req, res, url, game) {
         anims: Object.keys(entry.anims),
         note: 'Assignez ce sprite à une créature ci-dessous, puis rechargez le client (F5).',
       });
+    }
+
+    // ---- templates de l'éditeur (assemblages réutilisables tuiles+décors) ----
+    // Pur outillage d'édition, partagé entre sessions/navigateurs. GET = liste,
+    // PUT = remplace toute la liste (le client renvoie l'ensemble normalisé).
+    if (url === '/api/admin/templates') {
+      if (req.method === 'GET') {
+        return json(200, { templates: content.templates });
+      }
+      if (req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)); // valide le JSON
+        const list = Array.isArray(body?.templates) ? body.templates : [];
+        const clean = list.map(cleanTemplate).filter(Boolean);
+        saveContentFile('templates', { templates: clean });
+        return json(200, { ok: true, count: clean.length });
+      }
     }
 
     // ---- personnages ----
