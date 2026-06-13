@@ -150,6 +150,40 @@ ok('éditeur initialisé (zone 0 générée, vue ajustée)', ed && ed.getView().
 const chips = doc.getElementById('map-palette').querySelectorAll('.pal-chip');
 ok(`palette construite (${chips.length} vignettes, sols + variantes de props)`, chips.length >= 50);
 
+// thème grassland « Plaines / Bâtiments (Flare) » : un thème dédié + des dizaines
+// de vignettes de frames numériques pickables (les sols/props d'Arakas seuls ne
+// génèrent pas autant de vignettes). Sélection -> pose d'un prop flare_grass.
+{
+  const themeCount = doc.getElementById('map-palette').querySelectorAll('.pal-theme').length;
+  ok(`palette : thèmes en accordéon présents (${themeCount})`, themeCount >= 6);
+  // le thème grassland ajoute ~167 vignettes : la palette en compte largement >150
+  ok(`palette : frames grassland exposées (${chips.length} vignettes)`, chips.length >= 150);
+  // sélectionner une frame grassland arme la pose d'un prop flare_grass numérique
+  ed.setTool({ kind: 'prop', type: 'flare_grass', v: 296 });
+  canvas.fire('pointerdown', { clientX: 540, clientY: 360, button: 0 });
+  win.fire('pointerup', {});
+  const g = ed.getOverrides().props.add.find(p => p.type === 'flare_grass' && p.v === 296);
+  ok('pose d\'une frame grassland : prop { type:flare_grass, v:296 } enregistré', !!g);
+  // variantes enrichies « maison » et « mur » : façades/toits Flare disponibles
+  ed.setTool({ kind: 'prop', type: 'house', v: 'cabane_a' });
+  canvas.fire('pointerdown', { clientX: 560, clientY: 372, button: 0 });
+  win.fire('pointerup', {});
+  ok('variante « maison » Flare (cabane_a) posable',
+    ed.getOverrides().props.add.some(p => p.type === 'house' && p.v === 'cabane_a'));
+  ed.setTool({ kind: 'prop', type: 'wall', v: 'toit_grand' });
+  canvas.fire('pointerdown', { clientX: 580, clientY: 384, button: 0 });
+  win.fire('pointerup', {});
+  ok('variante « mur » Flare (toit_grand) posable',
+    ed.getOverrides().props.add.some(p => p.type === 'wall' && p.v === 'toit_grand'));
+  // remet l'état initial pour ne pas perturber les tests suivants (3 poses annulées)
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ok('grassland/variantes : poses annulées (retour à l\'état initial)',
+    ed.getOverrides().props.add.length === 0);
+  ed.setTool({ kind: 'tile', tile: 2 }); // restaure l'outil par défaut (herbe = TILE.GRASS=2)
+}
+
 // zoom à la molette, centré sur le curseur
 const z0 = ed.getView().z;
 for (let i = 0; i < 20; i++) canvas.fire('wheel', { clientX: 500, clientY: 352, deltaY: -100 });
