@@ -7,6 +7,7 @@
 import * as C from '../../shared/constants.js';
 import { findPath, lineOfSight } from './pathfind.js';
 import { content } from '../content.js';
+import { EFFECT_TYPES } from './effects.js';
 
 // ---------- Contexte d'évaluation des expressions ----------
 // self.level / self.stats.* (stats de base) / self.buff_stats.* (stats
@@ -70,6 +71,11 @@ export function spellPowerMul(p, element = null) {
   let m = 1 + (p.skillFx?.spellMul || 0);
   if (element !== 'arcane') {
     for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
+  } else {
+    // Arcane ignore les buffs d'Afflux de mana
+    for (const ae of p.effects.active) {
+      if (ae.source?.id === 'afflux_de_mana' || ae.target_parameter === 'spellMul') m = 1 + (p.skillFx?.spellMul || 0);
+    }
   }
   return m;
 }
@@ -87,11 +93,19 @@ export function spellStyle(sp) {
 // les magies SAUF arcanes) et Résistance au feu / à la glace (+100 % à l'élément).
 // À 100 % ou plus, le sort est entièrement annulé (0 dégât).
 export function applyResist(target, sp, dmg) {
-  let resist = target.def?.resist?.[sp.element] || 0;
-  if (target.kind === C.KIND.PLAYER && sp.element) {
-    for (const b of target.buffs) {
-      if (b.stat === 'resistAll' && sp.element !== 'arcane') resist += b.power;
-      else if (b.stat === 'resist_' + sp.element) resist += b.power;
+  if (!sp.element) return { dmg, mod: null };
+  
+  let resist = 0;
+  if (target.eff?.stats) {
+    resist = target.eff.stats[`resist_${sp.element}`] || 0;
+  } else {
+    resist = target.def?.resist?.[sp.element] || 0;
+    if (target.effects) {
+      for (const ae of target.effects.active) {
+        if (ae.type === 'resist_boost' && ae.target_parameter === sp.element) {
+          resist += ae.power;
+        }
+      }
     }
   }
   if (!resist) return { dmg, mod: null };
@@ -213,7 +227,7 @@ export function resolveCast(game, p) {
 
   if (sp.type === 'heal') {
     // Malédiction : aucun soin ne peut atteindre la cible
-    if (game.isCursed(p)) {
+    if (p.effects.hasType(EFFECT_TYPES.CURSE) || game.isCursed(p)) {
       game.send(p, { t: 'cast_break' });
       game.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : le soin échoue.' });
       return false;
@@ -224,6 +238,18 @@ export function resolveCast(game, p) {
   } else if (sp.type === 'buff' && sp.buff.stat === 'sanctuaire') {
     // Sanctuaire : intouchable pendant la durée, mais incapable d'attaquer
     // ou de lancer un sort pendant LE DOUBLE de la durée (T4C)
+    p.effects.apply({
+      type: EFFECT_TYPES.SANCTUARY,
+      duration: sp.duration * 1000,
+      category: 'magique'
+    }, { type: 'spell', id: sp.id }, now * 1000);
+
+    p.effects.apply({
+      type: EFFECT_TYPES.PACIFIED,
+      duration: sp.duration * 2 * 1000,
+      category: 'magique'
+    }, { type: 'spell', id: sp.id }, now * 1000);
+
     p.sanctuaryUntil = now + sp.duration;
     p.pacifiedUntil = now + sp.duration * 2;
     p.attackTarget = null; p.pendingCast = null;
@@ -239,6 +265,28 @@ export function resolveCast(game, p) {
     else if (b.stat === 'maxhp') power = Math.round(wis + Math.random() * (wis / 4)); // Bénédiction : Sag + 1d(Sag/4) PV
     else if (b.stat === 'retort') power = Math.round((b.base || 0) + (b.dice || 0) / 2); // affichage : dégâts moyens de riposte
     else power = Math.round(((b.base || 0) + (b.intDiv ? p.eff.stats.int / b.intDiv : 0) + (b.wisDiv ? wis / b.wisDiv : 0)) * 10) / 10;
+
+    let effectType = EFFECT_TYPES.STATS_BOOST;
+    let targetParam = b.stat;
+    if (b.stat === 'maxhp') {
+      effectType = EFFECT_TYPES.HP_BOOST;
+      targetParam = null;
+    } else if (b.stat === 'def') {
+      effectType = EFFECT_TYPES.STATS_BOOST;
+      targetParam = 'defense';
+    }
+
+    p.effects.apply({
+      type: effectType,
+      target_parameter: targetParam,
+      power: power,
+      dice: b.dice,
+      base: b.base,
+      element: sp.element,
+      duration: sp.duration * 1000,
+      category: 'magique'
+    }, { type: 'spell', id: sp.id }, now * 1000);
+
     p.buffs = p.buffs.filter(x => x.stat !== b.stat);
     p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
     p.recompute(game);
@@ -276,10 +324,24 @@ export function resolveCast(game, p) {
     if (sp.slow && !target.dead) {
       target.slowUntil = now + sp.slow.duration;
       target.slowFactor = sp.slow.factor;
+
+      target.effects.apply({
+        type: EFFECT_TYPES.SLOW,
+        power: 1 - sp.slow.factor,
+        duration: sp.slow.duration * 1000,
+        category: 'magique'
+      }, { type: 'spell', id: sp.id }, now * 1000);
     }
     // Malédiction / Peste : la cible (joueur OU monstre) ne peut plus être soignée
     if (sp.curse && !target.dead) {
       target.curseUntil = now + sp.curse;
+
+      target.effects.apply({
+        type: EFFECT_TYPES.CURSE,
+        duration: sp.curse * 1000,
+        category: 'magique'
+      }, { type: 'spell', id: sp.id }, now * 1000);
+
       game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
       if (target.kind === C.KIND.PLAYER) {
         target.buffs = target.buffs.filter(x => x.stat !== 'maudit');
@@ -294,6 +356,18 @@ export function resolveCast(game, p) {
         ...sp.dot, element: sp.element, from: p,
         until: now + sp.dot.duration, nextAt: now + sp.dot.interval,
       });
+
+      target.effects.apply({
+        type: EFFECT_TYPES.DAMAGE_OVER_TIME,
+        power: sp.dot.min,
+        interval: sp.dot.interval * 1000,
+        duration: sp.dot.duration * 1000,
+        category: 'magique',
+        dot_min: sp.dot.min,
+        dot_max: sp.dot.max,
+        element: sp.element,
+        from_id: p.id
+      }, { type: 'spell', id: sp.id }, now * 1000);
     }
     p.dir = Math.atan2(target.x - p.x, target.z - p.z);
     p.lastCombat = now;

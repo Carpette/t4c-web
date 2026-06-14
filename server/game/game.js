@@ -15,6 +15,7 @@ import * as db from '../db.js';
 import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
 import * as spells from './spells.js';
+import { EFFECT_TYPES } from './effects.js';
 import { handleNpcKeywords, rootKeywordsHint } from './dialogues.js';
 
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
@@ -1587,13 +1588,19 @@ export class Game {
   }
 
   // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
-  isUntouchable(e) { return (e.sanctuaryUntil || 0) > this.now(); }
+  isUntouchable(e) { 
+    return e.effects?.hasType(EFFECT_TYPES.SANCTUARY) || (e.sanctuaryUntil || 0) > this.now(); 
+  }
 
   // Le joueur est-il en transe (Sanctuaire) : ni attaque ni sort pendant 2x la durée
-  isPacified(p) { return (p.pacifiedUntil || 0) > this.now(); }
+  isPacified(p) { 
+    return p.effects?.hasType(EFFECT_TYPES.PACIFIED) || (p.pacifiedUntil || 0) > this.now(); 
+  }
 
   // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
-  isCursed(e) { return (e.curseUntil || 0) > this.now(); }
+  isCursed(e) { 
+    return e.effects?.hasType(EFFECT_TYPES.CURSE) || (e.curseUntil || 0) > this.now(); 
+  }
 
   // ---------- Sorts (système complet dans spells.js) ----------
   castSpell(p, msg) { spells.castSpell(this, p, msg); }

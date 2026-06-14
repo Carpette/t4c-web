@@ -9,6 +9,7 @@ import { findPath, lineOfSight } from './pathfind.js';
 import { content } from '../content.js';
 import { applyResist } from './spells.js';
 import * as db from '../db.js';
+import { EntityEffects, computeModifiedStats, CANCEL_TRIGGERS, EFFECT_TYPES } from './effects.js';
 
 const XP_NOTIFY_EVERY_TICKS = 5;  // flotteurs d'XP regroupés (2 envois/s au plus)
 
@@ -50,7 +51,16 @@ export class Entity {
     this.state = this.path ? C.ST.WALK : (this.state === C.ST.ATTACK ? C.ST.ATTACK : C.ST.IDLE);
     this.zi.gridMove(this);
     // un joueur qui suit un chemin maintient la zone « chaude » (spawn T4C)
-    if (moved && this.kind === C.KIND.PLAYER) game.heatZone(this.zi);
+    if (moved) {
+      if (this.effects) {
+        const cancelled = this.effects.triggerCancel(CANCEL_TRIGGERS.ON_MOVE);
+        if (cancelled.length && this.kind === C.KIND.PLAYER) {
+          this.recompute(game);
+          game.sendSelf(this);
+        }
+      }
+      if (this.kind === C.KIND.PLAYER) game.heatZone(this.zi);
+    }
   }
 }
 
@@ -61,8 +71,66 @@ export class Character extends Entity {
     this.level = level;
     this.hp = hp;
     this.maxHp = hp;
+    this.mana = 0;
+    this.maxMana = 0;
     this.atkCd = 0;
     this.lastCombat = -99;
+    this.effects = new EntityEffects(this); // Initialisation du gestionnaire d'effets unifié
+    this.buffs = []; // Tableau des buffs hérités temporaires
+    this.dots = []; // Poisons et dégâts sur la durée (DoTs)
+    this.spellCds = {}; // Temps de recharge individuels des sorts
+    this.curseUntil = 0;
+    this.slowUntil = 0;
+    this.slowFactor = 1.0;
+    this.stunnedUntil = 0;
+    this.sanctuaryUntil = 0;
+    this.pacifiedUntil = 0;
+  }
+
+  /**
+   * Cycle de mise à jour commun pour tous les personnages (timers d'effets, poisons, etc.)
+   */
+  tick(game, now, dt) {
+    if (this.dead) return;
+
+    // Mise à jour du gestionnaire d'effets unifié
+    this.effects.tick(now * 1000, {
+      onExpired: (entity, ae) => {
+        if (this.kind === C.KIND.PLAYER) {
+          this.recompute(game);
+          game.sendSelf(this);
+        }
+      },
+      onPeriodicTick: (entity, ae) => {
+        if (ae.type === EFFECT_TYPES.DAMAGE_OVER_TIME) {
+          const from = game.players.get(ae.from_id) || game.zones.get(entity.zi?.key)?.entities.get(ae.from_id);
+          const min = ae.dot_min || ae.power || 1;
+          const max = ae.dot_max || min;
+          const dmg = Math.max(1, Math.round(min + Math.random() * (max - min)));
+          
+          let finalDmg = dmg;
+          if (ae.element) {
+            const { dmg: resDmg } = applyResist(entity, { element: ae.element }, dmg);
+            finalDmg = resDmg;
+          }
+          
+          entity.applyDamage(from || entity, finalDmg, false, null, game);
+        }
+      }
+    });
+
+    // Poisons en cours (Poison, Flèche Empoisonnée) : dégâts sur la durée
+    if (this.dots && this.dots.length) {
+      for (const d of this.dots) {
+        if (now >= d.nextAt && now <= d.until) {
+          d.nextAt += d.interval;
+          const dmg = Math.max(1, Math.round(d.min + Math.random() * (d.max - d.min)));
+          this.applyDamage(d.from, dmg, false, null, game);
+          if (this.dead) return;
+        }
+      }
+      this.dots = this.dots.filter(d => now < d.until);
+    }
   }
 
   applyDamage(attacker, dmg, crit, mod, game) {
@@ -70,6 +138,14 @@ export class Character extends Entity {
     this.hp -= dmg;
     this.lastCombat = game.now();
     game.eventNear(this, { t: 'dmg', from: attacker.id, to: this.id, amount: dmg, crit, mod });
+    
+    const cancelled = this.effects.triggerCancel(CANCEL_TRIGGERS.ON_DAMAGE_RECEIVED);
+    this.effects.triggerCancel(CANCEL_TRIGGERS.ON_COMBAT_ENTERED);
+    if (cancelled.length && this.kind === C.KIND.PLAYER) {
+      this.recompute(game);
+      game.sendSelf(this);
+    }
+
     // XP « par coup » (T4C) : chaque dégât d'un joueur sur un monstre rapporte
     // xpTotale × dégâtsEffectifs / PVmax, bornés aux PV restants (pas d'XP
     // d'overkill). Les PV régénérés redonnent de l'XP : pas de plafond cumulé
@@ -90,6 +166,14 @@ export class Character extends Entity {
     // Sanctuaire : la cible est intouchable ; l'attaquant en transe ne frappe pas
     if (game.isUntouchable(defender)) return;
     if (this.kind === C.KIND.PLAYER && game.isPacified(this)) { this.attackTarget = null; return; }
+    
+    const cancelled = this.effects.triggerCancel(CANCEL_TRIGGERS.ON_ACTION_PERFORMED);
+    this.effects.triggerCancel(CANCEL_TRIGGERS.ON_COMBAT_ENTERED);
+    if (cancelled.length && this.kind === C.KIND.PLAYER) {
+      this.recompute(game);
+      game.sendSelf(this);
+    }
+
     const aStats = this.kind === C.KIND.PLAYER ? this.eff.stats
       : { str: 0, agi: 10 + this.level * 1.8, end: 0, int: 0, wis: 0 };
     const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
@@ -103,15 +187,18 @@ export class Character extends Entity {
     // T4C : Attaque ne sert qu'en mêlée, Archerie qu'à l'arc — jamais les deux
     const usesBow = this.kind === C.KIND.PLAYER && this.eff.ranged;
     if (this.kind === C.KIND.PLAYER) {
-      hitC = Math.min(0.98, hitC + (usesBow ? (this.skillFx?.rangedHit || 0) : (this.skillFx?.hit || 0)));
+      const hitBonus = usesBow ? this.eff.stats.ranged_hit : this.eff.stats.hit;
+      hitC = Math.min(0.98, hitC + hitBonus);
     }
-    if (defender.kind === C.KIND.PLAYER) hitC = Math.max(0.15, hitC - (defender.skillFx?.dodge || 0));
+    if (defender.kind === C.KIND.PLAYER) {
+      hitC = Math.max(0.15, hitC - defender.eff.stats.dodge);
+    }
     if (Math.random() > hitC) {
       game.eventNear(defender, { t: 'dmg', from: this.id, to: defender.id, miss: true });
       return;
     }
     // Parade T4C : annule totalement le coup (bouclier : +50 % d'efficacité)
-    if (defender.kind === C.KIND.PLAYER && Math.random() < (defender.skillFx?.parry || 0)) {
+    if (defender.kind === C.KIND.PLAYER && Math.random() < defender.eff.stats.parry) {
       game.eventNear(defender, { t: 'dmg', from: this.id, to: defender.id, parry: true });
       return;
     }
@@ -126,12 +213,15 @@ export class Character extends Entity {
       dmg = Math.round(this.sc.dmg * (0.85 + Math.random() * 0.3));
     }
     let crit = false;
-    if (this.kind === C.KIND.PLAYER && Math.random() < C.critChance(aStats) + (this.skillFx?.crit || 0)) {
-      dmg = Math.round(dmg * 1.6); crit = true;
+    if (this.kind === C.KIND.PLAYER) {
+      const critChance = C.critChance(aStats) + (this.eff.stats.crit || 0);
+      if (Math.random() < critChance) {
+        dmg = Math.round(dmg * 1.6); crit = true;
+      }
     }
     let defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
     // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
-    if (this.kind === C.KIND.PLAYER) defense *= 1 - (this.skillFx?.pierce || 0);
+    if (this.kind === C.KIND.PLAYER) defense *= 1 - (this.eff.stats.pierce || 0);
     dmg = C.mitigate(dmg, defense);
     // attaque élémentaire d'un monstre (ex. Fourmi de feu) : les résistances
     // du défenseur s'appliquent (Bouclier de mana, Résistance au feu/à la glace...)
@@ -141,14 +231,27 @@ export class Character extends Entity {
     }
     // Coup assommant : chance d'immobiliser brièvement le monstre
     if (this.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
-        && Math.random() < (this.skillFx?.stun || 0)) {
+        && Math.random() < (this.eff.stats.stun || 0)) {
       defender.stunnedUntil = game.now() + 0.8;
+      defender.effects.apply({
+        type: EFFECT_TYPES.STUN,
+        duration: 800,
+        category: 'physique'
+      }, { type: 'skill', id: 'coup_assommant' }, game.now() * 1000);
       defender.path = null;
     }
     defender.applyDamage(this, dmg, crit, elemMod, game);
     // Boucliers de Feu/Glace/Électrique (T4C) : riposte élémentaire à chaque
     // coup physique encaissé — 1dN + base, modulé par la résistance du monstre
     if (defender.kind === C.KIND.PLAYER && this.kind === C.KIND.MOB && !this.dead) {
+      for (const ae of defender.effects.active) {
+        if (ae.type === EFFECT_TYPES.STATS_BOOST && ae.target_parameter === 'retort') {
+          const raw = (ae.base || 0) + 1 + Math.floor(Math.random() * (ae.dice || 1));
+          const { dmg: rDmg, mod } = applyResist(this, { element: ae.element }, raw);
+          this.applyDamage(defender, rDmg, false, mod, game);
+          if (this.dead) break;
+        }
+      }
       for (const b of defender.buffs) {
         if (b.stat !== 'retort') continue;
         const raw = (b.base || 0) + 1 + Math.floor(Math.random() * (b.dice || 1));
@@ -184,9 +287,6 @@ export class Player extends Character {
     this.flags = data.flags || {};
     this.moveDir = null;
     this.attackTarget = null;
-    this.spellCds = {};
-    this.buffs = [];
-    this.mana = 1;
     this.party = null;
     this.partyInvite = null;
     this.xpNotify = 0;
@@ -212,6 +312,8 @@ export class Player extends Character {
     // PV/mana accumulés niveau par niveau (migration : approximation rétroactive)
     this.hpAcc = data.hpAcc ?? C.maxHp(this.stats, this.level);
     this.manaAcc = data.manaAcc ?? C.maxMana(this.stats, this.level);
+    
+    this.mana = 1; // Initialisation du mana du joueur
   }
 
   // ---------- Stats effectives ----------
@@ -249,40 +351,72 @@ export class Player extends Character {
     fx.hit += attBonus * 0.001;
     // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
     fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
-    // buffs temporaires (valeurs calculées au lancement, façon T4C)
-    let buffDef = 0, buffSpeed = 0, buffDmgMul = 0, buffRegen = 0, buffMaxHp = 0;
+
+    // Traduction des anciens buffs encore actifs en effets virtuels pour EntityStats (rétrocompatibilité)
+    const virtualEffects = [];
+    let legacyBuffDmgMul = 0, legacyBuffRegen = 0;
     for (const b of this.buffs) {
-      if (b.stat === 'def') buffDef += b.power;
-      else if (b.stat === 'speed') buffSpeed += b.power;
-      else if (b.stat === 'dmg') buffDmgMul += b.power;
-      else if (b.stat === 'regen') buffRegen += b.power;
-      else if (b.stat === 'maxhp') buffMaxHp += b.power;       // Bénédiction
-      else if (b.stat === 'str') stats.str += b.power;          // Force de la Terre
-      else if (b.stat === 'int') stats.int += b.power;          // Pensée Claire
-      else if (b.stat === 'wis') stats.wis += b.power;          // Tranquillité
-      else if (b.stat === 'agi') stats.agi += b.power;          // Dextérité (Nimbleness)
-      // 'spellpow' (Poussée de Mana) est lu au lancer d'un sort,
-      // 'retort' (Boucliers de Feu/Glace/Électrique) à la riposte — rien ici.
+      if (b.stat === 'maxhp') {
+        virtualEffects.push({ type: 'hp_boost', power: b.power });
+      } else if (b.stat === 'regen') {
+        legacyBuffRegen += b.power;
+        virtualEffects.push({ type: 'hp_regen_boost', power: b.power });
+      } else if (b.stat === 'def') {
+        virtualEffects.push({ type: 'defense_boost', power: b.power });
+      } else if (['str', 'end', 'agi', 'int', 'wis'].includes(b.stat)) {
+        virtualEffects.push({ type: 'stats_boost', target_parameter: b.stat, power: b.power });
+      } else if (b.stat === 'spellpow') {
+        virtualEffects.push({ type: 'stats_boost', target_parameter: 'spellMul', power: b.power });
+      } else if (b.stat === 'resistAll') {
+        for (const elem of ['earth', 'water', 'air', 'fire', 'light', 'poison']) {
+          virtualEffects.push({ type: 'resist_boost', target_parameter: elem, power: b.power });
+        }
+      } else if (b.stat.startsWith('resist_')) {
+        const elem = b.stat.substring(7);
+        virtualEffects.push({ type: 'resist_boost', target_parameter: elem, power: b.power });
+      } else if (b.stat === 'dmg') {
+        legacyBuffDmgMul += b.power;
+      }
     }
-    this.skillFx = fx;
-    const strBonus = Math.floor(stats.str / 3);
-    const dmgMult = 1 + fx.dmgMul + buffDmgMul;
-    this.eff = {
+
+    // Préparation d'une entité virtuelle de base (attributs + équipements + passifs de compétences)
+    const baseEntity = {
       stats,
-      maxHp: Math.floor((this.hpAcc ?? C.maxHp(stats, this.level)) * (1 + fx.hpMul)) + buffMaxHp,
+      skills: this.skills,
+      hit: fx.hit,
+      ranged_hit: fx.rangedHit,
+      dodge: fx.dodge,
+      parry: fx.parry,
+      maxHp: Math.floor((this.hpAcc ?? C.maxHp(stats, this.level)) * (1 + fx.hpMul)),
       maxMana: Math.floor(this.manaAcc ?? C.maxMana(stats, this.level)),
+      defense: defense + fx.def,
+      effects: this.effects,
+      virtual_effects: virtualEffects,
+    };
+
+    // Calcul des statistiques finales via le système d'effets
+    const modStats = computeModifiedStats(baseEntity);
+
+    this.skillFx = fx;
+    const strBonus = Math.floor(modStats.str / 3);
+    const dmgMult = 1 + fx.dmgMul + legacyBuffDmgMul;
+    this.eff = {
+      stats: modStats,
+      maxHp: modStats.maxHp,
+      maxMana: modStats.maxMana,
       dmgMin: ((wMin || 2) + strBonus),
       dmgMax: ((wMax || 3) + strBonus),
       dmgMult,
       dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
-      atkCd: C.attackCooldown(stats, weaponSpeed),
-      defense: defense + fx.def + buffDef,
-      speed: Math.min(7.5, C.moveSpeed(stats) + fx.speed + buffSpeed),
+      atkCd: C.attackCooldown(modStats, weaponSpeed),
+      defense: modStats.defense,
+      // La vitesse de déplacement prend désormais en compte le multiplicateur d'effets lents (slow)
+      speed: Math.min(7.5, (C.moveSpeed(modStats) + fx.speed) * this.effects.getSpeedMultiplier()),
       // arc équipé : portée de l'arme (tuiles), sinon mêlée
       atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
       ranged: wRanged,
-      buffRegen,
-      capacity: C.enc(stats),
+      buffRegen: legacyBuffRegen,
+      capacity: modStats.encombrementMax,
     };
     this.hp = Math.min(this.hp, this.eff.maxHp);
     this.mana = Math.min(this.mana, this.eff.maxMana);
@@ -376,6 +510,9 @@ export class Player extends Character {
 
   tick(game, now, dt) {
     if (this.dead) return;
+    super.tick(game, now, dt);
+    if (this.dead) return; // Peut mourir suite à un DoT lors du tick parent
+
     // expiration des buffs
     const nb = this.buffs.filter(b => b.until > now);
     if (nb.length !== this.buffs.length) { this.buffs = nb; this.recompute(game); game.sendSelf(this); }
@@ -413,7 +550,14 @@ export class Player extends Character {
       this.dir = Math.atan2(this.moveDir.x, this.moveDir.z);
       this.state = C.ST.WALK;
       this.zi.gridMove(this);
-      if (this.x !== ox || this.z !== oz) game.heatZone(this.zi); // mouvement réel
+      if (this.x !== ox || this.z !== oz) {
+        const cancelled = this.effects.triggerCancel(CANCEL_TRIGGERS.ON_MOVE);
+        if (cancelled.length) {
+          this.recompute(game);
+          game.sendSelf(this);
+        }
+        game.heatZone(this.zi); // mouvement réel
+      }
     }
 
     // poursuite/attaque
@@ -504,19 +648,10 @@ export class Mob extends Character {
       if (now >= this.hideAt) zi.remove(this);
       return;
     }
+    super.tick(game, now, dt);
+    if (this.dead) return; // Peut mourir suite à un DoT lors du tick parent
+
     this.atkCd = Math.max(0, this.atkCd - dt);
-    // poisons en cours (Poison, Flèche Empoisonnée) : dégâts sur la durée
-    if (this.dots && this.dots.length) {
-      for (const d of this.dots) {
-        if (now >= d.nextAt && now <= d.until) {
-          d.nextAt += d.interval;
-          const dmg = Math.max(1, Math.round(d.min + Math.random() * (d.max - d.min)));
-          this.applyDamage(d.from, dmg, false, null, game);
-          if (this.dead) return;
-        }
-      }
-      this.dots = this.dots.filter(d => now < d.until);
-    }
     if (this.stunnedUntil && now < this.stunnedUntil) return; // assommé (Coup assommant)
 
     if (!this.target && (game.tickCount + this.id) % 5 === 0) {
