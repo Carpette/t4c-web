@@ -316,6 +316,11 @@ export class EntityStats {
       }
     }
 
+    // Plancher de sécurité : empêcher les statistiques de tomber sous 1 suite à des débuffs cumulés
+    for (const stat of ['str', 'end', 'agi', 'int', 'wis']) {
+      this[stat] = Math.max(1, this[stat]);
+    }
+
     // Étape 2 : Points de compétences (Skill Boosts)
     for (const ae of activeEffects) {
       if (ae.type === EFFECT_TYPES.SKILL_BOOST) {
@@ -350,6 +355,10 @@ export class EntityStats {
           break;
       }
     }
+
+    // Sécurisation finale des jauges de vitalité max
+    this.maxHp = Math.max(1, this.maxHp);
+    this.maxMana = Math.max(0, this.maxMana);
 
     // Recalcul final de l'encombrement basé sur la force potentiellement modifiée
     this.recalculateEncombrement();
