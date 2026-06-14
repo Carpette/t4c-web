@@ -6,8 +6,6 @@
  * et l'influence des effets actifs sur les statistiques des entités (MOB, NPC, Player).
  */
 
-import { content } from '../content.js';
-
 export const EFFECT_TYPES = {
   DAMAGE: 'damage',
   HEAL: 'heal',
@@ -22,11 +20,6 @@ export const EFFECT_TYPES = {
   SLOW: 'slow',
   HIDE: 'hide',
   SKILL_BOOST: 'skill_boost',
-  CURSE: 'curse',
-  SANCTUARY: 'sanctuary',
-  PACIFIED: 'pacified',
-  DAMAGE_OVER_TIME: 'damage_over_time',
-  HEAL_OVER_TIME: 'heal_over_time',
 };
 
 export const EFFECT_CATEGORIES = {
@@ -262,17 +255,6 @@ export class EntityStats {
     this.dodge = entity?.dodge || 0;           // Esquive
     this.parry = entity?.parry || 0;           // Parade
     
-    // Valeurs supplémentaires unifiées pour les compétences passives et buffs
-    this.dmgMul = entity?.dmgMul || 0;
-    this.crit = entity?.crit || 0;
-    this.pierce = entity?.pierce || 0;
-    this.spellMul = entity?.spellMul || 0;
-    this.hpRegenMul = entity?.hpRegenMul || 0;
-    this.manaRegenMul = entity?.manaRegenMul || 0;
-    this.discount = entity?.discount || 0;
-    this.loot = entity?.loot || 0;
-    this.stun = entity?.stun || 0;
-
     // Compétences copiées depuis l'entité (seules les compétences déjà connues peuvent être buffées)
     this.skills = {};
     if (entity?.skills) {
@@ -281,7 +263,69 @@ export class EntityStats {
       }
     }
     
-    // Application automatique des effets passifs de compétences (Skills)
+    // Capacité d'encombrement max
+    this.encombrementMax = entity?.encombrementMax || 0;
+
+    // Application ordonnée du pipeline de calcul
+    const activeEffects = [
+      ...(entity?.effects?.active || entity?.active_effects || []),
+      ...(entity?.virtual_effects || [])
+    ];
+    this.calculatePipeline(activeEffects);
+  }
+
+  /**
+   * Pipeline de calcul ordonné :
+   * 1. Stats primaires, vitalité (HP/MP) et résistances/puissances élémentaires.
+   * 2. Points de compétences (Skill Boosts).
+   * 3. Passifs de compétences (basés sur le score de compétences final).
+   * 4. Autres effets (Defense / CA, stuns, ralentissements) et Encombrement.
+   */
+  calculatePipeline(activeEffects) {
+    // Étape 1 : Statistiques, Vitalité, Puissances et Résistances magiques
+    for (const ae of activeEffects) {
+      const power = ae.power;
+      switch (ae.type) {
+        case EFFECT_TYPES.STATS_BOOST:
+          if (ae.target_parameter && ae.target_parameter in this) {
+            this[ae.target_parameter] += power;
+          }
+          break;
+        case EFFECT_TYPES.HP_BOOST:
+          this.maxHp += power;
+          break;
+        case EFFECT_TYPES.MP_BOOST:
+          this.maxMana += power;
+          break;
+        case EFFECT_TYPES.HP_REGEN_BOOST:
+          this.hp_regen += power;
+          break;
+        case EFFECT_TYPES.MP_REGEN_BOOST:
+          this.mp_regen += power;
+          break;
+        case 'power_boost': // Puissances élémentaires
+          if (ae.target_parameter && `power_${ae.target_parameter}` in this) {
+            this[`power_${ae.target_parameter}`] += power;
+          }
+          break;
+        case 'resist_boost': // Résistances élémentaires
+          if (ae.target_parameter && `resist_${ae.target_parameter}` in this) {
+            this[`resist_${ae.target_parameter}`] += power;
+          }
+          break;
+      }
+    }
+
+    // Étape 2 : Points de compétences (Skill Boosts)
+    for (const ae of activeEffects) {
+      if (ae.type === EFFECT_TYPES.SKILL_BOOST) {
+        if (ae.target_parameter && ae.target_parameter in this.skills) {
+          this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + ae.power);
+        }
+      }
+    }
+
+    // Étape 3 : Application des effets passifs des compétences (Skills)
     if (this.skills) {
       for (const [skillId, pts] of Object.entries(this.skills)) {
         if (!pts) continue;
@@ -297,61 +341,18 @@ export class EntityStats {
       }
     }
 
-    // Capacité d'encombrement max
-    this.encombrementMax = entity?.encombrementMax || 0;
-
-    // Application automatique des effets actifs s'ils existent sur l'entité
-    const activeEffects = entity?.effects?.active || entity?.active_effects || [];
-    this.applyEffects(activeEffects);
-
-    // Recalcul final de l'encombrement basé sur la force potentiellement modifiée
-    this.recalculateEncombrement();
-  }
-
-  /**
-   * Applique une liste d'effets actifs sur les caractéristiques.
-   */
-  applyEffects(activeEffects) {
+    // Étape 4 : Autres effets (Defense / CA, stuns, ralentissements)
     for (const ae of activeEffects) {
       const power = ae.power;
       switch (ae.type) {
-        case EFFECT_TYPES.STATS_BOOST:
-          if (ae.target_parameter && ae.target_parameter in this) {
-            this[ae.target_parameter] += power;
-          }
-          break;
-        case EFFECT_TYPES.SKILL_BOOST:
-          if (ae.target_parameter && ae.target_parameter in this.skills) {
-            this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + power);
-          }
-          break;
-        case EFFECT_TYPES.HP_BOOST:
-          this.maxHp += power;
-          break;
-        case EFFECT_TYPES.MP_BOOST:
-          this.maxMana += power;
-          break;
-        case EFFECT_TYPES.HP_REGEN_BOOST:
-          this.hp_regen += power;
-          break;
-        case EFFECT_TYPES.MP_REGEN_BOOST:
-          this.mp_regen += power;
-          break;
-        case 'defense_boost': // Boost explicite de classe d'armure / CA
+        case 'defense_boost': // Boost de classe d'armure / CA
           this.defense += power;
-          break;
-        case 'power_boost': // Puissances élémentaires
-          if (ae.target_parameter && `power_${ae.target_parameter}` in this) {
-            this[`power_${ae.target_parameter}`] += power;
-          }
-          break;
-        case 'resist_boost': // Résistances élémentaires
-          if (ae.target_parameter && `resist_${ae.target_parameter}` in this) {
-            this[`resist_${ae.target_parameter}`] += power;
-          }
           break;
       }
     }
+
+    // Recalcul final de l'encombrement basé sur la force potentiellement modifiée
+    this.recalculateEncombrement();
   }
 
   /**
