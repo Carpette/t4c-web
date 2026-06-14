@@ -24,12 +24,13 @@ function compileSpellFormulas() {
       try { entry.cooldown = engine.compile(sp.cooldown); }
       catch (e) { console.warn(`sort ${sp.id} : expression cooldown invalide ignorée (${e.message})`); }
     }
-    for (const ef of (Array.isArray(sp.effects) ? sp.effects : [])) {
+    const effectsList = sp.effects || [];
+    for (const ef of effectsList) {
       if (typeof ef.formula !== 'string') continue;
-      try { entry.effects.push({ kind: ef.kind, target: ef.target || null, expr: engine.compile(ef.formula) }); }
-      catch (e) { console.warn(`sort ${sp.id} : expression ${ef.kind} invalide ignorée (${e.message})`); }
+      try { entry.effects.push({ ...ef, expr: engine.compile(ef.formula) }); }
+      catch (e) { console.warn(`sort ${sp.id} : expression ${ef.kind || ef.type} invalide ignorée (${e.message})`); }
     }
-    if (entry.cooldown || entry.effects.length) content.spellFormulas.set(sp.id, entry);
+    content.spellFormulas.set(sp.id, entry);
   }
 }
 

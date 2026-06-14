@@ -13,15 +13,15 @@ import { EFFECT_TYPES } from './effects.js';
 // self.level / self.stats.* (stats de base) / self.buff_stats.* (stats
 // effectives : équipement et buffs compris — c'est elles qu'utilisent les
 // formules de la Bible), spell.* (la définition du sort), target.*.
-function formulaContext(p, sp, target = null) {
+export function formulaContext(p, sp, target = null) {
   const tgt = target || p;
   return {
-    self: { level: p.level, stats: p.stats, buff_stats: p.eff.stats },
+    self: { level: p.level, stats: p.stats, buff_stats: p.eff?.stats || p.stats },
     spell: sp,
     target: {
       level: tgt.level || 0,
       hp: tgt.hp || 0,
-      maxHp: tgt.eff ? tgt.eff.maxHp : (tgt.maxHp || 0),
+      maxHp: tgt.eff ? tgt.eff.maxHp : (tgt.maxHp || tgt.hp || 100),
     },
   };
 }
@@ -68,14 +68,16 @@ export function rollSpellOutput(p, f) {
 // Multiplicateur de puissance : compétences + Afflux de Mana (+33 %).
 // L'Afflux ne s'applique PAS aux sorts d'arcane (réf. t4c.arp.free.fr).
 export function spellPowerMul(p, element = null) {
-  let m = 1 + (p.skillFx?.spellMul || 0);
-  if (element !== 'arcane') {
-    for (const b of p.buffs) if (b.stat === 'spellpow') m *= 1 + b.power;
-  } else {
+  const stats = p.eff?.stats;
+  if (!stats) return 1;
+  let m = 1 + stats.spellMul;
+  if (element === 'arcane') {
     // Arcane ignore les buffs d'Afflux de mana
-    for (const ae of p.effects.active) {
-      if (ae.source?.id === 'afflux_de_mana' || ae.target_parameter === 'spellMul') m = 1 + (p.skillFx?.spellMul || 0);
-    }
+    const activeEffects = p.effects?.active || [];
+    const affluxPower = activeEffects
+      .filter(ae => ae.source?.id === 'poussee_de_mana' || ae.target_parameter === 'spellMul')
+      .reduce((sum, ae) => sum + ae.power, 0);
+    m = 1 + Math.max(0, stats.spellMul - affluxPower);
   }
   return m;
 }
@@ -108,10 +110,9 @@ export function applyResist(target, sp, dmg) {
       }
     }
   }
-  if (!resist) return { dmg, mod: null };
-  resist = Math.min(1, resist);
+  const resistValue = Math.max(0.01, 1 + resist);
   return {
-    dmg: resist >= 1 ? 0 : Math.max(1, Math.round(dmg * (1 - resist))),
+    dmg: Math.max(1, Math.round(dmg / resistValue)),
     mod: resist > 0.05 ? 'resist' : (resist < -0.05 ? 'weak' : null),
   };
 }
@@ -206,10 +207,75 @@ export function castSpell(game, p, msg) {
   p.casting = cast;
   if (resolveCast(game, p)) {
     const ms = castTimeMs(p, sp);
-    p.spellReadyAt = now + ms / 1000;
+    p.spellCds[sp.id] = now + ms / 1000; // cooldown spécifique au sort
+    p.spellReadyAt = now + 1.0; // Global Cooldown (GCD) de 1.0s
     p.state = C.ST.ATTACK; // posture de lancement
     game.send(p, { t: 'cast_start', spellId: sp.id, name: sp.name, ms }); // barre de récupération
   }
+}
+
+function applySpellDamage(p, target, eff, rawValue, game, sp) {
+  if (!target || target.dead) return;
+  
+  let dmg = rawValue;
+  
+  // Boost de puissance élémentaire du lanceur
+  if (eff.element) {
+    const casterPower = p.eff?.stats?.[`power_${eff.element}`] || 0;
+    dmg = dmg * (1 + casterPower);
+  }
+  
+  // Absorption de Classe d'Armure (CA) si dégâts physiques
+  if (eff.damageCategory === 'physical') {
+    let defense = target.kind === C.KIND.PLAYER ? (target.eff?.defense || 0) : (target.sc?.def || 0);
+    const pierce = p.eff?.stats?.pierce || 0;
+    defense *= 1 - pierce;
+    dmg = C.mitigate(dmg, defense);
+  }
+  
+  // Résistance élémentaire de la cible : dmg / (1 + resist)
+  if (eff.element) {
+    const targetResist = target.eff?.stats?.[`resist_${eff.element}`] || target.def?.resist?.[eff.element] || 0;
+    const resistValue = Math.max(0.01, 1 + targetResist);
+    dmg = Math.max(1, Math.round(dmg / resistValue));
+  }
+  
+  // Renvoi des morts-vivants (Wisdom scaling)
+  if (sp.turnUndead && target.def?.undead) {
+    const wis = p.eff?.stats?.wis || p.stats?.wis || 10;
+    dmg *= wis / (20 + 2 * p.level);
+  }
+  
+  target.applyDamage(p, Math.max(1, Math.round(dmg)), false, eff.element ? 'resist' : null, game);
+  
+  // Drain de vie (Leech)
+  if (sp.leech && !target.def?.undead && !game.isCursed(p)) {
+    const finalDmg = Math.max(1, Math.round(dmg));
+    const maxHpVal = p.eff?.maxHp || p.maxHp || 100;
+    p.hp = Math.min(maxHpVal, p.hp + Math.round(finalDmg * sp.leech));
+    game.eventNear(p, { t: 'proj', from: target.id, to: p.id, color: '#5a1a6a', element: 'drain' });
+    game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+  }
+}
+
+function applySpellHeal(p, target, eff, rawValue, game, sp) {
+  if (!target || target.dead) return;
+  
+  if (game.isCursed(target)) {
+    game.send(p, { t: 'info', text: 'La cible est maudite, le soin échoue.' });
+    return;
+  }
+  
+  let healAmount = rawValue;
+  if (eff.element === 'light') {
+    const casterPowerLight = p.eff?.stats?.power_light || 0;
+    const casterResistLight = p.eff?.stats?.resist_light || 0;
+    healAmount = Math.round(healAmount * (1 + casterPowerLight) * (1 + casterResistLight));
+  }
+  
+  const maxHpVal = target.eff?.maxHp || target.maxHp || 100;
+  target.hp = Math.min(maxHpVal, target.hp + healAmount);
+  game.eventNear(target, { t: 'fx', kind: 'heal', id: target.id });
 }
 
 // Applique l'effet du sort (formules de la Bible). Retourne true si le sort
@@ -222,81 +288,13 @@ export function resolveCast(game, p) {
   const now = game.now();
   if (p.mana < sp.mana) { game.send(p, { t: 'cast_break' }); game.send(p, { t: 'info', text: 'Mana insuffisant.' }); return false; }
 
-  const mul = spellPowerMul(p, sp.element);
-  const wis = p.eff.stats.wis;
+  const formulaEntry = content.spellFormulas.get(sp.id);
+  const effectsToApply = formulaEntry ? formulaEntry.effects : [];
 
-  if (sp.type === 'heal') {
-    // Malédiction : aucun soin ne peut atteindre la cible
-    if (p.effects.hasType(EFFECT_TYPES.CURSE) || game.isCursed(p)) {
-      game.send(p, { t: 'cast_break' });
-      game.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : le soin échoue.' });
-      return false;
-    }
-    const amount = Math.max(1, Math.round(rollEffect(p, sp, 'heal', sp.heal) * mul));
-    p.hp = Math.min(p.eff.maxHp, p.hp + amount);
-    game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-  } else if (sp.type === 'buff' && sp.buff.stat === 'sanctuaire') {
-    // Sanctuaire : intouchable pendant la durée, mais incapable d'attaquer
-    // ou de lancer un sort pendant LE DOUBLE de la durée (T4C)
-    p.effects.apply({
-      type: EFFECT_TYPES.SANCTUARY,
-      duration: sp.duration * 1000,
-      category: 'magique'
-    }, { type: 'spell', id: sp.id }, now * 1000);
-
-    p.effects.apply({
-      type: EFFECT_TYPES.PACIFIED,
-      duration: sp.duration * 2 * 1000,
-      category: 'magique'
-    }, { type: 'spell', id: sp.id }, now * 1000);
-
-    p.sanctuaryUntil = now + sp.duration;
-    p.pacifiedUntil = now + sp.duration * 2;
-    p.attackTarget = null; p.pendingCast = null;
-    p.buffs = p.buffs.filter(x => x.stat !== 'sanctuaire' && x.stat !== 'transe');
-    p.buffs.push({ stat: 'sanctuaire', power: 1, until: p.sanctuaryUntil });
-    p.buffs.push({ stat: 'transe', power: 1, until: p.pacifiedUntil });
-    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: 'sanctuaire' });
-  } else if (sp.type === 'buff') {
-    const b = sp.buff;
-    let power;
-    if (b.value != null) power = b.value;
-    else if (b.selfFrac) power = Math.max(1, Math.round((p.stats[b.stat] || 0) * b.selfFrac)); // % de la stat DE BASE (true_x de la Bible)
-    else if (b.stat === 'maxhp') power = Math.round(wis + Math.random() * (wis / 4)); // Bénédiction : Sag + 1d(Sag/4) PV
-    else if (b.stat === 'retort') power = Math.round((b.base || 0) + (b.dice || 0) / 2); // affichage : dégâts moyens de riposte
-    else power = Math.round(((b.base || 0) + (b.intDiv ? p.eff.stats.int / b.intDiv : 0) + (b.wisDiv ? wis / b.wisDiv : 0)) * 10) / 10;
-
-    let effectType = EFFECT_TYPES.STATS_BOOST;
-    let targetParam = b.stat;
-    if (b.stat === 'maxhp') {
-      effectType = EFFECT_TYPES.HP_BOOST;
-      targetParam = null;
-    } else if (b.stat === 'def') {
-      effectType = EFFECT_TYPES.STATS_BOOST;
-      targetParam = 'defense';
-    }
-
-    p.effects.apply({
-      type: effectType,
-      target_parameter: targetParam,
-      power: power,
-      dice: b.dice,
-      base: b.base,
-      element: sp.element,
-      duration: sp.duration * 1000,
-      category: 'magique'
-    }, { type: 'spell', id: sp.id }, now * 1000);
-
-    p.buffs = p.buffs.filter(x => x.stat !== b.stat);
-    p.buffs.push({ stat: b.stat, power, dice: b.dice, base: b.base, element: sp.element, until: now + sp.duration });
-    p.recompute(game);
-    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: b.stat });
-  } else if (sp.type === 'bolt') {
+  if (sp.type === 'bolt') {
     const target = p.zi.entities.get(c.target | 0);
-    const curseOnly = sp.curse && !sp.dmg;
     // la cible est morte ou s'est dérobée pendant l'incantation : le sort échoue sans coûter de mana
     if (!target || target.dead || target.hidden
-        || !(target.kind === C.KIND.MOB || (curseOnly && target.kind === C.KIND.PLAYER && target.id !== p.id && !game.isUntouchable(target)))
         || Math.hypot(target.x - p.x, target.z - p.z) > sp.range + 2
         || !lineOfSight(p.zi.world, p, target)) {
       game.send(p, { t: 'cast_break' });
@@ -304,70 +302,29 @@ export function resolveCast(game, p) {
       return false;
     }
     game.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: spellStyle(sp) });
-    if (sp.dmg) {
-      // pas de CA contre les sorts : seules les RÉSISTANCES élémentaires comptent (T4C)
-      let dmg = rollEffect(p, sp, 'damage', sp.dmg, target) * mul;
-      // Renvoi des Morts-Vivants : multiplicateur Sag/(20+2×niveau) de la Bible
-      if (sp.turnUndead) dmg *= wis / (20 + 2 * p.level);
-      const { dmg: final, mod } = applyResist(target, sp, Math.max(1, Math.round(dmg)));
-      target.applyDamage(p, final, false, mod, game);
-      // drain de vie : rend au lanceur, inefficace sur les morts-vivants (T4C)
-      // et bloqué si le lanceur est lui-même maudit (aucun soin ne l'atteint)
-      if (sp.leech && !target.def.undead && !game.isCursed(p)) {
-        p.hp = Math.min(p.eff.maxHp, p.hp + final * sp.leech);
-        // filet sombre de la cible vers le lanceur
-        game.eventNear(p, { t: 'proj', from: target.id, to: p.id, color: '#5a1a6a', element: 'drain' });
-        game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+    
+    for (const eff of effectsToApply) {
+      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, target)))) : 0;
+      
+      if (eff.type === 'damage' || eff.kind === 'damage') {
+        applySpellDamage(p, target, eff, rawValue, game, sp);
+      } else if (eff.type === 'heal' || eff.kind === 'heal') {
+        applySpellHeal(p, target, eff, rawValue, game, sp);
+      } else {
+        const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
+        target.effects.apply({
+          type: eff.type || eff.kind,
+          target_parameter: eff.target_parameter || eff.stat || null,
+          power: rawValue || eff.power || eff.value || 0,
+          duration,
+          category: eff.category || 'magique',
+          dice: eff.dice,
+          base: eff.base,
+                  element: eff.element || sp.element,
+                  expr: eff.expr,
+                  formula: eff.formula
+        }, { type: 'spell', id: sp.id }, now * 1000);
       }
-    }
-    // Enchevêtrement : RALENTIT la cible (malus de vitesse, fidèle au site français)
-    if (sp.slow && !target.dead) {
-      target.slowUntil = now + sp.slow.duration;
-      target.slowFactor = sp.slow.factor;
-
-      target.effects.apply({
-        type: EFFECT_TYPES.SLOW,
-        power: 1 - sp.slow.factor,
-        duration: sp.slow.duration * 1000,
-        category: 'magique'
-      }, { type: 'spell', id: sp.id }, now * 1000);
-    }
-    // Malédiction / Peste : la cible (joueur OU monstre) ne peut plus être soignée
-    if (sp.curse && !target.dead) {
-      target.curseUntil = now + sp.curse;
-
-      target.effects.apply({
-        type: EFFECT_TYPES.CURSE,
-        duration: sp.curse * 1000,
-        category: 'magique'
-      }, { type: 'spell', id: sp.id }, now * 1000);
-
-      game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
-      if (target.kind === C.KIND.PLAYER) {
-        target.buffs = target.buffs.filter(x => x.stat !== 'maudit');
-        target.buffs.push({ stat: 'maudit', power: 1, until: target.curseUntil });
-        game.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
-        game.sendSelf(target);
-      }
-    }
-    // Poison / Flèche empoisonnée / Peste : dégâts sur la durée
-    if (sp.dot && !target.dead) {
-      (target.dots = target.dots || []).push({
-        ...sp.dot, element: sp.element, from: p,
-        until: now + sp.dot.duration, nextAt: now + sp.dot.interval,
-      });
-
-      target.effects.apply({
-        type: EFFECT_TYPES.DAMAGE_OVER_TIME,
-        power: sp.dot.min,
-        interval: sp.dot.interval * 1000,
-        duration: sp.dot.duration * 1000,
-        category: 'magique',
-        dot_min: sp.dot.min,
-        dot_max: sp.dot.max,
-        element: sp.element,
-        from_id: p.id
-      }, { type: 'spell', id: sp.id }, now * 1000);
     }
     p.dir = Math.atan2(target.x - p.x, target.z - p.z);
     p.lastCombat = now;
@@ -379,18 +336,67 @@ export function resolveCast(game, p) {
     for (const e of hits) {
       const dist = Math.hypot(e.x - cx, e.z - cz);
       // dégâts pleins au centre, décroissants vers le bord ((20-r)/20 de la Bible)
-      let dmg = rollEffect(p, sp, 'damage', sp.dmg, e) * mul * (1 - 0.5 * Math.min(1, dist / sp.radius));
-      if (hits.length === 1) dmg *= 2; // T4C : dégâts doublés sur cible unique
-      const { dmg: final, mod } = applyResist(e, sp, Math.max(1, Math.round(dmg)));
-      e.applyDamage(p, final, false, mod, game);
+      const distFactor = 1 - 0.5 * Math.min(1, dist / sp.radius);
+      
+      for (const eff of effectsToApply) {
+        let rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, e)) * distFactor)) : 0;
+        if (hits.length === 1 && (eff.type === 'damage' || eff.kind === 'damage')) {
+          rawValue *= 2; // T4C : dégâts doublés sur cible unique
+        }
+        
+        if (eff.type === 'damage' || eff.kind === 'damage') {
+          applySpellDamage(p, e, eff, rawValue, game, sp);
+        } else if (eff.type === 'heal' || eff.kind === 'heal') {
+          applySpellHeal(p, e, eff, rawValue, game, sp);
+        } else {
+          const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
+          e.effects.apply({
+            type: eff.type || eff.kind,
+            target_parameter: eff.target_parameter || eff.stat || null,
+            power: rawValue || eff.power || eff.value || 0,
+            duration,
+            category: eff.category || 'magique',
+            dice: eff.dice,
+            base: eff.base,
+                    element: eff.element || sp.element,
+                    expr: eff.expr,
+                    formula: eff.formula
+          }, { type: 'spell', id: sp.id }, now * 1000);
+        }
+      }
     }
     p.lastCombat = now;
+  } else {
+    // Soi-même ou sans cible (buffs comme lumière, bénédiction, etc.)
+    for (const eff of effectsToApply) {
+      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, p)))) : 0;
+      
+      if (eff.type === 'heal' || eff.kind === 'heal') {
+        applySpellHeal(p, p, eff, rawValue, game, sp);
+      } else {
+        const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
+        p.effects.apply({
+          type: eff.type || eff.kind,
+          target_parameter: eff.target_parameter || eff.stat || null,
+          power: rawValue || eff.power || eff.value || 0,
+          duration,
+          category: eff.category || 'magique',
+          dice: eff.dice,
+          base: eff.base,
+                  element: eff.element || sp.element,
+                  expr: eff.expr,
+                  formula: eff.formula
+        }, { type: 'spell', id: sp.id }, now * 1000);
+      }
+    }
+    p.recompute(game);
+    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: sp.buff?.stat || 'buff' });
   }
 
   p.mana -= sp.mana;
-  p.spellCds[sp.id] = now + (sp.cd || 0);
+  const ms = castTimeMs(p, sp);
   p.state = C.ST.ATTACK;
-  game.send(p, { t: 'cast_ok', spellId: sp.id, cd: sp.cd || 0, mana: Math.round(p.mana) });
+  game.send(p, { t: 'cast_ok', spellId: sp.id, cd: Math.round(ms) / 1000, mana: Math.round(p.mana) });
   if (sp.type === 'buff') game.sendSelf(p); // maxHp/dégâts/défense ont pu changer
   else game.send(p, { t: 'vitals', hp: Math.round(p.hp), mana: Math.round(p.mana) });
   return true;

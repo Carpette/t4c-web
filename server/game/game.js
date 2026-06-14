@@ -693,7 +693,19 @@ export class Game {
       })),
       equip: p.equip,
       spells: p.spells, skills: p.skills,
-      buffs: p.buffs.map(b => ({ stat: b.stat, power: b.power, left: Math.max(0, Math.round(b.until - this.now())) })),
+      buffs: p.effects.active
+        .filter(ae => ae.ends_at !== Infinity)
+        .map(ae => {
+          let statName = ae.target_parameter || ae.type;
+          if (ae.type === 'defense_boost') statName = 'def';
+          if (ae.type === 'spell_boost') statName = 'spellpow';
+          if (ae.type === 'damage_boost') statName = 'dmg';
+          return {
+            stat: statName,
+            power: ae.power,
+            left: Math.max(0, Math.round((ae.ends_at - this.now() * 1000) / 1000))
+          };
+        }),
       zoneId: p.zi.isTrial ? p.zi.trialTarget : p.zi.zoneId,
       inTrial: !!p.zi.isTrial,
       unlocked: p.unlocked,
@@ -1589,17 +1601,17 @@ export class Game {
 
   // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
   isUntouchable(e) { 
-    return e.effects?.hasType(EFFECT_TYPES.SANCTUARY) || (e.sanctuaryUntil || 0) > this.now(); 
+    return e.effects?.hasType(EFFECT_TYPES.SANCTUARY); 
   }
 
   // Le joueur est-il en transe (Sanctuaire) : ni attaque ni sort pendant 2x la durée
   isPacified(p) { 
-    return p.effects?.hasType(EFFECT_TYPES.PACIFIED) || (p.pacifiedUntil || 0) > this.now(); 
+    return p.effects?.hasType(EFFECT_TYPES.PACIFIED); 
   }
 
   // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
   isCursed(e) { 
-    return e.effects?.hasType(EFFECT_TYPES.CURSE) || (e.curseUntil || 0) > this.now(); 
+    return e.effects?.hasType(EFFECT_TYPES.CURSE); 
   }
 
   // ---------- Sorts (système complet dans spells.js) ----------
@@ -1607,7 +1619,6 @@ export class Game {
 
   killMob(m, killer) {
     m.dead = true; m.state = C.ST.DEAD; m.hp = 0; m.target = null; m.path = null;
-    m.curseUntil = 0; m.slowUntil = 0;
     this.eventNear(m, { t: 'fx', kind: 'die', id: m.id }); // râle + poussière côté client
     m.hideAt = this.now() + 6;
     // la place se libère au camp : le spawn par mouvement pourra la repourvoir

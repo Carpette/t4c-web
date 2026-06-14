@@ -7,7 +7,7 @@ import { ITEMS, SLOTS } from '../../shared/defs.js';
 import { itemStats } from './items.js';
 import { findPath, lineOfSight } from './pathfind.js';
 import { content } from '../content.js';
-import { applyResist } from './spells.js';
+import { applyResist, formulaContext } from './spells.js';
 import * as db from '../db.js';
 import { EntityEffects, computeModifiedStats, CANCEL_TRIGGERS, EFFECT_TYPES } from './effects.js';
 
@@ -76,15 +76,6 @@ export class Character extends Entity {
     this.atkCd = 0;
     this.lastCombat = -99;
     this.effects = new EntityEffects(this); // Initialisation du gestionnaire d'effets unifié
-    this.buffs = []; // Tableau des buffs hérités temporaires
-    this.dots = []; // Poisons et dégâts sur la durée (DoTs)
-    this.spellCds = {}; // Temps de recharge individuels des sorts
-    this.curseUntil = 0;
-    this.slowUntil = 0;
-    this.slowFactor = 1.0;
-    this.stunnedUntil = 0;
-    this.sanctuaryUntil = 0;
-    this.pacifiedUntil = 0;
   }
 
   /**
@@ -118,19 +109,6 @@ export class Character extends Entity {
         }
       }
     });
-
-    // Poisons en cours (Poison, Flèche Empoisonnée) : dégâts sur la durée
-    if (this.dots && this.dots.length) {
-      for (const d of this.dots) {
-        if (now >= d.nextAt && now <= d.until) {
-          d.nextAt += d.interval;
-          const dmg = Math.max(1, Math.round(d.min + Math.random() * (d.max - d.min)));
-          this.applyDamage(d.from, dmg, false, null, game);
-          if (this.dead) return;
-        }
-      }
-      this.dots = this.dots.filter(d => now < d.until);
-    }
   }
 
   applyDamage(attacker, dmg, crit, mod, game) {
@@ -232,7 +210,6 @@ export class Character extends Entity {
     // Coup assommant : chance d'immobiliser brièvement le monstre
     if (this.kind === C.KIND.PLAYER && defender.kind === C.KIND.MOB
         && Math.random() < (this.eff.stats.stun || 0)) {
-      defender.stunnedUntil = game.now() + 0.8;
       defender.effects.apply({
         type: EFFECT_TYPES.STUN,
         duration: 800,
@@ -245,19 +222,19 @@ export class Character extends Entity {
     // coup physique encaissé — 1dN + base, modulé par la résistance du monstre
     if (defender.kind === C.KIND.PLAYER && this.kind === C.KIND.MOB && !this.dead) {
       for (const ae of defender.effects.active) {
-        if (ae.type === EFFECT_TYPES.STATS_BOOST && ae.target_parameter === 'retort') {
-          const raw = (ae.base || 0) + 1 + Math.floor(Math.random() * (ae.dice || 1));
+        if (ae.type === EFFECT_TYPES.RETORT) {
+          let raw = ae.power || 0;
+          if (ae.expr) {
+            try {
+              raw = Math.max(1, Math.round(ae.expr.evaluate(formulaContext(defender, { id: ae.source.id }, this))));
+            } catch (e) {
+              console.error(`Erreur d'évaluation du retort :`, e);
+            }
+          }
           const { dmg: rDmg, mod } = applyResist(this, { element: ae.element }, raw);
           this.applyDamage(defender, rDmg, false, mod, game);
           if (this.dead) break;
         }
-      }
-      for (const b of defender.buffs) {
-        if (b.stat !== 'retort') continue;
-        const raw = (b.base || 0) + 1 + Math.floor(Math.random() * (b.dice || 1));
-        const { dmg: rDmg, mod } = applyResist(this, { element: b.element }, raw);
-        this.applyDamage(defender, rDmg, false, mod, game);
-        if (this.dead) break;
       }
     }
   }
@@ -352,33 +329,6 @@ export class Player extends Character {
     // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
     fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
 
-    // Traduction des anciens buffs encore actifs en effets virtuels pour EntityStats (rétrocompatibilité)
-    const virtualEffects = [];
-    let legacyBuffDmgMul = 0, legacyBuffRegen = 0;
-    for (const b of this.buffs) {
-      if (b.stat === 'maxhp') {
-        virtualEffects.push({ type: 'hp_boost', power: b.power });
-      } else if (b.stat === 'regen') {
-        legacyBuffRegen += b.power;
-        virtualEffects.push({ type: 'hp_regen_boost', power: b.power });
-      } else if (b.stat === 'def') {
-        virtualEffects.push({ type: 'defense_boost', power: b.power });
-      } else if (['str', 'end', 'agi', 'int', 'wis'].includes(b.stat)) {
-        virtualEffects.push({ type: 'stats_boost', target_parameter: b.stat, power: b.power });
-      } else if (b.stat === 'spellpow') {
-        virtualEffects.push({ type: 'stats_boost', target_parameter: 'spellMul', power: b.power });
-      } else if (b.stat === 'resistAll') {
-        for (const elem of ['earth', 'water', 'air', 'fire', 'light', 'poison']) {
-          virtualEffects.push({ type: 'resist_boost', target_parameter: elem, power: b.power });
-        }
-      } else if (b.stat.startsWith('resist_')) {
-        const elem = b.stat.substring(7);
-        virtualEffects.push({ type: 'resist_boost', target_parameter: elem, power: b.power });
-      } else if (b.stat === 'dmg') {
-        legacyBuffDmgMul += b.power;
-      }
-    }
-
     // Préparation d'une entité virtuelle de base (attributs + équipements + passifs de compétences)
     const baseEntity = {
       stats,
@@ -387,11 +337,19 @@ export class Player extends Character {
       ranged_hit: fx.rangedHit,
       dodge: fx.dodge,
       parry: fx.parry,
+      dmgMul: fx.dmgMul,
+      crit: fx.crit,
+      pierce: fx.pierce,
+      spellMul: fx.spellMul,
+      hpRegenMul: fx.hpRegenMul,
+      manaRegenMul: fx.manaRegenMul,
+      discount: fx.discount,
+      loot: fx.loot,
+      stun: fx.stun,
       maxHp: Math.floor((this.hpAcc ?? C.maxHp(stats, this.level)) * (1 + fx.hpMul)),
       maxMana: Math.floor(this.manaAcc ?? C.maxMana(stats, this.level)),
       defense: defense + fx.def,
       effects: this.effects,
-      virtual_effects: virtualEffects,
     };
 
     // Calcul des statistiques finales via le système d'effets
@@ -399,14 +357,18 @@ export class Player extends Character {
 
     this.skillFx = fx;
     const strBonus = Math.floor(modStats.str / 3);
-    const dmgMult = 1 + fx.dmgMul + legacyBuffDmgMul;
+    
+    const hpRegenBoost = this.effects.active
+      .filter(ae => ae.type === EFFECT_TYPES.HP_REGEN_BOOST)
+      .reduce((sum, ae) => sum + ae.power, 0);
+
     this.eff = {
       stats: modStats,
       maxHp: modStats.maxHp,
       maxMana: modStats.maxMana,
       dmgMin: ((wMin || 2) + strBonus),
       dmgMax: ((wMax || 3) + strBonus),
-      dmgMult,
+      dmgMult: 1 + modStats.dmgMul,
       dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
       atkCd: C.attackCooldown(modStats, weaponSpeed),
       defense: modStats.defense,
@@ -415,7 +377,7 @@ export class Player extends Character {
       // arc équipé : portée de l'arme (tuiles), sinon mêlée
       atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
       ranged: wRanged,
-      buffRegen: legacyBuffRegen,
+      buffRegen: hpRegenBoost,
       capacity: modStats.encombrementMax,
     };
     this.hp = Math.min(this.hp, this.eff.maxHp);
@@ -499,9 +461,7 @@ export class Player extends Character {
     this.inventory = data.inventory; this.equip = data.equip;
     this.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     this.spells = []; this.skills = {}; this.unlocked = [0];
-    this.flags = {}; // les drapeaux de quête meurent avec le personnage
-    this.buffs = []; this.spellCds = {}; this.casting = null;
-    this.curseUntil = 0; this.sanctuaryUntil = 0; this.pacifiedUntil = 0;
+    this.flags = {}; this.spellCds = {}; this.casting = null;
     this.recompute(game);
     this.hp = this.eff.maxHp; this.mana = this.eff.maxMana;
     game.movePlayerToZone(this, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
@@ -512,10 +472,6 @@ export class Player extends Character {
     if (this.dead) return;
     super.tick(game, now, dt);
     if (this.dead) return; // Peut mourir suite à un DoT lors du tick parent
-
-    // expiration des buffs
-    const nb = this.buffs.filter(b => b.until > now);
-    if (nb.length !== this.buffs.length) { this.buffs = nb; this.recompute(game); game.sendSelf(this); }
 
     // régénération
     if (now - this.lastCombat > 5 || this.eff.buffRegen) {
@@ -652,7 +608,7 @@ export class Mob extends Character {
     if (this.dead) return; // Peut mourir suite à un DoT lors du tick parent
 
     this.atkCd = Math.max(0, this.atkCd - dt);
-    if (this.stunnedUntil && now < this.stunnedUntil) return; // assommé (Coup assommant)
+    if (this.effects.hasType(EFFECT_TYPES.STUN)) return; // assommé (Coup assommant)
 
     if (!this.target && (game.tickCount + this.id) % 5 === 0) {
       let best = null, bestD = this.def.aggro;
