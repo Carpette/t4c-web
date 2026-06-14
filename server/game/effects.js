@@ -20,6 +20,7 @@ export const EFFECT_TYPES = {
   SLOW: 'slow',
   HIDE: 'hide',
   SKILL_BOOST: 'skill_boost',
+  RETORT: 'retort',
 };
 
 export const EFFECT_CATEGORIES = {
@@ -56,6 +57,16 @@ export class ActiveEffect {
     this.last_tick_at = this.interval > 0 ? now : null;
     this.category = effectDef.category || EFFECT_CATEGORIES.PHYSIQUE;
     this.cancel_triggers = effectDef.cancel_triggers || [CANCEL_TRIGGERS.ON_DEATH];
+
+    // Propriétés spécifiques requises pour les DoTs et boucliers de riposte
+    this.dice = effectDef.dice || 0;
+    this.base = effectDef.base || 0;
+    this.element = effectDef.element || null;
+    this.dot_min = effectDef.dot_min || 0;
+    this.dot_max = effectDef.dot_max || 0;
+    this.from_id = effectDef.from_id || null;
+    this.expr = effectDef.expr || null;
+    this.formula = effectDef.formula || null;
   }
 
   /**
@@ -238,7 +249,7 @@ export class EntityStats {
     this.power_fire = basePower.fire || 0;
     this.power_light = basePower.light || 0;
     this.power_dark = basePower.dark || 0;
-    this.power_poison = basePower.poison || 0;
+    this.power_arcane = basePower.arcane || 0;
     
     // Résistances magiques élémentaires de base
     this.resist_earth = baseResist.earth || 0;
@@ -247,7 +258,7 @@ export class EntityStats {
     this.resist_fire = baseResist.fire || 0;
     this.resist_light = baseResist.light || 0;
     this.resist_dark = baseResist.dark || 0;
-    this.resist_poison = baseResist.poison || 0;
+    this.resist_arcane = baseResist.arcane || 0;
     
     // Chances de combat physiques de base (modifiées par compétences, buffs ou équipements)
     this.hit = entity?.hit || 0;               // Attaque (mêlée) - ex: +0.05 pour +5%
@@ -267,10 +278,7 @@ export class EntityStats {
     this.encombrementMax = entity?.encombrementMax || 0;
 
     // Application ordonnée du pipeline de calcul
-    const activeEffects = [
-      ...(entity?.effects?.active || entity?.active_effects || []),
-      ...(entity?.virtual_effects || [])
-    ];
+    const activeEffects = entity?.effects?.active || [];
     this.calculatePipeline(activeEffects);
   }
 
@@ -352,6 +360,12 @@ export class EntityStats {
       switch (ae.type) {
         case 'defense_boost': // Boost de classe d'armure / CA
           this.defense += power;
+          break;
+        case 'damage_boost': // Boost de dégâts physiques (ex: Instinct de combat)
+          this.dmgMul += power;
+          break;
+        case 'spell_boost': // Boost d'Afflux de mana (puissance des sorts)
+          this.spellMul += power;
           break;
       }
     }
