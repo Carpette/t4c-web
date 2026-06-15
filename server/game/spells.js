@@ -303,8 +303,6 @@ export function resolveCast(game, p) {
           damageType: eff.damageType || null,
           damageCategory: eff.damageCategory || null,
           drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
-          drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
-          drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
         }, { type: 'spell', id: sp.id }, now * 1000, game);
         }
       }
