@@ -385,10 +385,6 @@ export class EntityStats {
         if (ae.target_parameter && ae.target_parameter in this.skills) {
           this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + ae.power);
         }
-      } else if (ae.type === EFFECT_TYPES.SKILL_BOOST) { // Pour les buffs de compétences
-        if (ae.target_parameter && ae.target_parameter in this.skills) {
-          this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + ae.power);
-        }
       }
     }
 
