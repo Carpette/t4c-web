@@ -1,0 +1,20 @@
+<div v-if="state.party">
+  <h3>Groupe</h3>
+  <div id="party-list">
+    <div v-for="m in state.party.members" class="party-row">
+      <div class="party-name">
+        <span :class="{ leader: m.id === state.party.leaderId }">
+          {{ m.id === state.party.leaderId ? '★ ' : '' }}{{ m.name }} [{{ m.level }}]
+        </span>
+        <button v-if="isLeader && m.id !== selfId" 
+                class="kick" 
+                title="Exclure du groupe"
+                @click="kick(m.id)">✖</button>
+      </div>
+      <div class="party-hp">
+        <div :style="{ width: getHpPct(m) + '%' }"></div>
+      </div>
+    </div>
+  </div>
+  <button id="party-leave" class="secondary" @click="leave()">Quitter le groupe</button>
+</div>

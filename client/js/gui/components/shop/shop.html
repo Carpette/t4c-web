@@ -1,0 +1,76 @@
+<div v-if="shop">
+  <h2 id="shop-title">{{ shop.name }}</h2>
+  <div id="shop-tabs">
+    <button v-for="tab in ['items', 'spells', 'skills', 'sell']"
+            :class="{ active: state.shopTab === tab }"
+            @click="state.shopTab = tab">
+      {{ tabNames[tab] }}
+    </button>
+  </div>
+  <div id="shop-list">
+    <!-- Onglet Objets -->
+    <template v-if="state.shopTab === 'items'">
+      <div v-for="it in shop.items" class="shop-row">
+        <span>
+          <span v-html="getItemIconHtml(it.defId, it.slot)"></span>
+          {{ it.name }}
+          <br>
+          <span class="meta">{{ getItemMeta(it) }}</span>
+        </span>
+        <button :disabled="s.gold < it.price" @click="buyItem(it.defId)">
+          {{ it.price }} 🟡
+        </button>
+      </div>
+    </template>
+
+    <!-- Onglet Sorts -->
+    <template v-if="state.shopTab === 'spells'">
+      <div v-for="sp in shop.spells" class="shop-row" :style="{ opacity: (!sp.known && !sp.reqMet) ? 0.55 : 1 }">
+        <span>
+          {{ getSpellIcon(sp.type) }} {{ sp.name }}
+          <br>
+          <span class="meta">{{ getSpellMeta(sp) }}</span>
+        </span>
+        <button v-if="sp.known" disabled>Appris</button>
+        <button v-else :disabled="!sp.reqMet || s.gold < sp.price" @click="buySpell(sp.id)">
+          {{ sp.price }} 🟡
+        </button>
+      </div>
+    </template>
+
+    <!-- Onglet Compétences -->
+    <template v-if="state.shopTab === 'skills'">
+      <div v-for="sk in shop.skills" class="shop-row" :style="{ opacity: (!sk.known && !sk.reqMet) ? 0.55 : 1 }">
+        <span>
+          🎖 {{ sk.name }} <b style="color:#ffd24a">{{ sk.pts }}</b>/{{ sk.max >= 9999 ? '∞' : sk.max }}
+          <br>
+          <span class="meta" v-html="getSkillMeta(sk)"></span>
+        </span>
+        <span>
+          <button v-if="!sk.known" :disabled="!sk.reqMet || s.gold < sk.learnCost" @click="buySkill(sk.id)">
+            Apprendre {{ sk.learnCost }} 🟡
+          </button>
+          <button v-else-if="sk.pts < sk.max" :disabled="!sk.reqMet || s.gold < sk.trainCost" @click="trainSkill(sk.id)">
+            +1 pt ({{ sk.trainCost }} 🟡)
+          </button>
+          <button v-else disabled>Maximum</button>
+        </span>
+      </div>
+    </template>
+
+    <!-- Onglet Vendre -->
+    <template v-if="state.shopTab === 'sell'">
+      <p v-if="!inventory.length" class="hint">Votre inventaire est vide.</p>
+      <div v-for="it in inventory" class="shop-row">
+        <span>
+          <span v-html="getItemIconHtml(it.defId, it.slot)"></span>
+          {{ it.label }}
+          <span v-if="isEquipped(it.iid)" class="meta text-xs text-gray-500 italic ml-1">(équipé)</span>
+        </span>
+        <button @click="sellItem(it.iid)">
+          Vendre {{ it.price }} 🟡
+        </button>
+      </div>
+    </template>
+  </div>
+</div>

@@ -1,0 +1,12 @@
+<div class="login-box" v-scope @vue:mounted="init()">
+  <h1>La Quatrième Prophétie</h1>
+  <p class="subtitle">— Hommage web —</p>
+  <input type="text" placeholder="Pseudo" maxlength="16" autocomplete="username" v-model="username" @input="clearError()">
+  <input type="password" placeholder="Mot de passe" autocomplete="current-password" v-model="password" @keydown="handleKeydown" @input="clearError()">
+  <div class="login-buttons">
+    <button @click="login()">Connexion</button>
+    <button @click="register()" class="secondary">Créer un compte</button>
+  </div>
+  <p id="login-error" v-show="error">{{ error }}</p>
+</div>
+<div id="game-version" title="Version déployée"></div>

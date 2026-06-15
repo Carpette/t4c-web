@@ -1,0 +1,29 @@
+<div v-scope @vue:mounted="init()">
+  <div class="login-box" style="min-width: 360px" v-if="info">
+    <h1>Création du personnage</h1>
+    <p class="subtitle">Répartissez vos points — choisissez votre voie</p>
+    
+    <div id="creation-sex" style="display:flex;gap:8px;justify-content:center;margin-bottom:12px">
+      <button :class="{ secondary: sex !== 'male' }" @click="setSex('male')">♂ Homme</button>
+      <button :class="{ secondary: sex !== 'female' }" @click="setSex('female')">♀ Femme</button>
+    </div>
+
+    <div id="creation-stats">
+      <div class="stat-alloc" v-for="st in info.stats">
+        <span>{{ info.names[st] }}</span>
+        <span class="setting-control">
+          <button @click="decrementStat(st)" :disabled="alloc[st] <= info.base">−</button>
+          <span class="val">{{ alloc[st] }}</span>
+          <button @click="incrementStat(st)" :disabled="left <= 0 || alloc[st] >= info.max">+</button>
+        </span>
+      </div>
+    </div>
+
+    <p id="creation-left" style="margin: 12px 0; color: var(--gold)">{{ pointsLeftText }}</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px">
+      Guerrier : Force/Endurance — Mage : Intelligence (Dard de Feu dès Int 21, Sag 15)<br>
+      Prêtre : Sagesse — Voleur : Agilité. ☠ Choisissez bien : la mort est définitive.
+    </p>
+    <button id="creation-confirm" :disabled="!canConfirm()" @click="confirm()">Entrer dans le monde</button>
+  </div>
+</div>

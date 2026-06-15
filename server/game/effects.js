@@ -6,6 +6,8 @@
  * et l'influence des effets actifs sur les statistiques des entités (MOB, NPC, Player).
  */
 
+import { content } from '../content.js';
+
 export const EFFECT_TYPES = {
   DAMAGE: 'damage',
   HEAL: 'heal',

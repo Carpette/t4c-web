@@ -1,6 +1,5 @@
-// Préférences d'affichage et d'audio du client — persistées en localStorage.
-// Importé par l'UI (panneau Paramètres), le rendu (étiquettes, gamma, zoom),
-// la musique et les effets sonores. Tout est appliqué À CHAUD (pas de reload).
+import { reactive } from 'https://unpkg.com/petite-vue?module';
+
 const KEY = 't4c_settings';
 
 // Bornes du zoom de la caméra : DOIVENT rester cohérentes avec renderer.zoom()
@@ -71,21 +70,23 @@ function defaults() {
   return out;
 }
 
-export const settings = defaults();
+export const settings = reactive(defaults());
 
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-    for (const [k] of SETTING_DEFS) if (k in saved) settings[k] = !!saved[k];
+    const newSettings = defaults();
+    for (const [k] of SETTING_DEFS) if (k in saved) newSettings[k] = !!saved[k];
     for (const s of SETTING_SLIDERS) {
       const m = sliderMeta(s);
       if (m.key in saved && Number.isFinite(+saved[m.key])) {
-        settings[m.key] = Math.max(m.min, Math.min(m.max, +saved[m.key]));
-      } else settings[m.key] = m.def;
+        newSettings[m.key] = Math.max(m.min, Math.min(m.max, +saved[m.key]));
+      }
     }
     for (const c of SETTING_CHOICES) {
-      if (c.key in saved && c.options.some(([v]) => v === saved[c.key])) settings[c.key] = saved[c.key];
+      if (c.key in saved && c.options.some(([v]) => v === saved[c.key])) newSettings[c.key] = saved[c.key];
     }
+    Object.assign(settings, newSettings);
   } catch { /* préférences corrompues : on repart des défauts */ }
 }
 load();

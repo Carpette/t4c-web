@@ -1,0 +1,41 @@
+<div v-if="s" @vue:mounted="onMounted">
+  <h2>Inventaire</h2>
+  <div id="paperdoll">
+    <canvas id="doll-canvas" width="170" height="190"></canvas>
+    <div v-for="slot in SLOTS_LIST"
+         class="doll-slot"
+         :class="{ filled: isEquipped(slot), ['q' + getEquippedItem(slot)?.q]: isEquipped(slot) }"
+         :style="SLOT_STYLES[slot]"
+         :title="getSlotTitle(slot)"
+         @click="unequip(slot)"
+         @contextmenu.prevent="unequip(slot)"
+         @mouseenter="showItemTooltip($event, getEquippedItem(slot))"
+         @mouseleave="hideTooltip()">
+      <img v-if="isEquipped(slot)" 
+           class="item-icon" 
+           :src="getItemIconUrl(getEquippedItem(slot).defId)" 
+           style="width: 34px; height: 34px;">
+    </div>
+  </div>
+  <div id="weight-row">
+    <div id="weight-bar">
+      <div id="weight-fill" :class="{ over: weightPct >= 95 }" :style="{ width: weightPct + '%' }"></div>
+    </div>
+    <span id="weight-text">{{ s.weight }} / {{ s.capacity }}</span>
+  </div>
+  <div id="inv-grid">
+    <div v-for="item in gridItems"
+         class="inv-item"
+         :class="{ ['q' + item.q]: item.q, equipped: isEquippedItem(item.iid) }"
+         :style="{ opacity: item.iid ? 1 : 0.35 }"
+         @click="item.iid && useOrEquip(item)"
+         @contextmenu.prevent="item.iid && dropItem(item)"
+         @mouseenter="item.iid && showItemTooltip($event, item)"
+         @mouseleave="hideTooltip()">
+      <img v-if="item.iid" class="item-icon" :src="getItemIconUrl(item.defId)" style="width:34px; height:34px;">
+    </div>
+  </div>
+  <p class="hint">Clic : équiper / utiliser — Clic droit (poupée) : retirer<br>
+  Clic droit (sac) : poser au sol — c'est ainsi qu'on échange entre joueurs</p>
+  <button id="btn-drop-gold" class="secondary" style="margin-top:6px" @click="dropGold()">Poser de l'or au sol…</button>
+</div>
