@@ -1104,7 +1104,7 @@
         {
           "type": "stats_boost",
           "target_parameter": "agi",
-          "formula": "self.stats.agi * 1.25",
+          "formula": "self.stats.agi * 0.25",
           "duration": 120,
           "category": "magique"
         }
@@ -1654,7 +1654,7 @@
       "effects": [
         {
           "type": "hp_boost",
-          "formula": "self.buff_stats.wis + 1d(self.buff_stats.wis / 4)",
+          "formula": "self.buff_stats.wis + random() * (self.buff_stats.wis / 4)",
           "duration": 1800,
           "category": "magique"
         }
