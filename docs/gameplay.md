@@ -14,15 +14,15 @@ Ce document définit de manière formelle les règles, formules et mécaniques d
 
 ## 2. Modèle d'Entité Unifié (MOB, NPC, Player)
 
-Afin d'assurer une cohérence parfaite et des mécaniques universelles, toutes les entités vivantes du jeu (**MOB, NPC et Player**) sont soumises aux mêmes règles et partagent le même socle d'attributs fondamentaux :
+Afin d'assurer une cohérence parfaite et des mécaniques universelles, toutes les entités vivantes du jeu (**MOB, NPC et Player**) sont soumises aux mêmes règles et partagent le même socle d'attributs calculés (`this.eff` et `this.eff.stats`) issus de la classe `EntityStats`. Les formules de combat, d'esquive, de parade, de critique et de résistances s'appliquent de manière identique :
 
 * **Niveau (`level`)** : Niveau de puissance brute de l'entité.
 * **Statistiques (`stats`)** : Force (`str`), Endurance (`end`), Agilité/Dextérité (`agi` / `dex`), Intelligence (`int`), Sagesse (`wis`).
 * **Compétences (`skills`)** : Un dictionnaire de compétences associées à un nombre de points (ex: `coup_assommant: 2`).
 * **Livre de Sorts (`spellbook`)** : La liste des sortilèges connus et utilisables par l'entité.
 * **Classe d'Armure (`AC` / `defense`)** : Capacité d'absorption physique directe des dégâts.
-* **Puissances Magiques Élémentaires** : Modificateurs offensifs pour chacun des 7 éléments : Terre (`earth`), Eau (`water`), Air (`air`), Feu (`fire`), Lumière (`light`), Ténèbres (`dark`), Poison (`poison`).
-* **Résistances Magiques Élémentaires** : Modificateurs défensifs pour chacun des 7 éléments : Terre (`earth`), Eau (`water`), Air (`air`), Feu (`fire`), Lumière (`light`), Ténèbres (`dark`), Poison (`poison`).
+* **Puissances Magiques Élémentaires** : Modificateurs offensifs pour chacun des 7 éléments : Terre (`earth`), Eau (`water`), Air (`air`), Feu (`fire`), Lumière (`light`), Ténèbres (`dark`), Arcane (`arcane`).
+* **Résistances Magiques Élémentaires** : Modificateurs défensifs pour chacun des 7 éléments : Terre (`earth`), Eau (`water`), Air (`air`), Feu (`fire`), Lumière (`light`), Ténèbres (`dark`), Arcane (`arcane`).
 * **Encombrement (`encombrement`)** : Le poids total actuel des objets portés par l'entité dans son inventaire (principalement utile pour le Player).
 * **Encombrement Max (`encombrementMax`)** : Capacité de port maximale. Elle est calculée de manière dynamique et s'adapte automatiquement à la Force de l'entité (y compris lorsque celle-ci est boostée).
 * **Régénération de Vie (`hp_regen`)** : La quantité de points de vie récupérés par seconde par l'entité (base calculée à partir de l'Endurance, pouvant être boostée par les objets ou sortilèges).
@@ -120,10 +120,12 @@ Chaque élément de gameplay (sorts, compétences, objets) s'articule autour d'u
 Un effet est défini par les propriétés fondamentales suivantes :
 
 * **Type (`type`)** : Détermine la nature et le comportement de l'effet. Les types d'effets gérés sont :
-  * `damage` : Inflige des dégâts physiques, élémentaires ou bruts à la cible (immédiats ou périodiques).
-  * `heal` : Restaure instantanément ou périodiquement un montant de points de vie ou de mana.
+  * `damage` : Inflige des dégâts physiques, élémentaires ou bruts à la cible (immédiats). Sert également pour les dégâts périodiques (DoTs) si configuré avec un `interval` et une `duration`.
+  * `heal` : Restaure un montant de points de vie ou de mana (immédiats). Sert également pour les soins périodiques (HoTs) si configuré avec un `interval` et une `duration`.
   * `drain` : Aspire instantanément ou périodiquement les ressources de la cible (vie ou mana) au profit de l'assaillant.
   * `stats_boost` : Altère temporairement ou de façon permanente les caractéristiques primaires de base (`str`, `end`, `agi`, `int`, `wis`).
+  * `power_boost` : Augmente la puissance d'un élément magique spécifique (ex: `fire`, `water`, ou `spellMul` pour la puissance globale des sorts).
+  * `resist_boost` : Augmente la résistance à un élément magique spécifique (ex: `fire`, `water`).
   * `hp_boost` : Modifie temporairement ou de façon permanente la santé maximale (`maxHp`).
   * `mp_boost` : Modifie temporairement ou de façon permanente le mana maximal (`maxMana`).
   * `hp_regen_boost` : Augmente ou diminue temporairement la régénération passive par seconde de points de vie (`hp_regen`).
@@ -132,6 +134,17 @@ Un effet est défini par les propriétés fondamentales suivantes :
   * `stun` : Étourdit l'entité, bloquant totalement ses déplacements, attaques, incantations et l'utilisation d'objets.
   * `slow` : Réduit temporairement le taux de vitesse de déplacement de l'entité (ex: -30% de vitesse).
   * `hide` : Rend l'entité invisible/furtive aux yeux des autres joueurs et des monstres.
+  * `invincible` : Immunise totalement l'entité contre toutes les sources de dégâts physiques et élémentaires.
+  * `pacified` : Rend l'entité temporairement incapable d'attaquer ou de lancer un sort (Transe).
+  * `damage_boost` : Applique un coefficient multiplicateur sur l'ensemble des dégâts physiques infligés.
+  * `retort` : Effet de riposte (Épines). Lorsqu'un coup physique est reçu, l'attaquant subit immédiatement les dégâts évalués par la formule dynamique du bouclier (ex: `1d8 + 8` de feu).
+
+* **Ordre de Calcul (Pipeline d'Évaluation)** :
+  Afin de résoudre de manière prévisible les dépendances entre statistiques et compétences, le constructeur de la classe `EntityStats` évalue les effets actifs de manière séquentielle en 4 étapes distinctes :
+  1. **Attributs primaires & Magie** : For/End/Agi/Int/Sag de base, PV/Mana max, et l'ensemble des puissances (`POWER_BOOST`) et résistances (`RESIST_BOOST`) élémentaires.
+  2. **Bonus de Compétences** : Application des altérations de points de compétences temporaires (`SKILL_BOOST`).
+  3. **Compétences Passives** : Évaluation dynamique des coefficients passifs de toutes les compétences connues basées sur leur score final (base + boosts), pour modifier le toucher, l'esquive, la parade, le critique, etc.
+  4. **Attributs physiques & Encombrement** : Application des buffs de CA/Défense, de multiplicateurs de dégâts (`DAMAGE_BOOST`), et calcul final de la capacité maximale `encombrementMax` basée sur la Force à jour.
 
 * **Durée et Fréquence (Temporalité)** :
   Chaque effet dispose de paramètres temporels stricts pour déterminer son application :
@@ -145,7 +158,7 @@ Un effet est défini par les propriétés fondamentales suivantes :
 
 * **Conditions d'Annulation (Dispelling / Cancellation)** :
   Un effet peut se terminer de manière précoce avant l'expiration de sa durée si l'une des conditions suivantes est remplie :
-  * **Catégorie d'effet (`category`)** : Les effets sont catégorisés (ex: `magique`, `poison`, `malediction`, `physique`, `systeme`). Un sort ou objet de dissipation ("cleanse" ou "dispel") peut cibler et supprimer tous les effets appartenant à une catégorie spécifique (ex: une potion de neutralisation annule instantanément tous les effets de catégorie `poison`).
+  * **Catégorie d'effet (`category`)** : Les effets sont catégorisés sous trois étiquettes exclusives : `magique`, `physique`, et `systeme`. Un sort ou objet de dissipation ("cleanse" ou "dispel") peut cibler et supprimer tous les effets appartenant à la catégorie correspondante. La catégorie `systeme` est immunisée contre toute forme de purge magique.
   * **Triggers de rupture (`cancel_triggers`)** : Liste d'événements déclencheurs qui forcent le retrait immédiat de l'effet :
     * `on_death` : Retiré dès que l'entité meurt (comportement par défaut de la quasi-totalité des buffs/debuffs).
     * `on_damage_received` : Retiré si l'entité subit des dégâts de n'importe quelle source (ex: annule l'invisibilité `hide` ou un effet de sommeil).
@@ -164,7 +177,8 @@ Un sort est une formule magique active déclenchée manuellement par l'entité, 
 Une compétence est une aptitude passive permanente entraînée par l'entité.
 * **Déclencheur (Trigger)** : Effet passif appliqué en continu (Permanent) tant que la compétence est apprise et possède au moins 1 point.
 * **Production d'effets** :
-  * *Permanents* (`duration = Infinity` ou tant que la compétence est connue) : Applique un boost ou un multiplicateur constant (ex: *Méditer* qui applique un `stat_boost` multiplicateur permanent sur la caractéristique unifiée de régénération de mana `mp_regen`).
+  * *Permanents* (`duration = Infinity` ou tant que la compétence est connue) : Applique un boost ou un multiplicateur constant (ex: *Méditer* qui applique un `mp_regen_boost` permanent sur la régénération de mana, ou *Attaque* qui ajoute un bonus permanent à l'attribut de combat `hit`).
+  * **Évaluation par Formules** : Chaque compétence déclare ses statistiques affectées via des formules de calcul compilées dynamiquement au démarrage (ex : `"pts * 0.0025"` pour *Coup puissant* ou `"pts * 0.01"` pour *Guérison rapide*).
 
 ### 6.4 Les Objets (Items)
 Les objets se divisent en deux catégories distinctes de gameplay :
@@ -172,7 +186,9 @@ Les objets se divisent en deux catégories distinctes de gameplay :
 #### A. Objets Portables & Équipables (Armes, Armures, Boucliers, Bijoux)
 Ces objets modifient les capacités physiques ou magiques de l'entité tant qu'ils sont portés.
 * **Déclencheurs (Triggers) d'effets** :
-  1. **En continu (Passif / Équipé)** : L'effet reste actif de manière constante tant que l'objet est équipé dans un emplacement (`slot`) valide (ex: un anneau offrant un bonus de Force, ou un sceptre de mage augmentant passivement la régénération `mp_regen`).
+  1. **Au sol / Equipé (Passif)** : L'effet reste actif de manière constante sous forme d'`ActiveEffect` permanent (`duration: Infinity`) tant que l'objet répond à sa condition de pose :
+     * `"apply_on": "equipped"` (par défaut) : Actif uniquement si l'objet est positionné dans un emplacement de caractéristiques valide.
+     * `"apply_on": "inventory"` : Actif de manière passive tant que l'objet se trouve dans l'inventaire du joueur (Charmes et reliques).
   2. **À l'impact (On Hit - Armes)** : L'effet a une chance d'être appliqué à la cible lors d'une attaque physique réussie (ex: 15% de chances d'appliquer un poison persistant de 6 secondes ou un drain de vie instantané).
   3. **À la réception d'un coup (On Hit Received - Armures/Boucliers)** : L'effet se déclenche lorsque le porteur subit une attaque réussie (ex: effet "épines" qui renvoie instantanément 5 points de dégâts de feu à l'assaillant).
 
