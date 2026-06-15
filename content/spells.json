@@ -452,7 +452,7 @@
           "element": "water"
         },
         {
-          "type": "damage_over_time",
+          "type": "damage",
           "formula": "0",
           "interval": 1,
           "duration": 20,
@@ -1598,7 +1598,7 @@
       "cooldown": "max(0, 120000 - max(0, self.level - 52) * 300)",
       "effects": [
         {
-          "type": "sanctuary",
+              "type": "invincible",
           "formula": "1",
           "duration": 30,
           "category": "magique"
@@ -1822,7 +1822,7 @@
           "element": "arcane"
         },
         {
-          "type": "damage_over_time",
+              "type": "damage",
           "formula": "0",
           "interval": 1,
           "duration": 20,
@@ -1965,7 +1965,43 @@
       "cooldown": "max(1000, 2040 - max(0, self.level - 54) * 20)",
       "effects": [
         {
-          "type": "spell_boost",
+              "type": "power_boost",
+          "target_parameter": "earth",
+          "formula": "0.33",
+          "duration": 120,
+          "category": "magique"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "water",
+          "formula": "0.33",
+          "duration": 120,
+          "category": "magique"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "air",
+          "formula": "0.33",
+          "duration": 120,
+          "category": "magique"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "fire",
+          "formula": "0.33",
+          "duration": 120,
+          "category": "magique"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "light",
+          "formula": "0.33",
+          "duration": 120,
+          "category": "magique"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "dark",
           "formula": "0.33",
           "duration": 120,
           "category": "magique"

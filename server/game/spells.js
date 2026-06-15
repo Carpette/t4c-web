@@ -67,20 +67,6 @@ export function rollSpellOutput(p, f) {
 
 // Multiplicateur de puissance : compétences + Afflux de Mana (+33 %).
 // L'Afflux ne s'applique PAS aux sorts d'arcane (réf. t4c.arp.free.fr).
-export function spellPowerMul(p, element = null) {
-  const stats = p.eff?.stats;
-  if (!stats) return 1;
-  let m = 1 + stats.spellMul;
-  if (element === 'arcane') {
-    // Arcane ignore les buffs d'Afflux de mana
-    const activeEffects = p.effects?.active || [];
-    const affluxPower = activeEffects
-      .filter(ae => ae.source?.id === 'poussee_de_mana' || ae.target_parameter === 'spellMul')
-      .reduce((sum, ae) => sum + ae.power, 0);
-    m = 1 + Math.max(0, stats.spellMul - affluxPower);
-  }
-  return m;
-}
 
 // Style visuel/sonore d'un sort pour le client : poison (vert), drain (sombre)
 // ou simplement son élément
@@ -98,18 +84,7 @@ export function applyResist(target, sp, dmg) {
   if (!sp.element) return { dmg, mod: null };
   
   let resist = 0;
-  if (target.eff?.stats) {
-    resist = target.eff.stats[`resist_${sp.element}`] || 0;
-  } else {
-    resist = target.def?.resist?.[sp.element] || 0;
-    if (target.effects) {
-      for (const ae of target.effects.active) {
-        if (ae.type === 'resist_boost' && ae.target_parameter === sp.element) {
-          resist += ae.power;
-        }
-      }
-    }
-  }
+  resist = target.eff?.stats?.[`resist_${sp.element}`] || 0;
   const resistValue = Math.max(0.01, 1 + resist);
   return {
     dmg: Math.max(1, Math.round(dmg / resistValue)),
@@ -227,7 +202,7 @@ function applySpellDamage(p, target, eff, rawValue, game, sp) {
   
   // Absorption de Classe d'Armure (CA) si dégâts physiques
   if (eff.damageCategory === 'physical') {
-    let defense = target.kind === C.KIND.PLAYER ? (target.eff?.defense || 0) : (target.sc?.def || 0);
+    let defense = target.eff?.defense || 0;
     const pierce = p.eff?.stats?.pierce || 0;
     defense *= 1 - pierce;
     dmg = C.mitigate(dmg, defense);
@@ -235,9 +210,8 @@ function applySpellDamage(p, target, eff, rawValue, game, sp) {
   
   // Résistance élémentaire de la cible : dmg / (1 + resist)
   if (eff.element) {
-    const targetResist = target.eff?.stats?.[`resist_${eff.element}`] || target.def?.resist?.[eff.element] || 0;
-    const resistValue = Math.max(0.01, 1 + targetResist);
-    dmg = Math.max(1, Math.round(dmg / resistValue));
+    const { dmg: finalDmg } = applyResist(target, { element: eff.element }, dmg);
+    dmg = finalDmg;
   }
   
   // Renvoi des morts-vivants (Wisdom scaling)
@@ -269,8 +243,8 @@ function applySpellHeal(p, target, eff, rawValue, game, sp) {
   let healAmount = rawValue;
   if (eff.element === 'light') {
     const casterPowerLight = p.eff?.stats?.power_light || 0;
-    const casterResistLight = p.eff?.stats?.resist_light || 0;
-    healAmount = Math.round(healAmount * (1 + casterPowerLight) * (1 + casterResistLight));
+    const targetResistLight = target.eff?.stats?.resist_light || 0;
+    healAmount = Math.round(healAmount * (1 + casterPowerLight) * (1 + targetResistLight));
   }
   
   const maxHpVal = target.eff?.maxHp || target.maxHp || 100;
@@ -310,6 +284,14 @@ export function resolveCast(game, p) {
         applySpellDamage(p, target, eff, rawValue, game, sp);
       } else if (eff.type === 'heal' || eff.kind === 'heal') {
         applySpellHeal(p, target, eff, rawValue, game, sp);
+      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+        const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
+        target.curseUntil = now + duration;
+        game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
+        if (target.kind === C.KIND.PLAYER) {
+          game.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
+          game.sendSelf(target);
+        }
       } else {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
         target.effects.apply({
@@ -322,10 +304,18 @@ export function resolveCast(game, p) {
           base: eff.base,
                   element: eff.element || sp.element,
                   expr: eff.expr,
-                  formula: eff.formula
+          formula: eff.formula,
+          dot_min: eff.dot_min,
+          dot_max: eff.dot_max,
+          interval: eff.interval ? eff.interval * 1000 : 0,
+          from_id: p.id
         }, { type: 'spell', id: sp.id }, now * 1000);
       }
     }
+      target.recompute(game);
+      if (target.kind === C.KIND.PLAYER) {
+        game.sendSelf(target);
+      }
     p.dir = Math.atan2(target.x - p.x, target.z - p.z);
     p.lastCombat = now;
   } else if (sp.type === 'aoe') {
@@ -348,6 +338,14 @@ export function resolveCast(game, p) {
           applySpellDamage(p, e, eff, rawValue, game, sp);
         } else if (eff.type === 'heal' || eff.kind === 'heal') {
           applySpellHeal(p, e, eff, rawValue, game, sp);
+      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+        const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
+        e.curseUntil = now + duration;
+        game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id });
+        if (e.kind === C.KIND.PLAYER) {
+          game.send(e, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
+          game.sendSelf(e);
+        }
         } else {
           const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
           e.effects.apply({
@@ -360,10 +358,18 @@ export function resolveCast(game, p) {
             base: eff.base,
                     element: eff.element || sp.element,
                     expr: eff.expr,
-                    formula: eff.formula
+          formula: eff.formula,
+          dot_min: eff.dot_min,
+          dot_max: eff.dot_max,
+          interval: eff.interval ? eff.interval * 1000 : 0,
+          from_id: p.id
           }, { type: 'spell', id: sp.id }, now * 1000);
         }
       }
+        e.recompute(game);
+        if (e.kind === C.KIND.PLAYER) {
+          game.sendSelf(e);
+        }
     }
     p.lastCombat = now;
   } else {
@@ -373,6 +379,14 @@ export function resolveCast(game, p) {
       
       if (eff.type === 'heal' || eff.kind === 'heal') {
         applySpellHeal(p, p, eff, rawValue, game, sp);
+      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+        const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
+        p.curseUntil = now + duration;
+        game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id });
+        if (p.kind === C.KIND.PLAYER) {
+          game.send(p, { t: 'info', text: `Vous vous êtes maudit : aucun soin ne peut plus vous atteindre !` });
+          game.sendSelf(p);
+        }
       } else {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0)) * 1000;
         p.effects.apply({
@@ -385,7 +399,11 @@ export function resolveCast(game, p) {
           base: eff.base,
                   element: eff.element || sp.element,
                   expr: eff.expr,
-                  formula: eff.formula
+          formula: eff.formula,
+          dot_min: eff.dot_min,
+          dot_max: eff.dot_max,
+          interval: eff.interval ? eff.interval * 1000 : 0,
+          from_id: p.id
         }, { type: 'spell', id: sp.id }, now * 1000);
       }
     }

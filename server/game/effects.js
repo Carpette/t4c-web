@@ -20,7 +20,12 @@ export const EFFECT_TYPES = {
   SLOW: 'slow',
   HIDE: 'hide',
   SKILL_BOOST: 'skill_boost',
+  PACIFIED: 'pacified',
+  DAMAGE_BOOST: 'damage_boost',
+  INVINCIBLE: 'invincible',
   RETORT: 'retort',
+  POWER_BOOST: 'power_boost',
+  RESIST_BOOST: 'resist_boost',
 };
 
 export const EFFECT_CATEGORIES = {
@@ -102,7 +107,8 @@ export class EntityEffects {
     // Règle de cumul : Même Source
     const existingIndex = this.active.findIndex(ae => 
       ae.source.type === newEffect.source.type && 
-      ae.source.id === newEffect.source.id
+      ae.source.id === newEffect.source.id &&
+      ae.source.iid === newEffect.source.iid
     );
 
     if (existingIndex !== -1) {
@@ -119,6 +125,13 @@ export class EntityEffects {
 
     this.active.push(newEffect);
     return newEffect;
+  }
+
+  /**
+   * Supprime tous les effets actifs correspondant à une condition sur leur source.
+   */
+  clearBySourceCondition(fn) {
+    this.active = this.active.filter(ae => !fn(ae.source));
   }
 
   /**
@@ -266,6 +279,16 @@ export class EntityStats {
     this.dodge = entity?.dodge || 0;           // Esquive
     this.parry = entity?.parry || 0;           // Parade
     
+    // Valeurs supplémentaires unifiées pour les compétences passives et buffs
+    this.dmgMul = entity?.dmgMul || 0;
+    this.crit = entity?.crit || 0;
+    this.pierce = entity?.pierce || 0;
+    this.hpRegenMul = entity?.hpRegenMul || 0;
+    this.manaRegenMul = entity?.manaRegenMul || 0;
+    this.discount = entity?.discount || 0;
+    this.loot = entity?.loot || 0;
+    this.stun = entity?.stun || 0;
+
     // Compétences copiées depuis l'entité (seules les compétences déjà connues peuvent être buffées)
     this.skills = {};
     if (entity?.skills) {
@@ -311,12 +334,12 @@ export class EntityStats {
         case EFFECT_TYPES.MP_REGEN_BOOST:
           this.mp_regen += power;
           break;
-        case 'power_boost': // Puissances élémentaires
+        case EFFECT_TYPES.POWER_BOOST: // Puissances élémentaires
           if (ae.target_parameter && `power_${ae.target_parameter}` in this) {
             this[`power_${ae.target_parameter}`] += power;
           }
           break;
-        case 'resist_boost': // Résistances élémentaires
+        case EFFECT_TYPES.RESIST_BOOST: // Résistances élémentaires
           if (ae.target_parameter && `resist_${ae.target_parameter}` in this) {
             this[`resist_${ae.target_parameter}`] += power;
           }
@@ -335,6 +358,10 @@ export class EntityStats {
         if (ae.target_parameter && ae.target_parameter in this.skills) {
           this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + ae.power);
         }
+      } else if (ae.type === EFFECT_TYPES.SKILL_BOOST) { // Pour les buffs de compétences
+        if (ae.target_parameter && ae.target_parameter in this.skills) {
+          this.skills[ae.target_parameter] = Math.max(0, this.skills[ae.target_parameter] + ae.power);
+        }
       }
     }
 
@@ -343,16 +370,18 @@ export class EntityStats {
       for (const [skillId, pts] of Object.entries(this.skills)) {
         if (!pts) continue;
         const sk = content.skillById?.[skillId];
-        if (sk && sk.effect) {
-          for (const [k, v] of Object.entries(sk.effect)) {
-            const targetKey = k === 'rangedHit' ? 'ranged_hit' : k;
-            if (targetKey in this) {
-              this[targetKey] += v * pts;
+        if (sk && sk.effects) { // Maintenant sk.effects est un tableau
+          for (const eff of sk.effects) {
+            const power = eff.expr ? eff.expr.evaluate({ pts: pts }) : (eff.power || 0);
+            const targetKey = eff.target_parameter;
+            if (targetKey && targetKey in this) {
+              this[targetKey] += power;
             }
           }
         }
       }
     }
+
 
     // Étape 4 : Autres effets (Defense / CA, stuns, ralentissements)
     for (const ae of activeEffects) {
@@ -361,11 +390,8 @@ export class EntityStats {
         case 'defense_boost': // Boost de classe d'armure / CA
           this.defense += power;
           break;
-        case 'damage_boost': // Boost de dégâts physiques (ex: Instinct de combat)
+        case EFFECT_TYPES.DAMAGE_BOOST: // Boost de dégâts physiques (ex: Instinct de combat)
           this.dmgMul += power;
-          break;
-        case 'spell_boost': // Boost d'Afflux de mana (puissance des sorts)
-          this.spellMul += power;
           break;
       }
     }
