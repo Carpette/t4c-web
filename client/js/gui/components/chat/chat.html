@@ -1,0 +1,15 @@
+<div @vue:mounted="onMounted">
+  <div id="chat-messages">
+    <div v-for="msg in state.chat.messages" :class="getMessageClass(msg)">
+      <span v-if="msg.channel" class="channel-name">[{{ msg.channel }}] </span>
+      <span v-if="msg.from && msg.from !== 'sys'" class="from">{{ msg.from }}: </span>
+      <span :class="{ sys: msg.from === 'sys' }">{{ msg.text }}</span>
+    </div>
+  </div>
+  <input id="chat-input" 
+         type="text" 
+         v-model="state.chat.input"
+         @keydown="onKeyDown"
+         placeholder="Entrée pour parler (local) — /general /aide /ventes /roleplay" 
+         maxlength="200">
+</div>

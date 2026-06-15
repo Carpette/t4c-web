@@ -1,0 +1,36 @@
+<div v-if="s">
+  <h2>Guide de l'Aventurier</h2>
+  <div class="space-y-3 font-sans text-xs text-gray-300">
+    <p class="text-amber-400 font-semibold mb-1">Contrôles de Base :</p>
+    <ul class="space-y-1 list-disc pl-4 mb-3" style="font-size: 11px; line-height: 1.4;">
+      <li><b>Clic Gauche</b> : Se déplacer, attaquer, ramasser, ou parler à un PNJ.</li>
+      <li><b>Clic Droit</b> : Annuler la visée d'un sort actif.</li>
+      <li><b>Molette</b> : Zoomer ou dézoomer la caméra.</li>
+      <li><b>Maintenir Ctrl</b> : Mode Combat (tous les clics attaquent ou lancent un sort).</li>
+      <li><b>Double-clic Titre</b> : Recentrer les fenêtres déplaçables.</li>
+    </ul>
+
+    <p class="text-amber-400 font-semibold mb-1">Raccourcis Système :</p>
+    <div class="grid grid-cols-2 gap-x-2 gap-y-1 font-mono mb-3" style="font-size: 11px;">
+      <div><span style="color: var(--gold)">I</span> : Inventaire</div>
+      <div><span style="color: var(--gold)">C</span> : Fiche Personnage</div>
+      <div><span style="color: var(--gold)">S</span> : Livre des Sorts</div>
+      <div><span style="color: var(--gold)">H</span> : Ce Guide d'Aide</div>
+      <div><span style="color: var(--gold)">P</span> : Potion de Vie</div>
+      <div><span style="color: var(--gold)">M</span> : Potion de Mana</div>
+      <div><span style="color: var(--gold)">Entrée</span> : Activer le Chat</div>
+      <div><span style="color: var(--gold)">Échap</span> : Menu / Annuler</div>
+    </div>
+
+    <p class="text-amber-400 font-semibold mb-1">Vos Raccourcis de Sorts :</p>
+    <div class="space-y-1 font-mono bg-black/40 p-2 rounded border border-white/5" style="font-size: 11px; max-height: 110px; overflow-y: auto;">
+      <div v-if="spellHotkeys.length === 0" class="text-gray-500 italic">Aucun sort assigné. Ouvrez votre livre des sorts (S) pour en lier un à une touche.</div>
+      <template v-else>
+        <div v-for="hk in spellHotkeys" :key="hk.key" style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 2px;">
+          <span>Touche <b style="color: var(--gold)">{{ hk.key.toUpperCase() }}</b></span>
+          <span style="color: #8ac8ff;">{{ hk.name }}</span>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>

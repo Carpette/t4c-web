@@ -9,9 +9,12 @@ import { buildDecor } from './render2d/decor.js';
 import { Renderer } from './render2d/renderer.js';
 import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
 import { Net } from './net.js';
-import { UI } from './ui.js';
+import { UI } from './gui/ui.js';
 import { initDraggableWindows } from './drag.js';
 import { settings } from './settings.js';
+import { globalBus } from './event-bus.js';
+import { uiStore } from './gui/ui-store.js';
+import { guiManager } from './gui/gui-manager.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
 
@@ -29,19 +32,14 @@ let worldTime = DAY_LENGTH * 0.3;
 let targetId = null;
 
 // --- Chargement des assets + contenu, puis connexion ---
-const errEl = document.getElementById('login-error');
-errEl.textContent = 'Chargement des graphismes…';
 let assets;
 try {
-  assets = await loadAssets((done, total) => {
-    errEl.textContent = `Chargement des graphismes… ${Math.round(done / total * 100)} %`;
-  });
+  assets = await loadAssets();
   const spellsJson = await (await fetch('/content/spells.json')).json();
-  ui.setSpellDefs(spellsJson.spells);
+  uiStore.spellDefs = spellsJson.spells;
   ui.setAssets(assets); // pour la poupée d'inventaire
-  errEl.textContent = '';
 } catch (e) {
-  errEl.textContent = e.message;
+  fatal(e.message);
   throw e;
 }
 world = generateWorld();
@@ -71,24 +69,32 @@ await net.connect();
 function fatal(text) {
   document.getElementById('creation')?.classList.add('hidden');
   document.getElementById('hud')?.classList.add('hidden');
+  document.getElementById('death-screen')?.classList.add('hidden');
   const login = document.getElementById('login');
   login?.classList.remove('hidden');
-  ui.loginError(text);
+  uiStore.phase = 'login';
+  guiManager.loadPhaseComponents('login');
+  globalBus.emit('gui:login-error', text);
 }
 window.addEventListener('error', (e) => fatal(`Erreur du client : ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
 window.addEventListener('unhandledrejection', (e) => fatal(`Erreur du client : ${e.reason?.message || e.reason}`));
 
 // ---------- Réseau ----------
 net.on('auth_error', (m) => fatal(m.error));
-net.on('create_char', (m) => ui.showCreation(m));
+net.on('create_char', async (m) => {
+  uiStore.phase = 'creation';
+  await guiManager.loadPhaseComponents('creation');
+  globalBus.emit('gui:show-creation', m);
+});
 net.on('welcome', (m) => {
   selfId = m.id;
   ui.selfId = m.id;
   worldTime = m.time;
-  ui.enterGame();
-  ui.addChat('sys', "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…");
+  uiStore.phase = 'in-game';
+  guiManager.loadPhaseComponents('in-game');
+  globalBus.emit('net:chat-received', { from: 'sys', text: "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…" });
 });
-net.on('zone', async (m) => {
+net.on('zone', async (m) => { // Émettre sur le bus pour les composants qui pourraient en avoir besoin
   cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
   // le client régénère le même monde que le serveur : île (seed/carte fixe),
@@ -108,32 +114,38 @@ net.on('zone', async (m) => {
   ui.zoneBanner(m.name, m.levels || null);
   renderer.ambience = m.ambience || null; // ambiance d'arrivée (teinte/obscurité)
   playMusic(m.music); // musique de la zone (null = silence)
-  if (m.kind === 'trial') ui.addChat('sys', '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.');
+  if (m.kind === 'trial') globalBus.emit('net:chat-received', { from: 'sys', text: '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.' });
 });
 net.on('music', (m) => playMusic(m.file)); // changement à chaud par l'admin
 // ambiance de sous-zone (teinte/obscurité) : bascule à hystérésis côté serveur
 net.on('ambience', (m) => { renderer.ambience = m.ambience || null; });
-net.on('self', (m) => {
-  ui.updateSelf(m);
-  if (m.hp > 0) ui.hideDeath();
+net.on('self', (m) => { // Émettre sur le bus
+  globalBus.emit('net:self-update', m);
 });
-net.on('vitals', (m) => ui.updateVitals(m.hp, m.mana));
+net.on('vitals', (m) => globalBus.emit('net:vitals', m)); // Émettre sur le bus
 net.on('meta', (m) => { for (const meta of m.list) em.addMeta(meta); });
-net.on('chat', (m) => ui.addChat(m.from, m.text, m.channel || m.kind));
-net.on('info', (m) => ui.addChat('sys', m.text));
+net.on('chat', (m) => globalBus.emit('net:chat-received', m)); // Émettre sur le bus
+net.on('info', (m) => globalBus.emit('net:chat-received', { from: 'sys', text: m.text })); // Émettre sur le bus
 net.on('loot', (m) => {
-  ui.addChat('sys', m.text);
+  globalBus.emit('net:chat-received', { from: 'sys', text: m.text }); // Émettre sur le bus
   if (/^\+\d+ or$/.test(m.text)) playSfx('or');           // pièces ramassées
   else if (m.text.startsWith('Vous ouvrez le coffre')) playSfx('coffre');
   const v = em.get(selfId);
-  if (v) ui.floater(headPos(v), m.text, 'xp');
+  if (v) triggerFloater(headPos(v), m.text, 'xp');
 });
-net.on('died', (m) => { cancelAim(); cancelAuto(); ui.endCastBar(); ui.showDeath(m); });
+net.on('died', (m) => {
+  cancelAim();
+  cancelAuto();
+  ui.endCastBar();
+  uiStore.phase = 'death';
+  guiManager.loadPhaseComponents('death');
+  ui.showDeath(m);
+});
 // XP par coup : gains regroupés par le serveur -> un flotteur lisible + la barre
-net.on('xp', (m) => {
-  ui.applyXp(m);
+net.on('xp', (m) => { // Émettre sur le bus
+  globalBus.emit('net:xp', m);
   const v = em.get(selfId);
-  if (v) ui.floater(headPos(v), `+${m.gain} XP`, 'xp');
+  if (v) triggerFloater(headPos(v), `+${m.gain} XP`, 'xp');
 });
 // ---- Groupe ----
 net.on('party_update', (m) => {
@@ -143,13 +155,13 @@ net.on('party_update', (m) => {
 });
 net.on('party_invite', (m) => ui.showPartyInvite(m));
 net.on('party_vitals', (m) => ui.updatePartyVitals(m));
-net.on('shop', (m) => ui.showShop(m));
-net.on('obelisk', (m) => ui.showObelisk(m));
-net.on('bank_open', (m) => ui.showBank(m));
+net.on('shop', (m) => globalBus.emit('net:shop', m));
+net.on('obelisk', (m) => globalBus.emit('net:obelisk', m));
+net.on('bank_open', (m) => globalBus.emit('net:bank-open', m));
 net.on('confirm_trial', (m) => ui.showTrialConfirm(m));
 net.on('cast_ok', (m) => {
   ui.startCooldown(m.spellId, m.cd);
-  if (ui.self) { ui.self.mana = m.mana; ui.renderBars(); }
+  if (ui.self) { globalBus.emit('net:vitals', { hp: ui.self.hp, mana: m.mana }); }
 });
 // T4C : le sort part immédiatement, la barre montre la RÉCUPÉRATION avant de
 // pouvoir relancer (vitesse du sort de la Bible)
@@ -172,29 +184,29 @@ net.on('events', (m) => {
       const v = em.get(ev.to);
       if (!v) continue;
       const pos = headPos(v);
-      if (ev.parry) { ui.floater(pos, 'paré !', 'miss'); playSfx('parade'); }
-      else if (ev.miss) ui.floater(pos, 'raté', 'miss');
+      if (ev.parry) { triggerFloater(pos, 'paré !', 'miss'); playSfx('parade'); }
+      else if (ev.miss) triggerFloater(pos, 'raté', 'miss');
       else {
         const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
         const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')
           + (ev.mod === 'resist' ? ' miss' : '') + (ev.mod === 'weak' ? ' heal' : '');
-        ui.floater(pos, `-${ev.amount}${suffix}`, cls);
+        triggerFloater(pos, `-${ev.amount}${suffix}`, cls);
         if (ev.from === selfId || ev.to === selfId) playSfx('coup');
       }
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;
       renderer.fxAt(ev.kind, v.x, v.z, ev.color);
-      if (ev.kind === 'levelup') { ui.floater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
-      if (ev.kind === 'heal') { ui.floater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
+      if (ev.kind === 'levelup') { triggerFloater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
+      if (ev.kind === 'heal') { triggerFloater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
       if (ev.kind === 'buff') {
         // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
         const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
         if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff');
-        ui.floater(headPos(v), '✨', 'heal');
+        triggerFloater(headPos(v), '✨', 'heal');
         if (ev.id === selfId) playSfx('buff');
       }
-      if (ev.kind === 'curse') { ui.floater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
+      if (ev.kind === 'curse') { triggerFloater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
       if (ev.kind === 'die') playSfx('mort');
     } else if (ev.t === 'look') {
       em.get(ev.id)?.setLook(ev.look);
@@ -241,6 +253,10 @@ function headPos(v) {
   return { x: p.x, y: (v.topY ?? p.y - 90), visible: true };
 }
 
+function triggerFloater(pos, text, cls = '') {
+  globalBus.emit('ui:floater', { screen: pos, text, cls });
+}
+
 // ---------- Contrôles ----------
 let combatMode = false;       // Ctrl maintenu
 let held = false;             // clic maintenu = déplacement continu
@@ -278,7 +294,7 @@ function validSpellTarget(sp, v) {
 function aimClick(spellId, ev) {
   const sp = ui.spellDef(spellId);
   if (!sp) return;
-  cancelAuto();
+  cancelAuto(); // Pourrait être un événement 'ui:cancel-auto-cast'
   if (sp.type === 'bolt') {
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
     if (!validSpellTarget(sp, v)) { ui.addChat('sys', 'Cible invalide.'); return; }
@@ -372,7 +388,7 @@ function castActive(spellId, ev) {
   if (!sp) return false;
   if (sp.type === 'heal' || sp.type === 'buff') { castSpellAt(spellId, {}); return true; }
   if (sp.type === 'aoe') {
-    const w = renderer.s2w(ev?.clientX ?? lastPointer.x, ev?.clientY ?? lastPointer.y);
+    const w = renderer.s2w(ev?.clientX ?? lastPointer.x, ev?.clientY ?? lastPointer.y); // Pourrait être un événement 'ui:get-world-coords'
     castSpellAt(spellId, { x: w.x, z: w.z });
     return true;
   }
@@ -380,7 +396,7 @@ function castActive(spellId, ev) {
   let tid = null;
   const v = ev ? renderer.pickEntity(em, ev.clientX, ev.clientY) : null;
   if (validSpellTarget(sp, v)) tid = v.id;
-  else if (targetId != null) tid = targetId;
+  else if (targetId != null) tid = targetId; // targetId pourrait être géré par un TargetFrame
   if (tid == null) { ui.addChat('sys', 'Aucune cible pour ' + sp.name + '.'); return false; }
   castSpellAt(spellId, { target: tid });
   return true;
@@ -390,7 +406,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (selfId == null) return;
   lastPointer = { x: ev.clientX, y: ev.clientY };
 
-  // clic droit : annule la visée en cours
+  // clic droit : annule la visée en cours (pourrait être un événement 'ui:cancel-aim')
   if (ev.button === 2) { cancelAim(); return; }
   if (ev.button !== 0) return;
 
@@ -404,7 +420,7 @@ canvas.addEventListener('pointerdown', (ev) => {
 
   // ---- mode combat : tous les clics sont des attaques/sorts ----
   if (combatMode) {
-    cancelAuto();
+    cancelAuto(); // Événement 'ui:cancel-auto-cast'
     if (ui.activeSpell) { castActive(ui.activeSpell, ev); return; }
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
     if (v && v.kind === KIND.MOB && !v.isDead?.()) {
@@ -415,7 +431,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     return;
   }
 
-  cancelAuto(); // toute autre action interrompt la relance automatique
+  cancelAuto(); // Événement 'ui:cancel-auto-cast'
   const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
   if (v && v.id !== selfId && !v.isDead?.()) {
     if (v.kind === KIND.MOB) {
@@ -525,7 +541,7 @@ canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Control' && !combatMode) { combatMode = true; ui.setCombatMode(true); }
   if (ui.isTyping() || ui.bindingSpell) return;
-  // menu ouvert : seules Échap (fermer) passe, le jeu est en pause d'entrées
+  // menu ouvert : seules Échap (fermer) passe, le jeu est en pause d'entrées (pourrait être géré par un MenuManager)
   if (ui.menuOpen()) {
     if (ev.key === 'Escape') ui.hideMenu();
     return;
@@ -538,7 +554,7 @@ window.addEventListener('keydown', (ev) => {
     if (spellId && (ui.self?.spells || []).includes(spellId)) {
       ev.preventDefault();
       const sp = ui.spellDef(spellId);
-      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); }
+      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); } // Événement 'ui:cast-spell'
       else { aimSpell = spellId; canvas.style.cursor = 'none'; }
       return;
     }
@@ -546,7 +562,7 @@ window.addEventListener('keydown', (ev) => {
 
   if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
-    cancelAuto();
+    cancelAuto(); // Événement 'ui:cancel-auto-cast'
     if (!arrows.has(ev.key)) { arrows.add(ev.key); sendMoveDirFromArrows(); }
     return;
   }
@@ -554,7 +570,7 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'i') ui.togglePanel('inventory');
   else if (k === 'c') ui.togglePanel('character');
   else if (k === 's') ui.togglePanel('spells');
-  else if (k === 'h') ui.togglePanel('help');
+  else if (k === 'h') ui.togglePanel('help'); // Pourrait être un HelpPanel
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
@@ -569,7 +585,7 @@ window.addEventListener('keydown', (ev) => {
 
 window.addEventListener('keyup', (ev) => {
   if (ev.key === 'Control') { combatMode = false; ui.setCombatMode(false); }
-  if (ev.key.startsWith('Arrow')) {
+  if (ev.key?.startsWith('Arrow')) {
     arrows.delete(ev.key);
     sendMoveDirFromArrows();
   }
@@ -628,7 +644,7 @@ function frame() {
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
   drawAimCursor(now);
 
-  processHover();
+  processHover(); // Pourrait être un HoverManager
   if (frameN % 6 === 0) tickAutoCast();
   if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); updatePerfOverlay(); }
 }

@@ -1,0 +1,17 @@
+<div v-if="s">
+  <div id="vitals">
+    <div class="bar hp">
+      <div :style="{ width: hpPct + '%' }"></div>
+      <span v-if="s.maxHp">{{ Math.round(s.hp) }} / {{ s.maxHp }}</span>
+    </div>
+    <div class="bar mana">
+      <div :style="{ width: manaPct + '%' }"></div>
+      <span v-if="s.maxMana">{{ Math.round(s.mana) }} / {{ s.maxMana }}</span>
+    </div>
+    <div class="bar xp">
+      <div :style="{ width: xpPct + '%' }"></div>
+      <span>Niv. {{ s.level }} — {{ Math.floor(xpInto) }} / {{ xpSpan }} XP</span>
+    </div>
+  </div>
+  <div id="gold-display">🟡 <span>{{ s.gold }}</span></div>
+</div>

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>T4C Web Admin - Éditeur de Sorts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #111827; color: #f3f4f6; }
+  </style>
+</head>
+<body class="h-screen flex flex-col font-sans">
+  <!-- Barre de navigation -->
+  <header class="bg-gray-900 border-b border-gray-800 px-6 py-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold tracking-wide text-amber-500">⚜️ T4C Web - Éditeur de Sorts</h1>
+    <div class="flex items-center gap-4">
+      <button id="btn-save-top" onclick="saveFileToServer()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-sm transition shadow flex items-center gap-2">
+        💾 Sauvegarder spells.json
+      </button>
+      <a href="/admin" class="text-sm text-gray-400 hover:text-white transition">← Retour au Panel Admin</a>
+    </div>
+  </header>
+
+  <main class="flex-1 flex overflow-hidden">
+    <!-- Liste des sorts (Sidebar) -->
+    <aside class="w-80 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
+      <div class="p-4 border-b border-gray-800 space-y-2">
+        <div id="file-info-header" class="text-xs text-amber-500 font-mono text-center py-1.5 bg-gray-900 border border-gray-800 rounded">
+          📁 spells.json (Serveur)
+        </div>
+        <button onclick="createNewSpell()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-2 px-4 rounded transition">
+          + Nouveau Sortilège
+        </button>
+      </div>
+      <ul id="spells-list" class="flex-1 divide-y divide-gray-900">
+        <!-- Injecté par JS -->
+      </ul>
+    </aside>
+
+    <!-- Zone d'édition -->
+    <section id="editor-pane" class="flex-1 p-8 overflow-y-auto bg-gray-900 hidden">
+      <div class="max-w-4xl mx-auto space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-2xl font-bold" id="spell-title">Édition du sort</h2>
+          <button onclick="saveCurrentSpell()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-6 rounded transition shadow flex items-center gap-2">
+            Sauvegarder les modifications
+          </button>
+        </div>
+
+        <!-- Métadonnées principales -->
+        <div class="bg-gray-950 p-6 rounded-lg border border-gray-800 grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Identifiant Unique (ID)</label>
+            <input type="text" id="spell-id" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="ex: eclair_de_feu">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Nom Français</label>
+            <input type="text" id="spell-name" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="ex: Éclair de feu">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Coût en Mana</label>
+            <input type="number" id="spell-mana" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Type de Sort</label>
+            <select id="spell-type" onchange="toggleCiblageFields()" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+              <option value="bolt">Bolt (Projectile ciblé)</option>
+              <option value="aoe">AoE (Zone d'effet)</option>
+              <option value="heal">Heal (Soin)</option>
+              <option value="buff">Buff (Amélioration)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Couleur d'effet client (Hex)</label>
+            <input type="color" id="spell-color" class="w-full h-10 bg-gray-900 border border-gray-700 rounded px-1 py-1 cursor-pointer">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Élément Cosmétique / Style</label>
+            <select id="spell-element" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+              <option value="neutre">Neutre</option>
+              <option value="fire">Feu (Fire)</option>
+              <option value="water">Eau / Glace (Water)</option>
+              <option value="earth">Terre (Earth)</option>
+              <option value="air">Air / Électricité (Air)</option>
+              <option value="light">Lumière (Light)</option>
+              <option value="dark">Ténèbres (Dark)</option>
+              <option value="arcane">Arcane</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Formule de Cooldown (FormulaEngine)</label>
+            <input type="text" id="spell-cooldown" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500" placeholder="ex: max(1000, 1720 - max(0, self.level - 22) * 20)">
+          </div>
+        </div>
+
+        <!-- Propriétés de ciblage dynamique -->
+        <div id="ciblage-pane" class="bg-gray-950 p-6 rounded-lg border border-gray-800 space-y-4 hidden">
+          <h3 class="text-md font-semibold text-gray-300">Ciblage & Portée</h3>
+          <div class="grid grid-cols-3 gap-4">
+            <div id="field-range">
+              <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Portée (Range)</label>
+              <input type="number" step="0.1" id="spell-range" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none">
+            </div>
+            <div id="field-radius">
+              <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Rayon (Radius)</label>
+              <input type="number" step="0.1" id="spell-radius" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none">
+            </div>
+            <div id="field-centered" class="flex items-center pt-6">
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="spell-centered" class="form-checkbox bg-gray-900 border-gray-700 text-amber-500 h-5 w-5 rounded">
+                <span class="ml-2 text-xs font-semibold uppercase text-gray-400">Centré sur le lanceur</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gestion des Effets Unifiés -->
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg font-bold text-amber-500">🧬 Effets magiques déclenchés</h3>
+            <button onclick="addEffectBlock()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-semibold text-white py-2 px-4 rounded transition">
+              + Ajouter un Effet
+            </button>
+          </div>
+
+          <div id="effects-container" class="space-y-4">
+            <!-- Blocs d'effets injectés dynamiquement -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('t4c_admin_token') || null;
+    let rawData = null; // conserve _note et autres propriétés racine
+    let spells = [];
+    let activeSpell = null;
+
+    // Options pour les menus déroulants
+    const EFFECT_TYPES = ["damage", "heal", "drain", "stats_boost", "hp_boost", "mp_boost", "hp_regen_boost", "mp_regen_boost", "slow", "curse", "invincible", "pacified", "damage_boost", "retort", "power_boost", "resist_boost"];
+    const STATS_PARAMS = ["str", "end", "agi", "int", "wis", "hit", "dodge", "parry", "crit", "pierce", "stun", "spellMul"];
+    const ELEMENTS = ["earth", "water", "air", "fire", "light", "dark", "arcane"];
+
+    // Chargement initial du fichier spells.json depuis le serveur
+    async function loadSpells() {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        let res = await fetch('/api/admin/content/spells', { headers });
+        if (!res.ok) res = await fetch('/api/admin/content?file=spells', { headers });
+        if (!res.ok) res = await fetch('/content/spells.json', { headers });
+        
+        if (!res.ok) {
+          throw new Error("Impossible de charger les sortilèges depuis le serveur.");
+        }
+        
+        const data = await res.json();
+        rawData = data;
+        spells = data.spells || [];
+        renderSpellsList();
+        if (spells.length > 0) {
+          selectSpell(spells[0].id);
+        }
+      } catch (err) {
+        console.error('Erreur au chargement des sorts:', err);
+        alert(`Erreur : ${err.message}`);
+      }
+    }
+
+    function renderSpellsList() {
+      const list = document.getElementById('spells-list');
+      list.innerHTML = '';
+      spells.forEach(sp => {
+        const li = document.createElement('li');
+        li.className = `p-4 cursor-pointer transition hover:bg-gray-900 border-b border-gray-900 flex justify-between items-center ${activeSpell && activeSpell.id === sp.id ? 'bg-gray-800 border-l-4 border-amber-500' : ''}`;
+        li.onclick = () => selectSpell(sp.id);
+        li.innerHTML = `
+          <div>
+            <div class="font-semibold text-white">${sp.name || 'Sans nom'}</div>
+            <div class="text-xs text-gray-500 font-mono">${sp.id}</div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">${sp.type}</span>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function selectSpell(id) {
+      activeSpell = spells.find(s => s.id === id);
+      document.getElementById('editor-pane').classList.remove('hidden');
+      renderSpellForm();
+    }
+  <div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex justify-between items-center">
+      <h2 class="text-2xl font-bold" id="spell-title">Édition du sort</h2>
+      <button onclick="saveCurrentSpell()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-6 rounded transition shadow flex items-center gap-2">
+        Sauvegarder les modifications
+      </button>
+    </div>
+  </div>
+</template>
+    }
+
+    function renderSpellForm() {
+      renderSpellsList();
+      document.getElementById('spell-title').innerText = `Édition : ${activeSpell.name}`;
+      document.getElementById('spell-id').value = activeSpell.id || '';
+      document.getElementById('spell-name').value = activeSpell.name || '';
+      document.getElementById('spell-mana').value = activeSpell.mana || 0;
+      document.getElementById('spell-type').value = activeSpell.type || 'bolt';
+      document.getElementById('spell-color').value = activeSpell.color || '#ff0000';
+      document.getElementById('spell-element').value = activeSpell.element || 'neutre';
+      document.getElementById('spell-cooldown').value = activeSpell.cooldown || '';
+
+      document.getElementById('spell-range').value = activeSpell.range || '';
+      document.getElementById('spell-radius').value = activeSpell.radius || '';
+      document.getElementById('spell-centered').checked = !!activeSpell.centered;
+
+      toggleCiblageFields();
+
+      // Render de la liste des effets
+      const container = document.getElementById('effects-container');
+      container.innerHTML = '';
+      const effects = activeSpell.effects || [];
+      effects.forEach((eff, idx) => {
+        container.appendChild(createEffectDOM(eff, idx));
+      });
+    }
+
+    function toggleCiblageFields() {
+      const type = document.getElementById('spell-type').value;
+      const pane = document.getElementById('ciblage-pane');
+      const range = document.getElementById('field-range');
+      const radius = document.getElementById('field-radius');
+      const centered = document.getElementById('field-centered');
+
+      pane.classList.add('hidden');
+      range.classList.add('hidden');
+      radius.classList.add('hidden');
+      centered.classList.add('hidden');
+
+      if (type === 'bolt') {
+        pane.classList.remove('hidden');
+        range.classList.remove('hidden');
+      } else if (type === 'aoe') {
+        pane.classList.remove('hidden');
+        range.classList.remove('hidden');
+        radius.classList.remove('hidden');
+        centered.classList.remove('hidden');
+      }
+    }
+
+    // DOM d'un bloc d'effet dynamique
+    function createEffectDOM(eff, index) {
+      const div = document.createElement('div');
+      div.className = "bg-gray-950 p-6 rounded-lg border border-gray-800 space-y-4 relative";
+      div.dataset.index = index;
+
+      // Bouton supprimer l'effet
+      div.innerHTML = `
+        <button onclick="removeEffectBlock(${index})" class="absolute top-4 right-4 text-xs font-bold text-red-500 hover:text-red-400">
+          Supprimer l'effet
+        </button>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Type d'Effet</label>
+            <select onchange="onEffectTypeChange(${index}, this.value)" class="eff-type w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white">
+              ${EFFECT_TYPES.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Formule de calcul (pts / self.buff_stats.int...)</label>
+            <input type="text" class="eff-formula w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white" value="${eff.formula || ''}" placeholder="ex: 1d17 + 6">
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-4 gap-4 p-4 bg-gray-900/50 rounded border border-gray-900">
+          <!-- Cible d'attribut -->
+          <div class="pane-target ${['stats_boost', 'skill_boost', 'power_boost', 'resist_boost'].includes(eff.type) ? '' : 'hidden'}">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Paramètre cible</label>
+            <select class="eff-target-parameter w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-white">
+              <option value="">Aucun</option>
+              ${STATS_PARAMS.map(p => `<option value="${p}" ${eff.target_parameter === p ? 'selected' : ''}>${p}</option>`).join('')}
+              ${ELEMENTS.map(e => `<option value="${e}" ${eff.target_parameter === e ? 'selected' : ''}>${e}</option>`).join('')}
+            </select>
+          </div>
+
+          <!-- Temporel (Duration / Interval) -->
+          <div class="pane-duration">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Durée (Sec / Infinity)</label>
+            <input type="text" class="eff-duration w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-white" value="${eff.duration !== undefined ? eff.duration : 0}">
+          </div>
+          <div class="pane-interval ${['damage', 'heal'].includes(eff.type) ? '' : 'hidden'}">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Recurrence (Interval sec)</label>
+            <input type="number" step="0.1" class="eff-interval w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-white" value="${eff.interval || 0}">
+          </div>
+
+          <!-- Dégâts périodiques minimum / maximum -->
+          <div class="pane-dot ${['damage', 'heal'].includes(eff.type) ? '' : 'hidden'}">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Périodique Min</label>
+            <input type="number" class="eff-dot-min w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-white" value="${eff.dot_min || 0}">
+          </div>
+          <div class="pane-dot ${['damage', 'heal'].includes(eff.type) ? '' : 'hidden'}">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Périodique Max</label>
+            <input type="number" class="eff-dot-max w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-white" value="${eff.dot_max || 0}">
+          </div>
+
+          <!-- Catégorie de dégâts physiques / mentaux -->
+          <div class="pane-damage-cat ${eff.type === 'damage' ? '' : 'hidden'}">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Catégorie Dégâts</label>
+            <select class="eff-damage-category w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-white">
+              <option value="physical" ${eff.damageCategory === 'physical' ? 'selected' : ''}>Physical (Atténué par CA)</option>
+              <option value="mental" ${eff.damageCategory === 'mental' ? 'selected' : ''}>Mental (Ignore CA)</option>
+            </select>
+          </div>
+          
+          <!-- Catégorie de dissipation -->
+          <div class="pane-category">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Dissipation (Dispel)</label>
+            <select class="eff-category w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-white">
+              <option value="magique" ${eff.category === 'magique' ? 'selected' : ''}>Magique (Dissipable)</option>
+              <option value="physique" ${eff.category === 'physique' ? 'selected' : ''}>Physique</option>
+              <option value="systeme" ${eff.category === 'systeme' ? 'selected' : ''}>Système (Immunisé)</option>
+            </select>
+          </div>
+
+          <!-- Ratio de Vol de vie -->
+          <div class="pane-drain ${eff.type === 'drain' ? '' : 'hidden'} col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">Ratio d'absorption (ex: 1.0 pour 100%)</label>
+            <input type="number" step="0.1" class="eff-drain-ratio w-full bg-gray-900 border border-gray-700 rounded px-3 py-1 text-white" value="${eff.drain_ratio !== null && eff.drain_ratio !== undefined ? eff.drain_ratio : 1.0}">
+          </div>
+        </div>
+      `;
+      return div;
+    }
+
+    function onEffectTypeChange(index, value) {
+      const blocks = document.getElementById('effects-container').children;
+      const block = Array.from(blocks).find(b => parseInt(b.dataset.index) === index);
+      if (!block) return;
+
+      const targetPane = block.querySelector('.pane-target');
+      const intervalPane = block.querySelector('.pane-interval');
+      const dotPanes = block.querySelectorAll('.pane-dot');
+      const dmgCatPane = block.querySelector('.pane-damage-cat');
+      const drainPane = block.querySelector('.pane-drain');
+
+      if (['stats_boost', 'skill_boost', 'power_boost', 'resist_boost'].includes(value)) {
+        targetPane.classList.remove('hidden');
+      } else {
+        targetPane.classList.add('hidden');
+      }
+
+      if (['damage', 'heal'].includes(value)) {
+        intervalPane.classList.remove('hidden');
+        dotPanes.forEach(p => p.classList.remove('hidden'));
+      } else {
+        intervalPane.classList.add('hidden');
+        dotPanes.forEach(p => p.classList.add('hidden'));
+      }
+
+      if (value === 'damage') {
+        dmgCatPane.classList.remove('hidden');
+      } else {
+        dmgCatPane.classList.add('hidden');
+      }
+
+      if (value === 'drain') {
+        drainPane.classList.remove('hidden');
+      } else {
+        drainPane.classList.add('hidden');
+      }
+    }
+
+    function addEffectBlock() {
+      if (!activeSpell) return;
+      if (!activeSpell.effects) activeSpell.effects = [];
+      
+      const newEff = {
+        type: "stats_boost",
+        target_parameter: "str",
+        formula: "1",
+        duration: 120,
+        category: "magique"
+      };
+      activeSpell.effects.push(newEff);
+      renderSpellForm();
+    }
+
+    function removeEffectBlock(index) {
+      activeSpell.effects.splice(index, 1);
+      renderSpellForm();
+    }
+
+    function createNewSpell() {
+      const newId = `nouveau_sort_${Date.now().toString(36).slice(-4)}`;
+      const sp = {
+        id: newId,
+        name: "Nouveau Sort",
+        mana: 1,
+        type: "bolt",
+        color: "#ffffff",
+        element: "neutre",
+        cooldown: "1000",
+        effects: []
+      };
+      spells.push(sp);
+      selectSpell(sp.id);
+    }
+
+    async function saveCurrentSpell() {
+      if (!activeSpell) return;
+
+      const newId = document.getElementById('spell-id').value.trim();
+      if (!newId) return alert("L'identifiant est requis.");
+      activeSpell.id = newId;
+      activeSpell.name = document.getElementById('spell-name').value.trim();
+      activeSpell.mana = parseInt(document.getElementById('spell-mana').value) || 0;
+      activeSpell.type = document.getElementById('spell-type').value;
+      activeSpell.color = document.getElementById('spell-color').value;
+      activeSpell.element = document.getElementById('spell-element').value;
+      activeSpell.cooldown = document.getElementById('spell-cooldown').value.trim();
+
+      if (activeSpell.type === 'bolt' || activeSpell.type === 'aoe') {
+        activeSpell.range = parseFloat(document.getElementById('spell-range').value) || 0;
+      } else {
+        delete activeSpell.range;
+      }
+
+      if (activeSpell.type === 'aoe') {
+        activeSpell.radius = parseFloat(document.getElementById('spell-radius').value) || 0;
+        activeSpell.centered = document.getElementById('spell-centered').checked;
+      } else {
+        delete activeSpell.radius;
+        delete activeSpell.centered;
+      }
+
+      const container = document.getElementById('effects-container');
+      const updatedEffects = [];
+      Array.from(container.children).forEach(block => {
+        const type = block.querySelector('.eff-type').value;
+        const formula = block.querySelector('.eff-formula').value.trim();
+        
+        let durationVal = block.querySelector('.eff-duration').value.trim();
+        const duration = durationVal.toLowerCase() === 'infinity' ? Infinity : (parseFloat(durationVal) || 0);
+
+        const eff = {
+          type,
+          formula,
+          duration,
+          category: block.querySelector('.eff-category').value
+        };
+
+        if (['stats_boost', 'skill_boost', 'power_boost', 'resist_boost'].includes(type)) {
+          eff.target_parameter = block.querySelector('.eff-target-parameter').value || null;
+        }
+
+        if (['damage', 'heal'].includes(type)) {
+          eff.interval = parseFloat(block.querySelector('.eff-interval').value) || 0;
+          eff.dot_min = parseFloat(block.querySelector('.eff-dot-min').value) || 0;
+          eff.dot_max = parseFloat(block.querySelector('.eff-dot-max').value) || 0;
+        }
+
+        if (type === 'damage') {
+          eff.damageType = "spell";
+          eff.damageCategory = block.querySelector('.eff-damage-category').value;
+          eff.element = activeSpell.element;
+        }
+
+        if (type === 'drain') {
+          eff.damageType = "spell";
+          eff.damageCategory = "mental";
+          eff.element = activeSpell.element;
+          eff.drain_ratio = parseFloat(block.querySelector('.eff-drain-ratio').value) || 1.0;
+        }
+
+        updatedEffects.push(eff);
+      });
+
+      activeSpell.effects = updatedEffects;
+      await saveFileToServer();
+    }
+
+    // Sauvegarde les données complètes de `spells.json` sur le serveur
+    async function saveFileToServer() {
+      if (!rawData) {
+        alert("Aucune donnée chargée.");
+        return;
+      }
+      
+      rawData.spells = spells; // Met à jour le tableau des sorts du conteneur racine
+      
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Tente d'abord un PUT direct sur /api/admin/content/spells (conventions REST)
+        let res = await fetch('/api/admin/content/spells', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(rawData)
+        });
+        
+        // En cas d'échec, tente un POST sur /api/admin/content avec le format { name, data }
+        if (!res.ok) {
+          res = await fetch('/api/admin/content', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ name: 'spells', data: rawData })
+          });
+        }
+        
+        // En cas d'échec persistant, tente un POST direct sur /api/admin/content/spells
+        if (!res.ok) {
+          res = await fetch('/api/admin/content/spells', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(rawData)
+          });
+        }
+
+        if (res.ok) {
+          alert('Sauvegarde réussie côté serveur dans /content/spells.json !');
+          loadSpells();
+        } else {
+          alert('Erreur lors de la sauvegarde sur le serveur.');
+        }
+      } catch (err) {
+        console.error('Erreur à la sauvegarde:', err);
+        alert(`Erreur de connexion : ${err.message}`);
+      }
+    }
+
+    // Lancement au chargement de la page
+    loadSpells();
+  </script>
+</body>
+</html>

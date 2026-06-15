@@ -1,0 +1,23 @@
+<div v-if="s">
+  <h2>Sorts</h2>
+  <div id="spell-list">
+    <p v-if="bindingError" style="color:#e86a6a;font-size:12px;margin-bottom:6px">{{ bindingError }}</p>
+    <p v-if="knownSpells.length === 0" class="hint">Aucun sort appris. Voyez le marchand du village.</p>
+    <div v-for="sp in knownSpells" 
+         class="spell-row" 
+         :class="{ 'active-spell': state.activeSpell === sp.id }"
+         @click="toggleActiveSpell(sp.id)">
+      <span>
+        {{ getSpellIcon(sp.type) }} {{ sp.name }}
+        <span class="meta">({{ sp.mana }} mana)</span>
+      </span>
+      <button @click.stop="startBinding(sp.id)">
+        {{ state.bindingSpell === sp.id ? 'Touche ?' : (getHotkey(sp.id) ? `« ${getHotkey(sp.id).toUpperCase()} »` : 'Raccourci') }}
+      </button>
+    </div>
+  </div>
+  <p class="hint">« Raccourci » : appuyez ensuite sur une touche.<br>
+  En jeu : appuyez sur cette touche → le curseur devient une main scintillante →
+  cliquez votre cible. Le sort se relance ensuite automatiquement tant que vous
+  ne faites rien d'autre (et s'arrête si la cible meurt). Échap ou clic droit pour annuler la visée.</p>
+</div>

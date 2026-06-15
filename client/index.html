@@ -6,7 +6,7 @@
   <title>La Quatrième Prophétie — Web</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body v-scope>
   <!-- Filtre de réfraction « verre liquide » : déforme légèrement le fond vu
        à travers les panneaux (backdrop-filter: url(#liquid-glass)). La houle
        est une turbulence basse fréquence -> ondulations larges, comme une
@@ -20,36 +20,14 @@
   </svg>
   <canvas id="game"></canvas>
 
-  <!-- Écran de connexion -->
-  <div id="login" class="overlay">
-    <div class="login-box">
-      <h1>La Quatrième Prophétie</h1>
-      <p class="subtitle">— Hommage web —</p>
-      <input id="login-name" type="text" placeholder="Pseudo" maxlength="16" autocomplete="username">
-      <input id="login-pass" type="password" placeholder="Mot de passe" autocomplete="current-password">
-      <div class="login-buttons">
-        <button id="btn-login">Connexion</button>
-        <button id="btn-register" class="secondary">Créer un compte</button>
-      </div>
-      <p id="login-error"></p>
-    </div>
-    <div id="game-version" title="Version déployée"></div>
-  </div>
+  <div id="login" class="overlay" v-show="store.phase === 'login'"></div>
 
   <!-- HUD -->
-  <div id="hud" class="hidden">
-    <div id="vitals">
-      <div class="bar hp"><div id="hp-fill"></div><span id="hp-text"></span></div>
-      <div class="bar mana"><div id="mana-fill"></div><span id="mana-text"></span></div>
-      <div class="bar xp"><div id="xp-fill"></div><span id="xp-text"></span></div>
-    </div>
-    <div id="gold-display">🟡 <span id="gold-text">0</span></div>
+  <div id="hud" v-show="store.phase === 'in-game'">
+    <div id="hud-bars"></div>
     <div id="clock">🌞</div>
 
-    <div id="chat">
-      <div id="chat-messages"></div>
-      <input id="chat-input" type="text" placeholder="Entrée pour parler (local) — /general /aide /ventes /roleplay" maxlength="200">
-    </div>
+    <div id="chat"></div>
 
     <div id="hotbuttons">
       <button data-panel="inventory" title="Inventaire (I)">🎒</button>
@@ -67,78 +45,22 @@
     <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
 
     <!-- Inventaire T4C : poupée d'équipement + grille -->
-    <div id="inventory" class="panel hidden">
-      <h2>Inventaire</h2>
-      <div id="paperdoll">
-        <canvas id="doll-canvas" width="170" height="190"></canvas>
-        <div class="doll-slot" data-slot="helmet"  style="top: 4px;    left: 4px;"   title="Casque"></div>
-        <div class="doll-slot" data-slot="amulet"  style="top: 4px;    right: 4px;"  title="Amulette"></div>
-        <div class="doll-slot" data-slot="weapon"  style="top: 54px;   left: 4px;"   title="Arme"></div>
-        <div class="doll-slot" data-slot="shield"  style="top: 54px;   right: 4px;"  title="Bouclier"></div>
-        <div class="doll-slot" data-slot="gloves"  style="top: 104px;  left: 4px;"   title="Gants"></div>
-        <div class="doll-slot" data-slot="legs"    style="top: 104px;  right: 4px;"  title="Jambières"></div>
-        <div class="doll-slot" data-slot="armor"   style="bottom: 4px; left: 4px;"   title="Armure"></div>
-        <div class="doll-slot" data-slot="belt"    style="bottom: 4px; left: 33%; transform: translateX(-50%);" title="Ceinture"></div>
-        <div class="doll-slot" data-slot="boots"   style="bottom: 4px; left: 67%; transform: translateX(-50%);" title="Bottes"></div>
-        <div class="doll-slot" data-slot="ring"    style="bottom: 4px; right: 4px;"  title="Anneau"></div>
-        <div class="doll-slot" data-slot="ring2"   style="bottom: 54px; right: 4px;" title="Anneau 2"></div>
-      </div>
-      <div id="weight-row">
-        <div id="weight-bar"><div id="weight-fill"></div></div>
-        <span id="weight-text"></span>
-      </div>
-      <div id="inv-grid"></div>
-      <p class="hint">Clic : équiper / utiliser — Clic droit (poupée) : retirer<br>
-      Clic droit (sac) : poser au sol — c'est ainsi qu'on échange entre joueurs</p>
-      <button id="btn-drop-gold" class="secondary" style="margin-top:6px">Poser de l'or au sol…</button>
-    </div>
+    <div id="inventory" class="panel hidden"></div>
 
     <!-- Fiche personnage -->
-    <div id="character" class="panel hidden">
-      <h2 id="char-name">Personnage</h2>
-      <div id="char-info"></div>
-      <div id="char-stats"></div>
-    </div>
+    <div id="character" class="panel hidden"></div>
 
     <!-- Sorts et raccourcis -->
-    <div id="spells" class="panel hidden">
-      <h2>Sorts</h2>
-      <div id="spell-list"></div>
-      <p class="hint">« Raccourci » : appuyez ensuite sur une touche.<br>
-      En jeu : appuyez sur cette touche → le curseur devient une main scintillante →
-      cliquez votre cible. Le sort se relance ensuite automatiquement tant que vous
-      ne faites rien d'autre (et s'arrête si la cible meurt). Échap ou clic droit pour annuler la visée.</p>
-    </div>
+    <div id="spells" class="panel hidden"></div>
 
     <!-- Boutique -->
-    <div id="shop" class="panel hidden">
-      <h2 id="shop-title">Marchand</h2>
-      <div id="shop-tabs">
-        <button data-tab="items" class="active">Objets</button>
-        <button data-tab="spells">Sorts</button>
-        <button data-tab="skills">Compétences</button>
-        <button data-tab="sell">Vendre</button>
-      </div>
-      <div id="shop-list"></div>
-    </div>
+    <div id="shop" class="panel hidden"></div>
 
     <!-- Banque : coffre personnel -->
-    <div id="bank" class="panel hidden">
-      <h2>Coffre personnel</h2>
-      <h3 id="bank-count" class="bank-section">Banque</h3>
-      <div id="bank-list"></div>
-      <h3 class="bank-section">Inventaire</h3>
-      <div id="bank-inv-list"></div>
-      <p class="hint">Les objets déposés ne pèsent plus sur votre encombrement.<br>
-      ☠ À la mort définitive, le coffre est perdu avec son propriétaire.</p>
-    </div>
+    <div id="bank" class="panel hidden"></div>
 
     <!-- Obélisque -->
-    <div id="obelisk-panel" class="panel hidden">
-      <h2>Obélisque des voyages</h2>
-      <div id="obelisk-list"></div>
-      <p class="hint">Seules les zones déjà conquises sont accessibles.</p>
-    </div>
+    <div id="obelisk-panel" class="panel hidden"></div>
 
     <!-- Confirmation d'Épreuve -->
     <div id="trial-modal" class="overlay hidden">
@@ -153,20 +75,7 @@
     </div>
 
     <!-- Aide -->
-    <div id="help" class="panel hidden">
-      <h2>Aide</h2>
-      <p>Clic : déplacer / attaquer / ramasser / parler<br>
-      Clic maintenu : déplacement continu — Flèches : déplacement clavier<br>
-      Ctrl maintenu : mode combat (clic = frappe)<br>
-      Touche de sort : visée (main scintillante) → clic sur la cible,
-      puis relance automatique tant qu'aucune autre action<br>
-      P : potion de vie — M : potion de mana<br>
-      Molette : zoom — I/C/S/H : panneaux — Entrée : chat — Échap : menu et paramètres<br>
-      Inventaire, clic droit : poser un objet au sol (échanges entre joueurs)<br>
-      Chat : local (15 tuiles) par défaut — canaux mondiaux : /general, /aide, /ventes, /roleplay<br>
-      Groupe : /inviter Nom (ou cliquez un joueur puis « Inviter ») — l'XP des combats est partagée à portée<br><br>
-      ☠ La mort est DÉFINITIVE. Choisissez vos combats.</p>
-    </div>
+    <div id="help" class="panel hidden"></div>
 
     <div id="target-frame" class="hidden">
       <span id="target-name"></span>
@@ -175,20 +84,10 @@
     </div>
 
     <!-- Groupe : membres et barres de PV -->
-    <div id="party-panel" class="hidden">
-      <h3>Groupe</h3>
-      <div id="party-list"></div>
-      <button id="party-leave" class="secondary">Quitter le groupe</button>
-    </div>
+    <div id="party-panel" class="hidden"></div>
 
     <!-- Invitation de groupe reçue -->
-    <div id="party-invite" class="hidden">
-      <span id="party-invite-text"></span>
-      <div class="login-buttons" style="margin-top:6px">
-        <button id="party-invite-yes">Rejoindre</button>
-        <button id="party-invite-no" class="secondary">Refuser</button>
-      </div>
-    </div>
+    <div id="party-invite" class="hidden"></div>
 
     <!-- Menu de jeu (Échap) -->
     <div id="game-menu" class="overlay hidden">
@@ -201,10 +100,6 @@
           <button id="menu-quit" class="danger-btn">Quitter la partie</button>
         </div>
         <div id="menu-settings-panel" class="hidden">
-          <h2 style="color:var(--gold);font-size:14px;margin:12px 0 8px">Paramètres</h2>
-          <div id="settings-list"></div>
-          <button id="settings-reset" class="secondary" style="margin-top:10px">Réinitialiser les paramètres</button>
-          <button id="menu-back" class="secondary" style="margin-top:10px">Retour</button>
         </div>
         <div id="menu-about-panel" class="hidden">
           <h2 style="color:var(--gold);font-size:14px;margin:12px 0 8px">À propos</h2>
@@ -230,7 +125,7 @@
 
   <!-- Écrans hors-jeu : DOIVENT rester hors de #hud (caché tant qu'on n'est
        pas en jeu), sinon ils sont invisibles à la connexion. -->
-  <div id="death-screen" class="overlay hidden">
+  <div id="death-screen" class="overlay" v-show="store.phase === 'death'">
     <div class="login-box" style="max-width: 480px">
       <h1>☠ Mort définitive</h1>
       <p id="death-by" style="margin: 10px 0"></p>
@@ -239,21 +134,9 @@
     </div>
   </div>
 
-  <!-- Création de personnage : répartition des points façon T4C -->
-  <div id="creation" class="overlay hidden">
-    <div class="login-box" style="min-width: 360px">
-      <h1>Création du personnage</h1>
-      <p class="subtitle">Répartissez vos points — choisissez votre voie</p>
-      <div id="creation-stats"></div>
-      <p id="creation-left" style="margin: 12px 0; color: var(--gold)"></p>
-      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px">
-        Guerrier : Force/Endurance — Mage : Intelligence (Dard de Feu dès Int 21, Sag 15)<br>
-        Prêtre : Sagesse — Voleur : Agilité. ☠ Choisissez bien : la mort est définitive.
-      </p>
-      <button id="creation-confirm" disabled>Entrer dans le monde</button>
-    </div>
-  </div>
+  <div id="creation" class="overlay" v-show="store.phase === 'creation'"></div>
 
   <script type="module" src="/js/main.js"></script>
+  <script type="module" src="/js/gui/gui-manager.js"></script>
 </body>
 </html>

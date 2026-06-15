@@ -48,7 +48,9 @@ function ensureCtx() {
 // premier geste : crée/réveille le contexte (politique d'autoplay)
 function arm() {
   if (typeof window === 'undefined' || !window.addEventListener) return;
-  const wake = () => { if (ensureCtx() && ctx.state === 'suspended') ctx.resume().catch(() => {}); };
+  const wake = () => {
+    if (ensureCtx() && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  };
   window.addEventListener('pointerdown', wake);
   window.addEventListener('keydown', wake);
   // onglet en arrière-plan : silence total, reprise au retour

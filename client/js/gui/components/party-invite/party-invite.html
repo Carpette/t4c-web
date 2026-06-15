@@ -1,0 +1,7 @@
+<div v-if="state.partyInvite" @vue:mounted="onMounted">
+  <span id="party-invite-text">{{ state.partyInvite.from }} vous invite dans son groupe.</span>
+  <div class="login-buttons" style="margin-top:6px">
+    <button id="party-invite-yes" @click="accept()">Rejoindre</button>
+    <button id="party-invite-no" class="secondary" @click="decline()">Refuser</button>
+  </div>
+</div>
