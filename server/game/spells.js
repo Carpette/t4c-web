@@ -71,8 +71,9 @@ export function rollSpellOutput(p, f) {
 // Style visuel/sonore d'un sort pour le client : poison (vert), drain (sombre)
 // ou simplement son élément
 export function spellStyle(sp) {
-  if (sp.leech) return 'drain';
-  if (sp.dot) return 'poison';
+  const entry = content.spellFormulas.get(sp.id);
+  if (entry?.effects?.some(e => e.type === 'drain')) return 'drain';
+  if (entry?.effects?.some(e => e.type === 'damage' && e.interval > 0)) return 'poison';
   return sp.element || null;
 }
 
@@ -189,69 +190,6 @@ export function castSpell(game, p, msg) {
   }
 }
 
-function applySpellDamage(p, target, eff, rawValue, game, sp) {
-  if (!target || target.dead) return;
-  
-  let dmg = rawValue;
-  
-  // Boost de puissance élémentaire du lanceur
-  if (eff.element) {
-    const casterPower = p.eff?.stats?.[`power_${eff.element}`] || 0;
-    dmg = dmg * (1 + casterPower);
-  }
-  
-  // Absorption de Classe d'Armure (CA) si dégâts physiques
-  if (eff.damageCategory === 'physical') {
-    let defense = target.eff?.defense || 0;
-    const pierce = p.eff?.stats?.pierce || 0;
-    defense *= 1 - pierce;
-    dmg = C.mitigate(dmg, defense);
-  }
-  
-  // Résistance élémentaire de la cible : dmg / (1 + resist)
-  if (eff.element) {
-    const { dmg: finalDmg } = applyResist(target, { element: eff.element }, dmg);
-    dmg = finalDmg;
-  }
-  
-  // Renvoi des morts-vivants (Wisdom scaling)
-  if (sp.turnUndead && target.def?.undead) {
-    const wis = p.eff?.stats?.wis || p.stats?.wis || 10;
-    dmg *= wis / (20 + 2 * p.level);
-  }
-  
-  target.applyDamage(p, Math.max(1, Math.round(dmg)), false, eff.element ? 'resist' : null, game);
-  
-  // Drain de vie (Leech)
-  if (sp.leech && !target.def?.undead && !game.isCursed(p)) {
-    const finalDmg = Math.max(1, Math.round(dmg));
-    const maxHpVal = p.eff?.maxHp || p.maxHp || 100;
-    p.hp = Math.min(maxHpVal, p.hp + Math.round(finalDmg * sp.leech));
-    game.eventNear(p, { t: 'proj', from: target.id, to: p.id, color: '#5a1a6a', element: 'drain' });
-    game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
-  }
-}
-
-function applySpellHeal(p, target, eff, rawValue, game, sp) {
-  if (!target || target.dead) return;
-  
-  if (game.isCursed(target)) {
-    game.send(p, { t: 'info', text: 'La cible est maudite, le soin échoue.' });
-    return;
-  }
-  
-  let healAmount = rawValue;
-  if (eff.element === 'light') {
-    const casterPowerLight = p.eff?.stats?.power_light || 0;
-    const targetResistLight = target.eff?.stats?.resist_light || 0;
-    healAmount = Math.round(healAmount * (1 + casterPowerLight) * (1 + targetResistLight));
-  }
-  
-  const maxHpVal = target.eff?.maxHp || target.maxHp || 100;
-  target.hp = Math.min(maxHpVal, target.hp + healAmount);
-  game.eventNear(target, { t: 'fx', kind: 'heal', id: target.id });
-}
-
 // Applique l'effet du sort (formules de la Bible). Retourne true si le sort
 // est réellement parti (la récupération ne s'applique qu'en cas de succès).
 export function resolveCast(game, p) {
@@ -308,8 +246,11 @@ export function resolveCast(game, p) {
           dot_min: eff.dot_min,
           dot_max: eff.dot_max,
           interval: eff.interval ? eff.interval * 1000 : 0,
-          from_id: p.id
-        }, { type: 'spell', id: sp.id }, now * 1000);
+          from_id: p.id,
+          damageType: eff.damageType || null,
+          damageCategory: eff.damageCategory || null,
+          leech: sp.leech || null
+          }, { type: 'spell', id: sp.id }, now * 1000, game);
       }
     }
       target.recompute(game);
@@ -334,11 +275,7 @@ export function resolveCast(game, p) {
           rawValue *= 2; // T4C : dégâts doublés sur cible unique
         }
         
-        if (eff.type === 'damage' || eff.kind === 'damage') {
-          applySpellDamage(p, e, eff, rawValue, game, sp);
-        } else if (eff.type === 'heal' || eff.kind === 'heal') {
-          applySpellHeal(p, e, eff, rawValue, game, sp);
-      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+        if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         e.curseUntil = now + duration;
         game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id });
@@ -362,8 +299,13 @@ export function resolveCast(game, p) {
           dot_min: eff.dot_min,
           dot_max: eff.dot_max,
           interval: eff.interval ? eff.interval * 1000 : 0,
-          from_id: p.id
-          }, { type: 'spell', id: sp.id }, now * 1000);
+          from_id: p.id,
+          damageType: eff.damageType || null,
+          damageCategory: eff.damageCategory || null,
+          drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
+          drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
+          drain_ratio: eff.drain_ratio !== undefined ? eff.drain_ratio : null
+        }, { type: 'spell', id: sp.id }, now * 1000, game);
         }
       }
         e.recompute(game);
@@ -377,9 +319,7 @@ export function resolveCast(game, p) {
     for (const eff of effectsToApply) {
       const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, p)))) : 0;
       
-      if (eff.type === 'heal' || eff.kind === 'heal') {
-        applySpellHeal(p, p, eff, rawValue, game, sp);
-      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+      if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         p.curseUntil = now + duration;
         game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id });
@@ -403,8 +343,11 @@ export function resolveCast(game, p) {
           dot_min: eff.dot_min,
           dot_max: eff.dot_max,
           interval: eff.interval ? eff.interval * 1000 : 0,
-          from_id: p.id
-        }, { type: 'spell', id: sp.id }, now * 1000);
+          from_id: p.id,
+          damageType: eff.damageType || null,
+          damageCategory: eff.damageCategory || null,
+          leech: sp.leech || null
+        }, { type: 'spell', id: sp.id }, now * 1000, game);
       }
     }
     p.recompute(game);

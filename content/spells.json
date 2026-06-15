@@ -1521,7 +1521,7 @@
           "damageType": "spell",
           "damageCategory": "physical",
           "target": "target",
-          "formula": "1d6 + 27 + self.buff_stats.wis / 16",
+          "formula": "(1d6 + 27 + self.buff_stats.wis / 16) * (self.buff_stats.wis / (20 + 2 * self.level))",
           "duration": 0,
           "element": "light"
         }
@@ -1723,20 +1723,20 @@
       "price": 1430,
       "mana": 3,
       "type": "bolt",
-      "leech": 1,
       "range": 8,
       "color": "#c050c0",
-      "element": "arcane",
+      "element": "dark",
       "cooldown": "max(1000, 1620 - max(0, self.level - 12) * 20)",
       "effects": [
         {
-          "type": "damage",
+          "type": "drain",
           "damageType": "spell",
           "damageCategory": "mental",
           "target": "target",
           "formula": "1d13 + 10 + self.buff_stats.int / 38",
           "duration": 0,
-          "element": "arcane"
+              "element": "dark",
+          "drain_ratio": 1.0
         }
       ]
     },
@@ -1778,20 +1778,20 @@
       "price": 4411,
       "mana": 6,
       "type": "bolt",
-      "leech": 1,
       "range": 8,
       "color": "#b040b0",
-      "element": "arcane",
+      "element": "dark",
       "cooldown": "max(1000, 1730 - max(0, self.level - 23) * 20)",
       "effects": [
         {
-          "type": "damage",
+          "type": "drain",
           "damageType": "spell",
           "damageCategory": "mental",
           "target": "target",
           "formula": "1d19 + 17 + self.buff_stats.int / 30",
           "duration": 0,
-          "element": "arcane"
+              "element": "dark",
+          "drain_ratio": 1.0
         }
       ]
     },
@@ -1850,20 +1850,20 @@
       "price": 12735,
       "mana": 10,
       "type": "bolt",
-      "leech": 1,
       "range": 9,
       "color": "#a030a0",
-      "element": "arcane",
+      "element": "dark",
       "cooldown": "max(1000, 1910 - max(0, self.level - 41) * 20)",
       "effects": [
         {
-          "type": "damage",
+          "type": "drain",
           "damageType": "spell",
           "damageCategory": "mental",
           "target": "target",
           "formula": "1d28 + 30 + self.buff_stats.int / 24",
           "duration": 0,
-          "element": "arcane"
+              "element": "dark",
+          "drain_ratio": 1.0
         }
       ]
     },
@@ -1879,20 +1879,20 @@
       "price": 34183,
       "mana": 16,
       "type": "bolt",
-      "leech": 1,
       "range": 9,
       "color": "#9020a0",
-      "element": "arcane",
+      "element": "dark",
       "cooldown": "max(1000, 2180 - max(0, self.level - 68) * 20)",
       "effects": [
         {
-          "type": "damage",
+          "type": "drain",
           "damageType": "spell",
           "damageCategory": "mental",
           "target": "target",
           "formula": "1d44 + 48 + self.buff_stats.int / 18",
           "duration": 0,
-          "element": "arcane"
+              "element": "dark",
+          "drain_ratio": 1.0
         }
       ]
     },

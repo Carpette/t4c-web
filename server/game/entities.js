@@ -154,6 +154,64 @@ export class Character extends Entity {
     }
   }
 
+  applyHeal(caster, ae, game) {
+    if (this.dead) return;
+    if (game.isCursed(this)) {
+      if (caster.kind === C.KIND.PLAYER) {
+        game.send(caster, { t: 'info', text: 'La cible est maudite, le soin échoue.' });
+      }
+      return;
+    }
+
+    let healAmount = ae.power;
+    if (ae.element === 'light') {
+      const casterPowerLight = caster.eff?.stats?.power_light || 0;
+      const targetResistLight = this.eff?.stats?.resist_light || 0;
+      healAmount = Math.round(healAmount * (1 + casterPowerLight) * (1 + targetResistLight));
+    }
+
+    const maxHpVal = this.eff?.maxHp || this.maxHp || 100;
+    this.hp = Math.min(maxHpVal, this.hp + healAmount);
+    game.eventNear(this, { t: 'fx', kind: 'heal', id: this.id });
+    if (this.kind === C.KIND.PLAYER) {
+      game.send(this, { t: 'vitals', hp: Math.round(this.hp), mana: Math.round(this.mana) });
+    }
+  }
+
+  applySpellDamage(caster, ae, game) {
+    if (this.dead) return;
+
+    let dmg = ae.power;
+
+    if (ae.element) {
+      const casterPower = caster.eff?.stats?.[`power_${ae.element}`] || 0;
+      dmg = dmg * (1 + casterPower);
+    }
+
+    if (ae.damageCategory === 'physical') {
+      let defense = this.eff?.defense || 0;
+      const pierce = caster.eff?.stats?.pierce || 0;
+      defense *= 1 - pierce;
+      dmg = C.mitigate(dmg, defense);
+    }
+
+    if (ae.element) {
+      const { dmg: finalDmg } = applyResist(this, { element: ae.element }, dmg);
+      dmg = finalDmg;
+    }
+
+    this.applyDamage(caster, Math.max(1, Math.round(dmg)), false, ae.element ? 'resist' : null, game);
+
+    if (ae.type === EFFECT_TYPES.DRAIN && !this.def?.undead && !game.isCursed(caster)) {
+      const finalDmg = Math.max(1, Math.round(dmg));
+      const maxHpVal = caster.eff?.maxHp || caster.maxHp || 100;
+      const ratio = ae.drain_ratio !== null ? ae.drain_ratio : 1.0;
+      caster.hp = Math.min(maxHpVal, caster.hp + Math.round(finalDmg * ratio));
+      game.eventNear(caster, { t: 'proj', from: this.id, to: caster.id, color: '#5a1a6a', element: 'drain' });
+      game.eventNear(caster, { t: 'fx', kind: 'heal', id: caster.id });
+    }
+  }
+
   attack(defender, game) {
     // Sanctuaire : la cible est intouchable ; l'attaquant en transe ne frappe pas
     if (game.isUntouchable(defender)) return;

@@ -72,6 +72,9 @@ export class ActiveEffect {
     this.from_id = effectDef.from_id || null;
     this.expr = effectDef.expr || null;
     this.formula = effectDef.formula || null;
+    this.damageType = effectDef.damageType || null;
+    this.damageCategory = effectDef.damageCategory || null;
+    this.drain_ratio = effectDef.drain_ratio !== undefined ? effectDef.drain_ratio : null;
   }
 
   /**
@@ -101,8 +104,13 @@ export class EntityEffects {
   /**
    * Ajoute ou rafraîchit un effet. Gère les règles de cumul de même source.
    */
-  apply(effectDef, source, now) {
+  apply(effectDef, source, now, game) {
     const newEffect = new ActiveEffect(effectDef, source, now);
+
+    if (newEffect.duration === 0) {
+      this.resolveInstant(newEffect, game);
+      return null;
+    }
 
     // Règle de cumul : Même Source
     const existingIndex = this.active.findIndex(ae => 
@@ -125,6 +133,25 @@ export class EntityEffects {
 
     this.active.push(newEffect);
     return newEffect;
+  }
+
+  /**
+   * Résout immédiatement les effets instantanés sans les stocker.
+   */
+  resolveInstant(ae, game) {
+    if (!game) return;
+    const target = this.entity;
+    const caster = game.players.get(ae.from_id) || game.zones.get(target.zi?.key)?.entities.get(ae.from_id) || target;
+
+    if (ae.type === EFFECT_TYPES.HEAL) {
+      if (typeof target.applyHeal === 'function') {
+        target.applyHeal(caster, ae, game);
+      }
+    } else if (ae.type === EFFECT_TYPES.DAMAGE || ae.type === EFFECT_TYPES.DRAIN) {
+      if (typeof target.applySpellDamage === 'function') {
+        target.applySpellDamage(caster, ae, game);
+      }
+    }
   }
 
   /**
