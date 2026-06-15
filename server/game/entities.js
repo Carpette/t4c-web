@@ -76,6 +76,7 @@ export class Character extends Entity {
     this.atkCd = 0;
     this.lastCombat = -99;
     this.effects = new EntityEffects(this); // Initialisation du gestionnaire d'effets unifié
+    this.curseUntil = 0;
   }
 
   /**
@@ -87,13 +88,13 @@ export class Character extends Entity {
     // Mise à jour du gestionnaire d'effets unifié
     this.effects.tick(now * 1000, {
       onExpired: (entity, ae) => {
+        this.recompute(game);
         if (this.kind === C.KIND.PLAYER) {
-          this.recompute(game);
           game.sendSelf(this);
         }
       },
       onPeriodicTick: (entity, ae) => {
-        if (ae.type === EFFECT_TYPES.DAMAGE_OVER_TIME) {
+        if (ae.type === EFFECT_TYPES.DAMAGE) {
           const from = game.players.get(ae.from_id) || game.zones.get(entity.zi?.key)?.entities.get(ae.from_id);
           const min = ae.dot_min || ae.power || 1;
           const max = ae.dot_max || min;
@@ -106,6 +107,19 @@ export class Character extends Entity {
           }
           
           entity.applyDamage(from || entity, finalDmg, false, null, game);
+        } else if (ae.type === EFFECT_TYPES.HEAL) {
+          const min = ae.power || 1;
+          const max = ae.dot_max || min;
+          const healVal = Math.max(1, Math.round(min + Math.random() * (max - min)));
+          
+          if (!game.isCursed(entity)) {
+            const maxHpVal = entity.eff?.maxHp || entity.maxHp || 100;
+            entity.hp = Math.min(maxHpVal, entity.hp + healVal);
+            game.eventNear(entity, { t: 'fx', kind: 'heal', id: entity.id });
+            if (entity.kind === C.KIND.PLAYER) {
+              game.send(entity, { t: 'vitals', hp: Math.round(entity.hp), mana: Math.round(entity.mana) });
+            }
+          }
         }
       }
     });
@@ -152,10 +166,8 @@ export class Character extends Entity {
       game.sendSelf(this);
     }
 
-    const aStats = this.kind === C.KIND.PLAYER ? this.eff.stats
-      : { str: 0, agi: 10 + this.level * 1.8, end: 0, int: 0, wis: 0 };
-    const dStats = defender.kind === C.KIND.PLAYER ? defender.eff.stats
-      : { str: 0, agi: 10 + defender.level * 1.8, end: 0, int: 0, wis: 0 };
+    const aStats = this.eff.stats;
+    const dStats = defender.eff.stats;
     this.state = C.ST.ATTACK;
     this.dir = Math.atan2(defender.x - this.x, defender.z - this.z);
     this.lastCombat = game.now();
@@ -164,19 +176,15 @@ export class Character extends Entity {
     let hitC = C.hitChance(aStats, dStats);
     // T4C : Attaque ne sert qu'en mêlée, Archerie qu'à l'arc — jamais les deux
     const usesBow = this.kind === C.KIND.PLAYER && this.eff.ranged;
-    if (this.kind === C.KIND.PLAYER) {
-      const hitBonus = usesBow ? this.eff.stats.ranged_hit : this.eff.stats.hit;
-      hitC = Math.min(0.98, hitC + hitBonus);
-    }
-    if (defender.kind === C.KIND.PLAYER) {
-      hitC = Math.max(0.15, hitC - defender.eff.stats.dodge);
-    }
+    const hitBonus = usesBow ? this.eff.stats.ranged_hit : this.eff.stats.hit;
+    hitC = Math.min(0.98, hitC + hitBonus);
+    hitC = Math.max(0.15, hitC - defender.eff.stats.dodge);
     if (Math.random() > hitC) {
       game.eventNear(defender, { t: 'dmg', from: this.id, to: defender.id, miss: true });
       return;
     }
     // Parade T4C : annule totalement le coup (bouclier : +50 % d'efficacité)
-    if (defender.kind === C.KIND.PLAYER && Math.random() < defender.eff.stats.parry) {
+    if (Math.random() < defender.eff.stats.parry) {
       game.eventNear(defender, { t: 'dmg', from: this.id, to: defender.id, parry: true });
       return;
     }
@@ -191,15 +199,13 @@ export class Character extends Entity {
       dmg = Math.round(this.sc.dmg * (0.85 + Math.random() * 0.3));
     }
     let crit = false;
-    if (this.kind === C.KIND.PLAYER) {
-      const critChance = C.critChance(aStats) + (this.eff.stats.crit || 0);
-      if (Math.random() < critChance) {
-        dmg = Math.round(dmg * 1.6); crit = true;
-      }
+    const critChance = C.critChance(aStats) + (this.eff.stats.crit || 0);
+    if (Math.random() < critChance) {
+      dmg = Math.round(dmg * 1.6); crit = true;
     }
-    let defense = defender.kind === C.KIND.PLAYER ? defender.eff.defense : defender.sc.def;
+    let defense = defender.eff.defense;
     // Transpercer l'armure : la CA adverse compte moins (0,25 %/pt)
-    if (this.kind === C.KIND.PLAYER) defense *= 1 - (this.eff.stats.pierce || 0);
+    defense *= 1 - (this.eff.stats.pierce || 0);
     dmg = C.mitigate(dmg, defense);
     // attaque élémentaire d'un monstre (ex. Fourmi de feu) : les résistances
     // du défenseur s'appliquent (Bouclier de mana, Résistance au feu/à la glace...)
@@ -315,47 +321,122 @@ export class Player extends Character {
       attBonus += ITEMS[item.defId].att || 0; // points d'Attaque offerts (Écu de Drachen : +50 Att)
       for (const [st, v] of Object.entries(s.bonus)) stats[st] = (stats[st] || 0) + v;
     }
-    // compétences T4C : points entraînés x effet par point
-    const fx = { dmgMul: 0, def: 0, hpMul: 0, speed: 0, hit: 0, rangedHit: 0, crit: 0, dodge: 0, parry: 0, stun: 0, pierce: 0, manaRegenMul: 0, hpRegenMul: 0, discount: 0, loot: 0, spellMul: 0 };
-    for (const [id, pts] of Object.entries(this.skills)) {
-      const sk = content.skillById[id];
-      if (!sk || !pts) continue;
-      for (const [k, v] of Object.entries(sk.effect)) fx[k] = (fx[k] || 0) + v * pts;
+
+    // Nettoyage des anciens effets passifs de compétences
+    this.effects.clearBySourceCondition(src => src.type === 'skill');
+
+    // Nettoyage des anciens effets passifs d'objets (équipés ou inventaire)
+    this.effects.clearBySourceCondition(src => src.type === 'item_equipped' || src.type === 'item_inventory');
+
+    // Application des effets passifs d'objets
+    for (const item of this.inventory) {
+      const def = ITEMS[item.defId];
+      if (!def || !def.effects) continue; // Si l'objet n'a pas d'effets définis, on passe
+
+      const isEquipped = Object.values(this.equip).includes(item.iid);
+
+      for (const eff of def.effects) {
+        const applyOn = eff.apply_on || 'equipped';
+        if (applyOn === 'equipped' && !isEquipped) continue;
+        if (applyOn === 'inventory' && isEquipped) continue; // Ne pas appliquer les effets d'inventaire si l'objet est équipé
+
+        const sourceType = applyOn === 'equipped' ? 'item_equipped' : 'item_inventory';
+
+        this.effects.apply({
+          ...eff,
+          duration: Infinity
+        }, {
+          type: sourceType,
+          id: item.defId,
+          iid: item.iid
+        }, game.now() * 1000);
+      }
+    }
+
+    // Application des effets passifs de compétences
+    for (const [skillId, pts] of Object.entries(this.skills)) {
+      if (!pts) continue;
+      const skEntry = content.skillFormulas.get(skillId);
+      if (!skEntry || !skEntry.effects) continue;
+
+      for (const eff of skEntry.effects) {
+        const power = eff.expr ? eff.expr.evaluate({ pts: pts }) : (eff.power || 0);
+        this.effects.apply({
+          type: eff.type,
+          target_parameter: eff.target_parameter,
+          power: power,
+          duration: Infinity,
+          category: eff.category || 'systeme'
+        }, {
+          type: 'skill',
+          id: skillId
+        }, game.now() * 1000);
+      }
     }
     // un bouclier équipé améliore la parade de moitié (T4C)
-    if (this.equip.shield) fx.parry *= 1.5;
+    if (this.equip.shield) {
+      this.effects.apply({
+        type: EFFECT_TYPES.STATS_BOOST,
+        target_parameter: 'parry',
+        power: 0.5, // 50% bonus
+        duration: Infinity,
+        category: 'systeme'
+      }, {
+        type: 'item_equipped',
+        id: 'shield_bonus', // Unique ID for this specific bonus
+        iid: 'shield_bonus'
+      }, game.now() * 1000);
+    }
     // bonus d'Attaque d'objets (+50 Att = +5 % de toucher en mêlée, comme la compétence)
-    fx.hit += attBonus * 0.001;
-    // le malus d'esquive de l'armure ronge la compétence Esquive (T4C)
-    fx.dodge = Math.max(0, fx.dodge - dodgeMalus * 0.001);
+    // This needs to come from item effects directly, not hardcoded here.
+    // For now, let's assume item effects will handle this.
 
     // Préparation d'une entité virtuelle de base (attributs + équipements + passifs de compétences)
     const baseEntity = {
       stats,
       skills: this.skills,
-      hit: fx.hit,
-      ranged_hit: fx.rangedHit,
-      dodge: fx.dodge,
-      parry: fx.parry,
-      dmgMul: fx.dmgMul,
-      crit: fx.crit,
-      pierce: fx.pierce,
-      spellMul: fx.spellMul,
-      hpRegenMul: fx.hpRegenMul,
-      manaRegenMul: fx.manaRegenMul,
-      discount: fx.discount,
-      loot: fx.loot,
-      stun: fx.stun,
-      maxHp: Math.floor((this.hpAcc ?? C.maxHp(stats, this.level)) * (1 + fx.hpMul)),
+      // These will be calculated by EntityStats based on active effects
+      hit: 0, // Initialiser à 0, sera modifié par les effets
+      ranged_hit: 0, // Initialiser à 0, sera modifié par les effets
+      dodge: 0, // Initialiser à 0, sera modifié par les effets
+      parry: 0, // Initialiser à 0, sera modifié par les effets
+      dmgMul: 0, // Initialiser à 0, sera modifié par les effets
+      crit: 0, // Initialiser à 0, sera modifié par les effets
+      pierce: 0, // Initialiser à 0, sera modifié par les effets
+      hpRegenMul: 0, // Initialiser à 0, sera modifié par les effets
+      manaRegenMul: 0, // Initialiser à 0, sera modifié par les effets
+      discount: 0, // Initialiser à 0, sera modifié par les effets
+      loot: 0, // Initialiser à 0, sera modifié par les effets
+      stun: 0, // Initialiser à 0, sera modifié par les effets
+      maxHp: Math.floor((this.hpAcc ?? C.maxHp(stats, this.level))), // hpMul sera appliqué par les effets
       maxMana: Math.floor(this.manaAcc ?? C.maxMana(stats, this.level)),
-      defense: defense + fx.def,
+      defense: defense, // def sera appliqué par les effets
       effects: this.effects,
     };
 
     // Calcul des statistiques finales via le système d'effets
     const modStats = computeModifiedStats(baseEntity);
 
-    this.skillFx = fx;
+    // skillFx est maintenant entièrement dérivé de modStats pour l'affichage/compatibilité
+    this.skillFx = {
+      dmgMul: modStats.dmgMul,
+      def: modStats.defense - defense, // Calculer la contribution de la compétence à la défense
+      hpMul: modStats.maxHp / Math.floor((this.hpAcc ?? C.maxHp(stats, this.level))) - 1, // Calculer la contribution de la compétence au HP max
+      speed: modStats.speed / C.moveSpeed(modStats) - 1, // Calculer la contribution de la compétence à la vitesse
+      hit: modStats.hit,
+      rangedHit: modStats.ranged_hit,
+      crit: modStats.crit,
+      dodge: modStats.dodge,
+      parry: modStats.parry,
+      stun: modStats.stun,
+      pierce: modStats.pierce,
+      manaRegenMul: modStats.manaRegenMul,
+      hpRegenMul: modStats.hpRegenMul,
+      discount: modStats.discount,
+      loot: modStats.loot,
+      spellMul: 0 // spellMul est obsolète, géré par les puissances élémentaires individuelles
+    };
+
     const strBonus = Math.floor(modStats.str / 3);
     
     const hpRegenBoost = this.effects.active
@@ -368,12 +449,12 @@ export class Player extends Character {
       maxMana: modStats.maxMana,
       dmgMin: ((wMin || 2) + strBonus),
       dmgMax: ((wMax || 3) + strBonus),
-      dmgMult: 1 + modStats.dmgMul,
+      dmgMult: 1 + modStats.dmgMul, // dmgMul est maintenant directement dans modStats
       dmg: Math.floor(((wMin || 2) + (wMax || 3)) / 2 + strBonus), // affichage
       atkCd: C.attackCooldown(modStats, weaponSpeed),
       defense: modStats.defense,
       // La vitesse de déplacement prend désormais en compte le multiplicateur d'effets lents (slow)
-      speed: Math.min(7.5, (C.moveSpeed(modStats) + fx.speed) * this.effects.getSpeedMultiplier()),
+      speed: Math.min(7.5, (C.moveSpeed(modStats)) * this.effects.getSpeedMultiplier()),
       // arc équipé : portée de l'arme (tuiles), sinon mêlée
       atkRange: wRanged ? Math.max(1.8, wRange || 8) : 1.8,
       ranged: wRanged,
@@ -462,6 +543,7 @@ export class Player extends Character {
     this.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     this.spells = []; this.skills = {}; this.unlocked = [0];
     this.flags = {}; this.spellCds = {}; this.casting = null;
+    this.curseUntil = 0;
     this.recompute(game);
     this.hp = this.eff.maxHp; this.mana = this.eff.maxMana;
     game.movePlayerToZone(this, zi0, zi0.world.spawnPoint.x, zi0.world.spawnPoint.z);
@@ -594,6 +676,41 @@ export class Mob extends Character {
     this.wanderAt = now + 2 + Math.random() * 6;
     this.hideAt = 0;
     this.camp = null; // camp de spawn par mouvement (budget de population)
+    this.recompute();
+  }
+
+  recompute(game) {
+    const stats = {
+      str: this.def?.stats?.str || 0,
+      end: this.def?.stats?.end || 0,
+      agi: Math.round(this.def?.stats?.agi || (10 + this.level * 1.8)),
+      int: this.def?.stats?.int || 0,
+      wis: this.def?.stats?.wis || 0,
+    };
+
+    const baseEntity = {
+      stats,
+      power: this.def?.power || {},
+      resist: this.def?.resist || {},
+      maxHp: this.sc?.hp || this.maxHp,
+      maxMana: this.def?.maxMana || 0,
+      defense: this.sc?.def || 0,
+      effects: this.effects,
+    };
+
+    const modStats = computeModifiedStats(baseEntity);
+
+    this.eff = {
+      stats: modStats,
+      maxHp: modStats.maxHp,
+      maxMana: modStats.maxMana,
+      defense: modStats.defense,
+      speed: (this.def?.speed || 4.0) * this.effects.getSpeedMultiplier(),
+    };
+    
+    this.maxHp = this.eff.maxHp;
+    this.maxMana = this.eff.maxMana;
+    this.hp = Math.min(this.hp, this.eff.maxHp);
   }
 
   tick(game, now, dt) {

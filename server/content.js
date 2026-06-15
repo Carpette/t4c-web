@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FormulaEngine } from '../shared/formula-engine.js';
 
-const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
+const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
 export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {} }, skins: { items: {}, mobs: {} }, templates: [] };
 
@@ -34,6 +34,20 @@ function compileSpellFormulas() {
   }
 }
 
+function compileSkillFormulas() {
+  content.skillFormulas = new Map();
+  for (const sk of content.skills) {
+    const entry = { effects: [] };
+    const effectsList = sk.effects || [];
+    for (const ef of effectsList) {
+      if (typeof ef.formula !== 'string') continue;
+      try { entry.effects.push({ ...ef, expr: engine.compile(ef.formula) }); }
+      catch (e) { console.warn(`compétence ${sk.id} : expression ${ef.type || ef.kind} invalide ignorée (${e.message})`); }
+    }
+    content.skillFormulas.set(sk.id, entry);
+  }
+}
+
 export function loadContent() {
   const zones = JSON.parse(fs.readFileSync(path.join(DIR, 'zones.json'), 'utf8'));
   const spells = JSON.parse(fs.readFileSync(path.join(DIR, 'spells.json'), 'utf8'));
@@ -45,6 +59,7 @@ export function loadContent() {
   content.spellById = Object.fromEntries(content.spells.map(s => [s.id, s]));
   content.skillById = Object.fromEntries(content.skills.map(s => [s.id, s]));
   compileSpellFormulas();
+  compileSkillFormulas();
   // musiques (écran de connexion, Épreuve, zone -> fichier) : tolérant si absent.
   // Chaque emplacement a deux variantes { legacy, new } : le joueur choisit son
   // pack dans les paramètres (nouvelles musiques par défaut). L'ancien format

@@ -693,19 +693,39 @@ export class Game {
       })),
       equip: p.equip,
       spells: p.spells, skills: p.skills,
-      buffs: p.effects.active
-        .filter(ae => ae.ends_at !== Infinity)
-        .map(ae => {
-          let statName = ae.target_parameter || ae.type;
-          if (ae.type === 'defense_boost') statName = 'def';
-          if (ae.type === 'spell_boost') statName = 'spellpow';
-          if (ae.type === 'damage_boost') statName = 'dmg';
-          return {
-            stat: statName,
-            power: ae.power,
-            left: Math.max(0, Math.round((ae.ends_at - this.now() * 1000) / 1000))
-          };
-        }),
+      buffs: (() => {
+        const buffsMap = new Map();
+        p.effects.active
+          .filter(ae => ae.ends_at !== Infinity)
+          .forEach(ae => {
+            let statName = ae.target_parameter || ae.type;
+            if (ae.type === 'defense_boost') statName = 'def';
+            if (ae.type === EFFECT_TYPES.POWER_BOOST) {
+              if (ae.source?.id === 'poussee_de_mana') {
+                statName = 'spellpow';
+              } else {
+                statName = 'power_' + ae.target_parameter;
+              }
+            }
+            if (ae.type === 'damage_boost') statName = 'dmg';
+            if (ae.type === 'hp_regen_boost') statName = 'regen';
+            if (ae.type === 'mp_regen_boost') statName = 'manaregen';
+            if (ae.type === 'stats_boost' && ae.target_parameter === 'discount') statName = 'discount';
+            if (ae.type === 'stats_boost' && ae.target_parameter === 'loot') statName = 'loot';
+            if (ae.type === 'stats_boost' && ae.target_parameter === 'crit') statName = 'crit';
+            if (ae.type === 'stats_boost' && ae.target_parameter === 'stun') statName = 'stun';
+            
+            const left = Math.max(0, Math.round((ae.ends_at - this.now() * 1000) / 1000));
+            if (!buffsMap.has(statName) || buffsMap.get(statName).power < ae.power) {
+              buffsMap.set(statName, {
+                stat: statName,
+                power: ae.power,
+                left: left
+              });
+            }
+          });
+        return Array.from(buffsMap.values());
+      })(),
       zoneId: p.zi.isTrial ? p.zi.trialTarget : p.zi.zoneId,
       inTrial: !!p.zi.isTrial,
       unlocked: p.unlocked,
@@ -1601,7 +1621,7 @@ export class Game {
 
   // La cible (joueur ou monstre) est-elle intouchable (Sanctuaire) ?
   isUntouchable(e) { 
-    return e.effects?.hasType(EFFECT_TYPES.SANCTUARY); 
+    return e.effects?.hasType(EFFECT_TYPES.INVINCIBLE); 
   }
 
   // Le joueur est-il en transe (Sanctuaire) : ni attaque ni sort pendant 2x la durée
@@ -1611,7 +1631,7 @@ export class Game {
 
   // Malédiction / Peste : la cible ne peut plus être soignée (sorts, potions, drains)
   isCursed(e) { 
-    return e.effects?.hasType(EFFECT_TYPES.CURSE); 
+    return (e.curseUntil && e.curseUntil > this.now()); 
   }
 
   // ---------- Sorts (système complet dans spells.js) ----------
