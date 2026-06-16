@@ -1,0 +1,93 @@
+<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
+    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Appliquez vos propres images aux objets et aux créatures.
+    Les joueurs voient les skins au prochain rechargement de leur page (F5).</p>
+    <p id="skins-msg" class="text-green-400 min-h-[1.5em]"></p>
+
+    <div class="flex flex-wrap gap-8 mt-4">
+        <div class="flex-1 min-w-[420px]">
+            <h2 class="text-xl text-t4c-gold mb-4">0. Préparation automatique à l'import</h2>
+            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Pour les images générées par IA : le fond uni est rendu transparent
+            (détourage chroma, bords adoucis) et l'image est redimensionnée à la taille exacte
+            attendue. Appliqué au moment du téléversement, l'original n'est pas modifié.</p>
+            <div class="space-y-4">
+                <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-chroma" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🟩 Fond uni → transparent</span></label>
+                    <input type="color" id="skin-chroma-color" value="#00ff00" title="Couleur du fond à détourer" class="bg-t4c-input-bg rounded-md">
+                    <label class="flex items-center gap-2">tolérance <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" class="w-28"></label>
+                </div>
+                <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-resize" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>📐 Redimensionner à la taille attendue</span></label>
+                    <label class="flex items-center gap-2">objets : <input id="skin-item-size" value="96" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
+                </div>
+                <div class="toolbar flex items-center gap-2 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-realign" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>♻ Recaler chaque frame des planches
+                    (efface les bords de case et aligne le bas-centre du contenu sur l'ancrage —
+                    corrige le tremblement des animations générées par IA)</span></label>
+                </div>
+            </div>
+            <h2 class="text-xl text-t4c-gold mt-6 mb-2">1. Téléverser une image d'objet (PNG)</h2>
+            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Une seule image. Elle servira d'icône (inventaire, boutique)
+            et d'apparence au sol.</p>
+            <div class="toolbar flex items-center gap-2">
+                <input type="file" id="skin-item-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
+                <button @click="uploadItemSkin" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Téléverser</button>
+            </div>
+            <h2 class="text-xl text-t4c-gold mt-6 mb-2">2. Téléverser une planche de créature (PNG)</h2>
+            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Grille régulière : 8 lignes = 8 directions (ordre Flare : O, NO, N, NE,
+            E, SE, S face caméra, SO), colonnes = frames. Renseignez la taille d'une case,
+            l'ancrage des pieds dans la case, et les colonnes de chaque animation
+            (stance, run, swing et die sont obligatoires).</p>
+            <div class="space-y-4">
+                <div class="toolbar flex flex-wrap items-center gap-4">
+                    <input type="file" id="skin-enemy-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
+                    <label class="flex items-center gap-2">Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" class="w-32 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
+                </div>
+                <div class="toolbar flex flex-wrap items-center gap-4">
+                    <label class="flex items-center gap-2">Case : <input id="skin-cell-w" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> ×
+                        <input id="skin-cell-h" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
+                    <label class="flex items-center gap-2">Ancrage (pieds) : <input id="skin-anchor-x" value="64" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1">,
+                        <input id="skin-anchor-y" value="110" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
+                </div>
+                <textarea id="skin-enemy-anims" spellcheck="false" class="w-full h-36 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm">{
+    "stance": { "from": 0, "to": 3, "duration": 800 },
+    "run":    { "from": 4, "to": 11, "duration": 660 },
+    "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
+    "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
+    }</textarea>
+                <div class="toolbar flex items-center gap-2">
+                    <button @click="uploadEnemySkin" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Importer la planche</button>
+                    <button @click="showEnemyPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">🧠 Prompt IA (planche)</button>
+                </div>
+            </div>
+            <h2 class="text-xl text-t4c-gold mt-6 mb-2">Prompt pour IA générative</h2>
+            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Généré depuis les paramètres ci-dessus (taille de case, ancrage, animations) :
+            collez-le dans votre générateur d'images, l'outil d'import attend exactement ce format.
+            Le bouton 📋 d'un objet (table ci-contre) génère le prompt pour cet objet.</p>
+            <textarea id="skin-prompt" spellcheck="false" class="w-full h-48 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm" placeholder="Cliquez sur « 🧠 Prompt IA » ou sur le 📋 d'un objet…"></textarea>
+            <div class="toolbar flex items-center gap-2 mt-2"><button @click="copyPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">📋 Copier le prompt</button><span id="skin-prompt-msg" class="text-green-400"></span></div>
+
+            <h2 class="text-xl text-t4c-gold mt-6 mb-2">Aperçu</h2>
+            <img id="skin-preview" class="w-full max-h-72 bg-t4c-input-bg border border-t4c-input-border rounded-lg hidden">
+        </div>
+
+        <div class="flex-1 min-w-[420px]">
+            <h2 class="text-xl text-t4c-gold mb-4">3. Assignations</h2>
+            <div class="toolbar mb-4">
+                <button @click="saveSkins" class="w-full px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer TOUTES les assignations (objets + créatures)</button>
+            </div>
+            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Un seul enregistrement pour les deux tables ci-dessous.</p>
+
+            <h3 class="text-lg text-t4c-gold mt-6 mb-2">Objets</h3>
+            <div class="toolbar mb-2">
+                <input id="skin-item-search" @input="renderSkinItems" placeholder="Filtrer les objets…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
+            </div>
+            <table id="skin-items-table" class="w-full text-sm text-left text-gray-400"></table>
+
+            <h3 class="text-lg text-t4c-gold mt-6 mb-2">Créatures</h3>
+            <div class="toolbar mb-2">
+                <input id="skin-mob-search" @input="renderSkinMobs" placeholder="Filtrer les créatures…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
+            </div>
+            <table id="skin-mobs-table" class="w-full text-sm text-left text-gray-400"></table>
+        </div>
+    </div>
+</div>

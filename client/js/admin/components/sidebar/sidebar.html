@@ -1,0 +1,16 @@
+<div class="flex flex-col justify-between h-full" @vue:mounted="init()">
+    <div>
+        <h1 class="text-xl font-bold text-t4c-gold mb-4">T4C-Web --- Admin UI <span id="who" class="text-sm font-normal text-gray-400"></span></h1>
+        <nav id="menu" class="flex flex-col space-y-2">
+            <button data-tab="map" @click="setActive('map')" :class="{'menu-item': true, 'active': activeTab === 'map'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">🗺 Cartes</button>
+            <button data-tab="content" @click="setActive('content')" :class="{'menu-item': true, 'active': activeTab === 'content'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">📜 Contenu</button>
+            <button data-tab="music" @click="setActive('music')" :class="{'menu-item': true, 'active': activeTab === 'music'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">🎵 Musiques</button>
+            <button data-tab="skins" @click="setActive('skins')" :class="{'menu-item': true, 'active': activeTab === 'skins'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">🎨 Skins</button>
+            <button data-tab="chars" @click="setActive('chars')" :class="{'menu-item': true, 'active': activeTab === 'chars'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">👤 Personnages</button>
+            <button data-tab="pantheon" @click="setActive('pantheon')" :class="{'menu-item': true, 'active': activeTab === 'pantheon'}" class="text-left w-full py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-md">☠ Panthéon</button>
+        </nav>
+    </div>
+    <button id="logout-button" class="bg-t4c-danger hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+        Logout
+    </button>
+</div>

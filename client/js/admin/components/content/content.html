@@ -1,0 +1,13 @@
+<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
+    <div class="toolbar flex items-center gap-2 mb-4">
+        <select id="content-file" class="bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light focus:outline-none focus:ring-2 focus:ring-t4c-button">
+            <option value="zones">zones.json (zones + PNJ)</option>
+            <option value="spells">spells.json (sorts)</option>
+            <option value="skills">skills.json (compétences)</option>
+        </select>
+        <button @click="loadContent" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Charger</button>
+        <button @click="saveContent" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
+    </div>
+    <p id="content-msg" class="text-green-400 min-h-[1.5em]"></p>
+    <textarea id="content-editor" spellcheck="false" class="w-full h-[60vh] bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm"></textarea>
+</div>

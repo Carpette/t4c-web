@@ -1,0 +1,16 @@
+<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
+    <div class="toolbar flex items-center gap-2 mb-4">
+        <button @click="loadMusic" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Rafraîchir</button>
+        <button @click="saveMusic" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
+    </div>
+    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
+    dans les listes. Chaque zone a deux variantes : la <b>nouvelle</b> musique (pack par défaut
+    des joueurs) et la musique <b>ancienne</b> (pack « legacy », choisi dans les paramètres en jeu) —
+    si la variante du pack choisi est vide, l'autre est jouée. Appliqué à chaud aux joueurs connectés.
+    « — silence — » coupe la musique.</p>
+    <p id="music-msg" class="text-green-400 min-h-[1.5em]"></p>
+    <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-4">
+    </table>
+    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Pré-écoute</h2>
+    <audio id="music-preview" controls class="w-full max-w-md"></audio>
+</div>
