@@ -95,6 +95,11 @@ export async function handleAdmin(req, res, url, game) {
     const session = auth(req);
     if (!session) return json(401, { error: 'Non authentifié' });
 
+    if (url === '/api/admin/check-session') {
+      const account = db.getAccountById(session.accountId);
+      return json(200, { name: account.name });
+    }
+
     // ---- contenu (zones / sorts / compétences) ----
     const mContent = url.match(/^\/api\/admin\/content\/(zones|spells|skills)$/);
     if (mContent) {

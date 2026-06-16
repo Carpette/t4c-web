@@ -90,6 +90,10 @@ export function setAdmin(accountId, val) {
   db.prepare('UPDATE accounts SET is_admin = ? WHERE id = ?').run(val ? 1 : 0, accountId);
 }
 
+export function getAccountById(accountId) {
+  return db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId);
+}
+
 export function loadCharacter(accountId) {
   const row = db.prepare('SELECT data FROM characters WHERE account_id = ?').get(accountId);
   if (!row) return null;
