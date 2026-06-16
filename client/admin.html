@@ -3,243 +3,183 @@
 <head>
   <meta charset="UTF-8">
   <title>T4C-Web — Administration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            't4c-main-bg': '#14101e',
+            't4c-box-bg': '#1a1428',
+            't4c-border': '#5a4a8a',
+            't4c-text': '#d8d0f0',
+            't4c-text-light': '#e8e0ff',
+            't4c-gold': '#c8b87a',
+            't4c-button': '#4a3a7a',
+            't4c-button-hover': '#5d4a98',
+            't4c-button-active': '#7a5ac8',
+            't4c-input-bg': '#0c0a16',
+            't4c-input-border': '#4a4070',
+            't4c-danger': '#7a2a2a',
+            't4c-danger-border': '#aa4a4a',
+            't4c-success': '#2f7a4a',
+            't4c-success-border': '#4aaa6a',
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #14101e; color: #d8d0f0; font-family: 'Trebuchet MS', Verdana, sans-serif; padding: 16px; }
-    h1 { color: #c8b87a; font-size: 20px; margin-bottom: 12px; }
-    h2 { color: #c8b87a; font-size: 15px; margin: 12px 0 8px; }
-    button { padding: 6px 14px; background: #4a3a7a; color: #e8e0ff; border: 1px solid #6a5aaa; border-radius: 5px; cursor: pointer; font-size: 13px; }
-    button:hover { background: #5d4a98; }
-    button.active { background: #7a5ac8; }
-    button.danger { background: #7a2a2a; border-color: #aa4a4a; }
-    input, select, textarea { background: #0c0a16; border: 1px solid #4a4070; border-radius: 4px; color: #e8e0ff; padding: 6px 8px; font-size: 13px; }
-    textarea { width: 100%; height: 60vh; font-family: monospace; font-size: 12px; }
-    #login-box { max-width: 320px; margin: 80px auto; background: #1a1428; padding: 24px; border-radius: 8px; border: 1px solid #5a4a8a; }
-    #login-box input { display: block; width: 100%; margin: 8px 0; }
-    .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-    .tab-content { display: none; }
-    .tab-content.visible { display: block; }
-    #map-canvas { border: 1px solid #4a4070; cursor: crosshair; display: block; }
-    .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; align-items: center; }
-    /* --- barre du haut épurée de l'éditeur : groupes séparés visuellement --- */
-    #map-topbar { gap: 8px; }
-    #map-topbar .tb-group { display: flex; gap: 5px; align-items: center;
-      padding: 3px 8px; background: #181226; border: 1px solid #2a2444; border-radius: 6px; }
-    #map-topbar .tb-group > label { display: flex; align-items: center; gap: 4px; }
-    #map-topbar .tb-label { color: #8a80a8; font-size: 11px; text-transform: uppercase;
-      letter-spacing: 0.5px; margin-right: 2px; }
-    #save-map { background: #2f7a4a; border-color: #4aaa6a; font-weight: bold; }
-    #save-map:hover { background: #3a9a5c; }
-    /* --- éditeur de carte : disposition, rail d'outils, mini-carte, palette --- */
-    .map-layout { display: flex; gap: 12px; align-items: flex-start; }
-    /* rail d'outils vertical à gauche du canvas */
-    #map-rail { display: flex; flex-direction: column; gap: 4px; width: 46px; flex: none;
-      max-height: 706px; overflow-y: auto; background: #181226; border: 1px solid #3a3158;
-      border-radius: 6px; padding: 5px 4px; }
-    #map-rail button { width: 36px; height: 34px; padding: 0; font-size: 16px; line-height: 1;
-      display: flex; align-items: center; justify-content: center; }
-    #map-rail .rail-sep { height: 1px; background: #2a2444; margin: 4px 2px; }
-    #map-rail .rail-title { color: #8a80a8; font-size: 9px; text-align: center;
-      text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0 1px; }
-    #map-rail select { width: 38px; padding: 4px 2px; text-align: center; }
-    #map-wrap { position: relative; }
-    #map-mini { position: absolute; right: 10px; bottom: 10px; border: 1px solid #6a5aaa;
-      background: #000; cursor: pointer; opacity: 0.92; image-rendering: pixelated; }
-    #map-coords { position: absolute; left: 10px; bottom: 10px; background: rgba(8, 6, 18, 0.8);
-      border: 1px solid #4a4070; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #cfc6ee; pointer-events: none; }
-    /* panneau droit à deux onglets : « Palette » / « Calques » */
-    #map-side { width: 312px; flex: none; background: #181226; border: 1px solid #3a3158;
-      border-radius: 6px; display: flex; flex-direction: column; max-height: 706px; }
-    #map-side-tabs { display: flex; gap: 4px; padding: 6px 6px 0; }
-    #map-side-tabs button { flex: 1; border-radius: 6px 6px 0 0; background: #100c1e;
-      border-bottom: none; }
-    #map-side-tabs button.active { background: #4a3a7a; }
-    .map-side-pane { display: none; overflow-y: auto; padding: 8px; }
-    .map-side-pane.visible { display: block; }
-    #map-palette { padding: 0; }
-    /* onglet Calques : une ligne par calque (œil + nom + bouton « + ») */
-    .layer-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; margin: 3px 0;
-      background: #100c1e; border: 1px solid #2a2444; border-radius: 6px; cursor: pointer; }
-    .layer-row:hover { border-color: #4a4070; }
-    .layer-row.current { border-color: #ffd24a; background: #1d1636; }
-    .layer-row .layer-eye { width: 26px; height: 24px; padding: 0; font-size: 14px; flex: none;
-      background: #251c40; line-height: 1; opacity: 0.45; }
-    .layer-row.shown .layer-eye { opacity: 1; background: #3a2d63; }
-    .layer-row .layer-name { flex: 1; font-size: 12px; color: #cfc6ee; user-select: none; }
-    .layer-row .layer-add { width: 26px; height: 24px; padding: 0; font-size: 15px; flex: none;
-      font-weight: bold; line-height: 1; }
-    /* onglet Templates : bouton d'enregistrement + liste des assemblages */
-    .tpl-save { width: 100%; margin-bottom: 6px; }
-    .tpl-save:disabled { opacity: 0.45; cursor: not-allowed; }
-    .tpl-row { display: flex; align-items: center; gap: 6px; padding: 6px; margin: 4px 0;
-      background: #100c1e; border: 1px solid #2a2444; border-radius: 6px; }
-    .tpl-row:hover { border-color: #4a4070; }
-    .tpl-thumb { width: 40px; height: 40px; flex: none; background: #0a0814;
-      border: 1px solid #2a2444; border-radius: 4px; image-rendering: pixelated; }
-    .tpl-info { flex: 1; min-width: 0; }
-    .tpl-name { font-size: 12px; color: #cfc6ee; font-weight: bold; overflow: hidden;
-      text-overflow: ellipsis; white-space: nowrap; }
-    .tpl-sum { font-size: 10px; color: #8a82aa; }
-    .tpl-acts { display: flex; gap: 3px; flex-wrap: wrap; }
-    .tpl-acts button { padding: 2px 6px; font-size: 11px; line-height: 1.3; }
-    /* fiche d'édition flottante (camps de monstres / PNJ) */
-    #edit-panel { display: none; position: absolute; right: 10px; top: 10px; width: 300px;
-      max-height: calc(100% - 20px); overflow-y: auto; background: #1a1428ee;
-      border: 1px solid #5a4a8a; border-radius: 8px; padding: 10px; font-size: 12px; }
-    #edit-panel h4 { color: #c8b87a; font-size: 12px; margin: 10px 0 4px; }
-    #edit-panel textarea { height: auto; }
-    .edit-panel-title { display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 6px; color: #c8b87a; }
-    .edit-row { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
-    .edit-list { max-height: 140px; overflow-y: auto; background: #100c1e;
-      border: 1px solid #3a3158; border-radius: 5px; padding: 4px 6px; margin: 4px 0; }
-    .edit-check { display: block; margin: 2px 0; cursor: pointer; }
-    .edit-dlg { background: #100c1e; border: 1px solid #3a3158; border-radius: 5px;
-      padding: 6px; margin: 6px 0; }
-    .edit-dlg input, .edit-dlg textarea { margin: 3px 0; }
-    /* éditeur de quêtes : large panneau modal au-dessus de la carte */
-    #quest-panel { display: none; position: absolute; left: 10px; right: 10px; top: 10px;
-      bottom: 10px; overflow-y: auto; background: #150f24f5; border: 1px solid #5a4a8a;
-      border-radius: 8px; padding: 14px; font-size: 12px; z-index: 20; }
-    #quest-panel h3 { color: #c8b87a; margin: 10px 0 4px; }
-    .quest-card { background: #100c1e; border: 1px solid #3a3158; border-radius: 6px;
-      padding: 8px 10px; margin: 8px 0; }
-    .quest-step { background: #181030; border: 1px solid #34507a; border-radius: 6px;
-      padding: 6px 8px; margin: 6px 0; }
-    .quest-chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
-    .quest-link { background: #1d1636; border: 1px solid #4a4070; border-radius: 5px;
-      padding: 4px 8px; color: #cfc6ee; }
-    .quest-arrow { color: #c8b87a; font-weight: bold; }
-    .quest-warn { color: #e8b86a; }
-    .quest-bad { color: #e86a6a; }
-    .quest-ok { color: #8ae88a; }
-    .pal-search { width: 100%; margin-bottom: 8px; }
-    .pal-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
-      padding: 6px 8px; background: #100c1e; border-radius: 5px; font-size: 12px; }
-    .pal-options input[type=range] { width: 130px; vertical-align: middle; margin: 0 6px; }
-    .pal-group h3 { color: #c8b87a; font-size: 12px; margin: 8px 0 4px; text-transform: capitalize; }
-    .pal-row { display: flex; flex-wrap: wrap; gap: 5px; }
-    .pal-chip { width: 82px; border: 2px solid transparent; border-radius: 5px; cursor: pointer;
-      background: #100c1e; padding: 4px 3px 3px; text-align: center; }
-    .pal-chip:hover { border-color: #5d4a98; }
-    .pal-chip.active { border-color: #ffd24a; }
-    .pal-chip canvas { display: block; margin: 0 auto; }
-    .pal-chip .pal-swatch { width: 72px; height: 72px; border-radius: 4px; margin: 0 auto; }
-    .pal-chip-label { font-size: 10px; color: #9a90b8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    /* --- accordéon par thème + sous-sections par type --- */
-    .pal-theme { margin-bottom: 4px; border: 1px solid #2a2444; border-radius: 6px; overflow: hidden; background: #140f24; }
-    .pal-theme-head { display: flex; align-items: center; gap: 6px; width: 100%; cursor: pointer;
-      padding: 7px 9px; background: #1b1430; color: #c8b87a; font-size: 12px; font-weight: bold;
-      border: none; text-align: left; user-select: none; }
-    .pal-theme-head:hover { background: #241a3c; }
-    .pal-theme-chevron { display: inline-block; transition: transform .15s; color: #8a7fb0; font-size: 11px; }
-    .pal-theme.open .pal-theme-chevron { transform: rotate(90deg); }
-    .pal-theme-count { margin-left: auto; color: #6a6088; font-weight: normal; font-size: 11px; }
-    .pal-theme-body { display: none; padding: 4px 8px 8px; }
-    .pal-theme.open .pal-theme-body { display: block; }
-    .pal-subsec h4 { color: #9a90b8; font-size: 11px; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .04em; }
-    .pal-subsec:first-child h4 { margin-top: 2px; }
-    table { border-collapse: collapse; font-size: 12px; width: 100%; }
-    th, td { border: 1px solid #2a2444; padding: 5px 8px; text-align: left; }
-    th { color: #c8b87a; }
-    .msg { color: #8ae88a; margin: 8px 0; min-height: 16px; font-size: 13px; }
-    .err { color: #e86a6a; }
-    .hint { color: #8a80a8; font-size: 11px; margin: 6px 0; }
-    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .tab-button.active {
+      background-color: #4a3a7a; /* t4c-button */
+      border-bottom: 2px solid #c8b87a; /* t4c-gold */
+    }
+    .tab-button {
+        margin-bottom: -1px;
+    }
+    #map-rail .active {
+        background-color: #7a5ac8; /* t4c-button-active */
+        box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.5);
+    }
+    #map-side-tabs .active {
+        background-color: #7a5ac8; /* t4c-button-active */
+    }
+    .tab-content {
+        display: none;
+    }
+    .tab-content.visible {
+        display: block;
+    }
+    #music-table th, #music-table td, #chars-table th, #chars-table td, #pantheon-table th, #pantheon-table td, #skin-items-table th, #skin-items-table td, #skin-mobs-table th, #skin-mobs-table td {
+        padding: 0.75rem;
+        border-bottom-width: 1px;
+        border-color: #4a4070; /* t4c-input-border */
+    }
+    #music-table th, #chars-table th, #pantheon-table th, #skin-items-table th, #skin-mobs-table th {
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #c8b87a; /* t4c-gold */
+        background-color: #0c0a16; /* t4c-input-bg */
+    }
+    select {
+        background-color: #0c0a16; /* t4c-input-bg */
+        border: 1px solid #4a4070; /* t4c-input-border */
+        border-radius: 4px;
+        color: #e8e0ff; /* t4c-text-light */
+        padding: 4px 8px;
+        outline: none;
+    }
+    select:focus {
+        border-color: #7a5ac8; /* t4c-button-active */
+    }
+    option {
+        background-color: #0c0a16; /* t4c-input-bg */
+        color: #e8e0ff; /* t4c-text-light */
+    }
   </style>
 </head>
-<body>
-  <div id="login-box">
-    <h1>Administration</h1>
-    <input id="adm-name" placeholder="Compte admin">
-    <input id="adm-pass" type="password" placeholder="Mot de passe">
-    <button id="adm-login">Connexion</button>
-    <p id="adm-error" class="msg err"></p>
+<body class="bg-t4c-main-bg text-t4c-text font-sans p-4">
+  <div id="login-box" class="max-w-sm mx-auto mt-20 bg-t4c-box-bg p-6 rounded-lg border border-t4c-border shadow-lg">
+    <h1 class="text-2xl font-bold text-t4c-gold mb-6 text-center">Administration</h1>
+    <div class="space-y-4">
+      <input id="adm-name" class="block w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button" placeholder="Compte admin">
+      <input id="adm-pass" type="password" class="block w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button" placeholder="Mot de passe">
+    </div>
+    <button id="adm-login" class="w-full mt-6 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold py-2 px-4 rounded-md border border-t4c-border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-t4c-box-bg focus:ring-t4c-button-active">Connexion</button>
+    <p id="adm-error" class="text-red-400 mt-4 text-center min-h-[1.5em]"></p>
   </div>
 
-  <div id="panel" style="display:none">
-    <h1>T4C-Web — Administration <span id="who" style="font-size:12px;color:#8a80a8"></span></h1>
-    <div class="tabs">
-      <button data-tab="map" class="active">🗺 Cartes</button>
-      <button data-tab="content">📜 Contenu</button>
-      <button data-tab="music">🎵 Musiques</button>
-      <button data-tab="skins">🎨 Skins</button>
-      <button data-tab="chars">👤 Personnages</button>
-      <button data-tab="pantheon">☠ Panthéon</button>
+    <div id="panel" style="display:none" class="px-4 sm:px-6 lg:px-8">
+    <header class="flex justify-between items-center py-4 border-b-2 border-t4c-border">
+        <h1 class="text-2xl font-bold text-t4c-gold">T4C-Web — Administration <span id="who" class="text-base font-normal text-gray-400"></span></h1>
+        <button id="logout-button" class="bg-t4c-danger hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+            Logout
+        </button>
+    </header>
+    <div class="tabs flex space-x-1 border-b border-t4c-border mt-4">
+      <button data-tab="map" class="active tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">🗺 Cartes</button>
+      <button data-tab="content" class="tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">📜 Contenu</button>
+      <button data-tab="music" class="tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">🎵 Musiques</button>
+      <button data-tab="skins" class="tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">🎨 Skins</button>
+      <button data-tab="chars" class="tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">👤 Personnages</button>
+      <button data-tab="pantheon" class="tab-button py-2 px-4 font-semibold text-t4c-text-light hover:bg-t4c-button-hover rounded-t-md">☠ Panthéon</button>
     </div>
 
-    <div id="tab-map" class="tab-content visible">
-      <div class="toolbar" id="map-topbar">
-        <label class="tb-group"><span class="tb-label">Zone</span><select id="map-zone"></select></label>
-        <div class="tb-group">
-          <button id="undo-map" title="Annuler (Ctrl+Z)">↶</button>
-          <button id="redo-map" title="Rétablir (Ctrl+Maj+Z)">↷</button>
+    <div id="tab-map" class="tab-content visible mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <div class="toolbar flex flex-wrap items-center gap-2 mb-4">
+        <div class="tb-group flex items-center gap-2 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+          <span class="tb-label text-sm font-semibold text-gray-400">Zone</span>
+          <select id="map-zone" class="bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1 text-t4c-text-light focus:outline-none focus:ring-2 focus:ring-t4c-button"></select>
         </div>
-        <button id="save-map" title="Enregistre et applique les overrides de la zone au serveur">💾 Enregistrer</button>
-        <div class="tb-group">
-          <span class="tb-label">Fichier</span>
-          <button id="export-map" title="Télécharger les overrides de la zone en JSON">⬇ Exporter</button>
-          <button id="import-map" title="Charger un fichier d'overrides JSON">⬆ Importer</button>
-          <input type="file" id="import-file" accept=".json,application/json" style="display:none">
-          <button id="reset-map" class="danger" title="Efface toutes les modifications de cette zone">Réinitialiser la zone</button>
+        <div class="tb-group flex items-center gap-1 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+          <button id="undo-map" title="Annuler (Ctrl+Z)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">↶</button>
+          <button id="redo-map" title="Rétablir (Ctrl+Maj+Z)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">↷</button>
         </div>
-        <button id="open-quests" title="Éditeur de quêtes : voir et construire les quêtes de la zone comme des chaînes d'étapes">🗺 Quêtes</button>
-        <div class="tb-group">
-          <span class="tb-label">Vue</span>
-          <label><input type="checkbox" id="iso-view" checked> 🧭 Vue jeu (iso)</label>
-          <button id="preview-daynight" title="Bascule l'aperçu de la carte entre jour et nuit (applique lumières et obscurité)">🌓 Aperçu jour/nuit</button>
-          <label><input type="checkbox" id="show-players" checked> 🟢 Joueurs en direct</label>
-          <label><input type="checkbox" id="show-player-names"> Afficher les noms</label>
-          <span id="players-info" style="color:#9ad"></span>
-          <button id="tp-here" title="Téléporte votre personnage connecté en jeu sur la case cliquée">🧍 Tester ici</button>
+        <button id="save-map" title="Enregistre et applique les overrides de la zone au serveur" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
+        <div class="tb-group flex items-center gap-1 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+          <span class="tb-label text-sm font-semibold text-gray-400">Fichier</span>
+          <button id="export-map" title="Télécharger les overrides de la zone en JSON" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">⬇ Exporter</button>
+          <button id="import-map" title="Charger un fichier d'overrides JSON" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">⬆ Importer</button>
+          <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+          <button id="reset-map" class="px-3 py-1 bg-t4c-danger hover:bg-red-700 text-white rounded-md" title="Efface toutes les modifications de cette zone">Réinitialiser</button>
+        </div>
+        <button id="open-quests" title="Éditeur de quêtes : voir et construire les quêtes de la zone comme des chaînes d'étapes" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🗺 Quêtes</button>
+        <div class="tb-group flex flex-wrap items-center gap-2 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+          <span class="tb-label text-sm font-semibold text-gray-400">Vue</span>
+          <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="iso-view" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🧭 Vue jeu (iso)</span></label>
+          <button id="preview-daynight" title="Bascule l'aperçu de la carte entre jour et nuit (applique lumières et obscurité)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🌓 Jour/Nuit</button>
+          <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="show-players" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🟢 Joueurs</span></label>
+          <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="show-player-names" class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>Noms</span></label>
+          <span id="players-info" class="text-blue-400 text-sm"></span>
+          <button id="tp-here" title="Téléporte votre personnage connecté en jeu sur la case cliquée" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🧍 Tester ici</button>
         </div>
       </div>
-      <p class="hint">Molette : zoom centré sur le curseur — clic milieu, clic droit ou Espace+glisser : déplacer la vue —
+      <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border">Molette : zoom centré sur le curseur — clic milieu, clic droit ou Espace+glisser : déplacer la vue —
       mini-carte cliquable — Maj+glisser : rectangle de tuiles — Alt+clic : pipette (reprend la tuile ou le décor visé) —
       Ctrl+Z / Ctrl+Maj+Z : annuler/rétablir. Outils de dessin dans le rail de gauche, palette et calques à droite.
       En zoom rapproché, la carte est dessinée avec les vrais sprites du jeu.
       Les modifications s'appliquent à chaud sur le serveur et au prochain chargement de zone pour les joueurs.</p>
-      <p id="map-msg" class="msg"></p>
-      <div class="map-layout">
+      <p id="map-msg" class="text-green-400 mt-2 min-h-[1.5em]"></p>
+      <div class="map-layout flex gap-4 mt-4">
         <!-- rail d'outils vertical : outils de dessin + taille de pinceau -->
-        <div id="map-rail">
-          <button id="tool-paint" class="active" title="Poser : pose la tuile ou le décor choisi dans la palette">🖌</button>
-          <button id="tool-fill" title="Remplir : pot de peinture, remplit par contiguïté les tuiles du même type (Maj+clic : toute la zone)">🪣</button>
-          <button id="tool-select" title="Sélection : sélectionner une région (glisser), Ctrl+C copier, Ctrl+V coller, Échap annuler">⧉</button>
-          <button id="tool-erase" title="Gomme : supprime le décor cliqué">⌫</button>
-          <button id="tool-move" title="Déplacer : glisser un décor existant vers une autre case">✥</button>
-          <div class="rail-sep"></div>
-          <button id="tool-mirror" title="Miroir horizontal (touche M) : retourne le décor à poser — utile pour les murs/portes">⇄</button>
-          <button id="tool-solid" title="Solide (touche B) : si activé, tout décor posé bloque le passage ; sinon il est franchissable">🧱</button>
-          <div class="rail-sep"></div>
-          <div class="rail-title" title="Pipette : Alt/Option+clic reprend la tuile ou le décor visé">⛏ Alt</div>
-          <div class="rail-sep"></div>
-          <div class="rail-title">Pinceau</div>
-          <select id="brush-size" title="Taille du pinceau (Poser / Remplir)">
+        <div id="map-rail" class="flex-none flex flex-col gap-1 p-2 bg-t4c-box-bg border border-t4c-border rounded-lg">
+          <button id="tool-paint" class="active w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Poser : pose la tuile ou le décor choisi dans la palette">🖌</button>
+          <button id="tool-fill" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Remplir : pot de peinture, remplit par contiguïté les tuiles du même type (Maj+clic : toute la zone)">🪣</button>
+          <button id="tool-select" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Sélection : sélectionner une région (glisser), Ctrl+C copier, Ctrl+V coller, Échap annuler">⧉</button>
+          <button id="tool-erase" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Gomme : supprime le décor cliqué">⌫</button>
+          <button id="tool-move" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Déplacer : glisser un décor existant vers une autre case">✥</button>
+          <div class="rail-sep border-b border-t4c-input-border my-2"></div>
+          <button id="tool-mirror" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Miroir horizontal (touche M) : retourne le décor à poser — utile pour les murs/portes">⇄</button>
+          <button id="tool-solid" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Solide (touche B) : si activé, tout décor posé bloque le passage ; sinon il est franchissable">🧱</button>
+          <div class="rail-sep border-b border-t4c-input-border my-2"></div>
+          <div class="rail-title text-xs text-center uppercase text-gray-400" title="Pipette : Alt/Option+clic reprend la tuile ou le décor visé">⛏ Alt</div>
+          <div class="rail-sep border-b border-t4c-input-border my-2"></div>
+          <div class="rail-title text-xs text-center uppercase text-gray-400">Pinceau</div>
+          <select id="brush-size" title="Taille du pinceau (Poser / Remplir)" class="w-10 bg-t4c-input-bg border border-t4c-input-border rounded-md p-1 text-center focus:outline-none focus:ring-2 focus:ring-t4c-button">
             <option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="9">9</option>
           </select>
         </div>
-        <div id="map-wrap">
-          <canvas id="map-canvas" width="1000" height="704"></canvas>
-          <canvas id="map-mini" width="168" height="168"></canvas>
-          <div id="map-coords">—</div>
-          <div id="edit-panel"></div>
-          <div id="quest-panel"></div>
+        <div id="map-wrap" class="relative">
+          <canvas id="map-canvas" width="1000" height="704" class="border border-t4c-input-border cursor-crosshair block"></canvas>
+          <canvas id="map-mini" width="168" height="168" class="absolute right-2 bottom-2 border border-t4c-border bg-black cursor-pointer opacity-90" style="image-rendering: pixelated;"></canvas>
+          <div id="map-coords" class="absolute left-2 bottom-2 bg-t4c-input-bg/80 border border-t4c-input-border rounded-md px-2 py-1 text-sm text-t4c-text-light pointer-events-none">—</div>
+          <div id="edit-panel" class="hidden absolute right-2 top-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto bg-t4c-box-bg/90 border border-t4c-border rounded-lg p-3 text-sm"></div>
+          <div id="quest-panel" class="hidden absolute inset-2 overflow-y-auto bg-t4c-box-bg/95 border border-t4c-border rounded-lg p-4 text-sm z-20"></div>
         </div>
         <!-- panneau droit à trois onglets : Palette / Calques / Templates -->
-        <div id="map-side">
-          <div id="map-side-tabs">
-            <button data-side="palette" class="active">🎨 Palette</button>
-            <button data-side="layers">🗂 Calques</button>
-            <button data-side="templates">🧩 Templates</button>
+        <div id="map-side" class="w-80 flex-none bg-t4c-box-bg border border-t4c-border rounded-lg flex flex-col max-h-[706px]">
+          <div id="map-side-tabs" class="flex gap-1 p-1">
+            <button data-side="palette" class="active flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🎨 Palette</button>
+            <button data-side="layers" class="flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🗂 Calques</button>
+            <button data-side="templates" class="flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🧩 Templates</button>
           </div>
-          <div id="map-pane-palette" class="map-side-pane visible">
+          <div id="map-pane-palette" class="map-side-pane visible overflow-y-auto p-2">
             <div id="map-palette"></div>
           </div>
-          <div id="map-pane-layers" class="map-side-pane">
+          <div id="map-pane-layers" class="map-side-pane hidden overflow-y-auto p-2">
             <div id="map-layers"></div>
             <!-- cases « visible » des calques : pilotées par les boutons œil, source de vérité conservée -->
-            <div style="display:none">
+            <div class="hidden">
               <input type="checkbox" id="layer-camps">
               <input type="checkbox" id="layer-npcs">
               <input type="checkbox" id="layer-chests">
@@ -256,152 +196,159 @@
               <button id="add-light"></button>
             </div>
           </div>
-          <div id="map-pane-templates" class="map-side-pane">
-            <button id="tpl-save" class="tpl-save" disabled>💾 Enregistrer la sélection</button>
-            <p class="hint">Sélectionnez une région (outil ⧉, glisser) ou copiez-la (Ctrl+C),
+          <div id="map-pane-templates" class="map-side-pane hidden overflow-y-auto p-2">
+            <button id="tpl-save" class="w-full mb-2 py-2 px-4 bg-t4c-success text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed" disabled>💾 Enregistrer la sélection</button>
+            <p class="hint text-xs text-gray-400 bg-t4c-input-bg p-2 rounded-md border border-t4c-input-border">Sélectionnez une région (outil ⧉, glisser) ou copiez-la (Ctrl+C),
             puis enregistrez-la sous un nom : c'est un <b>template</b> réutilisable (tuiles + décors).
             <br>« Coller » l'arme comme Ctrl+V (aperçu fantôme, clic pour valider, annulable).
             <br><b>Modifier ensuite&nbsp;:</b> collez un template, retouchez-le sur la carte,
             re-sélectionnez la région et ré-enregistrez sous le <b>même nom</b> pour l'écraser.</p>
-            <p id="tpl-msg" class="msg"></p>
-            <div id="tpl-list"></div>
+            <p id="tpl-msg" class="text-green-400 mt-2 min-h-[1.5em]"></p>
+            <div id="tpl-list" class="mt-2"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="tab-content" class="tab-content">
-      <div class="toolbar">
-        <select id="content-file">
+    <div id="tab-content" class="tab-content mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <div class="toolbar flex items-center gap-2 mb-4">
+        <select id="content-file" class="bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light focus:outline-none focus:ring-2 focus:ring-t4c-button">
           <option value="zones">zones.json (zones + PNJ)</option>
           <option value="spells">spells.json (sorts)</option>
           <option value="skills">skills.json (compétences)</option>
         </select>
-        <button id="load-content">Charger</button>
-        <button id="save-content">💾 Enregistrer</button>
+        <button id="load-content" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Charger</button>
+        <button id="save-content" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
       </div>
-      <p id="content-msg" class="msg"></p>
-      <textarea id="content-editor" spellcheck="false"></textarea>
+      <p id="content-msg" class="text-green-400 min-h-[1.5em]"></p>
+      <textarea id="content-editor" spellcheck="false" class="w-full h-[60vh] bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm"></textarea>
     </div>
 
-    <div id="tab-music" class="tab-content">
-      <div class="toolbar">
-        <button id="reload-music">Rafraîchir</button>
-        <button id="save-music">💾 Enregistrer</button>
+    <div id="tab-music" class="tab-content mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <div class="toolbar flex items-center gap-2 mb-4">
+        <button id="reload-music" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Rafraîchir</button>
+        <button id="save-music" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
       </div>
-      <p class="hint">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
+      <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
       dans les listes. Chaque zone a deux variantes : la <b>nouvelle</b> musique (pack par défaut
       des joueurs) et la musique <b>ancienne</b> (pack « legacy », choisi dans les paramètres en jeu) —
       si la variante du pack choisi est vide, l'autre est jouée. Appliqué à chaud aux joueurs connectés.
       « — silence — » coupe la musique.</p>
-      <p id="music-msg" class="msg"></p>
-      <table id="music-table"></table>
-      <h2>Pré-écoute</h2>
-      <audio id="music-preview" controls style="width: 360px"></audio>
+      <p id="music-msg" class="text-green-400 min-h-[1.5em]"></p>
+      <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-4">
+      </table>
+      <h2 class="text-xl text-t4c-gold mt-6 mb-2">Pré-écoute</h2>
+      <audio id="music-preview" controls class="w-full max-w-md"></audio>
     </div>
 
-    <div id="tab-skins" class="tab-content">
-      <p class="hint">Appliquez vos propres images aux objets et aux créatures.
+    <div id="tab-skins" class="tab-content mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Appliquez vos propres images aux objets et aux créatures.
       Les joueurs voient les skins au prochain rechargement de leur page (F5).</p>
-      <p id="skins-msg" class="msg"></p>
+      <p id="skins-msg" class="text-green-400 min-h-[1.5em]"></p>
 
-      <div class="row">
-        <div style="flex:1; min-width: 380px">
-          <h2>0. Préparation automatique à l'import</h2>
-          <p class="hint">Pour les images générées par IA : le fond uni est rendu transparent
+      <div class="flex flex-wrap gap-8 mt-4">
+        <div class="flex-1 min-w-[420px]">
+          <h2 class="text-xl text-t4c-gold mb-4">0. Préparation automatique à l'import</h2>
+          <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Pour les images générées par IA : le fond uni est rendu transparent
           (détourage chroma, bords adoucis) et l'image est redimensionnée à la taille exacte
           attendue. Appliqué au moment du téléversement, l'original n'est pas modifié.</p>
-          <div class="toolbar">
-            <label><input type="checkbox" id="skin-chroma" checked> 🟩 Fond uni → transparent</label>
-            <input type="color" id="skin-chroma-color" value="#00ff00" title="Couleur du fond à détourer">
-            <label>tolérance <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" style="width:110px"></label>
-          </div>
-          <div class="toolbar">
-            <label><input type="checkbox" id="skin-resize" checked> 📐 Redimensionner à la taille attendue</label>
-            <label>objets : <input id="skin-item-size" value="96" style="width:50px"> px</label>
-          </div>
-          <div class="toolbar">
-            <label><input type="checkbox" id="skin-realign" checked> ♻ Recaler chaque frame des planches
-            (efface les bords de case et aligne le bas-centre du contenu sur l'ancrage —
-            corrige le tremblement des animations générées par IA)</label>
+          <div class="space-y-4">
+            <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-chroma" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🟩 Fond uni → transparent</span></label>
+              <input type="color" id="skin-chroma-color" value="#00ff00" title="Couleur du fond à détourer" class="bg-t4c-input-bg rounded-md">
+              <label class="flex items-center gap-2">tolérance <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" class="w-28"></label>
+            </div>
+            <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-resize" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>📐 Redimensionner à la taille attendue</span></label>
+              <label class="flex items-center gap-2">objets : <input id="skin-item-size" value="96" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
+            </div>
+            <div class="toolbar flex items-center gap-2 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-realign" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>♻ Recaler chaque frame des planches
+              (efface les bords de case et aligne le bas-centre du contenu sur l'ancrage —
+              corrige le tremblement des animations générées par IA)</span></label>
+            </div>
           </div>
 
-          <h2>1. Téléverser une image d'objet (PNG)</h2>
-          <p class="hint">Une seule image. Elle servira d'icône (inventaire, boutique)
+          <h2 class="text-xl text-t4c-gold mt-6 mb-2">1. Téléverser une image d'objet (PNG)</h2>
+          <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Une seule image. Elle servira d'icône (inventaire, boutique)
           et d'apparence au sol.</p>
-          <div class="toolbar">
-            <input type="file" id="skin-item-file" accept="image/png,image/jpeg,image/webp">
-            <button id="skin-item-upload">⬆ Téléverser</button>
+          <div class="toolbar flex items-center gap-2">
+            <input type="file" id="skin-item-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
+            <button id="skin-item-upload" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Téléverser</button>
           </div>
 
-          <h2>2. Téléverser une planche de créature (PNG)</h2>
-          <p class="hint">Grille régulière : 8 lignes = 8 directions (ordre Flare : O, NO, N, NE,
+          <h2 class="text-xl text-t4c-gold mt-6 mb-2">2. Téléverser une planche de créature (PNG)</h2>
+          <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Grille régulière : 8 lignes = 8 directions (ordre Flare : O, NO, N, NE,
           E, SE, S face caméra, SO), colonnes = frames. Renseignez la taille d'une case,
           l'ancrage des pieds dans la case, et les colonnes de chaque animation
           (stance, run, swing et die sont obligatoires).</p>
-          <div class="toolbar">
-            <input type="file" id="skin-enemy-file" accept="image/png,image/jpeg,image/webp">
-            <label>Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" style="width:120px"></label>
-          </div>
-          <div class="toolbar">
-            <label>Case : <input id="skin-cell-w" value="128" style="width:54px"> ×
-              <input id="skin-cell-h" value="128" style="width:54px"> px</label>
-            <label>Ancrage (pieds) : <input id="skin-anchor-x" value="64" style="width:54px">,
-              <input id="skin-anchor-y" value="110" style="width:54px"></label>
-          </div>
-          <textarea id="skin-enemy-anims" spellcheck="false" style="height:140px">{
+          <div class="space-y-4">
+            <div class="toolbar flex flex-wrap items-center gap-4">
+              <input type="file" id="skin-enemy-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
+              <label class="flex items-center gap-2">Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" class="w-32 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
+            </div>
+            <div class="toolbar flex flex-wrap items-center gap-4">
+              <label class="flex items-center gap-2">Case : <input id="skin-cell-w" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> ×
+                <input id="skin-cell-h" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
+              <label class="flex items-center gap-2">Ancrage (pieds) : <input id="skin-anchor-x" value="64" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1">,
+                <input id="skin-anchor-y" value="110" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
+            </div>
+            <textarea id="skin-enemy-anims" spellcheck="false" class="w-full h-36 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm">{
   "stance": { "from": 0, "to": 3, "duration": 800 },
   "run":    { "from": 4, "to": 11, "duration": 660 },
   "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
   "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
 }</textarea>
-          <div class="toolbar">
-            <button id="skin-enemy-upload">⬆ Importer la planche</button>
-            <button id="skin-enemy-prompt">🧠 Prompt IA (planche)</button>
+            <div class="toolbar flex items-center gap-2">
+              <button id="skin-enemy-upload" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Importer la planche</button>
+              <button id="skin-enemy-prompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">🧠 Prompt IA (planche)</button>
+            </div>
           </div>
 
-          <h2>Prompt pour IA générative</h2>
-          <p class="hint">Généré depuis les paramètres ci-dessus (taille de case, ancrage, animations) :
+          <h2 class="text-xl text-t4c-gold mt-6 mb-2">Prompt pour IA générative</h2>
+          <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Généré depuis les paramètres ci-dessus (taille de case, ancrage, animations) :
           collez-le dans votre générateur d'images, l'outil d'import attend exactement ce format.
           Le bouton 📋 d'un objet (table ci-contre) génère le prompt pour cet objet.</p>
-          <textarea id="skin-prompt" spellcheck="false" style="height:200px" placeholder="Cliquez sur « 🧠 Prompt IA » ou sur le 📋 d'un objet…"></textarea>
-          <div class="toolbar"><button id="skin-prompt-copy">📋 Copier le prompt</button><span id="skin-prompt-msg" class="msg" style="margin:0"></span></div>
+          <textarea id="skin-prompt" spellcheck="false" class="w-full h-48 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm" placeholder="Cliquez sur « 🧠 Prompt IA » ou sur le 📋 d'un objet…"></textarea>
+          <div class="toolbar flex items-center gap-2 mt-2"><button id="skin-prompt-copy" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">📋 Copier le prompt</button><span id="skin-prompt-msg" class="text-green-400"></span></div>
 
-          <h2>Aperçu</h2>
-          <img id="skin-preview" style="max-width:100%; max-height:300px; background:#0c0a16; border:1px solid #3a3158; border-radius:6px; display:none">
+          <h2 class="text-xl text-t4c-gold mt-6 mb-2">Aperçu</h2>
+          <img id="skin-preview" class="w-full max-h-72 bg-t4c-input-bg border border-t4c-input-border rounded-lg hidden">
         </div>
 
-        <div style="flex:1; min-width: 420px">
-          <h2>3. Assignations</h2>
-          <div class="toolbar">
-            <button id="save-skins">💾 Enregistrer TOUTES les assignations (objets + créatures)</button>
+        <div class="flex-1 min-w-[420px]">
+          <h2 class="text-xl text-t4c-gold mb-4">3. Assignations</h2>
+          <div class="toolbar mb-4">
+            <button id="save-skins" class="w-full px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer TOUTES les assignations (objets + créatures)</button>
           </div>
-          <p class="hint">Un seul enregistrement pour les deux tables ci-dessous.</p>
+          <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Un seul enregistrement pour les deux tables ci-dessous.</p>
 
-          <h2>Objets</h2>
-          <div class="toolbar">
-            <input id="skin-item-search" placeholder="Filtrer les objets…" style="width:220px">
+          <h3 class="text-lg text-t4c-gold mt-6 mb-2">Objets</h3>
+          <div class="toolbar mb-2">
+            <input id="skin-item-search" placeholder="Filtrer les objets…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
           </div>
-          <table id="skin-items-table"></table>
+          <table id="skin-items-table" class="w-full text-sm text-left text-gray-400"></table>
 
-          <h2>Créatures</h2>
-          <div class="toolbar">
-            <input id="skin-mob-search" placeholder="Filtrer les créatures…" style="width:220px">
+          <h3 class="text-lg text-t4c-gold mt-6 mb-2">Créatures</h3>
+          <div class="toolbar mb-2">
+            <input id="skin-mob-search" placeholder="Filtrer les créatures…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
           </div>
-          <table id="skin-mobs-table"></table>
+          <table id="skin-mobs-table" class="w-full text-sm text-left text-gray-400"></table>
         </div>
       </div>
     </div>
 
-    <div id="tab-chars" class="tab-content">
-      <button id="reload-chars">Rafraîchir</button>
-      <p id="chars-msg" class="msg"></p>
-      <table id="chars-table"></table>
-      <p class="hint">Modifier un champ puis « Appliquer ». Le joueur est déconnecté pour recharger ses données. « Supprimer » efface le personnage (le compte reste).</p>
+    <div id="tab-chars" class="tab-content mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <div class="toolbar flex items-center gap-2 mb-4">
+        <button id="reload-chars" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Rafraîchir</button>
+      </div>
+      <p id="chars-msg" class="text-green-400 min-h-[1.5em]"></p>
+      <table id="chars-table" class="w-full text-sm text-left text-gray-400 mt-4"></table>
+      <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mt-4">Modifier un champ puis « Appliquer ». Le joueur est déconnecté pour recharger ses données. « Supprimer » efface le personnage (le compte reste).</p>
     </div>
 
-    <div id="tab-pantheon" class="tab-content">
-      <table id="pantheon-table"></table>
+    <div id="tab-pantheon" class="tab-content mt-4 p-4 bg-t4c-box-bg rounded-lg border border-t4c-border">
+      <table id="pantheon-table" class="w-full text-sm text-left text-gray-400"></table>
     </div>
   </div>
 
