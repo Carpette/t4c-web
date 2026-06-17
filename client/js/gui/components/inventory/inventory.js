@@ -105,7 +105,8 @@ export function InventoryController() {
 
     getItemIconUrl(defId) {
       const ui = rawUiContainer.instance;
-      return ui ? ui.itemIconUrl(defId) : '';
+      if (!ui || !defId) return '';
+      return ui.itemIconUrl(defId) || '';
     },
 
     unequip(slot) {
@@ -140,6 +141,13 @@ export function InventoryController() {
     hideTooltip() {
       const ui = rawUiContainer.instance;
       if (ui) ui.hideTooltip();
+    },
+
+    dropGold() {
+      const amount = +prompt('Quantité à poser au sol :', this.s?.gold || 0);
+      if (Number.isFinite(amount) && amount > 0) {
+        globalBus.emit('ui:send-packet', { t: 'drop', defId: 'gold', amount });
+      }
     }
   };
 }

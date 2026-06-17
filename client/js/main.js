@@ -567,10 +567,10 @@ window.addEventListener('keydown', (ev) => {
     return;
   }
   const k = ev.key.toLowerCase();
-  if (k === 'i') ui.togglePanel('inventory');
-  else if (k === 'c') ui.togglePanel('character');
-  else if (k === 's') ui.togglePanel('spells');
-  else if (k === 'h') ui.togglePanel('help'); // Pourrait être un HelpPanel
+  if (k === 'i') guiManager.togglePanel('inventory');
+  else if (k === 'c') guiManager.togglePanel('character');
+  else if (k === 's') guiManager.togglePanel('spells');
+  else if (k === 'h') guiManager.togglePanel('help'); // Pourrait être un HelpPanel
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
@@ -578,7 +578,7 @@ window.addEventListener('keydown', (ev) => {
     // priorité : annuler la visée > fermer les panneaux > menu (reprendre/quitter)
     if (aimSpell) { cancelAim(); return; }
     if (ui.menuOpen()) { ui.hideMenu(); return; }
-    if (ui.anyPanelOpen()) { ui.togglePanel(null); return; }
+    if (ui.anyPanelOpen()) { guiManager.togglePanel(null); return; }
     if (selfId != null) ui.showMenu();
   }
 });

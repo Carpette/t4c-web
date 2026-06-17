@@ -13,7 +13,7 @@
          @mouseleave="hideTooltip()">
       <img v-if="isEquipped(slot)" 
            class="item-icon" 
-           :src="getItemIconUrl(getEquippedItem(slot).defId)" 
+           :src="getItemIconUrl(getEquippedItem(slot)?.defId)" 
            style="width: 34px; height: 34px;">
     </div>
   </div>
