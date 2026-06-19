@@ -60,7 +60,7 @@ const MARKER_COLORS = { spawn: '#4dff8a', exit: '#ff6a6a', teleport: '#5ab9ff' }
 const MARKER_GLYPHS = { spawn: '⚑', exit: '⮌', teleport: '✦' };
 const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'téléport' };
 
-export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], musicFiles = [] }) {
+export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], musicFiles = [], musicGroups = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
   const ctx = canvas.getContext('2d');
@@ -686,8 +686,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     return ov.music;
   }
   function musicLabel(m) {
-    const f = m.track?.new || m.track?.legacy;
-    const name = f ? f.replace(/\.(mp3|ogg)$/i, '') : '(silence)';
+    let name;
+    if (m.track?.group) name = `🎵 ${m.track.group}`; // référence de groupe
+    else {
+      const f = m.track?.new || m.track?.legacy;
+      name = f ? f.replace(/\.(mp3|ogg)$/i, '') : '(silence)';
+    }
     return m.priority ? `${name} [${m.priority}]` : name;
   }
   // pose une sous-zone musicale (rectangle ou cercle) et ouvre sa fiche
@@ -1543,12 +1547,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     if (!m) return;
     closePanel();
     const track = { legacy: m.track?.legacy || null, new: m.track?.new || null };
-    // sélecteur d'un fichier (variante) + bouton de pré-écoute
+    // sélecteurs de fichiers (variantes) gardés pour pouvoir les désactiver quand un
+    // groupe est choisi : une sous-zone vaut soit une référence de groupe, soit une piste seule.
+    const fileSelects = [];
     const fileRow = (variant, label) => {
       const sel = h('select', { style: { width: '170px' } });
       sel.innerHTML = '<option value="">— silence —</option>' +
         musicFiles.map(f => `<option value="${f}"${track[variant] === f ? ' selected' : ''}>${f}</option>`).join('');
       sel.onchange = () => { track[variant] = sel.value || null; };
+      fileSelects.push(sel);
       const play = h('button', {
         textContent: '▶', title: 'Pré-écouter',
         onclick: () => {
@@ -1559,6 +1566,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       });
       return h('div', { className: 'edit-row' }, label, sel, play);
     };
+    // sélecteur de GROUPE (listes nommées réutilisables) : « — aucun (piste seule) — »
+    // ou un groupe de content.music.groups. Choisir un groupe désactive les pistes seules.
+    const groupSel = h('select', { style: { width: '170px' } });
+    groupSel.innerHTML = '<option value="">— aucun (piste seule) —</option>' +
+      musicGroups.map(g => `<option value="${g}"${m.track?.group === g ? ' selected' : ''}>${g}</option>`).join('');
+    const syncGroup = () => { for (const s of fileSelects) s.disabled = !!groupSel.value; };
+    groupSel.addEventListener('change', syncGroup);
     const shapeSel = h('select', {
       innerHTML: ['rect', 'circle'].map(s =>
         `<option value="${s}"${s === m.shape ? ' selected' : ''}>${s === 'rect' ? 'Rectangle' : 'Cercle'}</option>`).join(''),
@@ -1583,6 +1597,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       h('div', { className: 'hint', textContent: 'Réglez les dimensions ci-dessous, ou glissez le centre pour déplacer et le bord (ou le coin) pour redimensionner.' }),
       h('div', { className: 'edit-row' }, 'Forme : ', shapeSel),
       sizeCircle, sizeRect,
+      h('div', { className: 'edit-row' }, 'Groupe : ', groupSel),
       fileRow('new', 'Nouvelle : '),
       fileRow('legacy', 'Ancienne (legacy) : '),
       h('div', { className: 'edit-row' }, 'Priorité (chevauchements) : ', prioInput),
@@ -1606,7 +1621,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
               real.x = c.x - real.w / 2; real.z = c.z - real.h / 2; // recentré
               delete real.r;
             }
-            real.track = { legacy: track.legacy, new: track.new };
+            // un groupe choisi prime : on stocke la référence { group } ; sinon la piste seule
+            real.track = groupSel.value ? { group: groupSel.value } : { legacy: track.legacy, new: track.new };
             real.priority = prioInput.value | 0;
             refreshEditLayers();
             closePanel();
@@ -1623,6 +1639,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
           },
         })),
     );
+    syncGroup(); // état initial : pistes seules désactivées si une référence de groupe est posée
     panelEl.style.display = 'block';
   }
 

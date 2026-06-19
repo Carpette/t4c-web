@@ -4,12 +4,25 @@
         <button @click="saveMusic" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
     </div>
     <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
-    dans les listes. Chaque zone a deux variantes : la <b>nouvelle</b> musique (pack par défaut
-    des joueurs) et la musique <b>ancienne</b> (pack « legacy », choisi dans les paramètres en jeu) —
-    si la variante du pack choisi est vide, l'autre est jouée. Appliqué à chaud aux joueurs connectés.
-    « — silence — » coupe la musique.</p>
+    dans les listes. Chaque emplacement (zone, écran de connexion, Épreuve) joue soit un
+    <b>groupe</b> de musiques (liste tirée au sort et enchaînée côté joueur, voir ci-dessous),
+    soit une <b>piste seule</b> en repli — avec deux variantes : la <b>nouvelle</b> musique
+    (pack par défaut des joueurs) et la musique <b>ancienne</b> (pack « legacy »). Appliqué à
+    chaud aux joueurs connectés. « — silence — » coupe la musique.</p>
     <p id="music-msg" class="text-green-400 min-h-[1.5em]"></p>
-    <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-4">
+
+    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Groupes de musique</h2>
+    <p class="hint text-sm text-gray-400 mb-3">Un groupe = une <b>liste</b> de pistes pour le pack
+    « nouvelles » (tirées au sort et enchaînées en boucle chez le joueur) + une <b>seule</b> piste
+    pour le pack « legacy ». Référencez ensuite un groupe dans le tableau des emplacements ci-dessous.</p>
+    <div class="toolbar flex items-center gap-2 mb-3">
+        <input id="group-new-name" type="text" placeholder="nom du groupe (ex. forêt)" class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light" />
+        <button @click="addGroup" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">+ Créer le groupe</button>
+    </div>
+    <div id="groups-list" class="space-y-3 mb-2"></div>
+
+    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Emplacements</h2>
+    <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-2">
     </table>
     <h2 class="text-xl text-t4c-gold mt-6 mb-2">Pré-écoute</h2>
     <audio id="music-preview" controls class="w-full max-w-md"></audio>
