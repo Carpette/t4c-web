@@ -46,10 +46,18 @@ world = generateWorld();
 renderer = new Renderer(canvas, assets, world, buildDecor(world));
 em = new EntityManager2D(assets);
 
-// thème de l'écran de connexion (content/music.json, clé `login`)
+// thème de l'écran de connexion (content/music.json, clé `login`). En jeu, le
+// SERVEUR résout les emplacements (groupes -> liste) avant de pousser le message
+// `music` ; le login étant lu en statique, on résout ici la même référence de
+// groupe { group:"id" } -> objet groupe { new:[...], legacy } via la section
+// `groups` du même fichier (sinon repli silence ; un slot { legacy, new } passe tel quel).
 try {
   const musicCfg = await (await fetch('/content/music.json')).json();
-  playMusic(musicCfg.login);
+  const login = musicCfg.login;
+  const slot = (login && typeof login.group === 'string')
+    ? (musicCfg.groups?.[login.group] || null)
+    : login;
+  playMusic(slot);
 } catch { /* pas de musique configurée */ }
 
 // version déployée : en bas à gauche du login + menu À propos.

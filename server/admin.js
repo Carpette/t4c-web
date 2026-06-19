@@ -140,12 +140,26 @@ export async function handleAdmin(req, res, url, game) {
       }
       if (req.method === 'PUT') {
         const map = JSON.parse(await readBody(req));
-        // ne garde que la structure attendue : { legacy, new } par emplacement
-        const slot = (v) => ({
-          legacy: typeof v?.legacy === 'string' && v.legacy ? v.legacy : null,
-          new: typeof v?.new === 'string' && v.new ? v.new : null,
-        });
-        const clean = { login: slot(map.login), trial: slot(map.trial), zones: {} };
+        // Groupes de musique : { "<id>": { new: [pistes...], legacy: "x.mp3"|null } }.
+        // `new` = liste du pack moderne ; `legacy` = une seule piste. Entrées vides ignorées.
+        const groups = {};
+        for (const [id, g] of Object.entries(map.groups || {})) {
+          if (!id || g == null || typeof g !== 'object') continue;
+          const list = Array.isArray(g.new) ? g.new.filter(f => typeof f === 'string' && f) : [];
+          const legacy = typeof g.legacy === 'string' && g.legacy ? g.legacy : null;
+          if (!list.length && !legacy) continue;
+          groups[id] = { new: list, legacy };
+        }
+        // Un emplacement vaut soit une référence de groupe { group:"id" } (le groupe
+        // doit exister), soit l'ancien couple { legacy, new }.
+        const slot = (v) => {
+          if (typeof v?.group === 'string' && v.group && groups[v.group]) return { group: v.group };
+          return {
+            legacy: typeof v?.legacy === 'string' && v.legacy ? v.legacy : null,
+            new: typeof v?.new === 'string' && v.new ? v.new : null,
+          };
+        };
+        const clean = { login: slot(map.login), trial: slot(map.trial), zones: {}, groups };
         for (const [k, v] of Object.entries(map.zones || {})) clean.zones[k] = slot(v);
         saveContentFile('music', clean);
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
