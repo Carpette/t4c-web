@@ -16,17 +16,20 @@ export function MapEditorController(api) {
           console.log("MapEditor: Spells fetched:", spells.length);
           
           console.log("MapEditor: Fetching music files...");
-          const musicFiles = (await api('/api/admin/music')).files || [];
-          console.log("MapEditor: Music files fetched:", musicFiles.length);
-          
+          const musicResp = await api('/api/admin/music');
+          const musicFiles = musicResp.files || [];
+          const musicGroups = Object.keys(musicResp.map?.groups || {}); // ids des groupes réutilisables
+          console.log("MapEditor: Music files fetched:", musicFiles.length, "groups:", musicGroups.length);
+
           console.log("MapEditor: Initializing map editor with zones:", zonesDef);
           // Now, initialize the map editor
-          await initMapEditor({ 
-            api, 
-            zones: zonesDef, 
-            npcDefs: zonesContent.npc || {}, 
-            spells, 
-            musicFiles 
+          await initMapEditor({
+            api,
+            zones: zonesDef,
+            npcDefs: zonesContent.npc || {},
+            spells,
+            musicFiles,
+            musicGroups
           });
           console.log("MapEditor: Map editor initialized successfully.");
         } catch (e) {
