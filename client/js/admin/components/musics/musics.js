@@ -1,6 +1,7 @@
 export function MusicsController(api) {
   const $ = (id) => document.getElementById(id);
   let musicMap = { login: null, trial: null, zones: {}, groups: {} };
+  const openGroups = new Set(); // groupes dépliés (conservé entre les rendus)
   let zonesDef = [];
   let files = [];
 
@@ -47,15 +48,36 @@ export function MusicsController(api) {
       const card = document.createElement('div');
       card.className = 'bg-t4c-input-bg border border-t4c-input-border rounded-md p-3';
 
+      const open = openGroups.has(id);
       const head = document.createElement('div');
       head.className = 'flex items-center justify-between mb-2';
-      head.innerHTML = `<span class="font-bold text-t4c-gold">🎵 ${id}</span>`;
+      // en-tête cliquable (chevron + nom) qui replie/déplie le corps du groupe
+      const toggle = document.createElement('button');
+      toggle.className = 'flex items-center gap-2 font-bold text-t4c-gold';
+      const chevron = document.createElement('span');
+      chevron.textContent = open ? '▾' : '▸';
+      const nbNew = (g.new.length) + (g.legacy ? 1 : 0);
+      toggle.append(chevron, document.createTextNode(`🎵 ${id}`));
+      const count = document.createElement('span');
+      count.className = 'text-xs text-gray-400 font-normal';
+      count.textContent = `(${g.new.length} piste${g.new.length > 1 ? 's' : ''}${g.legacy ? ' + legacy' : ''})`;
+      toggle.append(count);
       const del = document.createElement('button');
       del.textContent = '🗑 Supprimer';
       del.className = 'px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-xs';
       del.onclick = () => removeGroup(id);
-      head.appendChild(del);
+      head.append(toggle, del);
       card.appendChild(head);
+
+      // corps repliable : pistes new + ajout + legacy
+      const body = document.createElement('div');
+      if (!open) body.classList.add('hidden');
+      toggle.onclick = () => {
+        const nowOpen = body.classList.toggle('hidden') === false;
+        chevron.textContent = nowOpen ? '▾' : '▸';
+        if (nowOpen) openGroups.add(id); else openGroups.delete(id);
+      };
+      card.appendChild(body);
 
       // pack « new » : liste de pistes (chaque ligne : nom + ▶ + retrait)
       const newWrap = document.createElement('div');
@@ -84,7 +106,7 @@ export function MusicsController(api) {
       addBtn.onclick = () => { if (addSel.value) { g.new.push(addSel.value); renderGroups(); } };
       addRow.append(addSel, playBtn(() => addSel.value), addBtn);
       newWrap.appendChild(addRow);
-      card.appendChild(newWrap);
+      body.appendChild(newWrap);
 
       // pack « legacy » : une seule piste
       const legacyRow = document.createElement('div');
@@ -93,7 +115,7 @@ export function MusicsController(api) {
       const legSel = fileSelect(g.legacy || '');
       legSel.onchange = () => { g.legacy = legSel.value || null; };
       legacyRow.append(legSel, playBtn(() => legSel.value));
-      card.appendChild(legacyRow);
+      body.appendChild(legacyRow);
 
       box.appendChild(card);
     }
@@ -106,6 +128,7 @@ export function MusicsController(api) {
     if (!id) { if (msgEl) msgEl.textContent = 'Donnez un nom au groupe.'; return; }
     if (musicMap.groups[id]) { if (msgEl) msgEl.textContent = `Le groupe « ${id} » existe déjà.`; return; }
     musicMap.groups[id] = { new: [], legacy: null };
+    openGroups.add(id); // le groupe neuf s'ouvre pour qu'on le remplisse aussitôt
     if (inp) inp.value = '';
     renderGroups();
     renderTable(); // le nouveau groupe devient sélectionnable dans les emplacements
