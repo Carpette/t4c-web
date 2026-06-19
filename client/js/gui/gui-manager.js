@@ -1,4 +1,4 @@
-import { createApp } from 'https://unpkg.com/petite-vue?module';
+import { createApp } from '/js/vendor/petite-vue.js';
 import { uiStore } from './ui-store.js';
 import { globalBus } from '../event-bus.js';
 import { CharacterController } from './components/character/character.js';

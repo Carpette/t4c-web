@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "expr-eval-fork": "^3.0.3",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "petite-vue": "^0.4.1"
   },
   "devDependencies": {
     "tailwindcss": "^4.3.1"

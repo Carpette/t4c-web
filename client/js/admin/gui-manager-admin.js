@@ -1,4 +1,4 @@
-import { createApp } from 'https://unpkg.com/petite-vue?module';
+import { createApp } from '/js/vendor/petite-vue.js';
 
 class GuiManagerAdmin {
   constructor(api) {

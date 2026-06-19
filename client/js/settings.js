@@ -1,4 +1,4 @@
-import { reactive } from 'https://unpkg.com/petite-vue?module';
+import { reactive } from '/js/vendor/petite-vue.js';
 
 const KEY = 't4c_settings';
 
