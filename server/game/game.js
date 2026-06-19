@@ -148,11 +148,18 @@ export class Game {
       const shape = m?.shape === 'circle' ? 'circle' : (m?.shape === 'rect' ? 'rect' : null);
       const x = +m?.x, z = +m?.z;
       if (!shape || !Number.isFinite(x) || !Number.isFinite(z)) continue;
-      const track = {
-        legacy: typeof m?.track?.legacy === 'string' && m.track.legacy ? m.track.legacy : null,
-        new: typeof m?.track?.new === 'string' && m.track.new ? m.track.new : null,
-      };
-      if (!track.legacy && !track.new) continue; // une sous-zone sans piste n'a pas de sens
+      // piste de la sous-zone : soit une référence de groupe { group:"id" }, soit
+      // l'ancien couple { legacy, new } (résolu à l'envoi par resolveSlot).
+      let track;
+      if (typeof m?.track?.group === 'string' && m.track.group) {
+        track = { group: m.track.group };
+      } else {
+        track = {
+          legacy: typeof m?.track?.legacy === 'string' && m.track.legacy ? m.track.legacy : null,
+          new: typeof m?.track?.new === 'string' && m.track.new ? m.track.new : null,
+        };
+        if (!track.legacy && !track.new) continue; // une sous-zone sans piste n'a pas de sens
+      }
       const zone = { id: String(m.id ?? out.length), shape, x, z, track, priority: +m.priority || 0 };
       if (shape === 'rect') {
         zone.w = Math.max(0, +m.w || 0);
@@ -732,14 +739,31 @@ export class Game {
     });
   }
 
+  // Résout un EMPLACEMENT musical brut (issu de content.music ou d'une sous-zone)
+  // vers ce qui est réellement poussé au client. Fonction UNIQUE partagée par tous
+  // les emplacements (zones, sous-zones, login, trial) :
+  //  - { group:"id" } et le groupe existe -> l'objet groupe { new:[...], legacy }
+  //    (la LISTE complète : le client tire/enchaîne les pistes) ;
+  //  - { group:"id" } mais groupe inexistant -> null (repli silence) ;
+  //  - { legacy, new } avec au moins une variante -> tel quel (compat) ;
+  //  - sinon (vide / null) -> null (silence).
+  resolveSlot(s) {
+    if (!s) return null;
+    if (typeof s.group === 'string') {
+      const g = content.music?.groups?.[s.group];
+      return (g && (g.new?.length || g.legacy)) ? g : null;
+    }
+    return (s.legacy || s.new) ? s : null;
+  }
+
   // Musique de FOND d'une zone (mapping administrable dans content/music.json).
-  // Renvoie les deux variantes { legacy, new } : le client choisit selon
-  // le pack sélectionné dans ses paramètres. C'est le défaut quand le joueur
-  // n'est dans AUCUNE sous-zone musicale dessinée.
+  // Renvoie l'emplacement RÉSOLU (slot { legacy, new } ou groupe { new:[...], legacy }) :
+  // le client choisit la variante selon son pack et, pour un groupe, tire/enchaîne
+  // les pistes. C'est le défaut quand le joueur n'est dans AUCUNE sous-zone musicale.
   musicFor(zi) {
     // les cavernes partagent l'ambiance oppressante de l'Épreuve
     const s = (zi.isTrial || zi.isCave) ? content.music?.trial : content.music?.zones?.[String(zi.zoneId)];
-    return (s && (s.legacy || s.new)) ? s : null;
+    return this.resolveSlot(s);
   }
 
   // ---------- Sous-zones dessinées (musique & ambiance) + bascule à HYSTÉRÉSIS ----------
@@ -790,13 +814,18 @@ export class Game {
     return this.shapeZoneAt(zi.musicZones, x, z, margin);
   }
 
-  // Piste { legacy, new } à jouer pour le joueur selon sa sous-zone active.
-  // `p.musicZoneId` mémorise la sous-zone musicale active (null = fond de zone).
+  // Emplacement RÉSOLU à jouer pour le joueur selon sa sous-zone active (slot
+  // { legacy, new } ou groupe { new:[...], legacy }). `p.musicZoneId` mémorise la
+  // sous-zone musicale active (null = fond de zone). Une sous-zone dont la piste est
+  // une référence de groupe inexistant retombe sur le fond de zone (repli).
   musicTrackFor(p) {
     const zi = p.zi;
     if (p.musicZoneId != null) {
       const z = (zi.musicZones || []).find(s => s.id === p.musicZoneId);
-      if (z) return z.track;
+      if (z) {
+        const resolved = this.resolveSlot(z.track);
+        if (resolved) return resolved;
+      }
     }
     return this.musicFor(zi);
   }
