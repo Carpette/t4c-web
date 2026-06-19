@@ -112,7 +112,9 @@ globalThis.localStorage = { _m: new Map(), getItem(k) { return this._m.get(k) ??
 globalThis.location = win.location;
 globalThis.requestAnimationFrame = (fn) => setTimeout(() => fn(performance.now()), 16);
 globalThis.Image = class { set src(v) { setTimeout(() => this.onload?.(), 0); } };
-globalThis.Audio = class { constructor() { this.loop = false; this.volume = 1; } play() { return Promise.resolve(); } pause() {} set src(v) {} };
+// Audio factice : supporte loop/volume + addEventListener('ended') (playlists de
+// groupes) et play/pause/src, sans rien jouer réellement.
+globalThis.Audio = class { constructor() { this.loop = false; this.volume = 1; } addEventListener() {} removeEventListener() {} play() { return Promise.resolve(); } pause() {} set src(v) {} };
 globalThis.WebSocket = WebSocket; // client ws de Node (API compatible)
 const realFetch = globalThis.fetch;
 globalThis.fetch = (url, opts) => realFetch(String(url).startsWith('/') ? BASE + url : url, opts);
