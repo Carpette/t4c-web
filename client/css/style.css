@@ -443,7 +443,20 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
    donc les reperes coincident. Chaque torche vacille independamment (duree et
    delai propres via --d / --dl). Couche au-dessus du fond mais SOUS la boite de
    connexion (le verre depoli la diffuse joliment). Purement decoratif. */
-.torch-glows { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* La boite des halos reproduit EXACTEMENT la geometrie de l'image de fond
+   posee en `cover` centre : meme math que object-fit:cover via max(), donc
+   les % des halos correspondent a l'image quelle que soit la resolution
+   (sans ca, un ecran d'un autre ratio que l'image decale les flammes).
+   image native = 2752x1536 -> ratio 179.1667 / 55.8140.
+   container-type:size -> tailles en cqmin, proportionnelles a l'image. */
+.torch-glows {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width:  max(100vw, 179.1667vh);
+  height: max(100vh, 55.8140vw);
+  container-type: size;
+  pointer-events: none;
+}
 .torch-glows i {
   position: absolute; width: var(--w); height: var(--w);
   transform: translate(-50%, -50%);
