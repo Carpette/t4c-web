@@ -436,3 +436,33 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   border: 1px solid var(--border); border-radius: 5px; padding: 5px 9px;
   color: var(--text); font-size: 12px; z-index: 30; white-space: pre;
 }
+
+/* ---- Lueurs animees des torches du decor (login-bg.png) ----
+   Halos ambres poses PILE sur les flammes peintes de l'illustration de fond.
+   Les % sont ceux de l'image, elle-meme posee en `cover` centre comme l'ecran,
+   donc les reperes coincident. Chaque torche vacille independamment (duree et
+   delai propres via --d / --dl). Couche au-dessus du fond mais SOUS la boite de
+   connexion (le verre depoli la diffuse joliment). Purement decoratif. */
+.torch-glows { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.torch-glows i {
+  position: absolute; width: var(--w); height: var(--w);
+  transform: translate(-50%, -50%);
+  border-radius: 50%; mix-blend-mode: screen;
+  background: radial-gradient(circle,
+    #ffd98a 0%, #ff9a3c 36%, rgba(255, 120, 40, 0.25) 60%, transparent 74%);
+  animation: torchFlicker var(--d, 3.2s) ease-in-out var(--dl, 0s) infinite;
+  will-change: opacity, transform;
+}
+@keyframes torchFlicker {
+  0%   { opacity: .60; transform: translate(-50%, -50%) scale(.90); }
+  14%  { opacity: 1;   transform: translate(-50%, -50%) scale(1.10); }
+  27%  { opacity: .78; transform: translate(-50%, -50%) scale(1.00); }
+  41%  { opacity: .98; transform: translate(-50%, -50%) scale(1.06); }
+  60%  { opacity: .70; transform: translate(-50%, -50%) scale(.94); }
+  78%  { opacity: .95; transform: translate(-50%, -50%) scale(1.04); }
+  100% { opacity: .62; transform: translate(-50%, -50%) scale(.92); }
+}
+/* respect des preferences d'accessibilite : on fige le vacillement */
+@media (prefers-reduced-motion: reduce) {
+  .torch-glows i { animation: none; opacity: .82; }
+}
