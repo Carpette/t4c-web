@@ -171,13 +171,22 @@ export function MusicsController(api) {
     if (!table) return;
     table.innerHTML = '<tr><th>Emplacement</th><th>Groupe</th><th>Piste seule — nouvelle (défaut)</th><th>Piste seule — ancienne (legacy)</th></tr>';
 
+    // grise une cellule « piste seule » et coupe ses contrôles quand un groupe
+    // est actif — repère visuel clair que le champ est inactif (+ infobulle).
+    const setCellDisabled = (td, off) => {
+      td.classList.toggle('opacity-40', off);
+      td.classList.toggle('pointer-events-none', off); // boutons ▶ inactifs aussi
+      td.title = off ? 'Désactivé : un groupe est sélectionné pour cet emplacement' : '';
+      td.querySelectorAll('select, button').forEach(el => { el.disabled = off; });
+    };
+
     const mkVariantCell = (slot, variant) => {
       const td = document.createElement('td');
       td.style.whiteSpace = 'nowrap';
       const sel = fileSelect(slot[variant]);
-      sel.disabled = !!slot.group; // une référence de groupe désactive les pistes seules
       sel.onchange = () => { slot[variant] = sel.value || null; };
       td.append(sel, playBtn(() => sel.value));
+      setCellDisabled(td, !!slot.group); // une référence de groupe désactive les pistes seules
       return td;
     };
 
@@ -205,8 +214,8 @@ export function MusicsController(api) {
       gsel.onchange = () => {
         if (gsel.value) { slot.group = gsel.value; delete slot.legacy; delete slot.new; }
         else { delete slot.group; slot.legacy = slot.legacy || null; slot.new = slot.new || null; }
-        // refléter l'état désactivé des cellules de pistes seules
-        for (const td of [vNew, vLegacy]) { const s = td.querySelector('select'); if (s) s.disabled = !!slot.group; }
+        // refléter l'état (grisé + contrôles coupés) des cellules de pistes seules
+        for (const td of [vNew, vLegacy]) setCellDisabled(td, !!slot.group);
       };
       tdGroup.appendChild(gsel);
       tr.append(tdName, tdGroup, vNew, vLegacy);
