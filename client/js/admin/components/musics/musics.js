@@ -170,7 +170,11 @@ export function MusicsController(api) {
       const gsel = document.createElement('select');
       gsel.className = 'bg-t4c-input-bg border border-t4c-input-border rounded px-1 py-0.5 text-t4c-text-light';
       const ids = Object.keys(musicMap.groups || {});
-      gsel.innerHTML = '<option value="">— aucun (piste seule) —</option>' +
+      // aucun groupe défini : on l'indique et on dirige vers l'onglet « Groupes »
+      const emptyOpt = ids.length
+        ? '<option value="">— aucun (piste seule) —</option>'
+        : '<option value="">— aucun groupe (à créer dans l\'onglet « Groupes ») —</option>';
+      gsel.innerHTML = emptyOpt +
         ids.map(id => `<option value="${id}"${slot.group === id ? ' selected' : ''}>${id}</option>`).join('');
 
       const vNew = mkVariantCell(slot, 'new');
@@ -214,6 +218,19 @@ export function MusicsController(api) {
       renderTable();
     },
     addGroup,
+    // bascule entre les sous-onglets « Emplacements » et « Groupes »
+    showSubtab(name) {
+      const panes = { empl: $('music-pane-empl'), grp: $('music-pane-grp') };
+      const tabs = { empl: $('music-subtab-empl'), grp: $('music-subtab-grp') };
+      for (const k of ['empl', 'grp']) {
+        panes[k]?.classList.toggle('hidden', k !== name);
+        // onglet actif : surligné ; inactif : grisé
+        tabs[k]?.classList.toggle('bg-t4c-button', k === name);
+        tabs[k]?.classList.toggle('text-t4c-text-light', k === name);
+        tabs[k]?.classList.toggle('bg-t4c-input-bg', k !== name);
+        tabs[k]?.classList.toggle('text-gray-400', k !== name);
+      }
+    },
     async saveMusic() {
       try {
         await api('/api/admin/music', 'PUT', musicMap);

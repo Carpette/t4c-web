@@ -1,29 +1,39 @@
 <div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <div class="toolbar flex items-center gap-2 mb-4">
+    <div class="toolbar flex items-center gap-2 mb-3">
         <button @click="loadMusic" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Rafraîchir</button>
         <button @click="saveMusic" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
     </div>
-    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Les fichiers .mp3/.ogg déposés dans <code>client/assets/music/</code> apparaissent
-    dans les listes. Chaque emplacement (zone, écran de connexion, Épreuve) joue soit un
-    <b>groupe</b> de musiques (liste tirée au sort et enchaînée côté joueur, voir ci-dessous),
-    soit une <b>piste seule</b> en repli — avec deux variantes : la <b>nouvelle</b> musique
-    (pack par défaut des joueurs) et la musique <b>ancienne</b> (pack « legacy »). Appliqué à
-    chaud aux joueurs connectés. « — silence — » coupe la musique.</p>
     <p id="music-msg" class="text-green-400 min-h-[1.5em]"></p>
 
-    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Groupes de musique</h2>
-    <p class="hint text-sm text-gray-400 mb-3">Un groupe = une <b>liste</b> de pistes pour le pack
-    « nouvelles » (tirées au sort et enchaînées en boucle chez le joueur) + une <b>seule</b> piste
-    pour le pack « legacy ». Référencez ensuite un groupe dans le tableau des emplacements ci-dessous.</p>
-    <div class="toolbar flex items-center gap-2 mb-3">
-        <input id="group-new-name" type="text" placeholder="nom du groupe (ex. forêt)" class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light" />
-        <button @click="addGroup" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">+ Créer le groupe</button>
+    <!-- sous-onglets : Emplacements (par défaut) | Groupes de musique -->
+    <div class="flex gap-1 border-b border-t4c-border mb-4">
+        <button id="music-subtab-empl" @click="showSubtab('empl')"
+            class="px-4 py-2 rounded-t-md font-bold text-t4c-text-light bg-t4c-button">Emplacements</button>
+        <button id="music-subtab-grp" @click="showSubtab('grp')"
+            class="px-4 py-2 rounded-t-md font-bold text-gray-400 bg-t4c-input-bg">Groupes de musique</button>
     </div>
-    <div id="groups-list" class="space-y-3 mb-2"></div>
 
-    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Emplacements</h2>
-    <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-2">
-    </table>
+    <!-- onglet Emplacements : à quoi joue chaque zone / écran -->
+    <div id="music-pane-empl">
+        <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Chaque emplacement (zone, écran de connexion, Épreuve) joue soit un
+        <b>groupe</b> de musiques (liste tirée au sort et enchaînée côté joueur — à définir dans l'onglet
+        « Groupes de musique »), soit une <b>piste seule</b> en repli, avec deux variantes : la <b>nouvelle</b>
+        musique (pack par défaut) et l'<b>ancienne</b> (pack « legacy »). Appliqué à chaud. « — silence — » coupe la musique.</p>
+        <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-2"></table>
+    </div>
+
+    <!-- onglet Groupes : définition réutilisable des listes de musiques -->
+    <div id="music-pane-grp" class="hidden">
+        <p class="hint text-sm text-gray-400 mb-3">Un groupe = une <b>liste</b> de pistes pour le pack
+        « nouvelles » (tirées au sort et enchaînées en boucle chez le joueur) + une <b>seule</b> piste
+        pour le pack « legacy ». Une fois créé, référencez-le dans l'onglet « Emplacements ».</p>
+        <div class="toolbar flex items-center gap-2 mb-3">
+            <input id="group-new-name" type="text" placeholder="nom du groupe (ex. forêt)" class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light" />
+            <button @click="addGroup" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">+ Créer le groupe</button>
+        </div>
+        <div id="groups-list" class="space-y-3 mb-2"></div>
+    </div>
+
     <h2 class="text-xl text-t4c-gold mt-6 mb-2">Pré-écoute</h2>
     <audio id="music-preview" controls class="w-full max-w-md"></audio>
 </div>
