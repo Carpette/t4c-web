@@ -70,6 +70,55 @@
         background-color: #0c0a16; /* t4c-input-bg */
         color: #e8e0ff; /* t4c-text-light */
     }
+    /* ===== Restauration du style des composants generes par l'editeur de cartes
+       Ces regles avaient ete supprimees par la migration Tailwind (e68077d),
+       mais editor.js genere toujours ces classes (lignes de calques, boutons +,
+       fiche d'edition de zone, onglet Templates). Les elements deja styles en
+       Tailwind ne sont pas touches : la specificite d'une classe l'emporte sur
+       le selecteur d'element. Le conteneur #edit-panel reste gere par Tailwind ;
+       on ne restaure que son contenu. ===== */
+    button { padding: 6px 14px; background: #4a3a7a; color: #e8e0ff; border: 1px solid #6a5aaa; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #5d4a98; }
+    button.danger { background: #7a2a2a; border-color: #aa4a4a; }
+    #edit-panel input, #edit-panel textarea, .edit-dlg input, .edit-dlg textarea {
+      background: #0c0a16; border: 1px solid #4a4070; border-radius: 4px; color: #e8e0ff; padding: 6px 8px; font-size: 13px; }
+    /* onglet Calques : une ligne par calque (oeil + nom + bouton +) */
+    .layer-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; margin: 3px 0;
+      background: #100c1e; border: 1px solid #2a2444; border-radius: 6px; cursor: pointer; }
+    .layer-row:hover { border-color: #4a4070; }
+    .layer-row.current { border-color: #ffd24a; background: #1d1636; }
+    .layer-row .layer-eye { width: 26px; height: 24px; padding: 0; font-size: 14px; flex: none;
+      background: #251c40; line-height: 1; opacity: 0.45; }
+    .layer-row.shown .layer-eye { opacity: 1; background: #3a2d63; }
+    .layer-row .layer-name { flex: 1; font-size: 12px; color: #cfc6ee; user-select: none; }
+    .layer-row .layer-add { width: 26px; height: 24px; padding: 0; font-size: 15px; flex: none;
+      font-weight: bold; line-height: 1; }
+    /* onglet Templates : bouton d'enregistrement + liste des assemblages */
+    .tpl-save { width: 100%; margin-bottom: 6px; }
+    .tpl-save:disabled { opacity: 0.45; cursor: not-allowed; }
+    .tpl-row { display: flex; align-items: center; gap: 6px; padding: 6px; margin: 4px 0;
+      background: #100c1e; border: 1px solid #2a2444; border-radius: 6px; }
+    .tpl-row:hover { border-color: #4a4070; }
+    .tpl-thumb { width: 40px; height: 40px; flex: none; background: #0a0814;
+      border: 1px solid #2a2444; border-radius: 4px; image-rendering: pixelated; }
+    .tpl-info { flex: 1; min-width: 0; }
+    .tpl-name { font-size: 12px; color: #cfc6ee; font-weight: bold; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .tpl-sum { font-size: 10px; color: #8a82aa; }
+    .tpl-acts { display: flex; gap: 3px; flex-wrap: wrap; }
+    .tpl-acts button { padding: 2px 6px; font-size: 11px; line-height: 1.3; }
+    /* fiche d'edition flottante (camps / PNJ / zones musicales / lumieres...) */
+    #edit-panel h4 { color: #c8b87a; font-size: 12px; margin: 10px 0 4px; }
+    #edit-panel textarea { height: auto; }
+    .edit-panel-title { display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px; color: #c8b87a; }
+    .edit-row { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+    .edit-list { max-height: 140px; overflow-y: auto; background: #100c1e;
+      border: 1px solid #3a3158; border-radius: 5px; padding: 4px 6px; margin: 4px 0; }
+    .edit-check { display: block; margin: 2px 0; cursor: pointer; }
+    .edit-dlg { background: #100c1e; border: 1px solid #3a3158; border-radius: 5px;
+      padding: 6px; margin: 6px 0; }
+    .edit-dlg input, .edit-dlg textarea { margin: 3px 0; }
   </style>
 </head>
 <body class="bg-t4c-main-bg text-t4c-text font-sans">
