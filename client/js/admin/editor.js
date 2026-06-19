@@ -2836,9 +2836,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
   function showSideTab(name) {
     for (const b of document.querySelectorAll('#map-side-tabs button'))
       b.classList.toggle('active', b.dataset.side === name);
-    $('map-pane-palette')?.classList.toggle('visible', name === 'palette');
-    $('map-pane-layers')?.classList.toggle('visible', name === 'layers');
-    $('map-pane-templates')?.classList.toggle('visible', name === 'templates');
+    // La visibilite des panes est pilotee par la classe Tailwind `hidden`
+    // (display:none). On retire `hidden` du pane actif et on l'ajoute aux
+    // autres. (Avant : on basculait `visible`, qui en Tailwind ne touche que
+    // `visibility` et laissait `hidden` colle -> les onglets ne switchaient plus.)
+    $('map-pane-palette')?.classList.toggle('hidden', name !== 'palette');
+    $('map-pane-layers')?.classList.toggle('hidden', name !== 'layers');
+    $('map-pane-templates')?.classList.toggle('hidden', name !== 'templates');
     if (name === 'templates') refreshTemplatesPanel();
   }
   for (const b of document.querySelectorAll('#map-side-tabs button'))
