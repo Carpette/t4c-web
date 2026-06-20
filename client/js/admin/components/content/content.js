@@ -1,7 +1,7 @@
 export function ContentController(api) {
   const $ = (id) => document.getElementById(id);
 
-  return {
+  const controller = {
     async loadContent() {
       try {
         const data = await api(`/api/admin/content/${$('content-file').value}`);
@@ -24,7 +24,11 @@ export function ContentController(api) {
       // Use setTimeout to ensure the DOM is fully rendered before loading initial content
       setTimeout(() => {
         this.loadContent();
+        $('content-file').addEventListener('change', () => this.loadContent());
       }, 0);
     }
   };
+
+  controller.init();
+  return controller;
 }

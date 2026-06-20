@@ -100,6 +100,15 @@ export async function handleAdmin(req, res, url, game) {
       return json(200, { name: account.name });
     }
 
+    // ---- contenu (générique, pour les anciens clients) ----
+    if (url === '/api/admin/content' && req.method === 'POST') {
+      const { name, data } = JSON.parse(await readBody(req));
+      if (name === 'spells') {
+        saveContentFile(name, data);
+        return json(200, { ok: true, note: 'Appliqué à chaud.' });
+      }
+    }
+
     // ---- contenu (zones / sorts / compétences) ----
     const mContent = url.match(/^\/api\/admin\/content\/(zones|spells|skills)$/);
     if (mContent) {
@@ -107,7 +116,7 @@ export async function handleAdmin(req, res, url, game) {
       if (req.method === 'GET') {
         return json(200, JSON.parse(fs.readFileSync(path.join(CONTENT_DIR, `${name}.json`), 'utf8')));
       }
-      if (req.method === 'PUT') {
+      if (req.method === 'PUT' || (name === 'spells' && req.method === 'POST')) {
         const data = JSON.parse(await readBody(req)); // valide le JSON
         saveContentFile(name, data);
         return json(200, { ok: true, note: name === 'zones' ? 'Redémarrage du serveur requis pour les seeds/zones.' : 'Appliqué à chaud.' });
