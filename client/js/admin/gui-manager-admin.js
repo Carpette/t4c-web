@@ -35,7 +35,11 @@ class GuiManagerAdmin {
       container.innerHTML = html;
 
       if (this.controllers[name]) {
-        createApp(this.controllers[name](this.api)).mount(container);
+        const controllerObject = this.controllers[name](this.api);
+        console.log(`[GuiManager DEBUG] Component: ${name}`);
+        console.log('[GuiManager DEBUG] Controller object to be mounted:', controllerObject);
+        console.log(`[GuiManager DEBUG] Does it have init?`, 'init' in controllerObject);
+        createApp(controllerObject).mount(container);
       } else {
         createApp({}).mount(container);
       }

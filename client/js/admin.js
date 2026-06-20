@@ -6,6 +6,7 @@ import { ITEMS, MOBS } from '../shared/defs.js';
 import { GuiManagerAdmin } from './admin/gui-manager-admin.js';
 import { SidebarController } from './admin/components/sidebar/sidebar.js';
 import { ContentController } from './admin/components/content/content.js';
+import { SpellsEditorController } from './admin/components/spells-editor/spells-editor.js';
 import { MusicsController } from './admin/components/musics/musics.js';
 import { SkinsController } from './admin/components/skins/skins.js';
 import { CharactersController } from './admin/components/characters/characters.js';
@@ -61,6 +62,7 @@ async function enter(name) {
   console.log("admin.js: Registering controllers...");
   guiManagerAdmin.registerController('sidebar', SidebarController);
   guiManagerAdmin.registerController('content', ContentController);
+  guiManagerAdmin.registerController('spells-editor', SpellsEditorController);
   guiManagerAdmin.registerController('musics', MusicsController);
   guiManagerAdmin.registerController('skins', SkinsController);
   guiManagerAdmin.registerController('characters', CharactersController);
@@ -72,6 +74,7 @@ async function enter(name) {
     { name: 'sidebar', selector: '#sidebar' },
     { name: 'map-editor', selector: '#tab-map' },
     { name: 'content', selector: '#tab-content' },
+    { name: 'spells-editor', selector: '#tab-spells-editor' },
     { name: 'musics', selector: '#tab-music' },
     { name: 'skins', selector: '#tab-skins' },
     { name: 'characters', selector: '#tab-chars' },
@@ -96,11 +99,3 @@ if (token) {
     token = null;
   });
 }
-
-
-
-
-
-
-
-
