@@ -355,6 +355,8 @@ export class Player extends Character {
     this.manaAcc = data.manaAcc ?? C.maxMana(this.stats, this.level);
     
     this.mana = 1; // Initialisation du mana du joueur
+    this.spellCds = {};
+    this.casting = null;
   }
 
   // ---------- Stats effectives ----------

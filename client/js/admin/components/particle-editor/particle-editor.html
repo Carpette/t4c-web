@@ -1,0 +1,180 @@
+<div @vue:mounted="init()" class="flex h-full">
+  <!-- Barre de navigation -->
+  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center absolute top-0 left-64 right-0 z-10">
+    <h1 class="text-lg font-bold tracking-wide text-amber-500 flex items-center gap-2">✨ T4C Web - Éditeur d'Effets de Particules</h1>
+    <div class="flex items-center gap-4">
+      <button id="particle-save-file-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
+        💾 Sauvegarder particles.json
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenu principal -->
+  <main class="flex-1 flex overflow-hidden pt-14">
+    <!-- Liste des profils Particules (Sidebar) -->
+    <aside class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
+      <div class="p-3 border-b border-gray-800 space-y-2">
+        <div class="text-[10px] text-amber-500 font-mono text-center py-1 bg-gray-900 border border-gray-800 rounded">
+          📁 particles.json
+        </div>
+        <button id="particle-new-btn" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1.5 px-3 rounded text-xs transition">
+          + Nouveau Profil
+        </button>
+      </div>
+      <ul id="particle-list" class="flex-1 divide-y divide-gray-900">
+        <!-- Rempli par JS -->
+      </ul>
+    </aside>
+
+    <!-- Zone d'édition -->
+    <section id="particle-editor-pane" class="flex-1 p-5 overflow-y-auto bg-gray-900 hidden">
+      <div class="max-w-5xl mx-auto space-y-4">
+        <div class="flex justify-between items-center pb-2">
+          <h2 id="particle-title" class="text-xl font-bold text-white">Édition de l'effet</h2>
+          <button id="particle-save-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-xs transition shadow flex items-center gap-1.5">
+            Enregistrer les modifications
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Column 1: Config Parameters -->
+          <div class="space-y-4">
+            <!-- Card 1: Identifiants -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🪪 1. Identification</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">ID Unique</label>
+                  <input type="text" id="particle-id" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: ma_flamme">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Nom Description</label>
+                  <input type="text" id="particle-name" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: Flamme (Impact)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: Paramètres Géométriques -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">📐 2. Géométrie d'émission</h3>
+              <div class="grid grid-cols-2 gap-3 pb-3 border-b border-gray-900">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Forme d'apparition (Spawn)</label>
+                  <select id="particle-spawn" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="point">Point (Exact center)</option>
+                    <option value="ring">Ring (Bordure d'un anneau)</option>
+                    <option value="circle">Circle (Surface d'un disque)</option>
+                    <option value="sphere">Sphere (Enveloppe d'une sphère)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Mouvement (Vélocité)</label>
+                  <select id="particle-movement" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="outward">Outward (Dispersion vers l'extérieur)</option>
+                    <option value="upward">Upward (Poussée verticale pure)</option>
+                    <option value="orbit">Orbit (Rotation orbitale / Vortex)</option>
+                    <option value="random">Random (Vélocités 3D aléatoires)</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Rayon d'apparition (Radius)</label>
+                  <input type="number" step="0.1" id="particle-radius" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.1">
+                </div>
+              </div>
+
+              <!-- 3D Offsets Sub-section -->
+              <div class="grid grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage X (tuile)</label>
+                  <input type="number" step="0.1" id="particle-offset-x" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage Z (tuile)</label>
+                  <input type="number" step="0.1" id="particle-offset-z" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage H (pixel)</label>
+                  <input type="number" id="particle-offset-h" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0" placeholder="ex: 18 = torse">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Paramètres Physiques & Temporels -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">⚙️ 3. Physique temporelle</h3>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Taille</label>
+                  <input type="number" step="0.1" id="particle-size" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="2.0">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Gravité (Rise)</label>
+                  <input type="number" id="particle-gravity" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0" placeholder="ex: -50 = monte">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Vitesse (Force)</label>
+                  <input type="number" step="0.1" id="particle-speed" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="1.0">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Densité</label>
+                  <input type="number" id="particle-density" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="10">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Vie (Sec)</label>
+                  <input type="number" step="0.05" id="particle-life" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.5">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Frottement (Drag)</label>
+                  <input type="number" step="0.01" id="particle-drag" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.98">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Color Palette & Live Preview -->
+          <div class="space-y-4">
+            
+            <!-- Card 4: Palette de Couleurs -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🎨 4. Palette de couleurs</h3>
+              <div class="space-y-2">
+                <label class="block text-[10px] font-semibold uppercase text-gray-400">Couleurs actives (Palette)</label>
+                <ul id="particle-colors-list" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                  <!-- Rempli par JS -->
+                </ul>
+              </div>
+              <div class="flex gap-2 border-t border-gray-900 pt-3 items-end">
+                <div class="flex-1">
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Ajouter une couleur</label>
+                  <input type="color" id="particle-color-picker" class="w-full h-8 bg-gray-900 border border-gray-700 rounded px-1 py-1 cursor-pointer" value="#ff9040">
+                </div>
+                <button type="button" id="particle-add-color-btn" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-bold text-white px-4 h-8 rounded transition flex-shrink-0">
+                  + Ajouter
+                </button>
+              </div>
+            </div>
+
+            <!-- Card 5: Live Mathematical Preview -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">👁️ 5. Prévisualisation mathématique</h3>
+              <div class="flex flex-col">
+                <!-- Resizable Preview Container with Handle -->
+                <div id="particle-preview-container" class="flex-1 bg-black rounded-lg border border-gray-950 p-3 flex items-center justify-center h-[180px] min-h-[140px] max-h-[450px] relative overflow-hidden resize-y select-none">
+                  <canvas id="particle-preview-canvas" class="bg-black rounded w-full h-full"></canvas>
+                  <button type="button" id="particle-stop-preview-btn" class="absolute top-3 right-3 text-[10px] bg-gray-900/95 hover:bg-gray-800 text-gray-400 hover:text-white px-2 py-0.5 rounded border border-gray-800 z-10">
+                    Arrêter
+                  </button>
+                </div>
+                <button type="button" id="particle-run-preview-btn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded text-xs transition mt-3 shadow flex items-center justify-center gap-1.5">
+                  ▶️ Déclencher l'émetteur d'effet
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+</div>

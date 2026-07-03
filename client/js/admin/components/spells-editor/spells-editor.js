@@ -97,7 +97,7 @@ const store = reactive({
           <div class="font-semibold text-white">${sp.name || 'Sans nom'}</div>
           <div class="text-xs text-gray-500 font-mono">${sp.id}</div>
         </div>
-        <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">${sp.type}</span>
+        <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 font-mono uppercase">${sp.type}</span>
       `;
       list.appendChild(li);
     });
@@ -158,84 +158,6 @@ const store = reactive({
       this.$('field-centered').style.display = (type === 'aoe') ? '' : 'none';
   },
 
-  // Evaluate a cooldown formula for a specific level using local secure JS math translation
-  evaluateCooldownLocal(formula, level) {
-    try {
-      // Standardize the formula to valid JavaScript Math syntax
-      const jsFormula = formula
-        .replace(/max\s*\(/gi, 'Math.max(')
-        .replace(/min\s*\(/gi, 'Math.min(')
-        .replace(/abs\s*\(/gi, 'Math.abs(')
-        .replace(/self\.level/gi, String(level));
-
-      // Secure evaluation of the basic arithmetic string
-      const result = new Function(`return ${jsFormula};`)();
-      return typeof result === 'number' && !isNaN(result) ? result : null;
-    } catch (e) {
-      return null;
-    }
-  },
-
-  // Calculate slowest, fastest, and cap level metrics for a formula
-  calculateCooldownMetrics(formula) {
-    if (!formula || !this.activeSpell) return null;
-
-    const baseLevel = this.activeSpell.level !== undefined ? this.activeSpell.level : 1;
-    let maxCd = -Infinity;
-    let minCd = Infinity;
-    let startCd = null;
-
-    // Evaluate cooldown values across levels [baseLevel .. 100]
-    for (let lvl = baseLevel; lvl <= 100; lvl++) {
-      const cd = this.evaluateCooldownLocal(formula, lvl);
-      if (cd === null) continue;
-
-      if (lvl === baseLevel) startCd = cd;
-      if (cd > maxCd) maxCd = cd;
-      if (cd < minCd) minCd = cd;
-    }
-
-    if (maxCd === -Infinity || minCd === Infinity) return null;
-
-    // Find the first level where the fastest cooldown (minCd) is reached (the "cap")
-    let capLevel = baseLevel;
-    for (let lvl = baseLevel; lvl <= 100; lvl++) {
-      const cd = this.evaluateCooldownLocal(formula, lvl);
-      if (cd !== null && Math.abs(cd - minCd) < 0.1) {
-        capLevel = lvl;
-        break;
-      }
-    }
-
-    return {
-      slowest: maxCd,
-      startCd: startCd,
-      fastest: minCd,
-      capLevel: capLevel,
-      startLevel: baseLevel
-    };
-  },
-
-  // Read formula from DOM, calculate, and update the UI panel
-  updateCooldownMetrics() {
-    const formula = this.$('spell-cooldown')?.value;
-    const metricsPanel = this.$('cooldown-metrics');
-    if (!metricsPanel) return;
-
-    const metrics = this.calculateCooldownMetrics(formula);
-
-    if (!metrics) {
-      metricsPanel.classList.add('hidden'); // Hide if formula is invalid
-      return;
-    }
-
-    metricsPanel.classList.remove('hidden'); // Show calculated metrics
-    this.$('metric-slowest').innerText = `${Math.round(metrics.slowest)} ms`;
-    this.$('metric-start-lvl').innerText = metrics.startLevel;
-    this.$('metric-fastest').innerText = `${Math.round(metrics.fastest)} ms`;
-    this.$('metric-cap-lvl').innerText = metrics.capLevel;
-  },
-
   // Render list of active prerequisite spells
   renderPrerequisitesList() {
     const list = this.$('spell-requires-list');
@@ -256,9 +178,9 @@ const store = reactive({
       const name = reqSpell ? reqSpell.name : reqId;
 
       const li = document.createElement('li');
-      li.className = "flex justify-between items-center bg-gray-900 border border-gray-800 rounded px-3 py-1.5 text-xs text-white max-w-md";
+      li.className = "flex justify-between items-center bg-gray-900 border border-gray-800 rounded px-2.5 py-1 text-[11px] text-white max-w-sm";
       li.innerHTML = `
-        <span class="font-medium">${name} <span class="text-gray-500 font-mono text-[10px]">(${reqId})</span></span>
+        <span class="font-medium">${name} <span class="text-gray-500 font-mono text-[9px]">(${reqId})</span></span>
       `;
       
       const removeBtn = document.createElement('button');
@@ -270,6 +192,47 @@ const store = reactive({
       li.appendChild(removeBtn);
       list.appendChild(li);
     });
+  },
+
+  // Add a prerequisite spell ID
+  addPrerequisite() {
+    const select = this.$('spell-requires-select');
+    if (!select) return;
+    const selectId = select.value;
+    if (!selectId) return;
+
+    if (selectId === this.activeSpell.id) {
+      alert("Un sort ne peut pas se requérir lui-même !");
+      return;
+    }
+
+    // Standardize requires to a local array of string IDs
+    let prereqs = this.activeSpell.requires;
+    prereqs = Array.isArray(prereqs) ? prereqs : (prereqs ? [prereqs] : []);
+
+    if (prereqs.includes(selectId)) {
+      alert("Ce sort est déjà configuré comme prérequis !");
+      return;
+    }
+
+    prereqs.push(selectId);
+    this.activeSpell.requires = prereqs;
+    
+    // Reset selection and re-render
+    select.value = "";
+    this.renderPrerequisitesList();
+  },
+
+  removePrerequisite(id) {
+    let prereqs = this.activeSpell.requires;
+    prereqs = Array.isArray(prereqs) ? prereqs : (prereqs ? [prereqs] : []);
+
+    const idx = prereqs.indexOf(id);
+    if (idx !== -1) {
+      prereqs.splice(idx, 1);
+    }
+    this.activeSpell.requires = prereqs;
+    this.renderPrerequisitesList();
   },
 
   createEffectDOM(eff, index) {
@@ -303,48 +266,81 @@ const store = reactive({
     return div;
   },
 
-  // --- Prerequisite Actions ---
-  addPrerequisite() {
-    const select = this.$('spell-requires-select');
-    if (!select) return;
-    const selectId = select.value;
-    if (!selectId) return;
+  // Evaluate a cooldown formula for a specific level using local secure JS math translation
+  evaluateCooldownLocal(formula, level) {
+    try {
+      const jsFormula = formula
+        .replace(/max\s*\(/gi, 'Math.max(')
+        .replace(/min\s*\(/gi, 'Math.min(')
+        .replace(/abs\s*\(/gi, 'Math.abs(')
+        .replace(/self\.level/gi, String(level));
 
-    if (selectId === this.activeSpell.id) {
-      alert("Un sort ne peut pas se requérir lui-même !");
+      const result = new Function(`return ${jsFormula};`)();
+      return typeof result === 'number' && !isNaN(result) ? result : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // Calculate slowest, fastest, and cap level metrics for a formula
+  calculateCooldownMetrics(formula) {
+    if (!formula || !this.activeSpell) return null;
+
+    const baseLevel = this.activeSpell.level !== undefined ? this.activeSpell.level : 1;
+    let maxCd = -Infinity;
+    let minCd = Infinity;
+    let startCd = null;
+
+    for (let lvl = baseLevel; lvl <= 100; lvl++) {
+      const cd = this.evaluateCooldownLocal(formula, lvl);
+      if (cd === null) continue;
+
+      if (lvl === baseLevel) startCd = cd;
+      if (cd > maxCd) maxCd = cd;
+      if (cd < minCd) minCd = cd;
+    }
+
+    if (maxCd === -Infinity || minCd === Infinity) return null;
+
+    let capLevel = baseLevel;
+    for (let lvl = baseLevel; lvl <= 100; lvl++) {
+      const cd = this.evaluateCooldownLocal(formula, lvl);
+      if (cd !== null && Math.abs(cd - minCd) < 0.1) {
+        capLevel = lvl;
+        break;
+      }
+    }
+
+    return {
+      slowest: maxCd,
+      startCd: startCd,
+      fastest: minCd,
+      capLevel: capLevel,
+      startLevel: baseLevel
+    };
+  },
+
+  // Read formula from DOM, calculate, and update the UI panel
+  updateCooldownMetrics() {
+    const formula = this.$('spell-cooldown')?.value;
+    const metricsPanel = this.$('cooldown-metrics');
+    if (!metricsPanel) return;
+
+    const metrics = this.calculateCooldownMetrics(formula);
+
+    if (!metrics) {
+      metricsPanel.classList.add('hidden');
       return;
     }
 
-    // Standardize to array
-    let prereqs = this.activeSpell.requires;
-    prereqs = Array.isArray(prereqs) ? prereqs : (prereqs ? [prereqs] : []);
-
-    if (prereqs.includes(selectId)) {
-      alert("Ce sort est déjà configuré comme prérequis !");
-      return;
-    }
-
-    prereqs.push(selectId);
-    this.activeSpell.requires = prereqs;
-    
-    // Reset selection and re-render
-    select.value = "";
-    this.renderPrerequisitesList();
+    metricsPanel.classList.remove('hidden');
+    this.$('metric-slowest').innerText = `${Math.round(metrics.slowest)} ms`;
+    this.$('metric-start-lvl').innerText = metrics.startLevel;
+    this.$('metric-fastest').innerText = `${Math.round(metrics.fastest)} ms`;
+    this.$('metric-cap-lvl').innerText = metrics.capLevel;
   },
 
-  removePrerequisite(id) {
-    let prereqs = this.activeSpell.requires;
-    prereqs = Array.isArray(prereqs) ? prereqs : (prereqs ? [prereqs] : []);
-
-    const idx = prereqs.indexOf(id);
-    if (idx !== -1) {
-      prereqs.splice(idx, 1);
-    }
-    this.activeSpell.requires = prereqs;
-    this.renderPrerequisitesList();
-  },
-
-  // --- Main Form Actions ---
+  // --- Actions ---
   createNewSpell() {
     const newId = `nouveau_sort_${Date.now().toString(36).slice(-4)}`;
     this.spells.push({
@@ -405,7 +401,7 @@ const store = reactive({
       updatedSpell.int = parseInt(this.$('spell-req-int').value, 10) || 0;
       updatedSpell.price = parseInt(this.$('spell-price').value, 10) || 0;
       
-      // Package prerequisites list according to polymorphic conventions
+      // Package prerequisites list according to polymorphic conventions (array, string, or null)
       const prereqs = this.activeSpell.requires;
       const cleanPrereqs = Array.isArray(prereqs) ? prereqs : (prereqs ? [prereqs] : []);
       

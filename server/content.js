@@ -6,7 +6,7 @@ import { FormulaEngine } from '../shared/formula-engine.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {} }, templates: [] };
+export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {} }, templates: [] };
 
 const engine = new FormulaEngine();
 
@@ -52,12 +52,15 @@ export function loadContent() {
   const zones = JSON.parse(fs.readFileSync(path.join(DIR, 'zones.json'), 'utf8'));
   const spells = JSON.parse(fs.readFileSync(path.join(DIR, 'spells.json'), 'utf8'));
   const skills = JSON.parse(fs.readFileSync(path.join(DIR, 'skills.json'), 'utf8'));
+  const particles = JSON.parse(fs.readFileSync(path.join(DIR, 'particles.json'), 'utf8'));
   content.zones = zones.zones;
   content.npc = zones.npc;
   content.spells = spells.spells;
   content.skills = skills.skills;
+  content.particles = particles.particles || [];
   content.spellById = Object.fromEntries(content.spells.map(s => [s.id, s]));
   content.skillById = Object.fromEntries(content.skills.map(s => [s.id, s]));
+  content.particlesById = Object.fromEntries(content.particles.map(p => [p.id, p]));
   compileSpellFormulas();
   compileSkillFormulas();
   // musiques (écran de connexion, Épreuve, zone -> emplacement) : tolérant si absent.
@@ -106,7 +109,7 @@ export function loadContent() {
 }
 
 export function saveContentFile(name, data) {
-  if (!['zones', 'spells', 'skills', 'music', 'skins', 'templates'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'spells', 'skills', 'music', 'skins', 'templates', 'particles'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }

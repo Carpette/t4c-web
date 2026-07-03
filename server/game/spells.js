@@ -128,6 +128,7 @@ export function spellReqText(sp) {
 // relancer, pas une incantation préalable. L'approche automatique hors combat
 // passe toujours par pendingCast : le sort part une fois à portée.
 export function castSpell(game, p, msg) {
+  console.log('[DEBUG castSpell] player stats:', p.stats, 'eff stats:', p.eff?.stats, 'level:', p.level);
   const sp = content.spellById[msg.spellId];
   if (!sp || !p.spells.includes(sp.id) || sp.todo) return;
   const now = game.now();
@@ -218,11 +219,7 @@ export function resolveCast(game, p) {
     for (const eff of effectsToApply) {
       const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, target)))) : 0;
       
-      if (eff.type === 'damage' || eff.kind === 'damage') {
-        applySpellDamage(p, target, eff, rawValue, game, sp);
-      } else if (eff.type === 'heal' || eff.kind === 'heal') {
-        applySpellHeal(p, target, eff, rawValue, game, sp);
-      } else if (eff.type === 'curse' || eff.kind === 'curse') {
+      if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         target.curseUntil = now + duration;
         game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
@@ -240,8 +237,8 @@ export function resolveCast(game, p) {
           category: eff.category || 'magique',
           dice: eff.dice,
           base: eff.base,
-                  element: eff.element || sp.element,
-                  expr: eff.expr,
+          element: eff.element || sp.element,
+          expr: eff.expr,
           formula: eff.formula,
           dot_min: eff.dot_min,
           dot_max: eff.dot_max,

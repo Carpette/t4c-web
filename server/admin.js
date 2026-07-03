@@ -109,14 +109,14 @@ export async function handleAdmin(req, res, url, game) {
       }
     }
 
-    // ---- contenu (zones / sorts / compétences) ----
-    const mContent = url.match(/^\/api\/admin\/content\/(zones|spells|skills)$/);
+    // ---- contenu (zones / sorts / compétences / particules) ----
+    const mContent = url.match(/^\/api\/admin\/content\/(zones|spells|skills|particles)$/);
     if (mContent) {
       const name = mContent[1];
       if (req.method === 'GET') {
         return json(200, JSON.parse(fs.readFileSync(path.join(CONTENT_DIR, `${name}.json`), 'utf8')));
       }
-      if (req.method === 'PUT' || (name === 'spells' && req.method === 'POST')) {
+      if (req.method === 'PUT' || (['spells', 'particles'].includes(name) && req.method === 'POST')) {
         const data = JSON.parse(await readBody(req)); // valide le JSON
         saveContentFile(name, data);
         return json(200, { ok: true, note: name === 'zones' ? 'Redémarrage du serveur requis pour les seeds/zones.' : 'Appliqué à chaud.' });
