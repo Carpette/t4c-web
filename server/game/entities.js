@@ -825,18 +825,78 @@ export class Mob extends Character {
   }
 }
 
-export class NPC extends Entity {
+export class NPC extends Character {
   constructor(id, npcId, def, x, z) {
-    super(id, C.KIND.NPC, x, z);
+    super(id, C.KIND.NPC, x, z, def.level || 1, def.hp || 100);
     this.npcId = npcId;
     // définition EFFECTIVE (zones.json, éventuellement retouchée ou créée par
     // les overrides de la zone) : rôle, étal, sorts enseignés, dialogues...
     this.def = def;
     this.name = def.name;
-    this.look = def.look;
     this.dir = Math.PI;
-    this.level = 0;
-    this.hp = 1;
+
+    this.stats = def.stats || { str: 10, end: 10, agi: 10, int: 10, wis: 10 };
+    this.equip = def.equip || {};
+    this.skills = def.skills || {};
+    this.spells = def.spells || [];
+
+    this.recompute();
+  }
+
+  computeLook() {
+    const layerOf = (slot) => {
+      const defId = this.equip[slot];
+      const itemDef = defId && ITEMS[defId];
+      return itemDef ? (itemDef.layer || null) : null;
+    };
+    return {
+      sex: this.def.sex || 'male',
+      chest: layerOf('armor'),
+      head: layerOf('helmet'),
+      legs: layerOf('legs'),
+      hands: layerOf('gloves'),
+      main: layerOf('weapon'),
+      off: layerOf('shield'),
+      feet: layerOf('boots'),
+    };
+  }
+
+  recompute(game) {
+    const stats = { ...this.stats };
+    let defense = 0;
+    for (const slot of SLOTS) {
+      const defId = this.equip[slot];
+      if (!defId) continue;
+      const d = ITEMS[defId];
+      if (!d) continue;
+      if (d.def) defense += d.def;
+    }
+
+    const baseEntity = {
+      stats,
+      skills: this.skills,
+      maxHp: this.def.hp || 100,
+      maxMana: this.def.maxMana || 100,
+      defense: defense,
+      effects: this.effects,
+    };
+
+    const modStats = computeModifiedStats(baseEntity);
+
+    this.eff = {
+      stats: modStats,
+      maxHp: modStats.maxHp,
+      maxMana: modStats.maxMana,
+      defense: modStats.defense,
+      speed: (this.def.speed || 4.0) * this.effects.getSpeedMultiplier(),
+    };
+
+    this.maxHp = this.eff.maxHp;
+    this.maxMana = this.eff.maxMana;
+    this.hp = Math.min(this.hp, this.eff.maxHp);
+    
+    // Fallback look (custom skin, e.g. for merchant) or dynamic look calculated from gear
+    this.look = this.def.look || this.computeLook();
   }
 }
 

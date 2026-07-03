@@ -131,8 +131,13 @@ const CHEST = walkableNear(4, 6);
 
 // ---------- 1. construire la quête AVEC l'éditeur ----------
 const zonesData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/zones.json'), 'utf8'));
+const npcsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/npcs.json'), 'utf8'));
+const skillsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/skills.json'), 'utf8'));
 const localApi = async (url) => {
   if (url === '/api/admin/content/zones') return zonesData;
+  if (url === '/api/admin/content/npcs') return npcsData;
+  if (url === '/api/admin/content/spells') return { spells: [] };
+  if (url === '/api/admin/content/skills') return skillsData;
   if (url.startsWith('/api/admin/overrides/')) return { tiles: [], props: { add: [], remove: [] } };
   if (url === '/api/admin/players') return { players: [] };
   if (url === '/api/admin/music') return { files: [], map: {} };
@@ -140,7 +145,7 @@ const localApi = async (url) => {
 };
 await import('../client/js/admin.js');
 const { initMapEditor } = await import('../client/js/admin/editor.js');
-const ed = await initMapEditor({ api: localApi, zones: zonesData.zones, npcDefs: zonesData.npc || {}, spells: [] });
+const ed = await initMapEditor({ api: localApi, zones: zonesData.zones, npcDefs: npcsData.npc || {}, spells: [], skills: skillsData.skills || [] });
 
 ed.placeNpcAt(NPC_A.x, NPC_A.z);
 ed.placeNpcAt(NPC_B.x, NPC_B.z);

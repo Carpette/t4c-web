@@ -50,11 +50,12 @@ function compileSkillFormulas() {
 
 export function loadContent() {
   const zones = JSON.parse(fs.readFileSync(path.join(DIR, 'zones.json'), 'utf8'));
+  const npcs = JSON.parse(fs.readFileSync(path.join(DIR, 'npcs.json'), 'utf8'));
   const spells = JSON.parse(fs.readFileSync(path.join(DIR, 'spells.json'), 'utf8'));
   const skills = JSON.parse(fs.readFileSync(path.join(DIR, 'skills.json'), 'utf8'));
   const particles = JSON.parse(fs.readFileSync(path.join(DIR, 'particles.json'), 'utf8'));
   content.zones = zones.zones;
-  content.npc = zones.npc;
+  content.npc = npcs.npc;
   content.spells = spells.spells;
   content.skills = skills.skills;
   content.particles = particles.particles || [];
@@ -109,7 +110,7 @@ export function loadContent() {
 }
 
 export function saveContentFile(name, data) {
-  if (!['zones', 'spells', 'skills', 'music', 'skins', 'templates', 'particles'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }

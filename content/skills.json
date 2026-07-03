@@ -2,89 +2,236 @@
   "_note": "Compétences standards T4C (wiki Fandom — prérequis, coûts d'apprentissage et d'entraînement authentiques, prix /5). On apprend la compétence puis on l'entraîne point par point en or. Dextérité T4C = Agilité ici. zone = entraîneur disponible à partir de cette zone (LH=0, WH=1, îles suivantes=2).",
   "skills": [
     {
-      "id": "attaque", "name": "Attaque", "innate": true, "max": 9999,
-      "level": 1, "req": {}, "learnCost": 0, "trainCost": 2, "zone": 0,
+      "id": "attaque",
+      "name": "Attaque",
+      "innate": true,
+      "max": 9999,
+      "level": 1,
+      "req": {},
       "desc": "Capacité à toucher sa cible en mêlée. +0,1 % de toucher par point.",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "hit", "formula": "pts * 0.001", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "hit",
+          "formula": "pts * 0.001",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "esquive", "name": "Esquive", "innate": true, "max": 9999,
-      "level": 1, "req": {}, "learnCost": 0, "trainCost": 2, "zone": 0,
+      "id": "esquive",
+      "name": "Esquive",
+      "innate": true,
+      "max": 9999,
+      "level": 1,
+      "req": {},
       "desc": "Capacité à éviter les attaques physiques. +0,1 % d'esquive par point.",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "dodge", "formula": "pts * 0.001", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "dodge",
+          "formula": "pts * 0.001",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "archerie", "name": "Archerie", "innate": true, "max": 9999,
-      "level": 1, "req": {}, "learnCost": 0, "trainCost": 3, "zone": 0,
+      "id": "archerie",
+      "name": "Archerie",
+      "innate": true,
+      "max": 9999,
+      "level": 1,
+      "req": {},
       "desc": "Capacité à toucher sa cible à distance. +0,1 % de toucher par point, uniquement avec un arc (l'Attaque ne sert qu'en mêlée).",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "ranged_hit", "formula": "pts * 0.001", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "ranged_hit",
+          "formula": "pts * 0.001",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "coup_assommant", "name": "Coup assommant", "max": 100,
-      "level": 3, "req": { "str": 25, "agi": 20 }, "learnCost": 30, "trainCost": 4, "zone": 0,
+      "id": "coup_assommant",
+      "name": "Coup assommant",
+      "max": 100,
+      "level": 3,
+      "req": {
+        "str": 25,
+        "agi": 20
+      },
       "desc": "Chance d'immobiliser brièvement la cible à chaque coup réussi (0,15 %/pt). Influencée par l'agilité.",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "stun", "formula": "pts * 0.0015", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "stun",
+          "formula": "pts * 0.0015",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "coup_puissant", "name": "Coup puissant", "max": 100,
-      "level": 15, "req": { "str": 50, "agi": 30 }, "learnCost": 500, "trainCost": 10, "zone": 0,
+      "id": "coup_puissant",
+      "name": "Coup puissant",
+      "max": 100,
+      "level": 15,
+      "req": {
+        "str": 50,
+        "agi": 30
+      },
       "desc": "Rend chaque attaque physique réussie plus puissante. +0,25 % de dégâts par point.",
       "effects": [
-        { "type": "damage_boost", "formula": "pts * 0.0025", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "damage_boost",
+          "formula": "pts * 0.0025",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "parade", "name": "Parade", "max": 100,
-      "level": 10, "req": { "agi": 30, "int": 20 }, "learnCost": 180, "trainCost": 15, "zone": 1,
+      "id": "parade",
+      "name": "Parade",
+      "max": 100,
+      "level": 10,
+      "req": {
+        "agi": 30,
+        "int": 20
+      },
       "desc": "Capacité à parer totalement une attaque physique (0,1 %/pt). Le port d'un bouclier améliore la parade de moitié.",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "parry", "formula": "pts * 0.001", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "parry",
+          "formula": "pts * 0.001",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "mediter", "name": "Méditer", "max": 100,
-      "level": 16, "req": { "int": 30, "wis": 30 }, "learnCost": 600, "trainCost": 20, "zone": 2,
+      "id": "mediter",
+      "name": "Méditer",
+      "max": 100,
+      "level": 16,
+      "req": {
+        "int": 30,
+        "wis": 30
+      },
       "desc": "Augmente la vitesse de récupération de mana. +1 %/pt (simplifié : passif).",
       "effects": [
-        { "type": "mp_regen_boost", "formula": "pts * 0.01", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "mp_regen_boost",
+          "formula": "pts * 0.01",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "guerison_rapide", "name": "Guérison rapide", "max": 100,
-      "level": 30, "req": { "end": 80 }, "learnCost": 1000, "trainCost": 40, "zone": 2,
+      "id": "guerison_rapide",
+      "name": "Guérison rapide",
+      "max": 100,
+      "level": 30,
+      "req": {
+        "end": 80
+      },
       "desc": "Augmente la vitesse de récupération des points de vie. +1 %/pt.",
       "effects": [
-        { "type": "hp_regen_boost", "formula": "pts * 0.01", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "hp_regen_boost",
+          "formula": "pts * 0.01",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "transpercer_armure", "name": "Transpercer l'armure", "max": 100,
-      "level": 25, "req": { "str": 75, "agi": 40, "int": 30 }, "learnCost": 1500, "trainCost": 60, "zone": 2,
+      "id": "transpercer_armure",
+      "name": "Transpercer l'armure",
+      "max": 100,
+      "level": 25,
+      "req": {
+        "str": 75,
+        "agi": 40,
+        "int": 30
+      },
       "desc": "La CA de la cible est moins prise en compte lors du calcul des dégâts physiques. -0,25 % de CA adverse par point.",
       "effects": [
-        { "type": "stats_boost", "target_parameter": "pierce", "formula": "pts * 0.0025", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "stats_boost",
+          "target_parameter": "pierce",
+          "formula": "pts * 0.0025",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     },
     {
-      "id": "profusion_mana", "name": "Profusion de mana", "max": 100,
-      "level": 35, "req": { "int": 150, "wis": 75 }, "learnCost": 1380, "trainCost": 60, "zone": 2,
+      "id": "profusion_mana",
+      "name": "Profusion de mana",
+      "max": 100,
+      "level": 35,
+      "req": {
+        "int": 150,
+        "wis": 75
+      },
       "desc": "Augmente la puissance de lancement des sorts. +0,2 % de dégâts des sorts par point.",
       "effects": [
-        { "type": "power_boost", "target_parameter": "earth", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "water", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "air", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "fire", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "light", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "dark", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" },
-        { "type": "power_boost", "target_parameter": "arcane", "formula": "pts * 0.002", "duration": "Infinity", "category": "systeme" }
+        {
+          "type": "power_boost",
+          "target_parameter": "earth",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "water",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "air",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "fire",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "light",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "dark",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        },
+        {
+          "type": "power_boost",
+          "target_parameter": "arcane",
+          "formula": "pts * 0.002",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
       ]
     }
   ]

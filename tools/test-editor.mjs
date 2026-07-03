@@ -17,15 +17,23 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 register('data:text/javascript,' + encodeURIComponent(`
   import { pathToFileURL } from 'node:url';
   const SHARED = ${JSON.stringify(pathToFileURLString())};
+  const CLIENT_JS = ${JSON.stringify(clientJsURLString())};
   export async function resolve(spec, ctx, next) {
-    if (spec.startsWith('../shared/') && ctx.parentURL && ctx.parentURL.endsWith('/client/js/admin.js')) {
-      return next(SHARED + spec.slice('../shared/'.length), ctx);
+    if (spec.startsWith('/js/')) {
+      return next(CLIENT_JS + spec.slice('/js/'.length), ctx);
+    }
+    const m = spec.match(/(?:\\.\\.\\/)*shared\\/(.*)/);
+    if (m) {
+      return next(SHARED + m[1], ctx);
     }
     return next(spec, ctx);
   }
 `), import.meta.url);
 function pathToFileURLString() {
   return new URL('file://' + path.join(ROOT, 'shared') + '/').href;
+}
+function clientJsURLString() {
+  return new URL('file://' + path.join(ROOT, 'client/js') + '/').href;
 }
 const failures = [];
 process.on('uncaughtException', (e) => { failures.push(e); console.error('✘ EXCEPTION:', e.stack?.split('\n').slice(0, 4).join('\n')); });
@@ -122,10 +130,15 @@ mini.width = 168; mini.height = 168;
 
 // ---------- API admin simulée ----------
 const zonesData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/zones.json'), 'utf8'));
+const npcsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/npcs.json'), 'utf8'));
+const skillsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/skills.json'), 'utf8'));
 const MUSIC_FILES = ['exterieur.mp3', 'Velours Moteur.mp3', 'Gravel Starlight.mp3'];
 let tplStore = []; // persistance serveur simulée des templates
 const api = async (url, method = 'GET', body = null) => {
   if (url === '/api/admin/content/zones') return zonesData;
+  if (url === '/api/admin/content/npcs') return npcsData;
+  if (url === '/api/admin/content/spells') return { spells: [] };
+  if (url === '/api/admin/content/skills') return skillsData;
   if (url.startsWith('/api/admin/overrides/')) return { tiles: [], props: { add: [], remove: [] } };
   if (url === '/api/admin/players') return { players: [] };
   if (url === '/api/admin/music') return { files: MUSIC_FILES, map: {} };
@@ -143,7 +156,7 @@ const ok = (name, cond) => { checks.push([name, !!cond]); console.log(cond ? '  
 await import('../client/js/admin.js'); // graphe complet (sans connexion : token absent)
 console.log('✔ admin.js chargé');
 const { initMapEditor } = await import('../client/js/admin/editor.js');
-const ed = await initMapEditor({ api, zones: zonesData.zones, musicFiles: MUSIC_FILES });
+const ed = await initMapEditor({ api, zones: zonesData.zones, npcDefs: npcsData.npc, musicFiles: MUSIC_FILES });
 ok('éditeur initialisé (zone 0 générée, vue ajustée)', ed && ed.getView().z > 0);
 
 // palette : sols + tous les props avec variantes

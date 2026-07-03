@@ -1,0 +1,287 @@
+<div class="flex flex-col h-full relative" @vue:mounted="init()">
+  
+  <!-- Barre de navigation du haut (Header) -->
+  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center absolute top-0 left-64 right-0 z-10">
+    <h1 class="text-lg font-bold tracking-wide text-amber-500 flex items-center gap-2">🧙 T4C Web - Éditeur de PNJ</h1>
+    <div class="flex items-center gap-4">
+      <div class="text-xs text-green-400 font-semibold" v-if="message">{{ message }}</div>
+      <button @click="saveFileToServer()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
+        💾 Sauvegarder npcs.json
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenu principal -->
+  <main class="flex-1 flex overflow-hidden pt-14">
+    
+    <!-- Liste des PNJ (Sidebar gauche) -->
+    <aside class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
+      <div class="p-3 border-b border-gray-800 space-y-2">
+        <div class="text-[10px] text-amber-500 font-mono text-center py-1 bg-gray-900 border border-gray-800 rounded">
+          📁 npcs.json
+        </div>
+        <div class="relative">
+          <input type="text" v-model="searchQuery" placeholder="🔍 Filtrer les PNJ..." class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <button @click="createNewNpc()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1.5 px-3 rounded text-xs transition">
+          + Nouveau PNJ
+        </button>
+      </div>
+      <ul class="flex-1 divide-y divide-gray-900 list-none p-0">
+        <li v-for="id in filteredNpcIds" :key="id"
+            @click="selectNpc(id)"
+            :class="{'bg-gray-800 border-l-4 border-amber-500': activeNpcId === id}"
+            class="p-4 cursor-pointer transition hover:bg-gray-900 flex justify-between items-center border-b border-gray-900">
+            <div>
+              <div class="font-semibold text-white text-sm">{{ npcs[id].name || 'Sans nom' }}</div>
+              <div class="text-xs text-gray-500 font-mono mt-0.5">{{ id }}</div>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 font-mono uppercase">{{ npcs[id].role || 'merchant' }}</span>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Zone d'édition (Editor Pane droit) -->
+    <section v-if="activeNpc" class="flex-1 p-5 overflow-y-auto bg-gray-900">
+      <div class="max-w-5xl mx-auto space-y-4">
+        
+        <!-- Titre et Bouton Enregistrer PNJ -->
+        <div class="flex justify-between items-center pb-2">
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            Édition du PNJ : <span class="text-amber-500 font-mono text-lg font-semibold">{{ activeNpcId }}</span>
+          </h2>
+          <button @click="saveCurrentNpc()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-xs transition shadow flex items-center gap-1.5">
+            Appliquer les modifications
+          </button>
+        </div>
+
+        <!-- Layout Grille 2 Colonnes -->
+        <div class="grid grid-cols-2 gap-4">
+          
+          <!-- Colonne Gauche : Identification, Caractéristiques & Ambiances -->
+          <div class="space-y-4">
+            
+            <!-- SECTION 1 : Identification -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🪪 1. Identification</h3>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">ID</label>
+                  <input type="text" id="npc-id" :value="activeNpcId" :disabled="!isNew" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 disabled:opacity-50" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Nom Français</label>
+                  <input type="text" v-model="activeNpc.name" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Rôle / Métier</label>
+                  <select v-model="activeNpc.role" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="merchant">Marchand / Entraîneur</option>
+                    <option value="teacher">Enseignant de sortilèges</option>
+                    <option value="bavard">Bavard (Dialogue)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 2 : Combat Stats & Vitals -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">⚔️ 2. Combat & Statistiques</h3>
+              <div class="grid grid-cols-2 gap-3 pb-2 border-b border-gray-900">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Niveau</label>
+                  <input type="number" v-model="activeNpc.level" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Points de vie (HP)</label>
+                  <input type="number" v-model="activeNpc.hp" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
+                </div>
+              </div>
+              <div class="grid grid-cols-5 gap-2">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">STR</label>
+                  <input type="number" v-model="activeNpc.stats.str" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">END</label>
+                  <input type="number" v-model="activeNpc.stats.end" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">AGI</label>
+                  <input type="number" v-model="activeNpc.stats.agi" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">INT</label>
+                  <input type="number" v-model="activeNpc.stats.int" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">WIS</label>
+                  <input type="number" v-model="activeNpc.stats.wis" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 3 : Ambiances & Greetings -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
+              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">💬 3. Phrases d'ambiance (une par ligne)</h3>
+              <textarea id="npc-greetings" :value="(activeNpc.greetings || []).join('\n')" class="w-full bg-gray-900 border border-gray-700 rounded p-2.5 h-24 text-xs text-white focus:outline-none focus:border-amber-500 font-sans leading-relaxed" placeholder="Entrez les phrases d'accueil..."></textarea>
+            </div>
+
+          </div>
+
+          <!-- Colonne Droite : Enseignements (Sorts / Compétences) -->
+          <div class="space-y-4">
+            
+            <!-- SECTION 4 : Répertoire d'enseignement -->
+            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3 h-[455px] flex flex-col justify-between">
+              
+              <!-- Cas : Enseignant de sortilèges -->
+              <div v-show="activeNpc.role === 'teacher'" class="flex-1 flex flex-col justify-between overflow-hidden">
+                <div>
+                  <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">🔮 4. Sortilèges enseignés</h3>
+                  
+                  <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    <div v-for="(price, id) in activeNpc.teachesSpells" :key="id" class="flex items-center justify-between p-2 bg-gray-900 border border-gray-800 rounded">
+                      <span class="text-gray-300 font-medium text-xs">{{ getSpellName(id) }} ({{ id }})</span>
+                      <div class="flex items-center gap-2 bg-gray-950 px-2 py-1 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-500 font-medium">Prix :</span>
+                        <input type="number" :value="price" @input="updateSpellPrice(id, $event.target.value)" style="width: 70px" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1.5 py-0.5 text-xs text-center focus:outline-none" />
+                        <span class="text-[10px] text-gray-500 font-medium">PO</span>
+                        <button @click="removeSpellFromNpc(id)" class="text-red-400 hover:text-red-500 text-xs font-bold ml-2">✕</button>
+                      </div>
+                    </div>
+                    <div v-if="Object.keys(activeNpc.teachesSpells).length === 0" class="text-center text-xs text-gray-500 py-6">
+                      Aucun sortilège dans son répertoire.
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="availableSpells.length > 0" class="pt-3 border-t border-gray-900">
+                  <select @change="addSpellToNpc($event.target.value); $event.target.value = ''" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="">➕ Ajouter un sortilège au répertoire...</option>
+                    <option v-for="sp in availableSpells" :key="sp.id" :value="sp.id">{{ sp.name }} ({{ sp.id }})</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Cas : Marchand / Entraîneur -->
+              <div v-show="activeNpc.role === 'merchant'" class="flex-1 flex flex-col justify-between overflow-hidden">
+                <div>
+                  <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">🎓 4. Compétences enseignées</h3>
+                  
+                  <div class="space-y-3 max-h-72 overflow-y-auto pr-1">
+                    <div v-for="(costs, id) in activeNpc.teachesSkills" :key="id" class="flex flex-col gap-2 p-2.5 bg-gray-900 border border-gray-800 rounded">
+                      <div class="flex justify-between items-center border-b border-gray-950 pb-1">
+                        <span class="text-gray-300 font-semibold text-xs">{{ getSkillName(id) }} ({{ id }})</span>
+                        <button @click="removeSkillFromNpc(id)" class="text-red-400 hover:text-red-500 text-xs font-bold">✕ Retirer</button>
+                      </div>
+                      <div class="grid grid-cols-2 gap-2 bg-gray-950 p-1.5 rounded border border-gray-800">
+                        <div class="flex items-center justify-between">
+                          <span class="text-[10px] text-gray-500 font-medium">Achat :</span>
+                          <div class="flex items-center gap-1">
+                            <input type="number" :value="costs.learnCost" @input="updateSkillCost(id, 'learnCost', $event.target.value)" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1 py-0.5 text-xs w-14 text-center focus:outline-none" />
+                            <span class="text-[10px] text-gray-500 font-medium">PO</span>
+                          </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span class="text-[10px] text-gray-500 font-medium">Entraîner :</span>
+                          <div class="flex items-center gap-1">
+                            <input type="number" :value="costs.trainCost" @input="updateSkillCost(id, 'trainCost', $event.target.value)" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1 py-0.5 text-xs w-14 text-center focus:outline-none" />
+                            <span class="text-[10px] text-gray-500 font-medium">PO</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="Object.keys(activeNpc.teachesSkills).length === 0" class="text-center text-xs text-gray-500 py-6">
+                      Aucune compétence dans son répertoire.
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="availableSkills.length > 0" class="pt-3 border-t border-gray-900">
+                  <select @change="addSkillToNpc($event.target.value); $event.target.value = ''" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="">➕ Ajouter une compétence au répertoire...</option>
+                    <option v-for="sk in availableSkills" :key="sk.id" :value="sk.id">{{ sk.name }} ({{ sk.id }})</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Cas : Simple dialogue (Bavard) -->
+              <div v-show="activeNpc.role === 'bavard'" class="flex-1 flex flex-col justify-center items-center text-center py-12">
+                <span class="text-4xl">🗣️</span>
+                <h4 class="text-sm font-bold text-gray-400 mt-3">Simple Bavard</h4>
+                <p class="text-xs text-gray-500 max-w-xs mt-1">Ce PNJ ne propose aucune boutique ni enseignement. Utilisez la section des dialogues ci-dessous pour le faire parler.</p>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Section 5 : Dialogues à mots-clés -->
+        <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-4">
+          <div class="flex justify-between items-center border-b border-gray-900 pb-2">
+            <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🗣️ 5. Dialogues à mots-clés</h3>
+            <button @click="addDialogueBlock()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1 px-3 rounded text-[10px] transition">
+              + Ajouter un bloc de dialogue
+            </button>
+          </div>
+          
+          <div class="space-y-4">
+            <div v-for="(dlg, index) in activeNpc.dialogues" :key="index" class="p-4 bg-gray-900 border border-gray-800 rounded-lg flex flex-col gap-3 relative">
+              <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h5 class="text-xs text-amber-500 font-bold uppercase tracking-wider">Dialogue {{ index + 1 }}</h5>
+                <button @click="removeDialogueBlock(index)" class="text-red-400 hover:text-red-500 text-xs font-bold">Supprimer ✕</button>
+              </div>
+              
+              <!-- Keywords -->
+              <div class="grid grid-cols-3 gap-3">
+                <div class="col-span-2">
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Mots-clés (séparés par des virgules)</label>
+                  <input type="text" :value="(dlg.keywords || []).join(', ')" @change="onDialogueKeywordsChange(index, $event.target.value)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" />
+                </div>
+                <div class="flex items-end pb-1.5">
+                  <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-300">
+                    <input type="checkbox" v-model="dlg.repeatable" class="rounded text-amber-500 bg-gray-950 border-gray-800" />
+                    Récompenses répétables
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Response -->
+              <div>
+                <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Réponse du PNJ</label>
+                <textarea v-model="dlg.reponse" class="w-full bg-gray-950 border border-gray-800 rounded p-2 h-16 text-xs text-white focus:outline-none leading-relaxed" placeholder="Entrez la phrase de réponse du PNJ..."></textarea>
+              </div>
+              
+              <!-- Conditions & Reactions (Flex row) -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Conditions JSON — ex: {"flag":"clef"}</label>
+                  <input type="text" :value="dlg.conditions ? JSON.stringify(dlg.conditions) : ''" @change="onDialogueJSONChange(index, 'conditions', $event.target.value, $event)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none" placeholder='ex: {"flag":"etape_1"}' />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Réactions JSON — ex: [{"type":"gold","amount":50}]</label>
+                  <input type="text" :value="dlg.reactions ? JSON.stringify(dlg.reactions) : ''" @change="onDialogueJSONChange(index, 'reactions', $event.target.value, $event)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none" placeholder='ex: [{"type":"gold","amount":100}]' />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions de pied de page (Supprimer PNJ) -->
+        <div class="flex justify-between items-center border-t border-gray-800 pt-4 pb-12">
+          <button @click="deleteCurrentNpc()" class="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-semibold py-1.5 px-4 rounded text-xs transition">
+            🗑️ Supprimer ce PNJ
+          </button>
+          <button @click="saveCurrentNpc()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-6 rounded text-xs transition shadow">
+            Enregistrer ce PNJ
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>

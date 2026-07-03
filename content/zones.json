@@ -1,165 +1,204 @@
 {
   "zones": [
     {
-      "id": 0, "name": "Arakas", "levels": [1, 25], "seed": 8281932,
+      "id": 0,
+      "name": "Arakas",
+      "levels": [
+        1,
+        25
+      ],
+      "seed": 8281932,
       "map": "arakas",
       "tint": null,
-      "mobs": ["rat", "rat_caverne", "araignee_geante", "loup", "sanglier", "serpent", "momie", "loup_noir", "brigand", "voleur", "orc_eclaireur", "serpent_venimeux", "ours", "tarentule", "goule", "gobelin", "guepe", "orc_guerrier", "squelette", "kraanian", "fourmilion_geant", "orc_chaman", "zombie", "mille_pattes", "skraug_vert", "tarentule_geante", "elementaire_feu", "orc", "centaure", "necro_araignee", "skraug_rouge", "troll", "golem_pierre", "liche_mineure", "ogre"]
+      "mobs": [
+        "rat",
+        "rat_caverne",
+        "araignee_geante",
+        "loup",
+        "sanglier",
+        "serpent",
+        "momie",
+        "loup_noir",
+        "brigand",
+        "voleur",
+        "orc_eclaireur",
+        "serpent_venimeux",
+        "ours",
+        "tarentule",
+        "goule",
+        "gobelin",
+        "guepe",
+        "orc_guerrier",
+        "squelette",
+        "kraanian",
+        "fourmilion_geant",
+        "orc_chaman",
+        "zombie",
+        "mille_pattes",
+        "skraug_vert",
+        "tarentule_geante",
+        "elementaire_feu",
+        "orc",
+        "centaure",
+        "necro_araignee",
+        "skraug_rouge",
+        "troll",
+        "golem_pierre",
+        "liche_mineure",
+        "ogre"
+      ]
     },
     {
-      "id": 1, "name": "Île de Lumière", "levels": [25, 50], "seed": 4471201,
+      "id": 1,
+      "name": "Île de Lumière",
+      "levels": [
+        25,
+        50
+      ],
+      "seed": 4471201,
       "tint": "rgba(255, 235, 180, 0.07)",
-      "mobs": ["rat", "loup", "sanglier", "araignee_geante", "brigand", "voleur", "serpent", "guepe", "tarentule", "kraanian", "ours", "gobelin", "orc_eclaireur", "orc_guerrier", "tarentule_geante", "skraug_vert", "ogre"]
+      "mobs": [
+        "rat",
+        "loup",
+        "sanglier",
+        "araignee_geante",
+        "brigand",
+        "voleur",
+        "serpent",
+        "guepe",
+        "tarentule",
+        "kraanian",
+        "ours",
+        "gobelin",
+        "orc_eclaireur",
+        "orc_guerrier",
+        "tarentule_geante",
+        "skraug_vert",
+        "ogre"
+      ]
     },
     {
-      "id": 2, "name": "Brume-aux-Corbeaux", "levels": [50, 75], "seed": 9112873,
+      "id": 2,
+      "name": "Brume-aux-Corbeaux",
+      "levels": [
+        50,
+        75
+      ],
+      "seed": 9112873,
       "tint": "rgba(140, 160, 220, 0.10)",
-      "mobs": ["rat_caverne", "loup_noir", "voleur", "momie", "squelette", "zombie", "tarentule", "orc", "goule", "necro_araignee", "liche_mineure"]
+      "mobs": [
+        "rat_caverne",
+        "loup_noir",
+        "voleur",
+        "momie",
+        "squelette",
+        "zombie",
+        "tarentule",
+        "orc",
+        "goule",
+        "necro_araignee",
+        "liche_mineure"
+      ]
     },
     {
-      "id": 3, "name": "Sanctuaire des Anciens", "levels": [75, 100], "seed": 5523977,
+      "id": 3,
+      "name": "Sanctuaire des Anciens",
+      "levels": [
+        75,
+        100
+      ],
+      "seed": 5523977,
       "tint": "rgba(190, 140, 230, 0.10)",
-      "mobs": ["momie", "squelette", "orc_chaman", "centaure", "skraug_rouge", "elementaire_feu", "golem_pierre", "liche_mineure"]
+      "mobs": [
+        "momie",
+        "squelette",
+        "orc_chaman",
+        "centaure",
+        "skraug_rouge",
+        "elementaire_feu",
+        "golem_pierre",
+        "liche_mineure"
+      ]
     },
     {
-      "id": 4, "name": "Marais des Lamentations", "levels": [100, 125], "seed": 2289311,
+      "id": 4,
+      "name": "Marais des Lamentations",
+      "levels": [
+        100,
+        125
+      ],
+      "seed": 2289311,
       "tint": "rgba(120, 180, 120, 0.12)",
-      "mobs": ["serpent_venimeux", "guepe", "mille_pattes", "goule", "zombie", "tarentule_geante", "necro_araignee", "troll"]
+      "mobs": [
+        "serpent_venimeux",
+        "guepe",
+        "mille_pattes",
+        "goule",
+        "zombie",
+        "tarentule_geante",
+        "necro_araignee",
+        "troll"
+      ]
     },
     {
-      "id": 5, "name": "Terres Maudites", "levels": [125, 150], "seed": 7741552,
+      "id": 5,
+      "name": "Terres Maudites",
+      "levels": [
+        125,
+        150
+      ],
+      "seed": 7741552,
       "tint": "rgba(200, 90, 70, 0.12)",
-      "mobs": ["orc_guerrier", "orc_chaman", "skraug_vert", "skraug_rouge", "elementaire_feu", "golem_pierre", "ogre", "troll"]
+      "mobs": [
+        "orc_guerrier",
+        "orc_chaman",
+        "skraug_vert",
+        "skraug_rouge",
+        "elementaire_feu",
+        "golem_pierre",
+        "ogre",
+        "troll"
+      ]
     },
     {
-      "id": 6, "name": "Forteresse du Crépuscule", "levels": [150, 175], "seed": 3317240,
+      "id": 6,
+      "name": "Forteresse du Crépuscule",
+      "levels": [
+        150,
+        175
+      ],
+      "seed": 3317240,
       "tint": "rgba(90, 80, 140, 0.16)",
-      "mobs": ["orc", "orc_guerrier", "orc_chaman", "squelette", "liche_mineure", "golem_pierre", "ogre", "troll"]
+      "mobs": [
+        "orc",
+        "orc_guerrier",
+        "orc_chaman",
+        "squelette",
+        "liche_mineure",
+        "golem_pierre",
+        "ogre",
+        "troll"
+      ]
     },
     {
-      "id": 7, "name": "Royaume des Dieux", "levels": [175, 200], "seed": 6604180,
+      "id": 7,
+      "name": "Royaume des Dieux",
+      "levels": [
+        175,
+        200
+      ],
+      "seed": 6604180,
       "tint": "rgba(255, 215, 130, 0.13)",
-      "mobs": ["centaure", "necro_araignee", "skraug_rouge", "elementaire_feu", "golem_pierre", "liche_mineure", "troll", "ogre"]
-    }
-  ],
-  "npc": {
-    "merchant": {
-      "name": "Maître Aldric",
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
-      "greetings": [
-        "Bienvenue, aventurier. Regarde ma marchandise, elle a fait ses preuves.",
-        "Des armes, des sorts, du savoir... tout a un prix.",
-        "Les épreuves ne pardonnent pas. Équipe-toi correctement."
-      ]
-    },
-    "merchant_wh": {
-      "name": "Ttayh Mark",
-      "look": { "chest": "leather_chest", "head": "leather_hood", "main": "dagger", "off": null },
-      "greetings": [
-        "Bienvenue à Windhowl, étranger. On trouve de tout, ici... si on sait demander.",
-        "Mes prix sont honnêtes. Enfin, presque.",
-        "Le marché noir ? Connais pas. Regarde plutôt mon étal."
-      ]
-    },
-    "kilhiam": {
-      "name": "Kilhiam",
-      "teacher": true,
-      "look": { "chest": "cloth_shirt", "head": null, "main": "staff", "off": null },
-      "greetings": [
-        "Que la Lumière éclaire ton chemin, voyageur.",
-        "Même la nuit la plus noire recule devant une simple flamme."
-      ]
-    },
-    "moonrock": {
-      "name": "Moonrock",
-      "teacher": true,
-      "look": { "chest": "cloth_shirt", "head": null, "main": "staff", "off": null },
-      "greetings": [
-        "Les dieux soignent ceux qui apprennent à se soigner eux-mêmes.",
-        "Une plaie ouverte est une prière inachevée. Viens, je t'enseigne.",
-        "La Protection des dieux n'est pas gratuite, hélas."
-      ]
-    },
-    "shovanis": {
-      "name": "Shovanis",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "dagger", "off": null },
-      "greetings": [
-        "Le sous-sol du Temple garde des savoirs que les prêtres préfèrent taire...",
-        "Maudire son prochain est un art. Veux-tu l'apprendre ?"
-      ]
-    },
-    "araknor": {
-      "name": "Araknor",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "greatstaff", "off": null },
-      "greetings": [
-        "La vie des autres est une ressource comme une autre.",
-        "Approche. Ton âme m'intéresse... pour la leçon, bien sûr."
-      ]
-    },
-    "iraltok": {
-      "name": "Iraltok",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
-      "greetings": [
-        "Le feu ne pardonne rien. C'est pour cela qu'on l'apprend en premier.",
-        "Un Dard de feu bien placé vaut mieux qu'une longue épée."
-      ]
-    },
-    "lothan": {
-      "name": "Lothan",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
-      "greetings": [
-        "Le poison est patient. Le mage doit l'être aussi.",
-        "La glace et le venin tuent sans bruit. Mes sorts préférés."
-      ]
-    },
-    "uranos": {
-      "name": "Uranos",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "club", "off": null },
-      "greetings": [
-        "La terre porte tout. Elle peut aussi tout briser.",
-        "Sens la pierre sous tes pieds : c'est elle, ton arme."
-      ]
-    },
-    "liurn_clar": {
-      "name": "Liurn Clar",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
-      "greetings": [
-        "La Maison des Mages de Windhowl forme les vrais pyromanciens.",
-        "Quand tu maîtriseras l'Éclair de feu, reviens me voir pour la Boule."
-      ]
-    },
-    "marsac_cred": {
-      "name": "Marsac Cred",
-      "teacher": true,
-      "look": { "chest": "mage_vest", "head": "mage_hood", "main": "staff", "off": null },
-      "greetings": [
-        "Le froid de Windhowl est un excellent professeur.",
-        "Le Gel d'abord, l'Éclair de glace ensuite. Dans cet ordre."
-      ]
-    },
-    "cathbad": {
-      "name": "Cathbad",
-      "teacher": true,
-      "look": { "chest": "leather_chest", "head": "leather_hood", "main": "greatstaff", "off": null },
-      "greetings": [
-        "Le ciel d'Arakas gronde pour qui sait l'écouter.",
-        "La foudre n'appartient à personne. Mais je peux t'apprendre à l'inviter."
-      ]
-    },
-    "holenarbed": {
-      "name": "Holenarbed",
-      "teacher": true,
-      "look": { "chest": "leather_chest", "head": null, "main": "staff", "off": null },
-      "greetings": [
-        "La forêt soigne ce que la guerre déchire.",
-        "Quand les prêtres ne suffisent plus, on vient voir les druides."
+      "mobs": [
+        "centaure",
+        "necro_araignee",
+        "skraug_rouge",
+        "elementaire_feu",
+        "golem_pierre",
+        "liche_mineure",
+        "troll",
+        "ogre"
       ]
     }
-  }
+  ]
 }
