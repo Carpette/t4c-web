@@ -178,6 +178,33 @@ export class UI {
     const url = this.itemIconUrl(defId, size);
     return url ? `<img class="item-icon sm" src="${url}">` : (fallback || '');
   }
+
+  // ---- Icônes de sorts : skin de l'atelier 2D si assigné, sinon émoji ----
+  // Même mécanique de cache dataURL que les objets (recadrage contain size×size).
+  spellIconUrl(spellId, size = 26) {
+    if (!this.assets) return null;
+    if (!this._iconCache) this._iconCache = new Map();
+    const key = `spell:${spellId}:${size}`;
+    if (this._iconCache.has(key)) return this._iconCache.get(key);
+    const skinPath = this.assets.skins?.spells?.[spellId];
+    const img = skinPath ? this.assets.images.get(skinPath) : null;
+    let url = null;
+    if (img) {
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      const s = Math.min(size / img.width, size / img.height);
+      const dw = Math.max(1, Math.round(img.width * s)), dh = Math.max(1, Math.round(img.height * s));
+      ctx.drawImage(img, Math.round((size - dw) / 2), Math.round((size - dh) / 2), dw, dh);
+      url = c.toDataURL();
+    }
+    this._iconCache.set(key, url);
+    return url;
+  }
+  spellIconHtml(sp, size = 26) {
+    const url = this.spellIconUrl(sp.id, size);
+    return url ? `<img class="item-icon sm" src="${url}">` : (SPELL_ICONS[sp.type] || '✨');
+  }
   spellDef(id) { return uiStore.spellDefs.find(s => s.id === id); }
   knownSpells() { return (this.self?.spells || []).map(id => this.spellDef(id)).filter(Boolean); }
 
@@ -193,7 +220,7 @@ export class UI {
       if (!key) continue;
       const slot = document.createElement('div');
       slot.className = 'spell-slot' + (this.activeSpell === sp.id ? ' active' : '');
-      slot.innerHTML = `<span class="icon">${SPELL_ICONS[sp.type] || '✨'}</span>` +
+      slot.innerHTML = `<span class="icon">${this.spellIconHtml(sp)}</span>` +
         `<span class="key">${key.toUpperCase()}</span>`;
       slot.title = `${sp.name} — ${sp.mana} mana — touche ${key.toUpperCase()}`;
       slot.dataset.spell = sp.id;

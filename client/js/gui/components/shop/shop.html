@@ -27,7 +27,7 @@
     <template v-if="state.shopTab === 'spells'">
       <div v-for="sp in shop.spells" class="shop-row" :style="{ opacity: (!sp.known && !sp.reqMet) ? 0.55 : 1 }">
         <span>
-          {{ getSpellIcon(sp.type) }} {{ sp.name }}
+          <span v-html="getSpellIconHtml(sp)"></span> {{ sp.name }}
           <br>
           <span class="meta">{{ getSpellMeta(sp) }}</span>
         </span>
