@@ -109,8 +109,8 @@ export async function handleAdmin(req, res, url, game) {
       }
     }
 
-    // ---- contenu (zones / sorts / compétences / particules) ----
-    const mContent = url.match(/^\/api\/admin\/content\/(zones|spells|skills|particles)$/);
+    // ---- contenu (zones / npcs / sorts / compétences / particules) ----
+    const mContent = url.match(/^\/api\/admin\/content\/(zones|npcs|spells|skills|particles)$/);
     if (mContent) {
       const name = mContent[1];
       if (req.method === 'GET') {

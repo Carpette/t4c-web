@@ -10,10 +10,18 @@ export function MapEditorController(api) {
           const zonesContent = await api('/api/admin/content/zones');
           console.log("MapEditor: Zones data fetched successfully:", zonesContent);
           
+          console.log("MapEditor: Fetching NPCs...");
+          const npcsContent = await api('/api/admin/content/npcs');
+          console.log("MapEditor: NPCs fetched successfully:", npcsContent);
+
           const zonesDef = zonesContent.zones;
           console.log("MapEditor: Fetching spells...");
           const spells = (await api('/api/admin/content/spells')).spells || [];
           console.log("MapEditor: Spells fetched:", spells.length);
+
+          console.log("MapEditor: Fetching skills...");
+          const skills = (await api('/api/admin/content/skills')).skills || [];
+          console.log("MapEditor: Skills fetched:", skills.length);
           
           console.log("MapEditor: Fetching music files...");
           const musicResp = await api('/api/admin/music');
@@ -26,8 +34,9 @@ export function MapEditorController(api) {
           await initMapEditor({
             api,
             zones: zonesDef,
-            npcDefs: zonesContent.npc || {},
+            npcDefs: npcsContent.npc || {},
             spells,
+            skills,
             musicFiles,
             musicGroups
           });

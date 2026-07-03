@@ -1,0 +1,425 @@
+{
+  "npc": {
+    "merchant": {
+      "name": "Maître Aldric",
+      "role": "merchant",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Bienvenue, aventurier. Regarde ma marchandise, elle a fait ses preuves.",
+        "Des armes, des sorts, du savoir... tout a un prix.",
+        "Les épreuves ne pardonnent pas. Équipe-toi correctement."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "staff",
+        "off": null
+      },
+      "teachesSkills": {
+        "attaque": {
+          "learnCost": 0,
+          "trainCost": 2
+        },
+        "esquive": {
+          "learnCost": 0,
+          "trainCost": 2
+        },
+        "archerie": {
+          "learnCost": 0,
+          "trainCost": 3
+        },
+        "coup_assommant": {
+          "learnCost": 30,
+          "trainCost": 4
+        },
+        "coup_puissant": {
+          "learnCost": 500,
+          "trainCost": 10
+        }
+      }
+    },
+    "merchant_wh": {
+      "name": "Ttayh Mark",
+      "role": "merchant",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Bienvenue à Windhowl, étranger. On trouve de tout, ici... si on sait demander.",
+        "Mes prix sont honnêtes. Enfin, presque.",
+        "Le marché noir ? Connais pas. Regarde plutôt mon étal."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "leather_chest",
+        "head": "leather_hood",
+        "main": "dagger",
+        "off": null
+      },
+      "teachesSkills": {
+        "attaque": {
+          "learnCost": 0,
+          "trainCost": 2
+        },
+        "esquive": {
+          "learnCost": 0,
+          "trainCost": 2
+        },
+        "archerie": {
+          "learnCost": 0,
+          "trainCost": 3
+        },
+        "coup_assommant": {
+          "learnCost": 30,
+          "trainCost": 4
+        },
+        "coup_puissant": {
+          "learnCost": 500,
+          "trainCost": 10
+        },
+        "parade": {
+          "learnCost": 180,
+          "trainCost": 15
+        }
+      }
+    },
+    "kilhiam": {
+      "name": "Kilhiam",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Que la Lumière éclaire ton chemin, voyageur.",
+        "Même la nuit la plus noire recule devant une simple flamme."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "cloth_shirt",
+        "head": null,
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "lumiere": 47
+      }
+    },
+    "moonrock": {
+      "name": "Moonrock",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Les dieux soignent ceux qui apprennent à se soigner eux-mêmes.",
+        "Une plaie ouverte est une prière inachevée. Viens, je t'enseigne.",
+        "La Protection des dieux n'est pas gratuite, hélas."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "cloth_shirt",
+        "head": null,
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "guerison_des_poisons": 366,
+        "protection": 742,
+        "guerison_legere": 179,
+        "guerison_importante": 1635
+      }
+    },
+    "shovanis": {
+      "name": "Shovanis",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Le sous-sol du Temple garde des savoirs que les prêtres préfèrent taire...",
+        "Maudire son prochain est un art. Veux-tu l'apprendre ?"
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "dagger",
+        "off": null
+      },
+      "teachesSpells": {
+        "tourbillon": 478,
+        "mot_de_rappel": 3751,
+        "malediction": 3440
+      }
+    },
+    "araknor": {
+      "name": "Araknor",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "La vie des autres est une ressource comme une autre.",
+        "Approche. Ton âme m'intéresse... pour la leçon, bien sûr."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "greatstaff",
+        "off": null
+      },
+      "teachesSpells": {
+        "absorption_vie_mineure": 1430
+      }
+    },
+    "iraltok": {
+      "name": "Iraltok",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Le feu ne pardonne rien. C'est pour cela qu'on l'apprend en premier.",
+        "Un Dard de feu bien placé vaut mieux qu'une longue épée."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "dard_de_feu": 106,
+        "fleche_enflammee": 1060
+      }
+    },
+    "lothan": {
+      "name": "Lothan",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Le poison est patient. Le mage doit l'être aussi.",
+        "La glace et le venin tuent sans bruit. Mes sorts préférés."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "poison": 603,
+        "eclat_de_glace": 895,
+        "fleche_empoisonnee": 2587
+      }
+    },
+    "uranos": {
+      "name": "Uranos",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "La terre porte tout. Elle peut aussi tout briser.",
+        "Sens la pierre sous tes pieds : c'est elle, ton arme."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "club",
+        "off": null
+      },
+      "teachesSpells": {
+        "eclat_de_pierre": 266,
+        "fracassement": 2858
+      }
+    },
+    "liurn_clar": {
+      "name": "Liurn Clar",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "La Maison des Mages de Windhowl forme les vrais pyromanciens.",
+        "Quand tu maîtriseras l'Éclair de feu, reviens me voir pour la Boule."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "eclair_de_feu": 4074,
+        "boule_de_feu": 5891
+      }
+    },
+    "marsac_cred": {
+      "name": "Marsac Cred",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Le froid de Windhowl est un excellent professeur.",
+        "Le Gel d'abord, l'Éclair de glace ensuite. Dans cet ordre."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "mage_vest",
+        "head": "mage_hood",
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "gel": 3440,
+        "eclair_de_glace": 5125
+      }
+    },
+    "cathbad": {
+      "name": "Cathbad",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "Le ciel d'Arakas gronde pour qui sait l'écouter.",
+        "La foudre n'appartient à personne. Mais je peux t'apprendre à l'inviter."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "leather_chest",
+        "head": "leather_hood",
+        "main": "greatstaff",
+        "off": null
+      },
+      "teachesSpells": {
+        "eclair": 2085,
+        "invocation_de_la_foudre": 5502
+      }
+    },
+    "holenarbed": {
+      "name": "Holenarbed",
+      "role": "teacher",
+      "stats": {
+        "str": 10,
+        "end": 10,
+        "agi": 10,
+        "int": 10,
+        "wis": 10
+      },
+      "equip": {},
+      "level": 1,
+      "hp": 100,
+      "greetings": [
+        "La forêt soigne ce que la guerre déchire.",
+        "Quand les prêtres ne suffisent plus, on vient voir les druides."
+      ],
+      "dialogues": [],
+      "look": {
+        "chest": "leather_chest",
+        "head": null,
+        "main": "staff",
+        "off": null
+      },
+      "teachesSpells": {
+        "guerison_critique": 5891
+      }
+    }
+  }
+}

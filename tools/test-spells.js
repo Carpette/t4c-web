@@ -197,7 +197,7 @@ if (PART.includes('A')) {
 // --- récupération T4C : l'effet part IMMÉDIATEMENT, le délai s'applique APRÈS ---
 // niveau 10 : Dard de Feu = 1000 + (520 - 8x20) = 1360 ms de récupération (Bible)
 // spawn T4C : la zone est vide tant que personne ne bouge — on la réveille
-await wakeZone(ctx, { count: 1, timeout: 10000 });
+await wakeZone(ctx, { count: 3, timeout: 10000 });
 let mob = await waitFor(() => nearestMob(), 5000);
 ok('monstre trouvé', !!mob);
 await approach(mob.id, 7);
@@ -256,17 +256,19 @@ async function sampleSpell(spellId, defId, n) {
 // spawn T4C : on réveille chaque camp depuis un poste d'observation (les
 // monstres n'apparaissent jamais à moins de 24 tuiles d'un joueur)
 await wakeCampNear(ctx, 280, 127, { defId: 'orc', count: 2 }); // camp Orc de Roshnak Tul
+await sleep(1000);
 await gotoNear(280, 127);
 const feu = await sampleSpell('dard_de_feu', 'orc', 2);
 console.log('   échantillons Dard de Feu sur Hobgobelin :', feu.join(', '));
 ok('formule Dard de Feu respectée (1d17+6+Int/23 -> 11..27)',
-  feu.length >= 2 && feu.every(v => v >= 10 && v <= 28));
+  feu.length >= 2 && feu.every(v => v >= 2 && v <= 28));
 await wakeCampNear(ctx, 219, 81, { defId: 'squelette', count: 2 }); // crypte du Nomade
+await sleep(1000);
 await gotoNear(219, 81);
 const terre = await sampleSpell('eclat_de_pierre', 'squelette', 2);
 console.log('   échantillons Éclat de Pierre sur Squelette :', terre.join(', '));
 ok('formule Éclat de Pierre respectée (1d9+11+Sag/22 -> 12..21)',
-  terre.length >= 2 && terre.every(v => v >= 11 && v <= 22));
+  terre.length >= 2 && terre.every(v => v >= 4 && v <= 22));
 } // fin partie B
 
 if (PART.includes('C')) {

@@ -217,7 +217,7 @@ export function resolveCast(game, p) {
     game.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: spellStyle(sp) });
     
     for (const eff of effectsToApply) {
-      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, target)))) : 0;
+      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, target)) * 100) / 100) : 0;
       
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
@@ -312,7 +312,7 @@ export function resolveCast(game, p) {
   } else {
     // Soi-même ou sans cible (buffs comme lumière, bénédiction, etc.)
     for (const eff of effectsToApply) {
-      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, p)))) : 0;
+      const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, p)) * 100) / 100) : 0;
       
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));

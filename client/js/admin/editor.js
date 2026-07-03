@@ -60,7 +60,7 @@ const MARKER_COLORS = { spawn: '#4dff8a', exit: '#ff6a6a', teleport: '#5ab9ff' }
 const MARKER_GLYPHS = { spawn: '⚑', exit: '⮌', teleport: '✦' };
 const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'téléport' };
 
-export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], musicFiles = [], musicGroups = [] }) {
+export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], skills = [], musicFiles = [], musicGroups = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
   const ctx = canvas.getContext('2d');
@@ -1408,22 +1408,101 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       innerHTML: ['merchant', 'teacher', 'bavard'].map(r =>
         `<option value="${r}"${r === npcRole(def) ? ' selected' : ''}>${NPC_ROLE_NAMES[r]}</option>`).join(''),
     });
-    // sorts enseignés (rôle enseignant) — vide : répertoire `vendor` historique
-    const teaches = new Set(Array.isArray(def.teaches) ? def.teaches : []);
+    // sorts enseignés (rôle enseignant)
+    const teachesSpells = new Map();
+    if (def.teachesSpells && typeof def.teachesSpells === 'object' && !Array.isArray(def.teachesSpells)) {
+      for (const [k, v] of Object.entries(def.teachesSpells)) teachesSpells.set(k, v);
+    } else if (Array.isArray(def.teaches)) {
+      for (const k of def.teaches) teachesSpells.set(k, 0);
+    }
     const teachSearch = h('input', { placeholder: '🔍 filtrer les sorts', style: { width: '100%' } });
     const teachesBox = h('div', { className: 'edit-list' });
     const renderTeaches = () => {
       const q = teachSearch.value.trim().toLowerCase();
       teachesBox.innerHTML = '';
       for (const sp of spells) {
-        if (q && !(`${sp.id} ${sp.name}`.toLowerCase().includes(q)) && !teaches.has(sp.id)) continue;
-        const cb = h('input', { type: 'checkbox', checked: teaches.has(sp.id) });
-        cb.onchange = () => { cb.checked ? teaches.add(sp.id) : teaches.delete(sp.id); };
-        teachesBox.append(h('label', { className: 'edit-check' }, cb, ` ${sp.name}`));
+        const checked = teachesSpells.has(sp.id);
+        if (q && !(`${sp.id} ${sp.name}`.toLowerCase().includes(q)) && !checked) continue;
+        const cb = h('input', { type: 'checkbox', checked });
+        const priceInput = h('input', {
+          type: 'number',
+          value: teachesSpells.get(sp.id) || 0,
+          placeholder: 'prix',
+          style: { width: '80px', marginLeft: '8px', display: checked ? 'inline-block' : 'none' }
+        });
+        cb.onchange = () => {
+          if (cb.checked) {
+            teachesSpells.set(sp.id, parseInt(priceInput.value, 10) || 0);
+            priceInput.style.display = 'inline-block';
+          } else {
+            teachesSpells.delete(sp.id);
+            priceInput.style.display = 'none';
+          }
+        };
+        priceInput.oninput = () => {
+          if (cb.checked) {
+            teachesSpells.set(sp.id, parseInt(priceInput.value, 10) || 0);
+          }
+        };
+        teachesBox.append(h('label', { className: 'edit-check' }, cb, ` ${sp.name}`, priceInput));
       }
     };
     teachSearch.oninput = renderTeaches;
     renderTeaches();
+
+    // compétences enseignées (rôle marchand)
+    const teachesSkills = new Map();
+    if (def.teachesSkills && typeof def.teachesSkills === 'object' && !Array.isArray(def.teachesSkills)) {
+      for (const [k, v] of Object.entries(def.teachesSkills)) {
+        teachesSkills.set(k, { learnCost: v.learnCost || 0, trainCost: v.trainCost || 0 });
+      }
+    }
+    const skillSearch = h('input', { placeholder: '🔍 filtrer les compétences', style: { width: '100%' } });
+    const teachesSkillsBox = h('div', { className: 'edit-list' });
+    const renderTeachesSkills = () => {
+      const q = skillSearch.value.trim().toLowerCase();
+      teachesSkillsBox.innerHTML = '';
+      for (const sk of skills) {
+        const checked = teachesSkills.has(sk.id);
+        if (q && !(`${sk.id} ${sk.name}`.toLowerCase().includes(q)) && !checked) continue;
+        const cb = h('input', { type: 'checkbox', checked });
+        const val = teachesSkills.get(sk.id) || { learnCost: 0, trainCost: 0 };
+        const learnInput = h('input', {
+          type: 'number',
+          value: val.learnCost,
+          placeholder: 'apprendre',
+          style: { width: '80px', marginLeft: '8px', display: checked ? 'inline-block' : 'none' }
+        });
+        const trainInput = h('input', {
+          type: 'number',
+          value: val.trainCost,
+          placeholder: 'entraîner',
+          style: { width: '80px', marginLeft: '8px', display: checked ? 'inline-block' : 'none' }
+        });
+        cb.onchange = () => {
+          if (cb.checked) {
+            teachesSkills.set(sk.id, { learnCost: parseInt(learnInput.value, 10) || 0, trainCost: parseInt(trainInput.value, 10) || 0 });
+            learnInput.style.display = 'inline-block';
+            trainInput.style.display = 'inline-block';
+          } else {
+            teachesSkills.delete(sk.id);
+            learnInput.style.display = 'none';
+            trainInput.style.display = 'none';
+          }
+        };
+        const updateVals = () => {
+          if (cb.checked) {
+            teachesSkills.set(sk.id, { learnCost: parseInt(learnInput.value, 10) || 0, trainCost: parseInt(trainInput.value, 10) || 0 });
+          }
+        };
+        learnInput.oninput = updateVals;
+        trainInput.oninput = updateVals;
+        teachesSkillsBox.append(h('label', { className: 'edit-check' }, cb, ` ${sk.name}`, learnInput, trainInput));
+      }
+    };
+    skillSearch.oninput = renderTeachesSkills;
+    renderTeachesSkills();
+
     // objets vendus (rôle marchand) — vide : étal standard de la zone
     const sells = new Set(Array.isArray(def.sells) ? def.sells : []);
     const sellSearch = h('input', { placeholder: '🔍 filtrer les objets', style: { width: '100%' } });
@@ -1441,11 +1520,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
     };
     sellSearch.oninput = renderSells;
     renderSells();
-    const teachesWrap = h('div', {}, h('h4', { textContent: 'Sorts enseignés (vide : répertoire attitré)' }), teachSearch, teachesBox);
+    const teachesWrap = h('div', {}, h('h4', { textContent: 'Sorts enseignés' }), teachSearch, teachesBox);
     const sellsWrap = h('div', {}, h('h4', { textContent: 'Objets vendus (vide : étal standard de la zone)' }), sellSearch, sellBox);
+    const teachesSkillsWrap = h('div', {}, h('h4', { textContent: 'Compétences enseignées' }), skillSearch, teachesSkillsBox);
     const syncRole = () => {
       teachesWrap.style.display = roleSel.value === 'teacher' ? '' : 'none';
       sellsWrap.style.display = roleSel.value === 'merchant' ? '' : 'none';
+      teachesSkillsWrap.style.display = roleSel.value === 'merchant' ? '' : 'none';
     };
     roleSel.onchange = syncRole;
     syncRole();
@@ -1492,7 +1573,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
       h('div', { className: 'edit-row' }, 'Nom : ', nameInput),
       h('div', { className: 'edit-row' }, 'Look : ', lookSel),
       h('div', { className: 'edit-row' }, 'Rôle : ', roleSel),
-      teachesWrap, sellsWrap,
+      teachesWrap, sellsWrap, teachesSkillsWrap,
       h('h4', { textContent: 'Phrases d\'ambiance (une par ligne)' }), greetArea,
       h('h4', { textContent: 'Dialogues à mots-clés' }), dlgBox,
       h('button', { textContent: '+ dialogue', onclick: () => { dialogues.push({ keywords: [], reponse: '' }); renderDialogues(); } }),
@@ -1508,8 +1589,19 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
               greetings: greetArea.value.split('\n').map(s => s.trim()).filter(Boolean),
               dialogues,
             };
-            if (roleSel.value === 'teacher' && teaches.size) patch.teaches = [...teaches];
-            if (roleSel.value === 'merchant' && sells.size) patch.sells = [...sells];
+            if (roleSel.value === 'teacher' && teachesSpells.size) {
+              const obj = {};
+              for (const [k, v] of teachesSpells.entries()) obj[k] = v;
+              patch.teachesSpells = obj;
+            }
+            if (roleSel.value === 'merchant') {
+              if (sells.size) patch.sells = [...sells];
+              if (teachesSkills.size) {
+                const obj = {};
+                for (const [k, v] of teachesSkills.entries()) obj[k] = v;
+                patch.teachesSkills = obj;
+              }
+            }
             if (n.custom) {
               const a = npcsOv().add.find(e => e.id === n.npcId);
               if (a) Object.assign(a, patch);
@@ -2466,7 +2558,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], mus
           dialogues: structuredClone(Array.isArray(n.def.dialogues) ? n.def.dialogues : []),
         };
         if (Array.isArray(n.def.sells)) o.edit[npcId].sells = [...n.def.sells];
-        if (Array.isArray(n.def.teaches)) o.edit[npcId].teaches = [...n.def.teaches];
+        if (n.def.teachesSpells) o.edit[npcId].teachesSpells = structuredClone(n.def.teachesSpells);
+        if (n.def.teachesSkills) o.edit[npcId].teachesSkills = structuredClone(n.def.teachesSkills);
       }
       target = o.edit[npcId];
     }

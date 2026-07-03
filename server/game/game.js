@@ -37,7 +37,7 @@ const CAMP_QUOTA_MAX = 50;                       // population max par monstre d
 const MARKER_TRIGGER_R = 0.9;
 
 // champs d'un PNJ que les overrides (`npcs.edit` / `npcs.add`) peuvent définir
-const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teaches', 'dialogues'];
+const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teachesSpells', 'teachesSkills', 'dialogues'];
 
 export class Game {
   constructor() {
@@ -1447,6 +1447,8 @@ export class Game {
 
   // Le rôle d'un PNJ : `role` explicite des overrides ('merchant' | 'teacher'
   // | 'bavard'), sinon le drapeau historique `teacher` de zones.json.
+  // Le rôle d'un PNJ : `role` explicite des overrides ('merchant' | 'teacher'
+  // | 'bavard'), sinon le drapeau historique `teacher` de zones.json.
   isTeacher(npc) {
     return npc.def.role ? npc.def.role === 'teacher' : !!npc.def.teacher;
   }
@@ -1456,14 +1458,13 @@ export class Game {
     return npc.def.role === 'bavard';
   }
 
-  // Qui enseigne quoi : un répertoire `teaches` édité fait foi ; sinon un sort
-  // avec `vendor` n'est vendu QUE par ce PNJ, et les autres sorts restent
-  // vendus par les marchands généralistes de leur zone.
+  // Qui enseigne quoi : teachesSpells contient les sorts et leur prix d'apprentissage.
   npcSellsSpell(p, npc, sp) {
     if (sp.todo) return false;
-    if (Array.isArray(npc.def.teaches)) return npc.def.teaches.includes(sp.id);
-    if (sp.vendor) return sp.vendor === npc.npcId;
-    return !this.isTeacher(npc) && !this.isTalker(npc) && sp.zone <= p.zi.zoneId;
+    if (npc.def.teachesSpells && typeof npc.def.teachesSpells === 'object') {
+      return npc.def.teachesSpells[sp.id] !== undefined;
+    }
+    return false;
   }
 
   // Quels objets ce PNJ vend-il ? Un étal `sells` édité fait foi ; sinon la
@@ -1513,23 +1514,29 @@ export class Game {
       });
     // les sorts "todo" (mécanique non implémentée) ne sont pas proposés à la vente
     const spellList = content.spells.filter(s => this.npcSellsSpell(p, npc, s))
-      .map(s => ({
-        ...s,
-        price: Math.round(s.price * disc),
-        known: p.spells.includes(s.id),
-        reqMet: spells.spellReqMet(p, s) === true,
-        reqText: spells.spellReqText(s),
-      }));
-    const skills = (teacher ? [] : content.skills.filter(s => s.zone <= zid))
-      .map(s => ({
-        ...s,
-        learnCost: Math.round(s.learnCost * disc),
-        trainCost: Math.round(s.trainCost * disc) || s.trainCost,
-        known: s.innate || p.skills[s.id] != null,
-        pts: p.skills[s.id] || 0,
-        reqMet: this.skillReqMet(p, s) === true,
-        reqText: this.skillReqText(s),
-      }));
+      .map(s => {
+        const basePrice = npc.def.teachesSpells[s.id] || 0;
+        return {
+          ...s,
+          price: Math.round(basePrice * disc),
+          known: p.spells.includes(s.id),
+          reqMet: spells.spellReqMet(p, s) === true,
+          reqText: spells.spellReqText(s),
+        };
+      });
+    const skills = content.skills.filter(s => npc.def.teachesSkills && npc.def.teachesSkills[s.id] !== undefined)
+      .map(s => {
+        const costInfo = npc.def.teachesSkills[s.id];
+        return {
+          ...s,
+          learnCost: Math.round(costInfo.learnCost * disc),
+          trainCost: Math.round((costInfo.trainCost || 0) * disc) || costInfo.trainCost || 0,
+          known: s.innate || p.skills[s.id] != null,
+          pts: p.skills[s.id] || 0,
+          reqMet: this.skillReqMet(p, s) === true,
+          reqText: this.skillReqText(s),
+        };
+      });
     this.npcGreet(p, npc);
     this.send(p, { t: 'shop', npcId: npc.id, name: npc.name, items, spells: spellList, skills });
   }
@@ -1539,11 +1546,6 @@ export class Game {
     // généraliste pour les objets et compétences ; pour un sort, le PNJ doit
     // l'avoir à son répertoire (enseignant attitré ou marchand de la zone)
     if (!this.nearbyNpc(p)) { this.send(p, { t: 'info', text: 'Aucun marchand à proximité.' }); return; }
-    const needMerchant = () => {
-      if (this.nearbyMerchant(p)) return true;
-      this.send(p, { t: 'info', text: 'Ce maître n\'est pas marchand. Voyez un marchand généraliste.' });
-      return false;
-    };
     const zid = p.zi.zoneId;
     const disc = 1 - (p.skillFx?.discount || 0);
 
@@ -1567,26 +1569,33 @@ export class Game {
       this.send(p, { t: 'loot', text: `Acheté : ${itemLabel(item)}` });
     } else if (msg.kind === 'spell') {
       const sp = content.spellById[msg.id];
-      if (!sp || sp.todo || sp.zone > zid || p.spells.includes(sp.id)) return;
-      if (!this.nearbyNpc(p, n => this.npcSellsSpell(p, n, sp))) {
+      if (!sp || sp.todo || p.spells.includes(sp.id)) return;
+      const npc = this.nearbyNpc(p, n => this.npcSellsSpell(p, n, sp));
+      if (!npc) {
         this.send(p, { t: 'info', text: 'Personne ici ne peut vous enseigner ce sort.' });
         return;
       }
       const req = spells.spellReqMet(p, sp);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
-      const price = Math.round(sp.price * disc);
+      const basePrice = npc.def.teachesSpells[sp.id] || 0;
+      const price = Math.round(basePrice * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.spells.push(sp.id);
       this.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
     } else if (msg.kind === 'skill') {
       // apprentissage d'une compétence (puis entraînement via 'train')
-      if (!needMerchant()) return;
+      const npc = this.nearbyNpc(p, n => n.def.teachesSkills && n.def.teachesSkills[msg.id] !== undefined);
+      if (!npc) {
+        this.send(p, { t: 'info', text: 'Personne ici ne peut vous enseigner cette compétence.' });
+        return;
+      }
       const sk = content.skillById[msg.id];
-      if (!sk || sk.zone > zid || sk.innate || p.skills[sk.id] != null) return;
+      if (!sk || sk.innate || p.skills[sk.id] != null) return;
       const req = this.skillReqMet(p, sk);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
-      const price = Math.round(sk.learnCost * disc);
+      const costInfo = npc.def.teachesSkills[msg.id];
+      const price = Math.round(costInfo.learnCost * disc);
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = 1;
@@ -1594,15 +1603,20 @@ export class Game {
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
       // entraînement : +1 point, payé en or (système T4C)
-      if (!needMerchant()) return;
+      const npc = this.nearbyNpc(p, n => n.def.teachesSkills && n.def.teachesSkills[msg.id] !== undefined);
+      if (!npc) {
+        this.send(p, { t: 'info', text: 'Personne ici ne peut vous entraîner.' });
+        return;
+      }
       const sk = content.skillById[msg.id];
-      if (!sk || sk.zone > zid) return;
+      if (!sk) return;
       const cur = p.skills[sk.id] ?? (sk.innate ? 0 : null);
       if (cur == null) { this.send(p, { t: 'info', text: 'Apprenez d\'abord cette compétence.' }); return; }
       if (cur >= sk.max) { this.send(p, { t: 'info', text: 'Compétence au maximum.' }); return; }
       const req = this.skillReqMet(p, sk);
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
-      const price = Math.max(1, Math.round(sk.trainCost * disc));
+      const costInfo = npc.def.teachesSkills[msg.id];
+      const price = Math.max(1, Math.round(costInfo.trainCost * disc));
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
       p.gold -= price;
       p.skills[sk.id] = cur + 1;
