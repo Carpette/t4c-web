@@ -183,17 +183,30 @@ export async function handleAdmin(req, res, url, game) {
         let files = [];
         try { files = fs.readdirSync(skinsDir).filter(f => /\.png$/i.test(f)).sort(); } catch { /* pas encore de skins */ }
         const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
-        return json(200, { files, sprites: Object.keys(manifest.enemies).sort(), map: content.skins });
+        // listes pour l'atelier 2D : sorts (icônes) et PNJ (portraits), avec le
+        // minimum utile aux prompts — le client admin n'importe pas le contenu serveur
+        const spells = (content.spells || []).map(s => ({
+          id: s.id, name: s.name, type: s.type, element: s.element || null,
+          color: s.color || null, level: s.level | 0,
+        }));
+        const npcs = Object.entries(content.npc || {}).map(([id, n]) => ({ id, name: n.name || id }));
+        return json(200, {
+          files, sprites: Object.keys(manifest.enemies).sort(), map: content.skins,
+          spells, npcs, desc: content.atelier.desc,
+        });
       }
       if (req.method === 'PUT') {
         const map = JSON.parse(await readBody(req));
         const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
-        const clean = { items: {}, mobs: {} };
-        for (const [defId, file] of Object.entries(map.items || {})) {
-          if (typeof file !== 'string' || !file) continue;
-          const rel = file.startsWith('skins/') ? file : `skins/${file}`;
-          if (!fs.existsSync(path.join(ASSETS_DIR, rel))) return json(400, { error: `image introuvable : ${rel}` });
-          clean.items[defId] = rel;
+        const clean = { items: {}, mobs: {}, spells: {}, npcs: {} };
+        // items, sorts et PNJ pointent tous vers un PNG de assets/skins/
+        for (const section of ['items', 'spells', 'npcs']) {
+          for (const [defId, file] of Object.entries(map[section] || {})) {
+            if (typeof file !== 'string' || !file) continue;
+            const rel = file.startsWith('skins/') ? file : `skins/${file}`;
+            if (!fs.existsSync(path.join(ASSETS_DIR, rel))) return json(400, { error: `image introuvable : ${rel}` });
+            clean[section][defId] = rel;
+          }
         }
         for (const [defId, sprite] of Object.entries(map.mobs || {})) {
           if (typeof sprite !== 'string' || !sprite) continue;
@@ -203,6 +216,20 @@ export async function handleAdmin(req, res, url, game) {
         saveContentFile('skins', clean);
         return json(200, { ok: true, note: 'Appliqué au prochain rechargement du client (F5).' });
       }
+    }
+
+    // fiches de l'atelier 2D : description physique par entité, injectée dans
+    // les prompts IA. Clés de la forme « mobs:orc », « spells:lumiere »...
+    if (url === '/api/admin/atelier' && req.method === 'PUT') {
+      const { desc } = JSON.parse(await readBody(req));
+      const clean = {};
+      for (const [k, v] of Object.entries(desc || {})) {
+        if (!/^(items|mobs|spells|npcs):[\w-]+$/.test(k)) continue;
+        const txt = String(v || '').trim().slice(0, 1200);
+        if (txt) clean[k] = txt;
+      }
+      saveContentFile('atelier', { desc: clean });
+      return json(200, { ok: true, count: Object.keys(clean).length });
     }
 
     // téléversement d'une image d'objet (icône + objet au sol) : PNG en base64
