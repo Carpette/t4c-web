@@ -93,8 +93,33 @@ ok('skins.json servi aux joueurs', pub.items.potion_vie === up.file && pub.mobs.
 const putBad = await api('/api/admin/skins', 'PUT', { items: {}, mobs: { rat: 'sprite_inexistant' } });
 ok('sprite inconnu refusé', !!putBad.error);
 
-// ---- nettoyage : assignations, sprite et fichiers de test (même machine) ----
-await api('/api/admin/skins', 'PUT', { items: {}, mobs: {} });
+// ---- 4. atelier 2D : sections sorts/PNJ et fiches descriptives ----
+ok('GET skins expose sorts et PNJ (atelier)',
+  Array.isArray(before.spells) && before.spells.some(s => s.id && s.name)
+  && Array.isArray(before.npcs) && before.npcs.some(n => n.id && n.name));
+const spellId = before.spells[0].id, npcId = before.npcs[0].id;
+const put2 = await api('/api/admin/skins', 'PUT', {
+  items: {}, mobs: {},
+  spells: { [spellId]: up.file },
+  npcs: { [npcId]: up.file },
+});
+ok('assignations sort + PNJ enregistrées', put2.ok);
+const pub2 = await (await fetch(`${BASE}/content/skins.json`)).json();
+ok('skins.json publie les sections spells et npcs',
+  pub2.spells?.[spellId] === up.file && pub2.npcs?.[npcId] === up.file);
+const putBad2 = await api('/api/admin/skins', 'PUT', { spells: { [spellId]: 'skins/inexistant.png' } });
+ok('image de sort introuvable refusée', !!putBad2.error);
+
+const putDesc = await api('/api/admin/atelier', 'PUT', {
+  desc: { 'mobs:rat': 'Rongeur famélique au pelage terne.', 'zzz!!invalide': 'ignoré', 'spells:x': '' },
+});
+ok('fiches atelier : clés assainies', putDesc.ok && putDesc.count === 1);
+const after2 = await api('/api/admin/skins');
+ok('fiche relue via GET skins', after2.desc?.['mobs:rat']?.includes('Rongeur'));
+
+// ---- nettoyage : assignations, fiches, sprite et fichiers de test (même machine) ----
+await api('/api/admin/skins', 'PUT', { items: {}, mobs: {}, spells: {}, npcs: {} });
+await api('/api/admin/atelier', 'PUT', { desc: {} });
 try {
   const m3 = JSON.parse(fs.readFileSync(path.join(ROOT, 'client/assets/manifest.json'), 'utf8'));
   delete m3.enemies.test_skin_creature;
