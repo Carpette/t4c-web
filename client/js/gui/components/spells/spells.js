@@ -16,8 +16,9 @@ export function SpellsController() {
     get bindingError() {
       return this.state.bindingError;
     },
-    getSpellIcon(type) {
-      return SPELL_ICONS[type] || '✨';
+    getSpellIconHtml(sp) {
+      const ui = rawUiContainer.instance;
+      return ui ? ui.spellIconHtml(sp) : (SPELL_ICONS[sp.type] || '✨');
     },
     getHotkey(spellId) {
       const hotkeys = this.state.hotkeys || {};

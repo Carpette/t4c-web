@@ -8,7 +8,7 @@
          :class="{ 'active-spell': state.activeSpell === sp.id }"
          @click="toggleActiveSpell(sp.id)">
       <span>
-        {{ getSpellIcon(sp.type) }} {{ sp.name }}
+        <span v-html="getSpellIconHtml(sp)"></span> {{ sp.name }}
         <span class="meta">({{ sp.mana }} mana)</span>
       </span>
       <button @click.stop="startBinding(sp.id)">

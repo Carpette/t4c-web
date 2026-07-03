@@ -32,8 +32,9 @@ export function ShopController() {
       const ui = rawUiContainer.instance;
       return ui ? ui.itemIconHtml(defId, fallback) : '';
     },
-    getSpellIcon(type) {
-      return SPELL_ICONS[type] || '✨';
+    getSpellIconHtml(sp) {
+      const ui = rawUiContainer.instance;
+      return ui ? ui.spellIconHtml(sp) : (SPELL_ICONS[sp.type] || '✨');
     },
     getItemMeta(it) {
       return [

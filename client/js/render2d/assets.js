@@ -30,10 +30,10 @@ export function resolveTile(assets, id, grass, water) {
 export async function loadAssets(onProgress) {
   const manifest = await (await fetch('/assets/manifest.json')).json();
   // skins fournis par l'admin : { items: { defId: 'skins/x.png' }, mobs: { defId: sprite } }
-  let skins = { items: {}, mobs: {} };
+  let skins = { items: {}, mobs: {}, spells: {}, npcs: {} };
   try {
     const raw = await (await fetch('/content/skins.json')).json();
-    skins = { items: raw.items || {}, mobs: raw.mobs || {} };
+    skins = { items: raw.items || {}, mobs: raw.mobs || {}, spells: raw.spells || {}, npcs: raw.npcs || {} };
   } catch { /* pas de skins configurés */ }
 
   const paths = new Set(['tilesets/tileset_grassland.png', 'tilesets/tileset_grassland_water.png']);
@@ -47,6 +47,8 @@ export async function loadAssets(onProgress) {
   }
   for (const l of Object.values(manifest.loot)) paths.add(l.image);
   for (const img of Object.values(skins.items)) paths.add(img);
+  for (const img of Object.values(skins.spells)) paths.add(img);
+  for (const img of Object.values(skins.npcs)) paths.add(img);
 
   const images = new Map();
   let done = 0;
