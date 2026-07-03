@@ -59,6 +59,12 @@ Puis ouvrir **http://localhost:8080** — créez un compte et jouez. Pour jouer 
 Éditeur de cartes (peinture de tuiles + décors, appliqué à chaud), édition du contenu JSON
 (zones, PNJ, sorts, compétences), musiques (correspondance zone → fichier, pré-écoute,
 appliqué à chaud), gestion des personnages (niveau, or, zone, suppression), Panthéon.
+**Atelier 2D** : habillage du jeu par IA générative en trois étapes — choisir la cible
+(objet, créature, sort, PNJ), générer un prompt calibré Nano Banana/Gemini (enrichi d'une
+fiche descriptive par entité), puis importer l'image avec contrôle avant publication
+(détourage chroma en direct, grille et ancrages superposés, lecture des animations par
+direction et comparaison au sprite actuel). Les icônes de sorts assignées remplacent les
+émojis dans la barre, le panneau Sorts et la boutique.
 En jeu, l'admin dispose aussi de commandes (`set`, `goto`, `zone`) via le protocole.
 
 ## Architecture
