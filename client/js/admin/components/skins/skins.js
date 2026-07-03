@@ -166,12 +166,134 @@ ${STYLE_COMMUN}
 Caméra identique à un sprite vu de 3/4 haut : on voit le dessus et un côté de la créature.`;
   }
 
+  // Détection de la VRAIE grille dessinée par l'IA. Les générateurs tracent
+  // leurs propres séparateurs, à un pas qui dérive (mesuré : ~140 px au lieu de
+  // 128, et variable verticalement) : découper à l'aveugle mélange les cases.
+  // Ici : 1) repère les lignes peintes (colonnes/rangées remplies sur >85 %),
+  // 2) les efface PAR COULEUR dans toute l'image (médiane des lignes, plus la
+  // dominante si la couleur est verte), 3) reconstruit une planche propre en
+  // recadrant chaque vraie cellule sur l'ancrage. Retourne null si aucune
+  // grille peinte n'est détectée (on retombe alors sur realignSheet).
   function regridSheet(src, cw, ch, ax, ay) {
-    // ... (implementation unchanged)
+    const W = src.width, H = src.height;
+    const sctx = src.getContext('2d');
+    const d = sctx.getImageData(0, 0, W, H);
+    const px = d.data;
+    const vfill = new Float32Array(W), hfill = new Float32Array(H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (px[(y * W + x) * 4 + 3] > 24) { vfill[x] += 1 / H; hfill[y] += 1 / W; }
+      }
+    }
+    const vlines = [], hlines = [];
+    for (let x = 0; x < W; x++) if (vfill[x] > 0.85) vlines.push(x);
+    for (let y = 0; y < H; y++) if (hfill[y] > 0.85) hlines.push(y);
+    if (vlines.length < 2) return null;
+
+    // couleur médiane des lignes
+    const ch0 = [], ch1 = [], ch2 = [];
+    for (const x of vlines) {
+      for (let y = 0; y < H; y += 5) {
+        const i = (y * W + x) * 4;
+        if (px[i + 3] > 24) { ch0.push(px[i]); ch1.push(px[i + 1]); ch2.push(px[i + 2]); }
+      }
+    }
+    const med = (arr) => { arr.sort((a, b) => a - b); return arr[arr.length >> 1] || 0; };
+    const Lr = med(ch0), Lg = med(ch1), Lb = med(ch2);
+    const greenish = Lg > Lr + 20 && Lg > Lb + 20;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] <= 24) continue;
+      const dr = px[i] - Lr, dg = px[i + 1] - Lg, db = px[i + 2] - Lb;
+      if (dr * dr + dg * dg + db * db < 4900
+        || (greenish && px[i + 1] > px[i] + 30 && px[i + 1] > px[i + 2] + 30)) px[i + 3] = 0;
+    }
+    sctx.putImageData(d, 0, 0);
+
+    // frontières : centres des amas de lignes + bords de l'image
+    const centers = (idx, max) => {
+      const out = [];
+      let run = [];
+      for (const v of idx) {
+        if (run.length && v !== run[run.length - 1] + 1) { out.push(Math.round(run.reduce((a, b) => a + b) / run.length)); run = []; }
+        run.push(v);
+      }
+      if (run.length) out.push(Math.round(run.reduce((a, b) => a + b) / run.length));
+      return out.filter(c => c > 10 && c < max - 10);
+    };
+    const vb = [0, ...centers(vlines, W), W];
+    const hb = hlines.length ? [0, ...centers(hlines, H), H] : Array.from({ length: 9 }, (_, i) => Math.round(i * H / 8));
+    if (hb.length !== 9) return null; // pas 8 rangées : trop risqué
+    const cols = vb.length - 1;
+    if (cols < 2) return null;
+
+    // reconstruction : bbox de chaque vraie cellule -> case propre cw x ch
+    const out = document.createElement('canvas');
+    out.width = cols * cw; out.height = 8 * ch;
+    const octx = out.getContext('2d');
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = 'high';
+    const d2 = sctx.getImageData(0, 0, W, H).data;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < cols; c++) {
+        let minX = Infinity, maxX = -1, minY = Infinity, maxY = -1;
+        for (let y = hb[r]; y < hb[r + 1]; y++) {
+          for (let x = vb[c]; x < vb[c + 1]; x++) {
+            if (d2[(y * W + x) * 4 + 3] > 24) {
+              if (x < minX) minX = x; if (x > maxX) maxX = x;
+              if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) continue;
+        let w2 = maxX - minX + 1, h2 = maxY - minY + 1;
+        const s = Math.min((cw - 6) / w2, (ch - 10) / h2, 1);
+        const dw = Math.max(1, Math.round(w2 * s)), dh = Math.max(1, Math.round(h2 * s));
+        const tx = Math.min(Math.max(c * cw + ax - (dw >> 1), c * cw), (c + 1) * cw - dw);
+        const ty = Math.min(Math.max(r * ch + ay - dh, r * ch), r * ch + ch - dh);
+        octx.drawImage(src, minX, minY, w2, h2, tx, ty, dw, dh);
+      }
+    }
+    return { canvas: out, cols };
   }
 
+  // Recale chaque case d'une planche : efface une marge (tue les lignes de
+  // grille dessinées par l'IA, quelle que soit leur couleur), puis translate le
+  // contenu pour que son BAS-CENTRE tombe sur l'ancrage (ax, ay) de la case —
+  // sans ça, les IA dessinent la créature à ±10 px près d'une frame à l'autre
+  // et l'animation tremble comme une bobine de cinéma.
   function realignSheet(src, cw, ch, ax, ay, inset = 3) {
-    // ... (implementation unchanged)
+    const cols = Math.round(src.width / cw), rows = 8;
+    const sctx = src.getContext('2d');
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    const octx = out.getContext('2d');
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x0 = c * cw, y0 = r * ch;
+        const iw = cw - inset * 2, ih = ch - inset * 2;
+        const d = sctx.getImageData(x0 + inset, y0 + inset, iw, ih);
+        let minX = Infinity, maxX = -1, maxY = -1;
+        for (let y = 0; y < ih; y++) {
+          for (let x = 0; x < iw; x++) {
+            if (d.data[(y * iw + x) * 4 + 3] > 24) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) continue; // case vide
+        const dx = Math.round(ax - (inset + (minX + maxX) / 2));
+        const dy = Math.round(ay - (inset + maxY));
+        octx.save();
+        octx.beginPath();
+        octx.rect(x0, y0, cw, ch);
+        octx.clip();
+        octx.drawImage(src, x0 + inset, y0 + inset, iw, ih, x0 + inset + dx, y0 + inset + dy, iw, ih);
+        octx.restore();
+      }
+    }
+    return out;
   }
 
 
