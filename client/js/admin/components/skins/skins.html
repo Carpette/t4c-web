@@ -1,93 +1,181 @@
+<style>
+  .at2-sec { padding: 6px 4px; font-size: 13px; }
+  .at2-sec.active { background: #7a5ac8; color: #fff; }
+  .at2-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-bottom: 1px solid #2a2444; cursor: pointer; }
+  .at2-row:hover { background: #1d1636; }
+  .at2-row.current { background: #1d1636; box-shadow: inset 3px 0 0 #ffd24a; }
+  .at2-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: 13px; }
+  .at2-row select { max-width: 180px; font-size: 12px; }
+</style>
 <div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Appliquez vos propres images aux objets et aux créatures.
-    Les joueurs voient les skins au prochain rechargement de leur page (F5).</p>
-    <p id="skins-msg" class="text-green-400 min-h-[1.5em]"></p>
+  <div class="flex items-baseline justify-between mb-2">
+    <h1 class="text-2xl text-t4c-gold">Atelier 2D</h1>
+    <span id="skins-msg" class="text-green-400 min-h-[1.5em] text-sm"></span>
+  </div>
+  <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">
+    Trois étapes : <b>choisir la cible</b> (objet, créature, sort, PNJ), <b>générer le prompt</b>
+    pour ton générateur d'images, puis <b>importer et contrôler</b> le résultat avant de l'enregistrer.
+    Les joueurs voient les changements au prochain rechargement de leur page (F5).
+  </p>
 
-    <div class="flex flex-wrap gap-8 mt-4">
-        <div class="flex-1 min-w-[420px]">
-            <h2 class="text-xl text-t4c-gold mb-4">0. Préparation automatique à l'import</h2>
-            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Pour les images générées par IA : le fond uni est rendu transparent
-            (détourage chroma, bords adoucis) et l'image est redimensionnée à la taille exacte
-            attendue. Appliqué au moment du téléversement, l'original n'est pas modifié.</p>
-            <div class="space-y-4">
-                <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-chroma" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🟩 Fond uni → transparent</span></label>
-                    <input type="color" id="skin-chroma-color" value="#00ff00" title="Couleur du fond à détourer" class="bg-t4c-input-bg rounded-md">
-                    <label class="flex items-center gap-2">tolérance <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" class="w-28"></label>
-                </div>
-                <div class="toolbar flex flex-wrap items-center gap-4 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-resize" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>📐 Redimensionner à la taille attendue</span></label>
-                    <label class="flex items-center gap-2">objets : <input id="skin-item-size" value="96" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
-                </div>
-                <div class="toolbar flex items-center gap-2 p-3 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="skin-realign" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>♻ Recaler chaque frame des planches
-                    (efface les bords de case et aligne le bas-centre du contenu sur l'ancrage —
-                    corrige le tremblement des animations générées par IA)</span></label>
-                </div>
-            </div>
-            <h2 class="text-xl text-t4c-gold mt-6 mb-2">1. Téléverser une image d'objet (PNG)</h2>
-            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Une seule image. Elle servira d'icône (inventaire, boutique)
-            et d'apparence au sol.</p>
-            <div class="toolbar flex items-center gap-2">
-                <input type="file" id="skin-item-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
-                <button @click="uploadItemSkin" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Téléverser</button>
-            </div>
-            <h2 class="text-xl text-t4c-gold mt-6 mb-2">2. Téléverser une planche de créature (PNG)</h2>
-            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Grille régulière : 8 lignes = 8 directions (ordre Flare : O, NO, N, NE,
-            E, SE, S face caméra, SO), colonnes = frames. Renseignez la taille d'une case,
-            l'ancrage des pieds dans la case, et les colonnes de chaque animation
-            (stance, run, swing et die sont obligatoires).</p>
-            <div class="space-y-4">
-                <div class="toolbar flex flex-wrap items-center gap-4">
-                    <input type="file" id="skin-enemy-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-t4c-button file:text-t4c-text-light hover:file:bg-t4c-button-hover">
-                    <label class="flex items-center gap-2">Nom du sprite : <input id="skin-enemy-name" placeholder="dragonnet" class="w-32 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
-                </div>
-                <div class="toolbar flex flex-wrap items-center gap-4">
-                    <label class="flex items-center gap-2">Case : <input id="skin-cell-w" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> ×
-                        <input id="skin-cell-h" value="128" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"> px</label>
-                    <label class="flex items-center gap-2">Ancrage (pieds) : <input id="skin-anchor-x" value="64" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1">,
-                        <input id="skin-anchor-y" value="110" class="w-16 bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1"></label>
-                </div>
-                <textarea id="skin-enemy-anims" spellcheck="false" class="w-full h-36 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm">{
-    "stance": { "from": 0, "to": 3, "duration": 800 },
-    "run":    { "from": 4, "to": 11, "duration": 660 },
-    "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
-    "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
-    }</textarea>
-                <div class="toolbar flex items-center gap-2">
-                    <button @click="uploadEnemySkin" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⬆ Importer la planche</button>
-                    <button @click="showEnemyPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">🧠 Prompt IA (planche)</button>
-                </div>
-            </div>
-            <h2 class="text-xl text-t4c-gold mt-6 mb-2">Prompt pour IA générative</h2>
-            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Généré depuis les paramètres ci-dessus (taille de case, ancrage, animations) :
-            collez-le dans votre générateur d'images, l'outil d'import attend exactement ce format.
-            Le bouton 📋 d'un objet (table ci-contre) génère le prompt pour cet objet.</p>
-            <textarea id="skin-prompt" spellcheck="false" class="w-full h-48 bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm" placeholder="Cliquez sur « 🧠 Prompt IA » ou sur le 📋 d'un objet…"></textarea>
-            <div class="toolbar flex items-center gap-2 mt-2"><button @click="copyPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">📋 Copier le prompt</button><span id="skin-prompt-msg" class="text-green-400"></span></div>
+  <div class="flex flex-wrap gap-6">
+    <!-- ================= ÉTAPE 1 — CIBLE ================= -->
+    <div class="flex-1 min-w-[380px] max-w-[520px]">
+      <h2 class="text-xl text-t4c-gold mb-2">① Cible</h2>
+      <div class="flex gap-1 mb-2" id="at2-sections">
+        <button data-sec="items"  @click="setSection('items')"  class="at2-sec flex-1">🗡 Objets</button>
+        <button data-sec="mobs"   @click="setSection('mobs')"   class="at2-sec flex-1">🐺 Créatures</button>
+        <button data-sec="spells" @click="setSection('spells')" class="at2-sec flex-1">✨ Sorts</button>
+        <button data-sec="npcs"   @click="setSection('npcs')"   class="at2-sec flex-1">👤 PNJ</button>
+      </div>
+      <input id="at2-search" placeholder="Filtrer…" @input="renderList()"
+        class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 mb-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
+      <div id="at2-list" class="max-h-[380px] overflow-y-auto rounded-md border border-t4c-input-border bg-t4c-input-bg"></div>
+      <div class="toolbar mt-2 flex items-center gap-2">
+        <button @click="saveSkins" class="flex-1 px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer les assignations</button>
+      </div>
 
-            <h2 class="text-xl text-t4c-gold mt-6 mb-2">Aperçu</h2>
-            <img id="skin-preview" class="w-full max-h-72 bg-t4c-input-bg border border-t4c-input-border rounded-lg hidden">
+      <!-- fiche de l'entité sélectionnée -->
+      <div id="at2-card" class="mt-4 p-3 rounded-md border border-t4c-border bg-t4c-input-bg hidden">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div id="at2-card-name" class="text-t4c-gold font-bold"></div>
+            <div id="at2-card-meta" class="text-xs text-gray-400"></div>
+          </div>
+          <img id="at2-card-img" class="w-20 h-20 object-contain bg-black/30 rounded border border-t4c-input-border hidden">
         </div>
-
-        <div class="flex-1 min-w-[420px]">
-            <h2 class="text-xl text-t4c-gold mb-4">3. Assignations</h2>
-            <div class="toolbar mb-4">
-                <button @click="saveSkins" class="w-full px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer TOUTES les assignations (objets + créatures)</button>
-            </div>
-            <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Un seul enregistrement pour les deux tables ci-dessous.</p>
-
-            <h3 class="text-lg text-t4c-gold mt-6 mb-2">Objets</h3>
-            <div class="toolbar mb-2">
-                <input id="skin-item-search" @input="renderSkinItems" placeholder="Filtrer les objets…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
-            </div>
-            <table id="skin-items-table" class="w-full text-sm text-left text-gray-400"></table>
-
-            <h3 class="text-lg text-t4c-gold mt-6 mb-2">Créatures</h3>
-            <div class="toolbar mb-2">
-                <input id="skin-mob-search" @input="renderSkinMobs" placeholder="Filtrer les créatures…" class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
-            </div>
-            <table id="skin-mobs-table" class="w-full text-sm text-left text-gray-400"></table>
+        <label class="block mt-2 text-sm text-gray-300">Description physique (injectée dans le prompt)&nbsp;:</label>
+        <textarea id="at2-desc" rows="3" spellcheck="false"
+          placeholder="Silhouette, matières, couleurs dominantes, posture, signes distinctifs…"
+          class="w-full bg-t4c-main-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light text-sm"></textarea>
+        <div class="flex items-center gap-2 mt-1">
+          <button @click="saveDesc" class="px-3 py-1 text-sm">💾 Fiche</button>
+          <span id="at2-desc-msg" class="text-green-400 text-xs"></span>
         </div>
+      </div>
     </div>
+
+    <!-- ================= ÉTAPES 2 & 3 ================= -->
+    <div class="flex-[1.4] min-w-[460px]">
+      <h2 class="text-xl text-t4c-gold mb-2">② Prompt <span class="text-sm text-gray-400 font-normal">(calibré Nano Banana / Gemini)</span></h2>
+
+      <div class="p-3 rounded-md border border-t4c-input-border bg-t4c-input-bg space-y-3">
+        <div class="flex flex-wrap items-center gap-4">
+          <label class="flex items-center gap-2 text-sm">Style :
+            <select id="at2-style">
+              <option value="flare" selected>Peint réaliste (Flare / Diablo 1)</option>
+              <option value="pixel">Pixel-art strict</option>
+              <option value="sombre">Peinture numérique sombre</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 text-sm" title="Couleur du fond à détourer, partagée avec l'import">
+            Fond chroma : <input type="color" id="skin-chroma-color" value="#00ff00" class="bg-t4c-input-bg rounded">
+          </label>
+        </div>
+
+        <!-- paramètres spécifiques aux planches de créatures -->
+        <div id="at2-sheet-params" class="flex flex-wrap items-center gap-4 text-sm hidden">
+          <label class="flex items-center gap-1">Case
+            <input id="skin-cell-w" value="128" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5"> ×
+            <input id="skin-cell-h" value="128" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5"> px
+          </label>
+          <label class="flex items-center gap-1">Ancrage (pieds)
+            <input id="skin-anchor-x" value="64" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5">,
+            <input id="skin-anchor-y" value="110" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5">
+          </label>
+          <details class="w-full">
+            <summary class="cursor-pointer text-gray-400">Animations (colonnes)</summary>
+            <textarea id="skin-enemy-anims" spellcheck="false" rows="6"
+              class="w-full mt-1 bg-t4c-main-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-xs">{
+  "stance": { "from": 0, "to": 3, "duration": 800 },
+  "run":    { "from": 4, "to": 11, "duration": 660 },
+  "swing":  { "from": 12, "to": 15, "duration": 480, "type": "play_once" },
+  "die":    { "from": 16, "to": 21, "duration": 900, "type": "play_once" }
+}</textarea>
+          </details>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button @click="buildPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">🧠 Générer le prompt</button>
+          <button @click="copyPrompt" class="px-3 py-2">📋 Copier</button>
+          <span id="skin-prompt-msg" class="text-green-400 text-sm"></span>
+        </div>
+        <textarea id="skin-prompt" spellcheck="false" rows="10"
+          class="w-full bg-t4c-main-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-xs"
+          placeholder="Sélectionne une cible puis « Générer le prompt »…"></textarea>
+        <p id="at2-nb-tip" class="text-xs text-amber-200/80 bg-amber-900/20 border border-amber-700/40 rounded p-2 hidden"></p>
+        <div id="at2-history" class="flex flex-wrap gap-1"></div>
+      </div>
+
+      <h2 class="text-xl text-t4c-gold mt-5 mb-2">③ Import &amp; contrôle</h2>
+      <div class="p-3 rounded-md border border-t4c-input-border bg-t4c-input-bg space-y-3">
+        <div id="at2-drop" class="border-2 border-dashed border-t4c-border rounded-md p-6 text-center text-gray-400 cursor-pointer hover:border-t4c-button-active">
+          Dépose l'image générée ici, ou clique pour choisir un fichier
+          <input type="file" id="at2-file" accept="image/png,image/jpeg,image/webp" class="hidden">
+        </div>
+
+        <div class="flex flex-wrap items-center gap-4 text-sm">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="skin-chroma" checked> 🟩 Fond → transparent
+          </label>
+          <label class="flex items-center gap-2">tolérance
+            <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" class="w-28" @input="refreshPreview()">
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer" id="at2-realign-wrap">
+            <input type="checkbox" id="skin-realign" checked> ♻ Recaler les frames (grille IA)
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer" id="at2-resize-wrap">
+            <input type="checkbox" id="skin-resize" checked> 📐 Redimensionner à
+            <input id="skin-item-size" value="96" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5"> px
+          </label>
+        </div>
+
+        <!-- contrôle visuel -->
+        <div id="at2-check" class="hidden">
+          <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[260px]">
+              <div class="text-xs text-gray-400 mb-1">Planche traitée — grille et ancrages superposés :</div>
+              <canvas id="at2-preview" class="w-full rounded border border-t4c-input-border bg-black/40" style="image-rendering:pixelated"></canvas>
+            </div>
+            <div id="at2-animbox" class="hidden">
+              <div class="text-xs text-gray-400 mb-1">Animation avant / après :</div>
+              <div class="flex gap-2 items-start">
+                <div class="text-center">
+                  <canvas id="at2-anim-old" width="128" height="128" class="rounded border border-t4c-input-border bg-black/40"></canvas>
+                  <div class="text-xs text-gray-500">actuel</div>
+                </div>
+                <div class="text-center">
+                  <canvas id="at2-anim" width="128" height="128" class="rounded border border-t4c-input-border bg-black/40"></canvas>
+                  <div class="text-xs text-gray-500">import</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-2 text-sm">
+                <select id="at2-anim-name"></select>
+                <select id="at2-anim-dir">
+                  <option value="0">O</option><option value="1">NO</option><option value="2">N</option>
+                  <option value="3">NE</option><option value="4">E</option><option value="5">SE</option>
+                  <option value="6" selected>S</option><option value="7">SO</option>
+                </select>
+                <button @click="toggleAnim" id="at2-anim-play">▶</button>
+              </div>
+            </div>
+            <div id="at2-iconbox" class="hidden text-center">
+              <div class="text-xs text-gray-400 mb-1">À taille réelle en jeu :</div>
+              <div class="flex items-end gap-3 justify-center bg-black/40 rounded border border-t4c-input-border p-3">
+                <img id="at2-icon-96" class="w-24 h-24 object-contain">
+                <img id="at2-icon-34" class="w-[34px] h-[34px] object-contain">
+                <img id="at2-icon-22" class="w-[22px] h-[22px] object-contain">
+              </div>
+            </div>
+          </div>
+          <div class="toolbar flex items-center gap-2 mt-3">
+            <button @click="importCurrent" id="at2-import" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">⬆ Importer et assigner à la cible</button>
+            <span class="text-xs text-gray-400">puis « Enregistrer les assignations » (étape ①)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
