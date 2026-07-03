@@ -6,7 +6,7 @@ import { FormulaEngine } from '../shared/formula-engine.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {} }, templates: [] };
+export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {}, spells: {}, npcs: {} }, atelier: { desc: {} }, templates: [] };
 
 const engine = new FormulaEngine();
 
@@ -95,11 +95,19 @@ export function loadContent() {
     content.music = { login: slot(raw.login), trial: slot(raw.trial), zones: {}, groups: parseGroups(raw.groups) };
     for (const [k, v] of Object.entries(raw.zones || {})) content.music.zones[k] = slot(v);
   } catch { content.music = { login: slot(null), trial: slot(null), zones: {}, groups: {} }; }
-  // skins (onglet admin) : { items: { defId: 'skins/x.png' }, mobs: { defId: spriteName } }
+  // skins (atelier 2D de l'admin) : { items: { defId: 'skins/x.png' },
+  // mobs: { defId: spriteName }, spells: { spellId: 'skins/x.png' },
+  // npcs: { npcId: 'skins/x.png' } }. spells/npcs sont optionnels (rétro-compat).
   try {
     const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'skins.json'), 'utf8'));
-    content.skins = { items: raw.items || {}, mobs: raw.mobs || {} };
-  } catch { content.skins = { items: {}, mobs: {} }; }
+    content.skins = { items: raw.items || {}, mobs: raw.mobs || {}, spells: raw.spells || {}, npcs: raw.npcs || {} };
+  } catch { content.skins = { items: {}, mobs: {}, spells: {}, npcs: {} }; }
+  // atelier 2D : fiches descriptives par entité (description physique injectée
+  // dans les prompts IA). Pur outillage d'édition, jamais lu par le serveur de JEU.
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'atelier.json'), 'utf8'));
+    content.atelier = { desc: raw.desc || {} };
+  } catch { content.atelier = { desc: {} }; }
   // templates de l'éditeur de carte (assemblages réutilisables tuiles+décors) :
   // pur outillage d'édition, jamais lu par le serveur de JEU. Tolérant si absent.
   try {
@@ -110,7 +118,7 @@ export function loadContent() {
 }
 
 export function saveContentFile(name, data) {
-  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles', 'atelier'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }
