@@ -1,6 +1,6 @@
 console.log('[SpellsEditor] Script loaded.');
 import { reactive } from '/js/vendor/petite-vue.js';
-import { Particles, emitImpact, emitBuff, emitHeal, emitShield } from '../../../render2d/particles.js';
+import { Particles, emitFromDef, emitImpact, emitBuff, emitHeal, emitShield } from '../../../render2d/particles.js';
 
 const store = reactive({
   // --- State ---
@@ -35,6 +35,10 @@ const store = reactive({
       this.$('new-spell-btn')?.addEventListener('click', () => this.createNewSpell());
       this.$('save-file-btn')?.addEventListener('click', () => this.saveFileToServer());
       this.$('save-spell-btn')?.addEventListener('click', () => this.saveCurrentSpell());
+      this.loadFxLibrary();
+      for (const k of ['trail', 'impact', 'ground', 'self']) {
+        this.$(`spell-fx-${k}`)?.addEventListener('change', () => this.triggerPreview());
+      }
       this.$('add-effect-btn')?.addEventListener('click', () => this.addEffectBlock());
       
       // Live Preview buttons
@@ -148,9 +152,52 @@ const store = reactive({
     // 5. HUD / SFX Settings
     this.$('spell-color').value = this.activeSpell.color || '#ff0000';
     this.$('spell-element').value = this.activeSpell.element || 'neutre';
+
+    // 6. Effets visuels assignés (presets de particules)
+    for (const k of ['trail', 'impact', 'ground', 'self']) {
+      const sel = this.$(`spell-fx-${k}`);
+      if (sel) sel.value = this.activeSpell.fx?.[k] || '';
+    }
+    this.toggleFxFields();
+  },
+
+  // Bibliothèque de particules -> options des 4 selects, groupées par famille
+  async loadFxLibrary() {
+    try {
+      const data = await this.api('/api/admin/content/particles');
+      this.fxLibrary = data.particles || [];
+    } catch { this.fxLibrary = []; }
+    const groups = {};
+    for (const p of this.fxLibrary) {
+      const fam = p.id.includes('_') ? p.id.split('_')[0] : 'divers';
+      (groups[fam] = groups[fam] || []).push(p);
+    }
+    const html = '<option value="">— défaut (élément) —</option>' +
+      Object.keys(groups).sort().map(fam =>
+        `<optgroup label="${fam}">` +
+        groups[fam].map(p => `<option value="${p.id}">${p.name}</option>`).join('') +
+        '</optgroup>').join('');
+    for (const k of ['trail', 'impact', 'ground', 'self']) {
+      const sel = this.$(`spell-fx-${k}`);
+      if (sel) sel.innerHTML = html;
+    }
+  },
+
+  fxDefOf(k) {
+    const id = this.$(`spell-fx-${k}`)?.value;
+    return id ? this.fxLibrary?.find(p => p.id === id) : null;
+  },
+
+  // les selects visibles suivent le type de sort (comme le ciblage)
+  toggleFxFields() {
+    const type = this.$('spell-type').value;
+    this.$('field-fx-trail').style.display = (type === 'bolt') ? '' : 'none';
+    this.$('field-fx-impact').style.display = (type === 'bolt' || type === 'aoe') ? '' : 'none';
+    this.$('field-fx-ground').style.display = (type === 'aoe') ? '' : 'none';
   },
 
   toggleCiblageFields() {
+      this.toggleFxFields();
       const type = this.$('spell-type').value;
       this.$('ciblage-pane').style.display = (type === 'bolt' || type === 'aoe') ? '' : 'none';
       this.$('field-range').style.display = (type === 'bolt' || type === 'aoe') ? '' : 'none';
@@ -395,6 +442,14 @@ const store = reactive({
           updatedSpell.centered = this.$('spell-centered').checked;
       }
 
+      // Effets visuels : n'écrire que les clés réellement assignées
+      const fx = {};
+      for (const k of ['trail', 'impact', 'ground', 'self']) {
+        const v = this.$(`spell-fx-${k}`)?.value;
+        if (v) fx[k] = v;
+      }
+      if (Object.keys(fx).length) updatedSpell.fx = fx;
+
       // Save level and stat requirements
       updatedSpell.level = parseInt(this.$('spell-req-level').value, 10) || 1;
       updatedSpell.wis = parseInt(this.$('spell-req-wis').value, 10) || 0;
@@ -496,6 +551,11 @@ const store = reactive({
     const element = this.$('spell-element').value;
     const color = this.$('spell-color').value;
 
+    // preset assigné prioritaire : self, puis ground (aoe), puis impact
+    const def = this.fxDefOf('self')
+      || (type === 'aoe' && this.fxDefOf('ground'))
+      || this.fxDefOf('impact');
+    if (def) { emitFromDef(this.preview.particles, def, 0, 0, { burst: true, raw: true }); return; }
     switch (type) {
       case 'heal': emitHeal(this.preview.particles, 0, 0); break;
       case 'buff':
