@@ -70,6 +70,77 @@ export class Particles {
   }
 }
 
+
+// ============================================================
+// Émetteur générique : interprète un preset de content/particles.json.
+// SEULE implémentation de la sémantique spawn/movement — l'aperçu de
+// l'éditeur de particules, celui du Spells Editor et le rendu en jeu
+// passent tous par ici pour que « ce que tu règles » = « ce que tu vois ».
+// Sémantique héritée de l'aperçu historique de l'éditeur :
+//  - density = particules émises PAR APPEL (donc par frame pour un effet
+//    continu) ; opts.burst multiplie par 3 pour un one-shot (impact) ;
+//  - spawn : point | ring | circle | sphere (rayon en tuiles ; ring/circle
+//    naissent au sol, sphere autour du torse) ;
+//  - movement : outward | upward | orbit | random ;
+//  - offsetH en pixels écran, gravity en px/s², speed en tuiles/s.
+// opts.raw saute le réglage de densité du joueur (aperçus admin).
+export function emitFromDef(P, def, x, z, opts = {}) {
+  if (!P || !def) return;
+  const radius = +def.radius || 0.1;
+  const size = +def.size || 2;
+  const gravity = +def.gravity || 0;
+  const speed = +def.speed || 1;
+  const life = +def.life || 0.5;
+  const drag = def.drag ?? 0.98;
+  const offX = +def.offsetX || 0, offZ = +def.offsetZ || 0, offH = +def.offsetH || 0;
+  const colors = def.colors?.length ? def.colors : ['#ffffff'];
+  let n = Math.max(1, Math.round(+def.density || 1)) * (opts.burst ? 3 : 1);
+  if (!opts.raw) { n = densify(n); if (!n) return; }
+  for (let i = 0; i < n; i++) {
+    let px = x + offX, pz = z + offZ, ph = 18 + offH;
+    let vx = 0, vz = 0, vh = 0;
+    const angle = Math.random() * Math.PI * 2;
+    if (def.spawn === 'ring') {
+      px = x + offX + Math.cos(angle) * radius;
+      pz = z + offZ + Math.sin(angle) * radius;
+      ph = 2 + offH;
+    } else if (def.spawn === 'circle') {
+      const d = Math.sqrt(Math.random()) * radius;
+      px = x + offX + Math.cos(angle) * d;
+      pz = z + offZ + Math.sin(angle) * d;
+      ph = 2 + offH;
+    } else if (def.spawn === 'sphere') {
+      const elev = (Math.random() - 0.5) * Math.PI;
+      const r = radius * Math.cos(elev);
+      px = x + offX + Math.cos(angle) * r;
+      pz = z + offZ + Math.sin(angle) * r;
+      ph = 18 + offH + Math.sin(elev) * radius * 60;
+    }
+    if (def.movement === 'outward') {
+      const a = (def.spawn === 'point' || !def.spawn) ? Math.random() * Math.PI * 2 : angle;
+      const f = speed * (0.8 + Math.random() * 0.4) * 1.5;
+      vx = Math.cos(a) * f; vz = Math.sin(a) * f;
+      if (def.spawn === 'sphere') vh = Math.sin((Math.random() - 0.5) * Math.PI) * f;
+    } else if (def.movement === 'upward') {
+      vh = speed * 15 * (0.8 + Math.random() * 0.4);
+    } else if (def.movement === 'orbit') {
+      const f = speed * 1.5;
+      vx = Math.cos(angle + Math.PI / 2) * f;
+      vz = Math.sin(angle + Math.PI / 2) * f;
+    } else if (def.movement === 'random') {
+      const f = speed * 1.5;
+      vx = (Math.random() - 0.5) * f * 2;
+      vz = (Math.random() - 0.5) * f * 2;
+      vh = (Math.random() - 0.5) * f * 2;
+    }
+    P.spawn({
+      x: px, z: pz, h: ph, vx, vz, vh, g: gravity,
+      life: life * (0.8 + Math.random() * 0.4), size,
+      color: colors[(Math.random() * colors.length) | 0], drag,
+    });
+  }
+}
+
 // Palettes et comportements par style (élément, ou poison/drain dérivés)
 export const FX_STYLES = {
   feu:     { colors: ['#ff5010', '#ff9040', '#ffd24a'], rise: 55,  spread: 1.6, size: 3.5 },
