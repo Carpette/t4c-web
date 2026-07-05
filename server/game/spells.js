@@ -214,7 +214,7 @@ export function resolveCast(game, p) {
       game.send(p, { t: 'info', text: 'La cible s\'est dérobée.' });
       return false;
     }
-    game.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: spellStyle(sp) });
+    game.eventNear(target, { t: 'proj', from: p.id, to: target.id, color: sp.color, element: spellStyle(sp), fx: sp.fx });
     
     for (const eff of effectsToApply) {
       const rawValue = eff.expr ? Math.max(0, Math.round(eff.expr.evaluate(formulaContext(p, sp, target)) * 100) / 100) : 0;
@@ -222,7 +222,7 @@ export function resolveCast(game, p) {
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         target.curseUntil = now + duration;
-        game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id });
+        game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id, fx: sp.fx });
         if (target.kind === C.KIND.PLAYER) {
           game.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(target);
@@ -238,6 +238,7 @@ export function resolveCast(game, p) {
           dice: eff.dice,
           base: eff.base,
           element: eff.element || sp.element,
+          fx: sp.fx,
           expr: eff.expr,
           formula: eff.formula,
           dot_min: eff.dot_min,
@@ -259,7 +260,7 @@ export function resolveCast(game, p) {
   } else if (sp.type === 'aoe') {
     // sorts centrés sur le lanceur (Vague de Flamme, Séisme) ou sur un point visé
     const cx = sp.centered ? p.x : +c.x, cz = sp.centered ? p.z : +c.z;
-    game.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color, element: spellStyle(sp) });
+    game.eventNear(p, { t: 'aoe', from: p.id, x: cx, z: cz, radius: sp.radius, color: sp.color, element: spellStyle(sp), fx: sp.fx });
     const hits = [...p.zi.nearby(cx, cz, sp.radius)].filter(e => e.kind === C.KIND.MOB && !e.dead);
     for (const e of hits) {
       const dist = Math.hypot(e.x - cx, e.z - cz);
@@ -275,7 +276,7 @@ export function resolveCast(game, p) {
         if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         e.curseUntil = now + duration;
-        game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id });
+        game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id, fx: sp.fx });
         if (e.kind === C.KIND.PLAYER) {
           game.send(e, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(e);
@@ -291,6 +292,7 @@ export function resolveCast(game, p) {
             dice: eff.dice,
             base: eff.base,
                     element: eff.element || sp.element,
+          fx: sp.fx,
                     expr: eff.expr,
           formula: eff.formula,
           dot_min: eff.dot_min,
@@ -317,7 +319,7 @@ export function resolveCast(game, p) {
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         p.curseUntil = now + duration;
-        game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id });
+        game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id, fx: sp.fx });
         if (p.kind === C.KIND.PLAYER) {
           game.send(p, { t: 'info', text: `Vous vous êtes maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(p);
@@ -333,6 +335,7 @@ export function resolveCast(game, p) {
           dice: eff.dice,
           base: eff.base,
                   element: eff.element || sp.element,
+          fx: sp.fx,
                   expr: eff.expr,
           formula: eff.formula,
           dot_min: eff.dot_min,
@@ -346,7 +349,7 @@ export function resolveCast(game, p) {
       }
     }
     p.recompute(game);
-    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: sp.buff?.stat || 'buff' });
+    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: sp.buff?.stat || 'buff', fx: sp.fx });
   }
 
   p.mana -= sp.mana;

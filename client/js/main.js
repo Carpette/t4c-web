@@ -204,13 +204,13 @@ net.on('events', (m) => {
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;
-      renderer.fxAt(ev.kind, v.x, v.z, ev.color);
+      renderer.fxAt(ev.kind, v.x, v.z, ev.color, ev.fx);
       if (ev.kind === 'levelup') { triggerFloater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
       if (ev.kind === 'heal') { triggerFloater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
       if (ev.kind === 'buff') {
         // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
         const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
-        if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff');
+        if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff', ev.fx);
         triggerFloater(headPos(v), '✨', 'heal');
         if (ev.id === selfId) playSfx('buff');
       }
@@ -230,16 +230,16 @@ net.on('events', (m) => {
       if (a && b) {
         if (ev.element === 'air') {
           // éclair : zigzag instantané entre lanceur et cible, pas un projectile lent
-          renderer.addFx({ type: 'zap', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, dur: 0.22 });
+          renderer.addFx({ type: 'zap', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, fx: ev.fx, dur: 0.22 });
           playImpact('air');
         } else {
-          renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, element: ev.element, dur: 0.3 });
+          renderer.addFx({ type: 'proj', x0: a.x, z0: a.z, x1: b.x, z1: b.z, color: ev.color, element: ev.element, fx: ev.fx, dur: 0.3 });
           if (ev.element) { playCast(ev.element); playImpact(ev.element, 0.3); }
         }
       }
     } else if (ev.t === 'aoe') {
       em.get(ev.from)?.triggerSwing();
-      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, element: ev.element, dur: 0.6 });
+      renderer.addFx({ type: 'aoe', x: ev.x, z: ev.z, radius: ev.radius, color: ev.color, element: ev.element, fx: ev.fx, dur: 0.6 });
       playImpact(ev.element || 'neutre');
     }
   }

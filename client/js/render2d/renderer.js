@@ -3,7 +3,7 @@
 import { DAY_LENGTH } from '../../../shared/constants.js';
 import { settings, ZOOM_MIN, ZOOM_MAX } from '../settings.js';
 import {
-  Particles, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
+  Particles, emitFromDef, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
 } from './particles.js';
 import { resolveTile } from './assets.js';
 
@@ -72,8 +72,14 @@ export class Renderer {
     this.fx.push({ ...fx, start: performance.now() / 1000 });
   }
 
-  // Effet ponctuel sur une entité (soin, buff, malédiction, mort) : particules
-  fxAt(kind, x, z, color) {
+  // preset de la bibliothèque content/particles.json, par id (ou null)
+  fxDef(id) { return id ? this.assets?.fxById?.[id] || null : null; }
+
+  // Effet ponctuel sur une entité (soin, buff, malédiction, mort) : particules.
+  // Si le sort a un preset « self » assigné, il remplace l'effet par défaut.
+  fxAt(kind, x, z, color, fx) {
+    const def = this.fxDef(fx?.self);
+    if (def) { emitFromDef(this.particles, def, x, z, { burst: true }); return; }
     if (kind === 'heal') emitHeal(this.particles, x, z);
     else if (kind === 'buff') emitBuff(this.particles, x, z, color);
     else if (kind === 'shield') emitShield(this.particles, x, z, color);
@@ -248,7 +254,11 @@ export class Renderer {
     for (const f of this.fx) {
       if (fnow - f.start >= (f.dur || 0.45)) {
         // l'impact d'un projectile éclate en gerbe à l'arrivée
-        if (f.type === 'proj') emitImpact(this.particles, f.element, f.x1, f.z1);
+        if (f.type === 'proj' || f.type === 'zap') {
+          const idef = this.fxDef(f.fx?.impact);
+          if (idef) emitFromDef(this.particles, idef, f.x1, f.z1, { burst: true });
+          else if (f.type === 'proj') emitImpact(this.particles, f.element, f.x1, f.z1);
+        }
         continue;
       }
       keep.push(f);
@@ -261,7 +271,9 @@ export class Renderer {
         const px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t - 40 * s;
         // traînée de particules à la position courante de la tête
         const wx = f.x0 + (f.x1 - f.x0) * t, wz = f.z0 + (f.z1 - f.z0) * t;
-        emitTrail(this.particles, f.element, wx, wz);
+        const tdef = this.fxDef(f.fx?.trail);
+        if (tdef) emitFromDef(this.particles, tdef, wx, wz);
+        else emitTrail(this.particles, f.element, wx, wz);
         ctx.globalCompositeOperation = 'lighter';
         const g = ctx.createRadialGradient(px, py, 0, px, py, 14 * s);
         g.addColorStop(0, f.color || '#aaddff');
@@ -292,9 +304,18 @@ export class Renderer {
           ctx.stroke();
         }
         ctx.restore();
-        if (!f._sparked) { f._sparked = true; emitImpact(this.particles, 'air', f.x1, f.z1); }
+        if (!f._sparked) {
+          f._sparked = true;
+          const zdef = this.fxDef(f.fx?.impact);
+          if (zdef) emitFromDef(this.particles, zdef, f.x1, f.z1, { burst: true });
+          else emitImpact(this.particles, 'air', f.x1, f.z1);
+        }
       } else if (f.type === 'aoe') {
-        if (!f._burst) { f._burst = true; emitGround(this.particles, f.element, f.x, f.z, f.radius || 3); }
+        const gdef = this.fxDef(f.fx?.ground);
+        if (gdef) {
+          // émission CONTINUE pendant toute la durée de la zone, au rayon du sort
+          emitFromDef(this.particles, { ...gdef, radius: f.radius || gdef.radius }, f.x, f.z);
+        } else if (!f._burst) { f._burst = true; emitGround(this.particles, f.element, f.x, f.z, f.radius || 3); }
         const c = this.w2s(f.x, f.z);
         const r = (f.radius || 3) * HW * s * Math.min(1, t * 1.6);
         ctx.globalCompositeOperation = 'lighter';
