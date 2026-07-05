@@ -1,5 +1,5 @@
 console.log('[ParticleEditor] Script loaded.');
-import { Particles } from '../../../render2d/particles.js';
+import { Particles, emitFromDef } from '../../../render2d/particles.js';
 
 const particleStore = {
   // --- State ---
@@ -381,94 +381,25 @@ const particleStore = {
   emitParametricLocal() {
     if (!this.preview.running || !this.activeParticle) return;
     if (!this.preview.particles) this.preview.particles = new Particles();
-    
-    // Gather dynamic inputs from the DOM sliders
-    const density = parseInt(this.$('particle-density').value, 10) || 10;
-    const spawn = this.$('particle-spawn').value;
-    const movement = this.$('particle-movement').value;
-    const radius = parseFloat(this.$('particle-radius').value) || 0.1;
-    const size = parseFloat(this.$('particle-size').value) || 2.0;
-    const gravity = parseFloat(this.$('particle-gravity').value) || 0;
-    const speed = parseFloat(this.$('particle-speed').value) || 1.0;
-    const life = parseFloat(this.$('particle-life').value) || 0.5;
-    const drag = parseFloat(this.$('particle-drag').value) || 0.98;
-    const offsetX = parseFloat(this.$('particle-offset-x').value) || 0;
-    const offsetZ = parseFloat(this.$('particle-offset-z').value) || 0;
-    const offsetH = parseInt(this.$('particle-offset-h').value, 10) || 0;
-    
-    // Scale factor for the compact preview canvas (pixels)
-    const R = radius * 45; 
-    
-    // Spawns 'density' particles per frame in world coordinates (tiles)
-    for (let i = 0; i < density; i++) {
-      let px = offsetX;
-      let pz = offsetZ;
-      let ph = 18 + offsetH; // Default baseline height + vertical offset (height ph is in pixels)
-      
-      let vx = 0;
-      let vz = 0;
-      let vh = 0;
-      
-      const angle = Math.random() * Math.PI * 2;
-      
-      // 1. CALCULATE SPAWN GEOMETRY (Point, Ring, Circle, Sphere) in raw tiles
-      if (spawn === 'ring') {
-        px = offsetX + Math.cos(angle) * radius;
-        pz = offsetZ + Math.sin(angle) * radius;
-        ph = 2 + offsetH; // ground feet level + vertical offset
-      } else if (spawn === 'circle') {
-        const d = Math.sqrt(Math.random()) * radius;
-        px = offsetX + Math.cos(angle) * d;
-        pz = offsetZ + Math.sin(angle) * d;
-        ph = 2 + offsetH; // ground feet level + vertical offset
-      } else if (spawn === 'sphere') {
-        const elevation = (Math.random() - 0.5) * Math.PI;
-        const rSphere = radius * Math.cos(elevation);
-        px = offsetX + Math.cos(angle) * rSphere;
-        pz = offsetZ + Math.sin(angle) * rSphere;
-        // Height ph is in height pixels: convert radius (tiles) to pixels (1 tile = 32 pixels height)
-        ph = 18 + offsetH + Math.sin(elevation) * radius * 60; 
-      }
-      
-      // 2. CALCULATE INITIAL VELOCITY VECTOR (Outward, Upward, Orbit, Random)
-      if (movement === 'outward') {
-        const angleForce = (spawn === 'point') ? Math.random() * Math.PI * 2 : angle;
-        const force = speed * (0.8 + Math.random() * 0.4) * 1.5; 
-        vx = Math.cos(angleForce) * force;
-        vz = Math.sin(angleForce) * force;
-        if (spawn === 'sphere') {
-          const elevation = (Math.random() - 0.5) * Math.PI;
-          vh = Math.sin(elevation) * force;
-        }
-      } else if (movement === 'upward') {
-        vh = speed * 15 * (0.8 + Math.random() * 0.4); // vertical lift force
-      } else if (movement === 'orbit') {
-        const force = speed * 1.5;
-        vx = Math.cos(angle + Math.PI / 2) * force; // perpendicular tangential force
-        vz = Math.sin(angle + Math.PI / 2) * force;
-      } else if (movement === 'random') {
-        const force = speed * 1.5;
-        vx = (Math.random() - 0.5) * force * 2;
-        vz = (Math.random() - 0.5) * force * 2;
-        vh = (Math.random() - 0.5) * force * 2;
-      }
-      
-      const colors = this.activeParticle.colors || ['#ffffff'];
-      const pickedColor = colors[Math.floor(Math.random() * colors.length)];
-      
-      // Spawn particle with calculated properties
-      this.preview.particles.spawn({
-        x: px,
-        z: pz,
-        h: ph,
-        vx, vz, vh,
-        g: gravity,
-        life: life * (0.8 + Math.random() * 0.4),
-        size: size,
-        color: pickedColor,
-        drag: drag
-      });
-    }
+    // construit un def éphémère depuis les curseurs (aperçu LIVE, avant
+    // sauvegarde) et le confie à l'émetteur partagé du jeu : mêmes maths,
+    // même rendu qu'en partie.
+    const def = {
+      spawn: this.$('particle-spawn').value,
+      movement: this.$('particle-movement').value,
+      radius: parseFloat(this.$('particle-radius').value) || 0.1,
+      size: parseFloat(this.$('particle-size').value) || 2.0,
+      gravity: parseFloat(this.$('particle-gravity').value) || 0,
+      speed: parseFloat(this.$('particle-speed').value) || 1.0,
+      density: parseInt(this.$('particle-density').value, 10) || 10,
+      life: parseFloat(this.$('particle-life').value) || 0.5,
+      drag: parseFloat(this.$('particle-drag').value) || 0.98,
+      offsetX: parseFloat(this.$('particle-offset-x').value) || 0,
+      offsetZ: parseFloat(this.$('particle-offset-z').value) || 0,
+      offsetH: parseInt(this.$('particle-offset-h').value, 10) || 0,
+      colors: this.activeParticle.colors || ['#ffffff'],
+    };
+    emitFromDef(this.preview.particles, def, 0, 0, { raw: true });
   }
 };
 
