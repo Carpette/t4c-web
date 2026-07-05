@@ -1,5 +1,5 @@
 {
-  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration.",
+  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration. Familles par préfixe : proj_ (traînée de projectile, émission continue), imp_ (impact, burst), sol_ (zone au sol, émission continue pendant l'AoE), soin_/bouclier_/buff_ (soutien au lanceur ou à la cible), malefice_ (débuffs), event_ (événements de jeu). Les 14 presets historiques (feu_trail, …) sont conservés tels quels.",
   "particles": [
     {
       "id": "feu_trail",
@@ -7,7 +7,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#ff5010", "#ff9040", "#ffd24a"],
+      "colors": [
+        "#ff5010",
+        "#ff9040",
+        "#ffd24a"
+      ],
       "size": 3.5,
       "density": 2,
       "gravity": -55,
@@ -21,7 +25,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#ff5010", "#ff9040", "#ffd24a"],
+      "colors": [
+        "#ff5010",
+        "#ff9040",
+        "#ffd24a"
+      ],
       "size": 3.5,
       "density": 14,
       "gravity": 140,
@@ -35,7 +43,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#bfeaff", "#9fd4ff", "#ffffff"],
+      "colors": [
+        "#bfeaff",
+        "#9fd4ff",
+        "#ffffff"
+      ],
       "size": 2.6,
       "density": 2,
       "gravity": -25,
@@ -49,7 +61,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#bfeaff", "#9fd4ff", "#ffffff"],
+      "colors": [
+        "#bfeaff",
+        "#9fd4ff",
+        "#ffffff"
+      ],
       "size": 2.6,
       "density": 14,
       "gravity": 140,
@@ -63,7 +79,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#e8f4ff", "#9fe4ff", "#ffffff"],
+      "colors": [
+        "#e8f4ff",
+        "#9fe4ff",
+        "#ffffff"
+      ],
       "size": 2.2,
       "density": 2,
       "gravity": -40,
@@ -77,7 +97,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#e8f4ff", "#9fe4ff", "#ffffff"],
+      "colors": [
+        "#e8f4ff",
+        "#9fe4ff",
+        "#ffffff"
+      ],
       "size": 2.2,
       "density": 14,
       "gravity": 140,
@@ -91,7 +115,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#b89868", "#8a6a48", "#d8c8a8"],
+      "colors": [
+        "#b89868",
+        "#8a6a48",
+        "#d8c8a8"
+      ],
       "size": 3.2,
       "density": 2,
       "gravity": -30,
@@ -105,7 +133,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#b89868", "#8a6a48", "#d8c8a8"],
+      "colors": [
+        "#b89868",
+        "#8a6a48",
+        "#d8c8a8"
+      ],
       "size": 3.2,
       "density": 14,
       "gravity": 140,
@@ -119,7 +151,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#fff4c8", "#ffe9a8", "#ffffff"],
+      "colors": [
+        "#fff4c8",
+        "#ffe9a8",
+        "#ffffff"
+      ],
       "size": 3.0,
       "density": 2,
       "gravity": -60,
@@ -133,7 +169,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#fff4c8", "#ffe9a8", "#ffffff"],
+      "colors": [
+        "#fff4c8",
+        "#ffe9a8",
+        "#ffffff"
+      ],
       "size": 3.0,
       "density": 14,
       "gravity": 140,
@@ -147,7 +187,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#b040b0", "#7a2090", "#d070d0"],
+      "colors": [
+        "#b040b0",
+        "#7a2090",
+        "#d070d0"
+      ],
       "size": 3.0,
       "density": 2,
       "gravity": -35,
@@ -161,7 +205,11 @@
       "spawn": "point",
       "movement": "outward",
       "radius": 0.1,
-      "colors": ["#b040b0", "#7a2090", "#d070d0"],
+      "colors": [
+        "#b040b0",
+        "#7a2090",
+        "#d070d0"
+      ],
       "size": 3.0,
       "density": 14,
       "gravity": 140,
@@ -175,7 +223,10 @@
       "spawn": "sphere",
       "movement": "orbit",
       "radius": 1.1,
-      "colors": ["#9ad4ff", "#ffffff"],
+      "colors": [
+        "#9ad4ff",
+        "#ffffff"
+      ],
       "size": 2.4,
       "density": 30,
       "gravity": 0,
@@ -189,13 +240,985 @@
       "spawn": "circle",
       "movement": "upward",
       "radius": 0.5,
-      "colors": ["#8af88a", "#fff4c8"],
+      "colors": [
+        "#8af88a",
+        "#fff4c8"
+      ],
       "size": 2.6,
       "density": 10,
       "gravity": -35,
       "speed": 0.0,
       "life": 0.9,
       "drag": 1.0
+    },
+    {
+      "id": "proj_feu",
+      "name": "Projectile · Feu",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#ff5010",
+        "#ff9040",
+        "#ffd24a"
+      ],
+      "size": 3.4,
+      "density": 2,
+      "gravity": -60,
+      "speed": 1.4,
+      "life": 0.45,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_glace",
+      "name": "Projectile · Glace",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#bfeaff",
+        "#9fd4ff",
+        "#ffffff"
+      ],
+      "size": 2.4,
+      "density": 2,
+      "gravity": 110,
+      "speed": 0.9,
+      "life": 0.55,
+      "drag": 0.99
+    },
+    {
+      "id": "proj_foudre",
+      "name": "Projectile · Foudre",
+      "spawn": "point",
+      "movement": "random",
+      "radius": 0.1,
+      "colors": [
+        "#fff59a",
+        "#aee6ff",
+        "#ffffff"
+      ],
+      "size": 2.0,
+      "density": 2,
+      "gravity": 0,
+      "speed": 3.2,
+      "life": 0.18,
+      "drag": 1.0
+    },
+    {
+      "id": "proj_eau",
+      "name": "Projectile · Eau",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#4a90d9",
+        "#7fb8e8",
+        "#bfe2ff"
+      ],
+      "size": 2.8,
+      "density": 2,
+      "gravity": 60,
+      "speed": 1.2,
+      "life": 0.5,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_air",
+      "name": "Projectile · Air",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.22,
+      "colors": [
+        "#e8f4ff",
+        "#cfe8ff",
+        "#ffffff"
+      ],
+      "size": 1.8,
+      "density": 2,
+      "gravity": 0,
+      "speed": 2.0,
+      "life": 0.35,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_terre",
+      "name": "Projectile · Terre",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#8a6a42",
+        "#a98a5f",
+        "#6b4f2a"
+      ],
+      "size": 3.2,
+      "density": 2,
+      "gravity": 180,
+      "speed": 1.0,
+      "life": 0.6,
+      "drag": 0.99
+    },
+    {
+      "id": "proj_lumiere",
+      "name": "Projectile · Lumière",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#fff2c0",
+        "#ffe08a",
+        "#ffffff"
+      ],
+      "size": 2.6,
+      "density": 2,
+      "gravity": -30,
+      "speed": 0.7,
+      "life": 0.6,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_ombre",
+      "name": "Projectile · Ombre",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#3a2a55",
+        "#5a3a80",
+        "#20143a"
+      ],
+      "size": 3.6,
+      "density": 2,
+      "gravity": -15,
+      "speed": 0.6,
+      "life": 0.7,
+      "drag": 0.95
+    },
+    {
+      "id": "proj_arcane",
+      "name": "Projectile · Arcane",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.18,
+      "colors": [
+        "#b06aff",
+        "#7a3aff",
+        "#e0c0ff"
+      ],
+      "size": 2.4,
+      "density": 2,
+      "gravity": 0,
+      "speed": 1.8,
+      "life": 0.4,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_poison",
+      "name": "Projectile · Poison",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#62c94a",
+        "#3f8f2f",
+        "#a8e08a"
+      ],
+      "size": 3.0,
+      "density": 2,
+      "gravity": 45,
+      "speed": 0.8,
+      "life": 0.65,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_sang",
+      "name": "Projectile · Sang",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#a01818",
+        "#d04040",
+        "#601010"
+      ],
+      "size": 2.6,
+      "density": 2,
+      "gravity": 150,
+      "speed": 1.1,
+      "life": 0.5,
+      "drag": 0.97
+    },
+    {
+      "id": "proj_sacre",
+      "name": "Projectile · Sacré",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#ffe9b0",
+        "#ffd24a",
+        "#fff8e0"
+      ],
+      "size": 2.8,
+      "density": 2,
+      "gravity": -45,
+      "speed": 0.8,
+      "life": 0.55,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_feu",
+      "name": "Impact · Feu",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#ff5010",
+        "#ff9040",
+        "#ffd24a"
+      ],
+      "size": 3.5,
+      "density": 14,
+      "gravity": 140,
+      "speed": 1.6,
+      "life": 0.55,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_glace",
+      "name": "Impact · Glace",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#bfeaff",
+        "#9fd4ff",
+        "#ffffff"
+      ],
+      "size": 2.4,
+      "density": 16,
+      "gravity": 220,
+      "speed": 2.2,
+      "life": 0.6,
+      "drag": 0.99
+    },
+    {
+      "id": "imp_foudre",
+      "name": "Impact · Foudre",
+      "spawn": "point",
+      "movement": "random",
+      "radius": 0.1,
+      "colors": [
+        "#fff59a",
+        "#aee6ff",
+        "#ffffff"
+      ],
+      "size": 2.0,
+      "density": 18,
+      "gravity": 0,
+      "speed": 4.0,
+      "life": 0.22,
+      "drag": 1.0
+    },
+    {
+      "id": "imp_eau",
+      "name": "Impact · Eau",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#4a90d9",
+        "#7fb8e8",
+        "#bfe2ff"
+      ],
+      "size": 3.0,
+      "density": 15,
+      "gravity": 180,
+      "speed": 1.8,
+      "life": 0.5,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_air",
+      "name": "Impact · Air",
+      "spawn": "ring",
+      "movement": "outward",
+      "radius": 0.15,
+      "colors": [
+        "#e8f4ff",
+        "#cfe8ff",
+        "#ffffff"
+      ],
+      "size": 1.8,
+      "density": 14,
+      "gravity": 0,
+      "speed": 3.0,
+      "life": 0.4,
+      "drag": 0.94
+    },
+    {
+      "id": "imp_terre",
+      "name": "Impact · Terre",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#8a6a42",
+        "#a98a5f",
+        "#6b4f2a"
+      ],
+      "size": 3.6,
+      "density": 16,
+      "gravity": 300,
+      "speed": 2.0,
+      "life": 0.7,
+      "drag": 0.99
+    },
+    {
+      "id": "imp_lumiere",
+      "name": "Impact · Lumière",
+      "spawn": "sphere",
+      "movement": "outward",
+      "radius": 0.3,
+      "colors": [
+        "#fff2c0",
+        "#ffe08a",
+        "#ffffff"
+      ],
+      "size": 2.8,
+      "density": 14,
+      "gravity": -20,
+      "speed": 1.4,
+      "life": 0.5,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_ombre",
+      "name": "Impact · Ombre",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#3a2a55",
+        "#5a3a80",
+        "#20143a"
+      ],
+      "size": 4.2,
+      "density": 12,
+      "gravity": -25,
+      "speed": 1.0,
+      "life": 0.8,
+      "drag": 0.93
+    },
+    {
+      "id": "imp_arcane",
+      "name": "Impact · Arcane",
+      "spawn": "sphere",
+      "movement": "outward",
+      "radius": 0.25,
+      "colors": [
+        "#b06aff",
+        "#7a3aff",
+        "#e0c0ff"
+      ],
+      "size": 2.6,
+      "density": 15,
+      "gravity": 0,
+      "speed": 1.8,
+      "life": 0.45,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_poison",
+      "name": "Impact · Poison",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#62c94a",
+        "#3f8f2f",
+        "#a8e08a"
+      ],
+      "size": 3.4,
+      "density": 14,
+      "gravity": 60,
+      "speed": 1.2,
+      "life": 0.8,
+      "drag": 0.96
+    },
+    {
+      "id": "imp_sang",
+      "name": "Impact · Sang",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#a01818",
+        "#d04040",
+        "#601010"
+      ],
+      "size": 2.8,
+      "density": 16,
+      "gravity": 260,
+      "speed": 1.8,
+      "life": 0.55,
+      "drag": 0.97
+    },
+    {
+      "id": "imp_sacre",
+      "name": "Impact · Sacré",
+      "spawn": "ring",
+      "movement": "outward",
+      "radius": 0.2,
+      "colors": [
+        "#ffe9b0",
+        "#ffd24a",
+        "#fff8e0"
+      ],
+      "size": 2.8,
+      "density": 14,
+      "gravity": -40,
+      "speed": 1.2,
+      "life": 0.6,
+      "drag": 0.97
+    },
+    {
+      "id": "sol_cercle_runique",
+      "name": "Sol · Cercle runique",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 1.0,
+      "colors": [
+        "#fff2c0",
+        "#ffe08a",
+        "#ffffff"
+      ],
+      "size": 2.4,
+      "density": 5,
+      "gravity": -8,
+      "speed": 0.9,
+      "life": 0.7,
+      "drag": 1.0
+    },
+    {
+      "id": "sol_nova_givre",
+      "name": "Sol · Nova de givre",
+      "spawn": "ring",
+      "movement": "outward",
+      "radius": 0.3,
+      "colors": [
+        "#bfeaff",
+        "#9fd4ff",
+        "#ffffff"
+      ],
+      "size": 2.2,
+      "density": 8,
+      "gravity": 10,
+      "speed": 3.2,
+      "life": 0.45,
+      "drag": 0.96
+    },
+    {
+      "id": "sol_geyser",
+      "name": "Sol · Geyser",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.25,
+      "colors": [
+        "#4a90d9",
+        "#7fb8e8",
+        "#bfe2ff"
+      ],
+      "size": 3.0,
+      "density": 7,
+      "gravity": 260,
+      "speed": 3.0,
+      "life": 0.9,
+      "drag": 1.0
+    },
+    {
+      "id": "sol_pluie_feu",
+      "name": "Sol · Pluie de feu",
+      "spawn": "circle",
+      "movement": "random",
+      "radius": 1.2,
+      "colors": [
+        "#ff5010",
+        "#ff9040",
+        "#ffd24a"
+      ],
+      "size": 3.2,
+      "density": 6,
+      "gravity": 420,
+      "speed": 0.6,
+      "life": 0.7,
+      "drag": 0.97,
+      "offsetH": 140
+    },
+    {
+      "id": "sol_nuage_toxique",
+      "name": "Sol · Nuage toxique",
+      "spawn": "circle",
+      "movement": "random",
+      "radius": 1.0,
+      "colors": [
+        "#62c94a",
+        "#3f8f2f",
+        "#a8e08a"
+      ],
+      "size": 4.2,
+      "density": 4,
+      "gravity": -12,
+      "speed": 0.4,
+      "life": 1.1,
+      "drag": 0.97
+    },
+    {
+      "id": "sol_epines_terre",
+      "name": "Sol · Éruption tellurique",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.9,
+      "colors": [
+        "#8a6a42",
+        "#a98a5f",
+        "#6b4f2a"
+      ],
+      "size": 3.4,
+      "density": 6,
+      "gravity": 340,
+      "speed": 2.2,
+      "life": 0.7,
+      "drag": 0.97
+    },
+    {
+      "id": "sol_tempete_arcane",
+      "name": "Sol · Tempête arcanique",
+      "spawn": "sphere",
+      "movement": "orbit",
+      "radius": 0.9,
+      "colors": [
+        "#b06aff",
+        "#7a3aff",
+        "#e0c0ff"
+      ],
+      "size": 2.4,
+      "density": 6,
+      "gravity": 0,
+      "speed": 2.4,
+      "life": 0.6,
+      "drag": 0.97
+    },
+    {
+      "id": "sol_voile_ombre",
+      "name": "Sol · Voile d’ombre",
+      "spawn": "circle",
+      "movement": "random",
+      "radius": 1.0,
+      "colors": [
+        "#3a2a55",
+        "#5a3a80",
+        "#20143a"
+      ],
+      "size": 4.6,
+      "density": 4,
+      "gravity": -8,
+      "speed": 0.35,
+      "life": 1.2,
+      "drag": 0.95
+    },
+    {
+      "id": "sol_benediction",
+      "name": "Sol · Bénédiction",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.9,
+      "colors": [
+        "#ffe9b0",
+        "#ffd24a",
+        "#fff8e0"
+      ],
+      "size": 2.4,
+      "density": 4,
+      "gravity": 30,
+      "speed": 1.0,
+      "life": 0.9,
+      "drag": 0.97
+    },
+    {
+      "id": "sol_sang_bouillonnant",
+      "name": "Sol · Sang bouillonnant",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.8,
+      "colors": [
+        "#a01818",
+        "#d04040",
+        "#601010"
+      ],
+      "size": 2.8,
+      "density": 5,
+      "gravity": 200,
+      "speed": 1.4,
+      "life": 0.6,
+      "drag": 0.97
+    },
+    {
+      "id": "soin_mineur",
+      "name": "Soin · Mineur",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.4,
+      "colors": [
+        "#9fe6a0",
+        "#d4ffd6",
+        "#ffffff"
+      ],
+      "size": 2.6,
+      "density": 4,
+      "gravity": 25,
+      "speed": 1.2,
+      "life": 0.8,
+      "drag": 0.97
+    },
+    {
+      "id": "soin_majeur",
+      "name": "Soin · Majeur",
+      "spawn": "sphere",
+      "movement": "upward",
+      "radius": 0.5,
+      "colors": [
+        "#9fe6a0",
+        "#e8ffe9",
+        "#ffd24a"
+      ],
+      "size": 3.0,
+      "density": 7,
+      "gravity": 20,
+      "speed": 1.6,
+      "life": 0.9,
+      "drag": 0.97
+    },
+    {
+      "id": "soin_regeneration",
+      "name": "Soin · Régénération",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.45,
+      "colors": [
+        "#9fe6a0",
+        "#5fbf70"
+      ],
+      "size": 2.0,
+      "density": 3,
+      "gravity": -18,
+      "speed": 1.0,
+      "life": 1.2,
+      "drag": 1.0
+    },
+    {
+      "id": "bouclier_arcane",
+      "name": "Bouclier · Arcane",
+      "spawn": "sphere",
+      "movement": "orbit",
+      "radius": 0.55,
+      "colors": [
+        "#b06aff",
+        "#7a3aff",
+        "#e0c0ff"
+      ],
+      "size": 2.2,
+      "density": 4,
+      "gravity": 0,
+      "speed": 1.4,
+      "life": 0.7,
+      "drag": 1.0
+    },
+    {
+      "id": "bouclier_sacre",
+      "name": "Bouclier · Sacré",
+      "spawn": "ring",
+      "movement": "upward",
+      "radius": 0.5,
+      "colors": [
+        "#ffe9b0",
+        "#ffd24a",
+        "#fff8e0"
+      ],
+      "size": 2.4,
+      "density": 4,
+      "gravity": 35,
+      "speed": 1.1,
+      "life": 0.8,
+      "drag": 0.97
+    },
+    {
+      "id": "bouclier_epines",
+      "name": "Bouclier · Épines",
+      "spawn": "sphere",
+      "movement": "random",
+      "radius": 0.5,
+      "colors": [
+        "#8a6a42",
+        "#62c94a",
+        "#4a3a20"
+      ],
+      "size": 2.4,
+      "density": 4,
+      "gravity": 0,
+      "speed": 0.9,
+      "life": 0.6,
+      "drag": 0.97
+    },
+    {
+      "id": "buff_force",
+      "name": "Buff · Force",
+      "spawn": "point",
+      "movement": "upward",
+      "radius": 0.1,
+      "colors": [
+        "#ff6040",
+        "#ffb090",
+        "#ffd24a"
+      ],
+      "size": 2.8,
+      "density": 4,
+      "gravity": 40,
+      "speed": 1.6,
+      "life": 0.7,
+      "drag": 0.97
+    },
+    {
+      "id": "buff_celerite",
+      "name": "Buff · Célérité",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.4,
+      "colors": [
+        "#ffe97a",
+        "#fff8c0"
+      ],
+      "size": 1.8,
+      "density": 5,
+      "gravity": 0,
+      "speed": 3.0,
+      "life": 0.4,
+      "drag": 1.0
+    },
+    {
+      "id": "buff_esprit",
+      "name": "Buff · Esprit",
+      "spawn": "sphere",
+      "movement": "outward",
+      "radius": 0.35,
+      "colors": [
+        "#7ab0ff",
+        "#c0dcff",
+        "#ffffff"
+      ],
+      "size": 2.2,
+      "density": 4,
+      "gravity": -25,
+      "speed": 0.7,
+      "life": 0.9,
+      "drag": 0.97
+    },
+    {
+      "id": "buff_chance",
+      "name": "Buff · Chance",
+      "spawn": "point",
+      "movement": "random",
+      "radius": 0.1,
+      "colors": [
+        "#c9e86a",
+        "#ffd24a",
+        "#ffffff"
+      ],
+      "size": 2.0,
+      "density": 3,
+      "gravity": -10,
+      "speed": 0.8,
+      "life": 0.8,
+      "drag": 0.97
+    },
+    {
+      "id": "malefice_faiblesse",
+      "name": "Maléfice · Faiblesse",
+      "spawn": "sphere",
+      "movement": "random",
+      "radius": 0.4,
+      "colors": [
+        "#5a3a80",
+        "#3a2a55"
+      ],
+      "size": 3.0,
+      "density": 4,
+      "gravity": 90,
+      "speed": 0.5,
+      "life": 0.9,
+      "drag": 0.95
+    },
+    {
+      "id": "malefice_poison",
+      "name": "Maléfice · Empoisonnement",
+      "spawn": "sphere",
+      "movement": "random",
+      "radius": 0.35,
+      "colors": [
+        "#62c94a",
+        "#3f8f2f",
+        "#a8e08a"
+      ],
+      "size": 2.6,
+      "density": 3,
+      "gravity": 70,
+      "speed": 0.5,
+      "life": 1.0,
+      "drag": 0.97
+    },
+    {
+      "id": "malefice_terreur",
+      "name": "Maléfice · Terreur",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.45,
+      "colors": [
+        "#3a2a55",
+        "#5a3a80",
+        "#20143a"
+      ],
+      "size": 3.4,
+      "density": 4,
+      "gravity": -12,
+      "speed": 1.8,
+      "life": 0.7,
+      "drag": 0.96
+    },
+    {
+      "id": "malefice_silence",
+      "name": "Maléfice · Silence",
+      "spawn": "sphere",
+      "movement": "random",
+      "radius": 0.4,
+      "colors": [
+        "#8a8a9a",
+        "#5a5a6a"
+      ],
+      "size": 2.6,
+      "density": 3,
+      "gravity": 0,
+      "speed": 0.3,
+      "life": 1.1,
+      "drag": 0.94
+    },
+    {
+      "id": "event_levelup",
+      "name": "Événement · Niveau supérieur",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.4,
+      "colors": [
+        "#ffd24a",
+        "#fff2c0",
+        "#ffffff"
+      ],
+      "size": 3.0,
+      "density": 9,
+      "gravity": 60,
+      "speed": 2.6,
+      "life": 1.0,
+      "drag": 0.97
+    },
+    {
+      "id": "event_teleport",
+      "name": "Événement · Téléportation",
+      "spawn": "ring",
+      "movement": "orbit",
+      "radius": 0.5,
+      "colors": [
+        "#7ae8ff",
+        "#c0f4ff",
+        "#ffffff"
+      ],
+      "size": 2.4,
+      "density": 8,
+      "gravity": -40,
+      "speed": 2.8,
+      "life": 0.5,
+      "drag": 1.0
+    },
+    {
+      "id": "event_invocation",
+      "name": "Événement · Invocation",
+      "spawn": "circle",
+      "movement": "upward",
+      "radius": 0.7,
+      "colors": [
+        "#b06aff",
+        "#7a3aff",
+        "#e0c0ff"
+      ],
+      "size": 2.8,
+      "density": 7,
+      "gravity": 90,
+      "speed": 2.0,
+      "life": 0.8,
+      "drag": 0.97
+    },
+    {
+      "id": "event_mort",
+      "name": "Événement · Mort",
+      "spawn": "circle",
+      "movement": "outward",
+      "radius": 0.3,
+      "colors": [
+        "#8a8070",
+        "#5a5248",
+        "#3a352e"
+      ],
+      "size": 3.6,
+      "density": 6,
+      "gravity": 50,
+      "speed": 0.8,
+      "life": 0.9,
+      "drag": 0.95
+    },
+    {
+      "id": "event_tresor",
+      "name": "Événement · Trésor",
+      "spawn": "point",
+      "movement": "outward",
+      "radius": 0.1,
+      "colors": [
+        "#ffd24a",
+        "#ffec9a",
+        "#ffffff"
+      ],
+      "size": 2.2,
+      "density": 8,
+      "gravity": 180,
+      "speed": 2.0,
+      "life": 0.7,
+      "drag": 0.97
+    },
+    {
+      "id": "event_resurrection",
+      "name": "Événement · Résurrection",
+      "spawn": "sphere",
+      "movement": "upward",
+      "radius": 0.5,
+      "colors": [
+        "#fff8e0",
+        "#ffe9b0",
+        "#ffffff"
+      ],
+      "size": 3.0,
+      "density": 8,
+      "gravity": 15,
+      "speed": 1.4,
+      "life": 1.1,
+      "drag": 0.97
     }
   ]
 }
