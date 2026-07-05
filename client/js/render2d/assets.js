@@ -63,5 +63,12 @@ export async function loadAssets(onProgress) {
     };
     img.src = '/assets/' + p;
   })));
-  return { manifest, images, skins };
+  // bibliothèque d'effets de particules (attribution des fx aux sorts)
+  let fxById = {};
+  try {
+    const raw = await (await fetch('/content/particles.json')).json();
+    for (const p of raw.particles || []) fxById[p.id] = p;
+  } catch { /* pas de bibliothèque : les sorts gardent leurs effets par élément */ }
+
+  return { manifest, images, skins, fxById };
 }

@@ -172,7 +172,7 @@ export class Character extends Entity {
 
     const maxHpVal = this.eff?.maxHp || this.maxHp || 100;
     this.hp = Math.min(maxHpVal, this.hp + healAmount);
-    game.eventNear(this, { t: 'fx', kind: 'heal', id: this.id });
+    game.eventNear(this, { t: 'fx', kind: 'heal', id: this.id, fx: ae.fx });
     if (this.kind === C.KIND.PLAYER) {
       game.send(this, { t: 'vitals', hp: Math.round(this.hp), mana: Math.round(this.mana) });
     }
