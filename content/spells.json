@@ -20,7 +20,10 @@
           "duration": 600,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "self": "buff_esprit"
+      }
     },
     {
       "id": "dard_de_feu",
@@ -45,7 +48,11 @@
           "duration": 0,
           "element": "fire"
         }
-      ]
+      ],
+      "fx": {
+        "trail": "proj_feu",
+        "impact": "imp_feu"
+      }
     },
     {
       "id": "fleche_enflammee",
@@ -121,7 +128,11 @@
           "duration": 0,
           "element": "fire"
         }
-      ]
+      ],
+      "fx": {
+        "impact": "imp_feu",
+        "ground": "sol_pluie_feu"
+      }
     },
     {
       "id": "detection_des_choses_cachees",
@@ -207,7 +218,10 @@
           "category": "magique",
           "element": "fire"
         }
-      ]
+      ],
+      "fx": {
+        "self": "bouclier_epines"
+      }
     },
     {
       "id": "detection_de_l_invisible",
@@ -299,7 +313,10 @@
           "duration": 0,
           "element": "fire"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_pluie_feu"
+      }
     },
     {
       "id": "inferno",
@@ -402,7 +419,11 @@
           "dot_max": 2,
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "trail": "proj_poison",
+        "impact": "imp_poison"
+      }
     },
     {
       "id": "eclat_de_glace",
@@ -427,7 +448,11 @@
           "duration": 0,
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "trail": "proj_glace",
+        "impact": "imp_glace"
+      }
     },
     {
       "id": "fleche_empoisonnee",
@@ -461,7 +486,11 @@
           "dot_max": 2,
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "trail": "proj_poison",
+        "impact": "imp_poison"
+      }
     },
     {
       "id": "gel",
@@ -738,7 +767,10 @@
           "duration": 0,
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_nova_givre"
+      }
     },
     {
       "id": "avalanche",
@@ -786,7 +818,10 @@
           "category": "magique",
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "self": "bouclier_arcane"
+      }
     },
     {
       "id": "tsunami",
@@ -812,7 +847,10 @@
           "duration": 0,
           "element": "water"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_geyser"
+      }
     },
     {
       "id": "tourbillon",
@@ -862,7 +900,10 @@
           "duration": 0,
           "element": "air"
         }
-      ]
+      ],
+      "fx": {
+        "impact": "imp_foudre"
+      }
     },
     {
       "id": "mot_de_rappel",
@@ -929,7 +970,11 @@
           "duration": 0,
           "element": "air"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_tempete_arcane",
+        "impact": "imp_foudre"
+      }
     },
     {
       "id": "vortex_d_air",
@@ -976,7 +1021,10 @@
           "duration": 120,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "self": "buff_celerite"
+      }
     },
     {
       "id": "bouclier_electrique",
@@ -1039,7 +1087,10 @@
           "duration": 0,
           "element": "air"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_nova_givre"
+      }
     },
     {
       "id": "ouragan",
@@ -1090,7 +1141,11 @@
           "duration": 0,
           "element": "earth"
         }
-      ]
+      ],
+      "fx": {
+        "trail": "proj_terre",
+        "impact": "imp_terre"
+      }
     },
     {
       "id": "protection",
@@ -1111,7 +1166,10 @@
           "duration": 180,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "self": "bouclier_epines"
+      }
     },
     {
       "id": "fracassement",
