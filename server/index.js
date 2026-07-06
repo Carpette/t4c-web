@@ -71,7 +71,7 @@ wss.on('connection', (ws) => {
   let pendingAuth = null; // compte authentifié en attente de création de personnage
 
   const join = (res) => {
-    const joined = game.addPlayer(ws, res.accountId, res.name, res.isAdmin);
+    const joined = game.addPlayer(ws, res.accountId, res.name, res.isAdmin, res.perms);
     if (joined.error) { ws.send(JSON.stringify({ t: 'auth_error', error: joined.error })); return; }
     player = joined.player;
   };

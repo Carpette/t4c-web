@@ -389,7 +389,7 @@ export class Game {
   }
 
   // ---------- Joueurs ----------
-  addPlayer(ws, accountId, name, isAdmin) {
+  addPlayer(ws, accountId, name, isAdmin, perms = []) {
     if (this.shuttingDown) return { error: 'Le serveur est en cours d\'arrêt, réessayez dans un instant.' };
     if (this.players.size >= C.MAX_PLAYERS) return { error: 'Serveur plein (256 joueurs max)' };
     for (const p of this.players.values()) {
@@ -401,6 +401,7 @@ export class Game {
       db.saveCharacter(accountId, data);
     }
     const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
+    p.perms = Array.isArray(perms) ? perms : [];
     for (const it of p.inventory) setNextIid(it.iid + 1);
     for (const it of p.bank) setNextIid(it.iid + 1);
 
@@ -423,7 +424,7 @@ export class Game {
     this.players.set(p.id, p);
     zi.add(p);
     zi.players++;
-    this.send(p, { t: 'welcome', id: p.id, time: this.worldTime, admin: p.isAdmin });
+    this.send(p, { t: 'welcome', id: p.id, time: this.worldTime, admin: p.isAdmin, perms: this.permsOf(p) });
     this.sendZone(p);
     this.sendSelf(p);
     this.broadcastChat('sys', `${p.name} entre dans le monde.`);
@@ -1195,7 +1196,7 @@ export class Game {
         break;
       }
       case 'admin': {
-        if (!p.isAdmin) return;
+        if (!p.isAdmin && !(p.perms || []).length) return;
         this.adminCommand(p, msg);
         break;
       }
@@ -1203,7 +1204,14 @@ export class Game {
   }
 
   // ---------- Commandes d'administration (en jeu) ----------
+  // Un super admin (is_admin) a toutes les permissions ; sinon chaque commande
+  // exige la permission correspondante (attribuée dans l'admin, onglet Comptes).
+  hasPerm(p, perm) { return !!p.isAdmin || (p.perms || []).includes(perm); }
+  permsOf(p) { return p.isAdmin ? [...C.ADMIN_PERMS] : (p.perms || []).filter(x => C.ADMIN_PERMS.includes(x)); }
+
   adminCommand(p, msg) {
+    const PERM_BY_CMD = { set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players' };
+    if (!this.hasPerm(p, PERM_BY_CMD[msg.cmd] || '__inconnu__')) return;
     switch (msg.cmd) {
       case 'set': {
         if (Number.isFinite(+msg.level)) {

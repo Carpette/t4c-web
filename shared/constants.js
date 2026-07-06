@@ -172,3 +172,14 @@ export const MUSIC_EVAL_EVERY_TICKS = 3;
 // (pas de clignotement de la teinte au ras d'une frontière de zone d'ambiance).
 export const AMBIENCE_ZONE_HYSTERESIS = MUSIC_ZONE_HYSTERESIS;
 export const AMBIENCE_EVAL_EVERY_TICKS = MUSIC_EVAL_EVERY_TICKS;
+
+// Permissions d'administration par compte (rôles composables : un « super
+// admin » a is_admin = 1 et donc TOUTES les permissions ; un « animateur »
+// n'en reçoit que certaines). Liste canonique, partagée serveur/client/admin :
+//   players — commandes joueur en jeu (niveau, or, stats, téléportation, sorts)
+//   spawn   — invocation de créatures et d'objets en jeu
+//   map     — édition de la carte en jeu (tuiles, décors)
+//   quests  — édition des dialogues/quêtes des PNJ (en jeu et dans l'admin)
+//   roles   — consultation des comptes et de leurs permissions dans l'admin
+//             (l'ATTRIBUTION des permissions reste réservée aux super admins)
+export const ADMIN_PERMS = ['players', 'spawn', 'map', 'quests', 'roles'];

@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS deaths (
 );
 `);
 try { db.exec('ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
+try { db.exec("ALTER TABLE accounts ADD COLUMN perms TEXT NOT NULL DEFAULT '[]'"); } catch { /* déjà présente */ }
 // Auto-réparation : s'il existe des comptes mais aucun administrateur
 // (base créée avant la fonctionnalité admin), promeut le plus ancien.
 {
@@ -57,7 +58,7 @@ export function register(name, pass) {
   const isFirst = db.prepare('SELECT COUNT(*) AS n FROM accounts').get().n === 0;
   const info = db.prepare('INSERT INTO accounts (name, hash, salt, created_at, is_admin) VALUES (?, ?, ?, ?, ?)')
     .run(name, hashPassword(pass, salt), salt, Date.now(), isFirst ? 1 : 0);
-  return { accountId: info.lastInsertRowid, name, isAdmin: isFirst };
+  return { accountId: info.lastInsertRowid, name, isAdmin: isFirst, perms: [] };
 }
 
 export function login(name, pass) {
@@ -65,7 +66,7 @@ export function login(name, pass) {
   if (!acc) return { error: 'Compte inconnu' };
   const h = hashPassword(pass, acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(h), Buffer.from(acc.hash))) return { error: 'Mot de passe incorrect' };
-  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin };
+  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin, perms: parsePerms(acc.perms) };
 }
 
 export function deleteCharacter(accountId) {
@@ -86,6 +87,27 @@ export function listCharacters() {
   return db.prepare(`SELECT a.id, a.name, a.is_admin, c.data FROM accounts a
                      LEFT JOIN characters c ON c.account_id = a.id`).all();
 }
+function parsePerms(raw) {
+  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string') : []; }
+  catch { return []; }
+}
+
+// permissions d'un compte (voir shared/constants.js ADMIN_PERMS)
+export function getPerms(accountId) {
+  const acc = db.prepare('SELECT is_admin, perms FROM accounts WHERE id = ?').get(accountId);
+  if (!acc) return { isAdmin: false, perms: [] };
+  return { isAdmin: !!acc.is_admin, perms: parsePerms(acc.perms) };
+}
+
+export function setPerms(accountId, perms) {
+  db.prepare('UPDATE accounts SET perms = ? WHERE id = ?').run(JSON.stringify(perms), accountId);
+}
+
+export function listAccounts() {
+  return db.prepare('SELECT id, name, is_admin, perms, created_at FROM accounts ORDER BY id').all()
+    .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, perms: parsePerms(a.perms), createdAt: a.created_at }));
+}
+
 export function setAdmin(accountId, val) {
   db.prepare('UPDATE accounts SET is_admin = ? WHERE id = ?').run(val ? 1 : 0, accountId);
 }
