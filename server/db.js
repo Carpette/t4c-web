@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS characters (
   account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
   data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS world_kv (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS deaths (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -106,6 +110,15 @@ export function setPerms(accountId, perms) {
 export function listAccounts() {
   return db.prepare('SELECT id, name, is_admin, perms, created_at FROM accounts ORDER BY id').all()
     .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, perms: parsePerms(a.perms), createdAt: a.created_at }));
+}
+
+// état du monde persistant (ex. prochaine venue d'un boss de zone)
+export function getKV(key) {
+  return db.prepare('SELECT value FROM world_kv WHERE key = ?').get(key)?.value ?? null;
+}
+export function setKV(key, value) {
+  db.prepare('INSERT INTO world_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run(key, String(value));
 }
 
 export function setAdmin(accountId, val) {
