@@ -1,4 +1,7 @@
-// API HTTP d'administration : contenu, cartes (overrides), personnages, panthéon.
+// API HTTP d'administration : contenu, cartes (overrides), personnages,
+// panthéon, comptes & rôles. Auth PAR PERMISSION : un super admin (is_admin)
+// accède à tout ; un compte à permissions n'accède qu'aux routes couvertes
+// par ses permissions (voir ADMIN_PERMS dans shared/constants.js).
 // Auth : compte avec is_admin = 1 → token de session.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -7,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
 import { content, saveContentFile } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
-import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL } from '../shared/constants.js';
+import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
@@ -86,7 +89,7 @@ export async function handleAdmin(req, res, url, game) {
       const { name, pass } = JSON.parse(await readBody(req));
       const r = db.login(name, pass);
       if (r.error) return json(401, { error: r.error });
-      if (!r.isAdmin) return json(403, { error: 'Ce compte n\'est pas administrateur' });
+      if (!r.isAdmin && !(r.perms || []).length) return json(403, { error: 'Ce compte n\'a aucun rôle d\'administration' });
       const token = crypto.randomBytes(24).toString('hex');
       tokens.set(token, { accountId: r.accountId, expires: Date.now() + 24 * 3600e3 });
       return json(200, { token, name: r.name });
@@ -95,9 +98,54 @@ export async function handleAdmin(req, res, url, game) {
     const session = auth(req);
     if (!session) return json(401, { error: 'Non authentifié' });
 
+    // ---- contrôle d'accès : permission requise par famille de routes ----
+    // Défaut : super admin. Les familles ci-dessous sont ouvertes aux comptes
+    // porteurs de la permission correspondante (animateurs).
+    const grant = db.getPerms(session.accountId);
+    const can = (perm) => grant.isAdmin || grant.perms.includes(perm);
+    const need =
+      url === '/api/admin/check-session' || url === '/api/admin/me' ? null
+        : /^\/api\/admin\/overrides\//.test(url) ? 'map'
+        : url === '/api/admin/content/npcs' ? 'quests'
+        : url === '/api/admin/characters' || /^\/api\/admin\/character\//.test(url) ? 'players'
+        : url === '/api/admin/roles' && req.method === 'GET' ? 'roles'
+        : 'super';
+    if (need === 'super' ? !grant.isAdmin : (need && !can(need))) {
+      return json(403, { error: 'Permission insuffisante pour cette action' });
+    }
+
     if (url === '/api/admin/check-session') {
       const account = db.getAccountById(session.accountId);
       return json(200, { name: account.name });
+    }
+
+    // identité et permissions effectives de la session (l'admin web adapte son interface)
+    if (url === '/api/admin/me') {
+      const account = db.getAccountById(session.accountId);
+      return json(200, { name: account.name, isAdmin: grant.isAdmin, perms: grant.isAdmin ? [...ADMIN_PERMS] : grant.perms });
+    }
+
+    // ---- comptes & rôles ----
+    if (url === '/api/admin/roles' && req.method === 'GET') {
+      return json(200, { accounts: db.listAccounts(), perms: ADMIN_PERMS });
+    }
+    if (url === '/api/admin/roles' && req.method === 'PUT') {
+      // l'ATTRIBUTION reste réservée aux super admins (need = 'super' ci-dessus)
+      const { accountId, perms } = JSON.parse(await readBody(req));
+      const target = db.getAccountById(accountId | 0);
+      if (!target) return json(404, { error: 'Compte inconnu' });
+      if (target.is_admin) return json(400, { error: 'Un super admin a déjà toutes les permissions' });
+      const clean = (Array.isArray(perms) ? perms : []).filter(x => ADMIN_PERMS.includes(x));
+      db.setPerms(target.id, clean);
+      // appliqué à chaud si le joueur est connecté
+      for (const p of game.players.values()) {
+        if (p.accountId === target.id) {
+          p.perms = clean;
+          game.send(p, { t: 'perms', perms: game.permsOf(p) });
+          game.send(p, { t: 'info', text: 'Vos rôles d\u2019administration ont été mis à jour.' });
+        }
+      }
+      return json(200, { ok: true, perms: clean });
     }
 
     // ---- contenu (générique, pour les anciens clients) ----
