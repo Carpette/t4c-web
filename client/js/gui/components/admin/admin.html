@@ -44,6 +44,16 @@
         Or <input v-model="gold" style="width:70px;">
         <button @click="giveGold()">Donner</button>
       </div>
+
+      <div style="color:var(--gold);margin:10px 0 4px;">Événement de MJ</div>
+      <input v-model="announceText" placeholder="annonce à tous les joueurs…" style="width:100%;">
+      <button @click="sendAnnounce()" style="width:100%;margin:4px 0 8px;">📣 Annoncer au serveur</button>
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+        vagues <input v-model="waves" style="width:30px;">
+        × <input v-model="nWave" style="width:30px;"> créatures /
+        <input v-model="waveSec" style="width:34px;"> s
+      </div>
+      <button @click="placeWave()" style="width:100%;margin-top:4px;">⚔ Invasion au clic (créature sélectionnée)</button>
     </div>
 
     <!-- ================= CARTE ================= -->

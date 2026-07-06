@@ -1215,7 +1215,7 @@ export class Game {
   adminCommand(p, msg) {
     const PERM_BY_CMD = {
       set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players',
-      spawn: 'spawn', give: 'spawn',
+      spawn: 'spawn', give: 'spawn', announce: 'spawn', wave: 'spawn',
       tile: 'map', prop: 'map',
       dialogues: 'quests',
     };
@@ -1301,6 +1301,43 @@ export class Game {
           this.spawnDrop(p.zi, p.x, p.z, { item: makeItem(msg.defId, Math.random, p.zi.zoneId) });
         }
         this.send(p, { t: 'info', text: `Invoqué : ${n} × ${it.name} (au sol).` });
+        break;
+      }
+
+      // ---- événements de MJ (permission « spawn ») ----
+      case 'announce': {
+        const text = String(msg.text || '').trim().slice(0, 200);
+        if (!text) return;
+        for (const other of this.players.values()) {
+          this.send(other, { t: 'announce', text });
+        }
+        break;
+      }
+      case 'wave': {
+        // invasion en vagues : n créatures toutes les interval ms, waves fois,
+        // dispersées autour du point visé. Fire-and-forget avec garde-fous :
+        // la zone doit toujours exister et le serveur ne pas s'éteindre.
+        const def = MOBS[msg.defId];
+        if (!def) return;
+        const n = Math.max(1, Math.min(10, msg.n | 0 || 3));
+        const waves = Math.max(1, Math.min(10, msg.waves | 0 || 3));
+        const interval = Math.max(2000, Math.min(30000, msg.interval | 0 || 8000));
+        const x = Number.isFinite(+msg.x) ? +msg.x : p.x;
+        const z = Number.isFinite(+msg.z) ? +msg.z : p.z;
+        const zi = p.zi;
+        const base = Math.max(0, (this.zoneDef(zi.zoneId)?.levels?.[0] || 1) - 1);
+        const oneWave = (k) => {
+          if (this.shuttingDown || !this.zones.has(`zone:${zi.zoneId}`)) return;
+          for (let i = 0; i < n; i++) {
+            let sx = x + (Math.random() - 0.5) * 6, sz = z + (Math.random() - 0.5) * 6, tries = 0;
+            while (!zi.world.isWalkable(sx, sz) && tries++ < 20) { sx = x + (Math.random() - 0.5) * 6; sz = z + (Math.random() - 0.5) * 6; }
+            if (zi.world.isWalkable(sx, sz)) this.spawnMob(zi, msg.defId, sx, sz, base);
+          }
+          this.heatZone(zi);
+          if (this.players.has(p.id)) this.send(p, { t: 'info', text: `Vague ${k}/${waves} : ${n} × ${def.name}.` });
+          if (k < waves) setTimeout(() => oneWave(k + 1), interval);
+        };
+        oneWave(1);
         break;
       }
 

@@ -117,6 +117,18 @@ send(anim, { t: 'admin', cmd: 'dialogues', npcId: 'merchant', dialogues: [{ keyw
 ok('dialogues invalides refusés',
   !!(await waitMsg(anim, m => m.t === 'info' && /invalides/.test(m.text))));
 
+// ---- 6bis. événements de MJ : annonce diffusée, invasion en vagues ----
+boss.inbox.length = 0;
+send(anim, { t: 'admin', cmd: 'announce', text: 'Les corbeaux se rassemblent sur Arakas…' });
+ok('annonce reçue par TOUS les joueurs (dont un autre compte)',
+  !!(await waitMsg(boss, m => m.t === 'announce' && /corbeaux/.test(m.text))));
+anim.inbox.length = 0;
+send(anim, { t: 'admin', cmd: 'wave', defId: 'rat', n: 2, waves: 2, interval: 2000 });
+ok('invasion : vague 1 immédiate',
+  !!(await waitMsg(anim, m => m.t === 'info' && /Vague 1\/2/.test(m.text))));
+ok('invasion : vague 2 après l\u2019intervalle',
+  !!(await waitMsg(anim, m => m.t === 'info' && /Vague 2\/2/.test(m.text), 4000)));
+
 // ---- 7. admin web de l\u2019animateur : son périmètre, rien de plus ----
 const login2 = await (await fetch(`${BASE}/api/admin/login`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },

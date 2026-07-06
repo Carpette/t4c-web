@@ -104,6 +104,10 @@ net.on('welcome', (m) => {
   globalBus.emit('net:chat-received', { from: 'sys', text: "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…" });
 });
 net.on('perms', (m) => { uiStore.adminPerms = m.perms || []; });
+net.on('announce', (m) => {
+  ui.announce(m.text);
+  globalBus.emit('net:chat-received', { from: 'sys', text: '📣 ' + m.text });
+});
 // commandes de la boîte à outils admin (composant gui/admin)
 globalBus.on('admin:cmd', (m) => net.send({ t: 'admin', ...m }));
 net.on('zone', async (m) => { // Émettre sur le bus pour les composants qui pourraient en avoir besoin
