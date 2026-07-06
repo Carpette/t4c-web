@@ -10,7 +10,10 @@ import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inven
 import { findPath } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
-import { loadOverrides } from '../admin.js';
+import { loadOverrides, overridesPath } from '../admin.js';
+import fs from 'node:fs';
+import { TILE } from '../../shared/worldgen.js';
+import { saveContentFile } from '../content.js';
 import * as db from '../db.js';
 import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
@@ -1210,7 +1213,12 @@ export class Game {
   permsOf(p) { return p.isAdmin ? [...C.ADMIN_PERMS] : (p.perms || []).filter(x => C.ADMIN_PERMS.includes(x)); }
 
   adminCommand(p, msg) {
-    const PERM_BY_CMD = { set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players' };
+    const PERM_BY_CMD = {
+      set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players',
+      spawn: 'spawn', give: 'spawn',
+      tile: 'map', prop: 'map',
+      dialogues: 'quests',
+    };
     if (!this.hasPerm(p, PERM_BY_CMD[msg.cmd] || '__inconnu__')) return;
     switch (msg.cmd) {
       case 'set': {
@@ -1261,7 +1269,166 @@ export class Game {
         if (sp && !p.spells.includes(sp.id)) { p.spells.push(sp.id); this.sendSelf(p); }
         break;
       }
+
+      // ---- invocation (permission « spawn ») ----
+      case 'spawn': {
+        const def = MOBS[msg.defId];
+        if (!def) return;
+        const n = Math.max(1, Math.min(10, msg.n | 0 || 1));
+        const x = Number.isFinite(+msg.x) ? +msg.x : p.x;
+        const z = Number.isFinite(+msg.z) ? +msg.z : p.z;
+        if (!p.zi.world.isWalkable(x, z)) { this.send(p, { t: 'info', text: 'Case infranchissable.' }); return; }
+        const base = Math.max(0, (this.zoneDef(p.zi.zoneId)?.levels?.[0] || 1) - 1);
+        for (let i = 0; i < n; i++) {
+          this.spawnMob(p.zi, msg.defId, x + (Math.random() - 0.5), z + (Math.random() - 0.5), base);
+        }
+        this.heatZone(p.zi);
+        this.send(p, { t: 'info', text: `Invoqué : ${n} × ${def.name}.` });
+        break;
+      }
+      case 'give': {
+        if (Number.isFinite(+msg.gold) && +msg.gold > 0) {
+          p.gold += Math.min(1e9, msg.gold | 0);
+          this.sendSelf(p);
+          this.send(p, { t: 'info', text: `+${msg.gold | 0} pièces d'or.` });
+          return;
+        }
+        const it = ITEMS[msg.defId];
+        if (!it || msg.defId === 'or') return;
+        const n = Math.max(1, Math.min(10, msg.n | 0 || 1));
+        // posé aux pieds : visible, et sans casse-tête de poids d'inventaire
+        for (let i = 0; i < n; i++) {
+          this.spawnDrop(p.zi, p.x, p.z, { item: makeItem(msg.defId, Math.random, p.zi.zoneId) });
+        }
+        this.send(p, { t: 'info', text: `Invoqué : ${n} × ${it.name} (au sol).` });
+        break;
+      }
+
+      // ---- édition de la carte (permission « map ») ----
+      // Même pipeline que l'éditeur web : overrides_<zone>.json réécrit puis
+      // applyZoneEdits (monde reconstruit à chaud, PNJ/camps rebranchés).
+      case 'tile': {
+        if (p.zi.isTrial || p.zi.zoneId == null) return; // zones générées uniquement
+        const x = Math.floor(+msg.x), z = Math.floor(+msg.z);
+        const t = msg.tile | 0;
+        if (!Number.isFinite(x) || !Number.isFinite(z) || !Object.values(TILE).includes(t)) return;
+        const ov = loadOverrides(p.zi.zoneId) || { tiles: [], props: { add: [], remove: [] } };
+        ov.tiles = (ov.tiles || []).filter(([tx, tz]) => tx !== x || tz !== z);
+        ov.tiles.push([x, z, t]);
+        this.saveAndApplyOverrides(p.zi.zoneId, ov);
+        break;
+      }
+      case 'prop': {
+        if (p.zi.isTrial || p.zi.zoneId == null) return;
+        const x = +msg.x, z = +msg.z;
+        if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+        const ov = loadOverrides(p.zi.zoneId) || { tiles: [], props: { add: [], remove: [] } };
+        ov.props = ov.props || { add: [], remove: [] };
+        if (msg.op === 'remove') {
+          ov.props.remove = ov.props.remove || [];
+          ov.props.remove.push([Math.floor(x), Math.floor(z)]);
+          // un décor posé par override au même endroit est simplement retiré de add
+          ov.props.add = (ov.props.add || []).filter(pr => Math.hypot(pr.x - x, pr.z - z) >= 1);
+        } else {
+          const type = String(msg.type || '');
+          if (!/^[a-z_]{2,24}$/.test(type)) return;
+          const prop = { type, x, z };
+          if (Number.isFinite(+msg.s)) prop.s = Math.max(0.25, Math.min(3, +msg.s));
+          if (Number.isFinite(+msg.v)) prop.v = msg.v | 0;
+          ov.props.add = ov.props.add || [];
+          ov.props.add.push(prop);
+        }
+        this.saveAndApplyOverrides(p.zi.zoneId, ov);
+        break;
+      }
+
+      // ---- dialogues/quêtes des PNJ (permission « quests ») ----
+      case 'dialogues': {
+        const npcId = String(msg.npcId || '');
+        if (!content.npc[npcId]) { this.send(p, { t: 'info', text: 'PNJ inconnu.' }); return; }
+        const clean = this.sanitizeDialogues(msg.dialogues);
+        if (!clean) { this.send(p, { t: 'info', text: 'Dialogues invalides (voir le format).' }); return; }
+        content.npc[npcId].dialogues = clean;
+        saveContentFile('npcs', { npc: content.npc });
+        this.refreshNpcs(); // les PNJ vivants pointent sur les nouvelles définitions
+        this.send(p, { t: 'info', text: `Dialogues de « ${npcId} » enregistrés (${clean.length} entrée(s)).` });
+        break;
+      }
     }
+  }
+
+  // réécrit le fichier d'overrides d'une zone et l'applique à chaud —
+  // chemin identique au PUT /api/admin/overrides de l'éditeur web
+  saveAndApplyOverrides(zoneId, ov) {
+    fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
+    this.applyZoneEdits(zoneId, ov);
+  }
+
+  // après une édition de dialogues : saveContentFile a rechargé content.npc,
+  // on respawne les PNJ de chaque île pour qu'ils pointent sur les nouvelles
+  // définitions (mêmes overrides de position/édition qu'au chargement)
+  refreshNpcs() {
+    for (const zi of this.zones.values()) {
+      if (zi.isTrial || zi.zoneId == null) continue;
+      for (const e of [...zi.entities.values()]) {
+        if (e.kind === C.KIND.NPC) zi.remove(e);
+      }
+      this.spawnNpc(zi, loadOverrides(zi.zoneId));
+    }
+  }
+
+  // garde-fous du format des dialogues (voir l'en-tête de dialogues.js) :
+  // bornes de taille, types de réactions en liste blanche, chaînes tronquées
+  sanitizeDialogues(raw) {
+    if (!Array.isArray(raw) || raw.length > 30) return null;
+    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'teleport']);
+    const out = [];
+    for (const d of raw) {
+      if (!d || typeof d !== 'object') return null;
+      const keywords = (Array.isArray(d.keywords) ? d.keywords : [])
+        .map(k => String(k).slice(0, 32)).filter(Boolean).slice(0, 8);
+      const reponse = String(d.reponse || '').slice(0, 500);
+      if (!keywords.length || !reponse) return null;
+      const e = { keywords, reponse };
+      if (d.conditions && typeof d.conditions === 'object') {
+        const c = {};
+        if (typeof d.conditions.flag === 'string') c.flag = d.conditions.flag.slice(0, 48);
+        if (typeof d.conditions.notFlag === 'string') c.notFlag = d.conditions.notFlag.slice(0, 48);
+        if (Number.isFinite(+d.conditions.level)) c.level = Math.max(1, d.conditions.level | 0);
+        if (typeof d.conditions.item === 'string' && ITEMS[d.conditions.item]) {
+          c.item = d.conditions.item;
+          if (d.conditions.consume) c.consume = true;
+        }
+        if (Object.keys(c).length) e.conditions = c;
+      }
+      if (Array.isArray(d.reactions)) {
+        const rs = [];
+        for (const r of d.reactions.slice(0, 6)) {
+          if (!r || !REACTIONS.has(r.type)) return null;
+          const rr = { type: r.type };
+          if (r.type === 'gold' || r.type === 'xp') rr.amount = Math.max(1, Math.min(1e7, r.amount | 0));
+          if (r.type === 'item') {
+            if (!ITEMS[r.defId]) return null;
+            rr.defId = r.defId;
+            if (Number.isFinite(+r.n)) rr.n = Math.max(1, Math.min(10, r.n | 0));
+          }
+          if (r.type === 'flag') {
+            if (typeof r.key !== 'string' || !r.key) return null;
+            rr.key = r.key.slice(0, 48);
+          }
+          if (r.type === 'teleport') {
+            if (Number.isFinite(+r.zoneId)) rr.zoneId = r.zoneId | 0;
+            rr.x = +r.x; rr.z = +r.z;
+            if (!Number.isFinite(rr.x) || !Number.isFinite(rr.z)) return null;
+          }
+          rs.push(rr);
+        }
+        if (rs.length) e.reactions = rs;
+      }
+      if (d.repeatable === true) e.repeatable = true;
+      out.push(e);
+    }
+    return out;
   }
 
   // ---------- Interactions (PNJ, obélisque, portails) ----------
