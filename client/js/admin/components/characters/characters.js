@@ -53,10 +53,58 @@ export function CharactersController(api) {
         if(msgEl) msgEl.textContent = '✘ ' + e.message;
       }
     },
+    // ---- Comptes & rôles (permission « roles » ; attribution : super admin) ----
+    async loadRoles() {
+      let me;
+      try { me = await api('/api/admin/me'); } catch { return; }
+      if (!me.perms?.includes('roles')) return; // section invisible sans la permission
+      let data;
+      try { data = await api('/api/admin/roles'); } catch (e) {
+        $('roles-msg').textContent = '✘ ' + e.message; return;
+      }
+      $('roles-section').classList.remove('hidden');
+      const tbl = $('roles-table');
+      tbl.innerHTML = '<tr><th>Compte</th><th>Profil</th>'
+        + data.perms.map(p => `<th class="text-center">${p}</th>`).join('') + '<th></th></tr>';
+      for (const acc of data.accounts) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${acc.name}</td><td>${acc.isAdmin ? '👑 super admin' : (acc.perms.length ? 'animateur' : 'joueur')}</td>`;
+        const boxes = [];
+        for (const perm of data.perms) {
+          const td = document.createElement('td');
+          td.className = 'text-center';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = acc.isAdmin || acc.perms.includes(perm);
+          // super admin : tout coché, non modifiable ; attribution réservée aux super admins
+          cb.disabled = acc.isAdmin || !me.isAdmin;
+          boxes.push([perm, cb]);
+          td.appendChild(cb);
+          tr.appendChild(td);
+        }
+        const act = document.createElement('td');
+        if (!acc.isAdmin && me.isAdmin) {
+          const save = document.createElement('button');
+          save.textContent = 'Appliquer';
+          save.onclick = async () => {
+            const perms = boxes.filter(([, cb]) => cb.checked).map(([perm]) => perm);
+            try {
+              await api('/api/admin/roles', 'PUT', { accountId: acc.id, perms });
+              $('roles-msg').textContent = `✔ Rôles de ${acc.name} mis à jour${perms.length ? ' : ' + perms.join(', ') : ' (plus aucun)'}.`;
+            } catch (e) { $('roles-msg').textContent = '✘ ' + e.message; }
+          };
+          act.appendChild(save);
+        }
+        tr.appendChild(act);
+        tbl.appendChild(tr);
+      }
+    },
+
     init() {
       // Use setTimeout to ensure the DOM is fully rendered before loading characters
       setTimeout(() => {
         this.loadChars();
+        this.loadRoles();
       }, 0);
     }
   };
