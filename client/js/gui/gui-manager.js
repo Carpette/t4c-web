@@ -15,6 +15,7 @@ import { LoginController } from './components/login/login.js';
 import { SpellsController } from './components/spells/spells.js';
 import { SettingsController } from './components/settings/settings.js';
 import { CreationController } from './components/creation/creation.js';
+import { AdminController } from './components/admin/admin.js';
 
 function RootController() {
   return {
@@ -35,6 +36,7 @@ const COMPONENT_MAP = {
   party: '#party-panel',
   spells: '#spells',
   hudbars: '#hud-bars',
+  admin: '#admin-panel',
   // partyinvite: '#party-invite',
   // obelisk: '#obelisk-panel',
 };
@@ -42,7 +44,7 @@ const COMPONENT_MAP = {
 const PHASE_COMPONENTS = {
   login: ['login'],
   creation: ['creation'],
-  'in-game': ['chat', 'hudbars', 'help', 'settings'],
+  'in-game': ['chat', 'hudbars', 'help', 'settings', 'admin'],
   death: []
 };
 
@@ -63,7 +65,8 @@ class GuiManager {
       partyinvite: PartyInviteController,
       spells: SpellsController,
       settings: SettingsController,
-      creation: CreationController
+      creation: CreationController,
+      admin: AdminController,
     };
     this.ui = null;
     this.loaded = new Set();

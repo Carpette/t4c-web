@@ -1,0 +1,102 @@
+<div v-if="perms.length">
+  <!-- bouton flottant : ouvre la boîte à outils d'animation -->
+  <button @click="toggle()" title="Outils d'administration"
+    style="position:fixed;left:10px;top:52px;z-index:60;width:34px;height:34px;border-radius:8px;
+           background:rgba(20,14,6,.85);border:1px solid var(--gold);color:var(--gold);font-size:16px;">🛠</button>
+
+  <div v-if="open" style="position:fixed;left:10px;top:92px;z-index:60;width:280px;max-height:70vh;overflow-y:auto;
+       background:rgba(16,11,5,.94);border:1px solid var(--gold);border-radius:10px;padding:10px;
+       font-size:12px;color:#e8d9b0;">
+    <div style="display:flex;gap:4px;margin-bottom:8px;">
+      <button v-if="perms.includes('spawn')" @click="tab='spawn'" :style="tabStyle('spawn')">Invoquer</button>
+      <button v-if="perms.includes('map')" @click="tab='map'" :style="tabStyle('map')">Carte</button>
+      <button v-if="perms.includes('quests')" @click="tab='quests'" :style="tabStyle('quests')">Quêtes</button>
+    </div>
+
+    <!-- bandeau mode placement -->
+    <div v-if="placing" style="background:#3a2c12;border:1px solid var(--gold);border-radius:6px;padding:5px 8px;margin-bottom:8px;">
+      🎯 {{ placing }} — clique sur le monde (clic droit ou <button @click="stopPlace()" style="padding:0 6px;">stop</button>)
+    </div>
+
+    <!-- ================= INVOQUER ================= -->
+    <div v-if="tab==='spawn' && perms.includes('spawn')">
+      <div style="color:var(--gold);margin-bottom:4px;">Créatures</div>
+      <input v-model="mobSearch" placeholder="filtrer…" style="width:100%;margin-bottom:4px;">
+      <select v-model="mobId" size="5" style="width:100%;">
+        <option v-for="m in mobList()" :value="m.id">{{ m.name }} (niv {{ m.level }})</option>
+      </select>
+      <div style="display:flex;gap:4px;margin:4px 0 10px;">
+        ×<input v-model="nMob" style="width:34px;">
+        <button @click="placeMob()">Poser au clic</button>
+        <button @click="spawnHere()">Ici</button>
+      </div>
+
+      <div style="color:var(--gold);margin-bottom:4px;">Objets</div>
+      <input v-model="itemSearch" placeholder="filtrer…" style="width:100%;margin-bottom:4px;">
+      <select v-model="itemId" size="5" style="width:100%;">
+        <option v-for="i in itemList()" :value="i.id">{{ i.name }}</option>
+      </select>
+      <div style="display:flex;gap:4px;margin:4px 0;">
+        ×<input v-model="nItem" style="width:34px;">
+        <button @click="giveItem()">Donner (au sol)</button>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        Or <input v-model="gold" style="width:70px;">
+        <button @click="giveGold()">Donner</button>
+      </div>
+    </div>
+
+    <!-- ================= CARTE ================= -->
+    <div v-if="tab==='map' && perms.includes('map')">
+      <div style="color:var(--gold);margin-bottom:4px;">Peindre une tuile</div>
+      <select v-model="tileId" style="width:100%;">
+        <option v-for="t in tiles" :value="t.id">{{ t.name }}</option>
+      </select>
+      <button @click="placeTile()" style="margin:4px 0 10px;width:100%;">🖌 Peindre au clic</button>
+
+      <div style="color:var(--gold);margin-bottom:4px;">Poser un décor</div>
+      <select v-model="propType" style="width:100%;">
+        <option v-for="p in propTypes" :value="p">{{ p }}</option>
+      </select>
+      <div style="display:flex;gap:4px;align-items:center;margin:4px 0;">
+        échelle <input v-model="propScale" style="width:44px;">
+        <button @click="placeProp()">🌳 Poser au clic</button>
+      </div>
+      <button @click="placeRemove()" style="width:100%;margin-top:6px;">🗑 Retirer un décor au clic</button>
+      <p style="color:#a3946e;margin-top:8px;">Appliqué à chaud pour tous les joueurs de la zone, et persistant (overrides de l'éditeur web).</p>
+    </div>
+
+    <!-- ================= QUÊTES ================= -->
+    <div v-if="tab==='quests' && perms.includes('quests')">
+      <div style="color:var(--gold);margin-bottom:4px;">Dialogues / quêtes d'un PNJ</div>
+      <select v-model="npcId" @change="loadDialogues()" style="width:100%;">
+        <option v-for="n in npcs" :value="n.id">{{ n.name }} ({{ n.id }})</option>
+      </select>
+      <textarea v-model="dlgText" rows="12" spellcheck="false"
+        style="width:100%;margin-top:6px;font-family:monospace;font-size:11px;background:#100a04;color:#e8d9b0;border:1px solid #6b5322;"></textarea>
+      <div style="display:flex;gap:4px;margin-top:4px;">
+        <button @click="saveDialogues()">💾 Enregistrer</button>
+        <button @click="loadDialogues()">↺ Recharger</button>
+      </div>
+      <div style="color:#9d9;min-height:1.2em;">{{ msg }}</div>
+      <details style="margin-top:6px;color:#a3946e;">
+        <summary style="cursor:pointer;">Format (aide)</summary>
+        <pre style="font-size:10px;white-space:pre-wrap;">[{
+ "keywords": ["travail","quête"],
+ "reponse": "…",
+ "conditions": { "flag": "clef", "notFlag": "clef",
+   "level": 3, "item": "defId", "consume": true },
+ "reactions": [
+  {"type":"gold","amount":100},
+  {"type":"item","defId":"…","n":1},
+  {"type":"xp","amount":50},
+  {"type":"flag","key":"clef"},
+  {"type":"teleport","zoneId":1,"x":10,"z":10}],
+ "repeatable": true
+}]
+Récompenses versées UNE fois par personnage
+(sauf repeatable). Test : parle au PNJ en jeu.</pre>
+      </details>
+    </div>
+  </div>
+</div>

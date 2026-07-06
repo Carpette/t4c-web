@@ -96,12 +96,16 @@ net.on('create_char', async (m) => {
 });
 net.on('welcome', (m) => {
   selfId = m.id;
+  uiStore.adminPerms = m.perms || [];
   ui.selfId = m.id;
   worldTime = m.time;
   uiStore.phase = 'in-game';
   guiManager.loadPhaseComponents('in-game');
   globalBus.emit('net:chat-received', { from: 'sys', text: "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…" });
 });
+net.on('perms', (m) => { uiStore.adminPerms = m.perms || []; });
+// commandes de la boîte à outils admin (composant gui/admin)
+globalBus.on('admin:cmd', (m) => net.send({ t: 'admin', ...m }));
 net.on('zone', async (m) => { // Émettre sur le bus pour les composants qui pourraient en avoir besoin
   cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
@@ -414,9 +418,17 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (selfId == null) return;
   lastPointer = { x: ev.clientX, y: ev.clientY };
 
-  // clic droit : annule la visée en cours (pourrait être un événement 'ui:cancel-aim')
-  if (ev.button === 2) { cancelAim(); return; }
+  // clic droit : annule la visée en cours et le mode placement admin
+  if (ev.button === 2) { cancelAim(); uiStore.adminPlace = null; return; }
   if (ev.button !== 0) return;
+
+  // ---- placement admin : chaque clic pose/invoque à la case visée ----
+  if (uiStore.adminPlace) {
+    const w = renderer.s2w(ev.clientX, ev.clientY);
+    const { label, ...payload } = uiStore.adminPlace;
+    net.send({ t: 'admin', ...payload, x: w.x, z: w.z });
+    return; // le mode reste actif : clic droit ou « stop » pour quitter
+  }
 
   // ---- visée de sort : ce clic désigne la cible ----
   if (aimSpell) {
