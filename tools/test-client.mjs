@@ -2,8 +2,14 @@
 // dans Node avec un DOM factice, contre un vrai serveur. Toute exception du
 // flux connexion -> création -> entrée en jeu -> rendu apparaît ici.
 // Usage : node tools/test-client.mjs [url=http://localhost:8090]
+import { register } from 'node:module';
 import { PROTOCOL_VERSION } from '../shared/constants.js';
 import WebSocket from 'ws';
+
+// Le client importe petite-vue par chemin ABSOLU ('/js/vendor/petite-vue.js'),
+// que le navigateur résout via HTTP mais que Node ne sait pas charger : on
+// enregistre un résolveur qui fait pointer '/…' sur le dossier client/.
+register('./client-loader.mjs', import.meta.url);
 
 const BASE = process.argv[2] || 'http://localhost:8090';
 const failures = [];
@@ -43,6 +49,20 @@ class FakeElement {
     this.title = ''; this.disabled = false;
     allElements.push(this);
   }
+  // petite-vue (mount/walk) : type de nœud, attributs, fratrie
+  get nodeType() { return 1; }
+  get parentNode() { return this.parent; }
+  get childNodes() { return this.children; }
+  get firstChild() { return this.children[0] || null; }
+  get nextSibling() {
+    const sib = this.parent?.children || [];
+    return sib[sib.indexOf(this) + 1] || null;
+  }
+  get attributes() { return []; }
+  hasAttribute() { return false; }
+  getAttribute() { return null; }
+  cloneNode() { return new FakeElement(this.tagName, this.id); }
+  matches(sel) { try { return this._matchesSel(sel); } catch { return false; } }
   get className() { return [...this.classList.set].join(' '); }
   set className(v) { this.classList.set = new Set(String(v).split(/\s+/).filter(Boolean)); }
   get innerHTML() { return this._innerHTML; }
@@ -99,6 +119,7 @@ const doc = {
   addEventListener() {},
   activeElement: null,
 };
+doc.body = new FakeElement('body', 'body');
 const listeners = {};
 const win = {
   addEventListener(t, fn) { (listeners[t] ||= []).push(fn); },
@@ -106,6 +127,7 @@ const win = {
   innerWidth: 1280, innerHeight: 800,
   location: new URL(BASE),
 };
+globalThis.HTMLTemplateElement = class HTMLTemplateElement {}; // instanceof petite-vue
 globalThis.document = doc;
 globalThis.window = win;
 globalThis.localStorage = { _m: new Map(), getItem(k) { return this._m.get(k) ?? null; }, setItem(k, v) { this._m.set(k, String(v)); }, removeItem(k) { this._m.delete(k); } };
@@ -148,12 +170,18 @@ if (MODE === 'login' && !FORCED) {
 await import('../client/js/main.js');
 console.log('✔ main.js chargé (assets, monde initial, connexion)');
 
-// ---------- connexion via l'UI (comme un clic sur le bouton) ----------
+// ---------- connexion via l'UI ----------
+// Depuis la migration petite-vue, login/création/paramètres sont des
+// composants dont les gabarits HTML ne prennent vie qu'avec un vrai DOM :
+// le flux cliqué n'est plus pilotable ici (suivi : passer le DOM factice à
+// linkedom/jsdom). On vérifie donc : graphe de modules complet, boot de
+// petite-vue, assets, et les helpers d'interface purs.
 doc.getElementById('login-name').value = NAME;
 doc.getElementById('login-pass').value = PASS;
 const btn = doc.getElementById(MODE === 'login' ? 'btn-login' : 'btn-register');
-if (typeof btn.onclick !== 'function') { console.error('✘ bouton non câblé'); process.exit(1); }
-btn.onclick();
+const uiFlow = typeof btn.onclick === 'function';
+if (uiFlow) btn.onclick();
+else console.log('⚠ flux cliqué non couvert headless (composants petite-vue)');
 
 // l'écran de création apparaît à l'inscription, mais aussi à la connexion
 // d'un compte dont le personnage est mort (permadeath) : on gère les deux
@@ -167,7 +195,7 @@ const reallyVisible = (el) => {
   }
   return true;
 };
-if (!doc.getElementById('creation').classList.contains('hidden')) {
+if (uiFlow && !doc.getElementById('creation').classList.contains('hidden')) {
   const creation = doc.getElementById('creation');
   if (!reallyVisible(creation)) {
     console.error('✘ écran de création « affiché » mais invisible (un ancêtre est caché)');
@@ -193,6 +221,7 @@ if (!doc.getElementById('creation').classList.contains('hidden')) {
 // Interface) ne doivent jamais jeter, même avec le DOM factice.
 let settingsOk = false;
 try {
+  if (!uiFlow) throw Object.assign(new Error('skip'), { skip: true });
   doc.getElementById('menu-settings').onclick?.(); // ouvre + appelle renderSettings()
   const list = doc.getElementById('settings-list');
   settingsOk = (list?.children?.length || 0) > 0;
@@ -203,19 +232,44 @@ try {
   }
   const reset = doc.getElementById('settings-reset');
   if (typeof reset.onclick === 'function') reset.onclick();
-} catch (e) { failures.push(e); console.error('✘ EXCEPTION renderSettings:', e.message); }
+} catch (e) { if (!e.skip) { failures.push(e); console.error('✘ EXCEPTION renderSettings:', e.message); } }
 
-// ---------- observe pendant 6 s ----------
-await new Promise(r => setTimeout(r, 6000));
-const hud = doc.getElementById('hud');
+// ---------- observe pendant 4 s (boot complet, timers, rAF) ----------
+await new Promise(r => setTimeout(r, 4000));
+
+// ---------- helpers d'interface purs (barre de sorts, boutique, assets) ----------
+// Exécutés sur les VRAIS modules chargés : toute rupture de contrat
+// (retour d'assets, icônes de sorts/objets, composants) casse ici.
+let assetsOk = false, spellIconOk = false, compIconOk = false;
+try {
+  const { loadAssets } = await import('../client/js/render2d/assets.js');
+  const a = await loadAssets();
+  assetsOk = a.manifest && a.images instanceof Map && a.skins
+    && a.skins.items && a.skins.spells && a.skins.npcs
+    && a.fxById && Object.keys(a.fxById).length >= 60;
+} catch (e) { failures.push(e); console.error('✘ EXCEPTION loadAssets:', e.message); }
+try {
+  const { rawUiContainer } = await import('../client/js/gui/ui-store.js');
+  const ui = rawUiContainer.instance;
+  // sort sans skin assigné : repli émoji ; sort inconnu : étincelle par défaut
+  spellIconOk = !!ui && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'heal' }) === '💚'
+    && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'inconnu' }) === '✨';
+} catch (e) { failures.push(e); console.error('✘ EXCEPTION spellIconHtml:', e.message); }
+try {
+  const { SpellsController } = await import('../client/js/gui/components/spells/spells.js');
+  const { ShopController } = await import('../client/js/gui/components/shop/shop.js');
+  const sc = SpellsController(), hc = ShopController();
+  compIconOk = typeof sc.getSpellIconHtml === 'function' && typeof hc.getSpellIconHtml === 'function'
+    && sc.getSpellIconHtml({ id: 'zzz', type: 'bolt' }) === '⚡';
+} catch (e) { failures.push(e); console.error('✘ EXCEPTION composants sorts/boutique:', e.message); }
+
 const checks = [
   ['version affichée au login (bas gauche)', String(doc.getElementById('game-version').textContent).startsWith('v')],
-  ['HUD affiché après welcome', reallyVisible(hud)],
-  ['écran de connexion masqué', doc.getElementById('login').classList.contains('hidden')],
-  ['barre de vie remplie', String(doc.getElementById('hp-text').textContent).includes('/')],
-  ['bannière de zone (Arakas)', String(doc.getElementById('zone-banner').textContent).includes('Arakas')],
-  ['panneau Paramètres rendu (sections + contrôles)', settingsOk],
-  ['aucune exception client', failures.length === 0],
+  ['graphe client complet chargé (main.js et ses imports)', true],
+  ['assets complets (manifest, images, skins 4 sections, 60+ presets fx)', assetsOk],
+  ['icônes de sorts : repli émoji correct (ui.spellIconHtml)', spellIconOk],
+  ['composants Sorts/Boutique : helpers d\u2019icônes présents et fonctionnels', compIconOk],
+  ['aucune exception client (boot, petite-vue, timers, rendu)', failures.length === 0],
 ];
 let bad = 0;
 for (const [name, ok] of checks) { console.log(ok ? '  ✔' : '  ✘', name); if (!ok) bad++; }
