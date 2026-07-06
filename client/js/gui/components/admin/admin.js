@@ -19,6 +19,7 @@ const PROP_TYPES = ['tree', 'rock', 'house', 'well', 'grave', 'fence', 'ruin', '
 export function AdminController() {
   return {
     open: false, tab: 'spawn', msg: '',
+    announceText: '', waves: 3, nWave: 3, waveSec: 8,
     mobSearch: '', itemSearch: '', mobId: 'rat', itemId: '', nMob: 1, nItem: 1, gold: 100,
     tileId: 2, propType: 'tree', propScale: 1,
     npcId: '', npcs: [], dlgText: '',
@@ -70,6 +71,21 @@ export function AdminController() {
     },
     giveGold() {
       globalBus.emit('admin:cmd', { cmd: 'give', gold: Math.max(1, this.gold | 0) });
+    },
+    sendAnnounce() {
+      const text = this.announceText.trim();
+      if (!text) return;
+      globalBus.emit('admin:cmd', { cmd: 'announce', text });
+      this.announceText = '';
+    },
+    placeWave() {
+      if (!this.mobId) return;
+      uiStore.adminPlace = {
+        label: `invasion : ${this.waves | 0} vague(s) de ${MOBS[this.mobId]?.name || this.mobId}`,
+        cmd: 'wave', defId: this.mobId,
+        n: Math.max(1, this.nWave | 0), waves: Math.max(1, this.waves | 0),
+        interval: Math.max(2, this.waveSec | 0) * 1000,
+      };
     },
 
     // ---------- carte ----------

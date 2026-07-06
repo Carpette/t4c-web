@@ -179,6 +179,24 @@ export class UI {
     return url ? `<img class="item-icon sm" src="${url}">` : (fallback || '');
   }
 
+  // ---- Annonce de MJ : bandeau dramatique plein écran, puis fondu ----
+  announce(text) {
+    let el = document.getElementById('gm-announce');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gm-announce';
+      el.style.cssText = 'position:fixed;left:0;right:0;top:18%;z-index:80;text-align:center;'
+        + 'pointer-events:none;font-family:Georgia,serif;font-size:26px;color:var(--gold,#ffd24a);'
+        + 'text-shadow:0 0 18px rgba(0,0,0,.9),0 2px 4px #000;letter-spacing:1px;'
+        + 'opacity:0;transition:opacity .6s;padding:0 10vw;';
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.opacity = '1';
+    clearTimeout(this._announceT);
+    this._announceT = setTimeout(() => { el.style.opacity = '0'; }, 6000);
+  }
+
   // ---- Icônes de sorts : skin de l'atelier 2D si assigné, sinon émoji ----
   // Même mécanique de cache dataURL que les objets (recadrage contain size×size).
   spellIconUrl(spellId, size = 26) {
