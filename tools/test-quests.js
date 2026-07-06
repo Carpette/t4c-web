@@ -29,9 +29,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ---------- hook de résolution /shared (cf. test-editor.mjs) ----------
 register('data:text/javascript,' + encodeURIComponent(`
   const SHARED = ${JSON.stringify(new URL('file://' + path.join(ROOT, 'shared') + '/').href)};
+  const CLIENT = ${JSON.stringify(new URL('file://' + path.join(ROOT, 'client') + '/').href)};
   export async function resolve(spec, ctx, next) {
-    if (spec.startsWith('../shared/') && ctx.parentURL && ctx.parentURL.endsWith('/client/js/admin.js')) {
-      return next(SHARED + spec.slice('../shared/'.length), ctx);
+    if (spec.startsWith('/')) { // imports absolus du navigateur ('/js/vendor/petite-vue.js')
+      return next(CLIENT + spec.slice(1), ctx);
+    }
+    // les modules client adressent shared/ en relatif calibré pour la route
+    // HTTP /shared/ du serveur : on les fait tous pointer sur le dossier
+    // shared/ du dépôt, quel que soit le fichier importeur (même règle que
+    // test-editor.mjs)
+    const m = ctx.parentURL && ctx.parentURL.includes('/client/') && spec.match(/^(?:\\.\\.\\/)+shared\\/(.*)$/);
+    if (m) {
+      return next(SHARED + m[1], ctx);
     }
     return next(spec, ctx);
   }
