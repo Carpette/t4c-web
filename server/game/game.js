@@ -55,6 +55,7 @@ export class Game {
       const zi = new ZoneInstance(`zone:${z.id}`, world, z.id);
       this.zones.set(zi.key, zi);
       this.populateIsland(zi);
+      this.initBoss(zi);
     }
     setInterval(() => this.tick(), 1000 / C.TICK_RATE);
     setInterval(() => this.saveAll(), 60_000);
@@ -1215,7 +1216,7 @@ export class Game {
   adminCommand(p, msg) {
     const PERM_BY_CMD = {
       set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players',
-      spawn: 'spawn', give: 'spawn', announce: 'spawn', wave: 'spawn',
+      spawn: 'spawn', give: 'spawn', announce: 'spawn', wave: 'spawn', smite: 'players',
       tile: 'map', prop: 'map',
       dialogues: 'quests',
     };
@@ -1308,8 +1309,21 @@ export class Game {
       case 'announce': {
         const text = String(msg.text || '').trim().slice(0, 200);
         if (!text) return;
-        for (const other of this.players.values()) {
-          this.send(other, { t: 'announce', text });
+        this.announceAll(text);
+        break;
+      }
+      case 'smite': {
+        // foudroie la créature hostile la plus proche (≤ 4 tuiles) : nettoyage
+        // d'événement raté, tests — passe par killMob (butin/boss compris)
+        let best = null, bd = 4;
+        for (const e of p.zi.nearby(p.x, p.z, 4)) {
+          if (e.kind !== C.KIND.MOB || e.dead) continue;
+          const d = Math.hypot(e.x - p.x, e.z - p.z);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (best) {
+          this.killMob(best, p);
+          this.send(p, { t: 'info', text: `⚡ ${best.isBoss ? best.bossName : best.def.name} foudroyé.` });
         }
         break;
       }
@@ -1392,6 +1406,89 @@ export class Game {
         break;
       }
     }
+  }
+
+  // ---------- Boss de zone à rendez-vous ----------
+  // Un boss nommé par zone (zones.json, champ boss) : élite du bestiaire
+  // (PV x8, dégâts x1.8, XP x10), lieu fixe, gros butin garanti. Sa mort et
+  // son réveil sont annoncés à TOUT le serveur, et sa prochaine venue est
+  // PERSISTÉE en base (world_kv) : elle survit aux redémarrages.
+  announceAll(text) {
+    for (const other of this.players.values()) this.send(other, { t: 'announce', text });
+    this.broadcastChat('sys', '📣 ' + text);
+  }
+
+  bossRespawnMs(b) { return +process.env.T4C_BOSS_RESPAWN_MS || b.respawnMs || 2 * 3600e3; }
+
+  // au boot : boss dû -> il se dresse déjà ; sinon le tick le réveillera
+  initBoss(zi) {
+    const b = this.zoneDef(zi.zoneId)?.boss;
+    if (!b || !MOBS[b.defId]) return;
+    const next = +db.getKV(`boss:next:${zi.zoneId}`) || 0;
+    if (Date.now() >= next) this.spawnBoss(zi, false);
+  }
+
+  checkBossRespawns() {
+    for (const zi of this.zones.values()) {
+      if (zi.isTrial || zi.isCave || zi.zoneId == null) continue;
+      const b = this.zoneDef(zi.zoneId)?.boss;
+      if (!b || zi.bossId != null) continue;
+      const next = +db.getKV(`boss:next:${zi.zoneId}`) || 0;
+      if (Date.now() >= next) this.spawnBoss(zi, true);
+    }
+  }
+
+  spawnBoss(zi, loud) {
+    const zdef = this.zoneDef(zi.zoneId);
+    const b = zdef.boss;
+    // lieu de rendez-vous : le point déclaré, sinon le cœur de l'île —
+    // recherche en spirale de la case praticable la plus proche
+    let bx = Number.isFinite(+b.x) ? +b.x : C.MAP_SIZE / 2;
+    let bz = Number.isFinite(+b.z) ? +b.z : C.MAP_SIZE / 2;
+    if (!zi.world.isWalkable(bx, bz)) {
+      outer: for (let r = 1; r < 40; r++) {
+        for (let a = 0; a < 16; a++) {
+          const nx = bx + Math.cos(a / 16 * 2 * Math.PI) * r;
+          const nz = bz + Math.sin(a / 16 * 2 * Math.PI) * r;
+          if (zi.world.isWalkable(nx, nz)) { bx = nx; bz = nz; break outer; }
+        }
+      }
+    }
+    if (!zi.world.isWalkable(bx, bz)) return;
+    const base = Math.max(0, (zdef.levels?.[0] || 1) - 1);
+    const m = this.spawnMob(zi, b.defId, bx, bz, base);
+    m.isBoss = true;
+    m.bossName = b.name || `${m.def.name} ancestral`;
+    m.maxHp = Math.floor(m.maxHp * 8);
+    m.hp = m.maxHp;
+    m.sc = { ...m.sc, dmg: Math.floor(m.sc.dmg * 1.8) };
+    m.xpMult = 10;
+    m.wanderAt = Infinity; // il tient son rendez-vous, il ne vagabonde pas
+    zi.bossId = m.id;
+    console.log(`[boss] ${m.bossName} en zone ${zi.zoneId} à (${bx.toFixed(1)}, ${bz.toFixed(1)})`);
+    if (loud) this.announceAll(`⚔ ${m.bossName} s'éveille dans ${zdef.name} !`);
+  }
+
+  bossSlain(m, killer) {
+    const zi = m.zi;
+    const zdef = this.zoneDef(zi.zoneId);
+    const b = zdef.boss;
+    zi.bossId = null;
+    const respawn = this.bossRespawnMs(b);
+    db.setKV(`boss:next:${zi.zoneId}`, Date.now() + respawn);
+    // butin de boss : plusieurs tables pleines + un trésor d'or garanti
+    const zid = zi.zoneId;
+    for (let i = 0; i < 4; i++) {
+      for (const payload of rollDrops(m.def, Math.random, zid, 3)) {
+        this.spawnDrop(zi, m.x + (Math.random() - 0.5), m.z + (Math.random() - 0.5), payload);
+      }
+    }
+    const gold = Math.round((50 + Math.random() * 100) * Math.pow(1 + zid * 0.5, 2.6));
+    this.spawnDrop(zi, m.x, m.z, { gold });
+    const h = respawn / 3600e3;
+    const delai = h >= 1 ? `${Math.round(h * 10) / 10} h` : `${Math.round(respawn / 60e3)} min`;
+    const who = killer?.kind === C.KIND.PLAYER ? killer.name : 'les forces d\u2019Arakas';
+    this.announceAll(`☠ ${m.bossName} a été terrassé par ${who} ! Il reviendra dans environ ${delai} (${zdef.name}).`);
   }
 
   // réécrit le fichier d'overrides d'une zone et l'applique à chaud —
@@ -1910,6 +2007,7 @@ export class Game {
         this.spawnDrop(m.zi, m.x, m.z, payload);
       }
     }
+    if (m.isBoss) this.bossSlain(m, killer);
   }
 
   // Mort définitive : le personnage est effacé. Roguelike.
@@ -1953,7 +2051,7 @@ export class Game {
     const recipients = this.xpRecipients(dealer);
     const bonus = 1 + C.GROUP_XP_BONUS_PER_MEMBER * (recipients.length - 1);
     for (const r of recipients) {
-      r.grantXp(C.mobXpReward(mob.level, r.level) * fraction * bonus / recipients.length, this);
+      r.grantXp(C.mobXpReward(mob.level, r.level) * (mob.xpMult || 1) * fraction * bonus / recipients.length, this);
     }
   }
 
@@ -2142,6 +2240,7 @@ export class Game {
 
   // ---------- Boucle ----------
   tick() {
+    if (this.tickCount % (C.TICK_RATE * 5) === 0) this.checkBossRespawns();
     this.tickCount++;
     const dt = C.TICK_DT;
     this.worldTime = (this.worldTime + dt) % C.DAY_LENGTH;
@@ -2249,7 +2348,7 @@ export class Game {
       return { id: e.id, kind: e.kind, name: e.name, level: e.level, look: e.look };
     }
     if (e.kind === C.KIND.MOB) {
-      return { id: e.id, kind: e.kind, defId: e.defId, name: e.def.name, level: e.level };
+      return { id: e.id, kind: e.kind, defId: e.defId, name: e.isBoss ? e.bossName : e.def.name, level: e.level, boss: e.isBoss || undefined };
     }
     if (e.kind === C.KIND.NPC) {
       return { id: e.id, kind: e.kind, npcId: e.npcId, name: e.name, look: e.look, level: 0 };

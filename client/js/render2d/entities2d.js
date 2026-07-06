@@ -75,6 +75,7 @@ class EntityView2D {
       // spriteScale compense la résolution de la planche PAR DÉFAUT : une
       // planche fournie a sa propre taille de case, on l'affiche à l'échelle 1
       this.spriteScale = useSkin ? 1 : (def?.spriteScale || 1);
+      if (this.meta?.boss) this.spriteScale *= 1.35; // les boss en imposent
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
       const base = assets.images.get(assets.manifest.enemies[sprite].image);
       // une planche fournie a ses propres couleurs : pas de recoloration
@@ -272,8 +273,9 @@ class EntityView2D {
       ctx.strokeText(name, px, top - 6);
       ctx.fillStyle = isSelf ? '#a8e8a8'
         : isNpc ? '#ffe48a'
+        : this.meta?.boss ? '#ffd24a'
         : (isPlayer ? (PARTY_IDS.has(this.id) ? PARTY_NAME_COLOR : '#a8d8ff') : '#ffd2a8');
-      ctx.fillText(name, px, top - 6);
+      ctx.fillText(this.meta?.boss ? '⚔ ' + name : name, px, top - 6);
     }
     // barre de vie (pas pour les PNJ)
     let barTop = top;
