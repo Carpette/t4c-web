@@ -7,6 +7,8 @@ export const rawUiContainer = {
 
 export const uiStore = reactive({
   phase: 'login',
+  adminPerms: [],   // permissions d'administration reçues au welcome
+  adminPlace: null, // mode « poser au clic » de la boîte à outils admin
   player: {
     hp: 0, maxHp: 0,
     mana: 0, maxMana: 0,
