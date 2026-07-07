@@ -126,7 +126,33 @@ QUESTS = {
       "Le casque repose en terre bénie. Les morts dorment un peu mieux, grâce à toi.",
       conditions={'flag': 'mq6'}),
     D(['priere'],
-      "Je prie pour les vivants. Les morts d'Arakas, eux, n'écoutent plus — c'est bien le problème."),
+      "Je prie pour les vivants. Les morts d'Arakas, eux, n'écoutent plus — c'est bien le problème. "
+      "Le temple offre ses « soins », sa « benediction » et la « purification » des maudits — les dieux acceptent l'or, moi aussi."),
+    # ---- services du temple (rejouables, payants via conditions.gold) ----
+    D(['soins'],
+      "Que la lumière referme tes plaies, mon enfant. (-30 or)",
+      conditions={'gold': 30, 'consumeGold': True, 'notCursed': True},
+      reactions=[{'type': 'heal'}], repeatable=True),
+    D(['soins'],
+      "Une malédiction pèse sur toi : mes prières glissent sur elle. Demande la « purification » d'abord (100 or).",
+      conditions={'cursed': True}),
+    D(['soins'],
+      "Les soins du temple coûtent 30 pièces, mon enfant. Les dieux nourrissent l'âme ; l'or nourrit le temple."),
+    D(['purification'],
+      "Par les Trois Prophéties accomplies... que ce mal te quitte ! (-100 or)",
+      conditions={'gold': 100, 'consumeGold': True, 'cursed': True},
+      reactions=[{'type': 'cleanse'}], repeatable=True),
+    D(['purification'],
+      "Une malédiction te ronge et il te manque des pièces... La purification coûte 100 or. Reviens vite, avant qu'elle ne t'achève.",
+      conditions={'cursed': True}),
+    D(['purification'],
+      "Aucune malédiction ne pèse sur toi. Que les dieux t'en préservent — sinon, la purification coûte 100 or."),
+    D(['benediction'],
+      "Que les dieux marchent à tes côtés : leur bénédiction durcit ta chair. (+3 d'armure, 10 minutes) (-150 or)",
+      conditions={'gold': 150, 'consumeGold': True},
+      reactions=[{'type': 'buff', 'effect': 'defense_boost', 'power': 3, 'duration': 600}], repeatable=True),
+    D(['benediction'],
+      "La bénédiction des dieux (+3 d'armure, 10 minutes) coûte 150 pièces. Leur faveur n'a pas de prix ; leur temple, si."),
 ],
 # ---------- ÉTAPE 7 : Lothan, éclaireur ----------
 'lothan': [
@@ -224,6 +250,8 @@ for nid, dlgs in QUESTS.items():
         for r in d.get('reactions', []):
             if r['type'] == 'item' and r['defId'] not in item_ids:
                 errors.append(f'{nid}: objet récompense inconnu {r["defId"]}')
+            if r['type'] not in ('gold', 'item', 'xp', 'flag', 'teleport', 'heal', 'cleanse', 'buff'):
+                errors.append(f'{nid}: type de réaction inconnu {r["type"]}')
 
 # 3. chaîne de flags : tout flag exigé est posé quelque part
 set_flags = {r['key'] for dl in QUESTS.values() for d in dl for r in d.get('reactions', []) if r['type'] == 'flag'}

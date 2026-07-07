@@ -659,7 +659,96 @@
           "keywords": [
             "priere"
           ],
-          "reponse": "Je prie pour les vivants. Les morts d'Arakas, eux, n'écoutent plus — c'est bien le problème."
+          "reponse": "Je prie pour les vivants. Les morts d'Arakas, eux, n'écoutent plus — c'est bien le problème. Le temple offre ses « soins », sa « benediction » et la « purification » des maudits — les dieux acceptent l'or, moi aussi."
+        },
+        {
+          "keywords": [
+            "soins"
+          ],
+          "reponse": "Que la lumière referme tes plaies, mon enfant. (-30 or)",
+          "conditions": {
+            "gold": 30,
+            "consumeGold": true,
+            "notCursed": true
+          },
+          "reactions": [
+            {
+              "type": "heal"
+            }
+          ],
+          "repeatable": true
+        },
+        {
+          "keywords": [
+            "soins"
+          ],
+          "reponse": "Une malédiction pèse sur toi : mes prières glissent sur elle. Demande la « purification » d'abord (100 or).",
+          "conditions": {
+            "cursed": true
+          }
+        },
+        {
+          "keywords": [
+            "soins"
+          ],
+          "reponse": "Les soins du temple coûtent 30 pièces, mon enfant. Les dieux nourrissent l'âme ; l'or nourrit le temple."
+        },
+        {
+          "keywords": [
+            "purification"
+          ],
+          "reponse": "Par les Trois Prophéties accomplies... que ce mal te quitte ! (-100 or)",
+          "conditions": {
+            "gold": 100,
+            "consumeGold": true,
+            "cursed": true
+          },
+          "reactions": [
+            {
+              "type": "cleanse"
+            }
+          ],
+          "repeatable": true
+        },
+        {
+          "keywords": [
+            "purification"
+          ],
+          "reponse": "Une malédiction te ronge et il te manque des pièces... La purification coûte 100 or. Reviens vite, avant qu'elle ne t'achève.",
+          "conditions": {
+            "cursed": true
+          }
+        },
+        {
+          "keywords": [
+            "purification"
+          ],
+          "reponse": "Aucune malédiction ne pèse sur toi. Que les dieux t'en préservent — sinon, la purification coûte 100 or."
+        },
+        {
+          "keywords": [
+            "benediction"
+          ],
+          "reponse": "Que les dieux marchent à tes côtés : leur bénédiction durcit ta chair. (+3 d'armure, 10 minutes) (-150 or)",
+          "conditions": {
+            "gold": 150,
+            "consumeGold": true
+          },
+          "reactions": [
+            {
+              "type": "buff",
+              "effect": "defense_boost",
+              "power": 3,
+              "duration": 600
+            }
+          ],
+          "repeatable": true
+        },
+        {
+          "keywords": [
+            "benediction"
+          ],
+          "reponse": "La bénédiction des dieux (+3 d'armure, 10 minutes) coûte 150 pièces. Leur faveur n'a pas de prix ; leur temple, si."
         }
       ],
       "look": {
