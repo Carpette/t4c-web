@@ -15,6 +15,8 @@ const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 8080;
 
 const MIME = {
+  '.wasm': 'application/wasm',
+  '.mjs': 'text/javascript',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -58,6 +60,13 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': cache,
+      // isolation cross-origin : requise par SharedArrayBuffer, donc par le
+      // WASM multithread de la dictée vocale (Whisper local). Effet de bord
+      // assumé : toute ressource cross-origin doit être servie avec CORS —
+      // tout est same-origin ici, et le hub HuggingFace envoie les bons
+      // en-têtes pour le téléchargement (consenti) du modèle.
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     });
     res.end(data);
   });
