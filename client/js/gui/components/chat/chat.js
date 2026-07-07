@@ -4,6 +4,10 @@
 // (localStorage), sans aucun effet pour les autres joueurs.
 import { uiStore } from '../../ui-store.js';
 import { globalBus } from '../../../event-bus.js';
+import {
+  voice, initDictation, askConsent, acceptModel, refuseModel,
+  resumeIfAccepted, startListening, stopListening, deleteModel,
+} from '../../../voice/dictation.js';
 
 const LS = typeof localStorage !== 'undefined' ? localStorage : { getItem: () => null, setItem: () => {} };
 function loadPrefs(key, fallback) {
@@ -15,6 +19,7 @@ const DEFAULT_COLORS = { general: '#9ad4ff', aide: '#9fe6a0', ventes: '#ffd24a',
 export function ChatController() {
   return {
     state: uiStore,
+    voice,
     showChans: false, newChan: '', newPrive: false,
     chanColors: loadPrefs('t4c:chanColors', {}),
     chanHidden: loadPrefs('t4c:chanHidden', {}),   // masqués du général (défaut : visibles)
@@ -24,7 +29,47 @@ export function ChatController() {
         this.scrollToBottom();
       });
       this.scrollToBottom();
+
+      // ---- dictée vocale : le texte transcrit ATTERRIT dans la saisie,
+      // à relire puis valider par Entrée — jamais envoyé tout seul
+      initDictation((text) => {
+        uiStore.chat.input = (uiStore.chat.input ? uiStore.chat.input + ' ' : '') + text;
+        document.getElementById('chat-input')?.focus();
+      });
+      resumeIfAccepted(); // déjà consenti : rechargé en silence (cache navigateur)
+      // push-to-talk : V maintenue (hors saisie de texte)
+      window.addEventListener('keydown', (e) => {
+        if (e.key !== 'v' && e.key !== 'V') return;
+        if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+        const a = document.activeElement;
+        if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+        startListening();
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'v' || e.key === 'V') stopListening();
+      });
     },
+
+    // ---- dictée : bouton micro et modale ----
+    micClick() {
+      if (voice.state === 'ready') startListening();
+      else if (voice.state === 'listening') stopListening();
+      else if (voice.state === 'off' || voice.state === 'error') askConsent();
+    },
+    micTitle() {
+      return {
+        off: 'Dictée vocale (installation locale, ~60 Mo)',
+        asking: 'Dictée vocale',
+        downloading: 'Téléchargement du modèle…',
+        ready: 'Dicter (ou maintiens V)',
+        listening: 'Je t\u2019écoute… (relâche pour transcrire)',
+        transcribing: 'Transcription…',
+        error: 'Erreur — clique pour réessayer',
+      }[voice.state] || 'Dictée vocale';
+    },
+    acceptVoice() { acceptModel(); },
+    refuseVoice() { refuseModel(); },
+    removeVoice() { deleteModel(); },
     scrollToBottom() {
       const el = document.getElementById('chat-messages');
       if (el) {

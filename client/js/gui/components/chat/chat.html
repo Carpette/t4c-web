@@ -1,6 +1,26 @@
 <div @vue:mounted="onMounted">
   <button id="chat-chans-btn" title="Canaux de discussion" @click="showChans = !showChans"
     style="position:absolute;top:2px;right:4px;z-index:2;background:none;border:none;color:#8fa0b8;cursor:pointer;font-size:13px;padding:2px;">⚙</button>
+  <button v-if="voice.supported && !voice.declined" @click="micClick()"
+    :title="micTitle()" id="chat-mic-btn"
+    style="position:absolute;top:2px;right:24px;z-index:2;background:none;border:none;cursor:pointer;font-size:13px;padding:2px;"
+    :style="{ color: voice.state === 'listening' ? '#ff5a4a' : voice.state === 'ready' ? 'var(--gold)' : '#8fa0b8' }">
+    {{ voice.state === 'downloading' ? voice.progress + '%' : voice.state === 'listening' ? '🔴' : voice.state === 'transcribing' ? '…' : '🎙' }}
+  </button>
+
+  <!-- consentement : le modèle de dictée se télécharge UNE fois, en local -->
+  <div v-if="voice.state === 'asking'" style="position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;">
+    <div style="max-width:400px;background:rgba(12,17,26,.97);border:1px solid var(--gold);border-radius:8px;padding:16px;font-size:13px;color:var(--text);">
+      <h3 style="color:var(--gold);margin:0 0 8px;">🎙 Dictée vocale locale</h3>
+      <p>Ton personnage dira ce que tu dictes (touche <b>V</b> maintenue, texte déposé dans la saisie pour relecture).</p>
+      <p>La reconnaissance vocale (Whisper) tourne <b>entièrement sur ta machine</b> : ta voix n'est jamais envoyée au serveur ni à quiconque — nous n'avons aucune donnée.</p>
+      <p>Elle nécessite le téléchargement <b>unique</b> d'un modèle (~60 Mo), conservé ensuite dans le cache de ton navigateur (supprimable à tout moment via ⚙).</p>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button @click="acceptVoice()" style="flex:1;">Télécharger (~60 Mo)</button>
+        <button @click="refuseVoice()" class="secondary" style="flex:1;">Non merci</button>
+      </div>
+    </div>
+  </div>
 
   <!-- panneau des canaux : abonnements (serveur) + couleurs/visibilité (LOCAL) -->
   <div v-if="showChans" style="position:absolute;bottom:100%;left:0;right:0;margin-bottom:4px;z-index:5;
@@ -32,6 +52,12 @@
       <button @click="create()" style="font-size:11px;">Créer</button>
     </div>
     <p style="font-size:10px;color:#8fa0b8;margin:6px 0 0;">Couleurs et 👁 ne concernent que TON affichage. Canal privé : invite avec .canal inviter Nom canal.</p>
+    <div v-if="voice.supported" style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:10px;color:#8fa0b8;">
+      🎙 Dictée vocale : <span v-if="voice.state === 'ready' || voice.state === 'downloading'">modèle installé (local).
+        <a href="#" @click.prevent="removeVoice()" style="color:#ff8a7a;">Supprimer le modèle (~60 Mo)</a></span>
+      <span v-else-if="voice.declined">refusée. <a href="#" @click.prevent="micClick()" style="color:var(--gold);">Réactiver</a></span>
+      <span v-else>touche V pour dicter (après installation via 🎙).</span>
+    </div>
   </div>
 
   <div id="chat-messages">
