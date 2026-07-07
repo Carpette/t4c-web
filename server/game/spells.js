@@ -128,7 +128,6 @@ export function spellReqText(sp) {
 // relancer, pas une incantation préalable. L'approche automatique hors combat
 // passe toujours par pendingCast : le sort part une fois à portée.
 export function castSpell(game, p, msg) {
-  console.log('[DEBUG castSpell] player stats:', p.stats, 'eff stats:', p.eff?.stats, 'level:', p.level);
   const sp = content.spellById[msg.spellId];
   if (!sp || !p.spells.includes(sp.id) || sp.todo) return;
   const now = game.now();
