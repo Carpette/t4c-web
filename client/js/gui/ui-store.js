@@ -28,6 +28,7 @@ export const uiStore = reactive({
   obelisk: null,
   party: null,
   partyInvite: null,
+  selfId: null,      // id d'entité du joueur (chef de groupe ? etc.)
   hotkeys: {},
   spellDefs: [],
   activeSpell: null,
@@ -70,10 +71,6 @@ globalBus.on('net:xp', (data) => {
 
 globalBus.on('net:party-update', (msg) => {
   uiStore.party = msg.members.length ? msg : null;
-  const el = document.getElementById('party-panel');
-  if (el) {
-    el.classList.toggle('hidden', !uiStore.party);
-  }
 });
 
 globalBus.on('net:party-vitals', (msg) => {
@@ -88,9 +85,8 @@ globalBus.on('net:party-vitals', (msg) => {
 });
 
 globalBus.on('net:party-invite', (msg) => {
-  uiStore.partyInvite = msg;
-  const el = document.getElementById('party-invite');
-  if (el) el.classList.remove('hidden');
+  // le composant party affiche le toast et son compte à rebours (TTL serveur : 30 s)
+  uiStore.partyInvite = { ...msg, until: Date.now() + 30e3 };
 });
 
 globalBus.on('net:bank-open', (msg) => {

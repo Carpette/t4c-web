@@ -96,6 +96,7 @@ net.on('create_char', async (m) => {
 });
 net.on('welcome', (m) => {
   selfId = m.id;
+  uiStore.selfId = m.id;
   uiStore.adminPerms = m.perms || [];
   ui.selfId = m.id;
   worldTime = m.time;
