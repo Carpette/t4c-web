@@ -20,6 +20,12 @@ self.onmessage = async (e) => {
   if (type === 'load') {
     try {
       const device = e.data.webgpu ? 'webgpu' : 'wasm';
+      // RÉSULTAT ATTENDU dans la console (contexte « whisper-worker.js ») :
+      // ce log, puis les progressions relayées à la page, puis « ready ».
+      // Premier lancement : les requêtes partent vers huggingface.co (onglet
+      // Réseau) ; lancements suivants : servies depuis Cache Storage (0 ms).
+      console.log('[dictée:worker] chargement du modèle', MODEL_ID, '— backend :', device,
+        '| runtime :', env.backends.onnx.wasm.wasmPaths);
       transcriber = await pipeline('automatic-speech-recognition', MODEL_ID, {
         dtype: device === 'webgpu' ? 'fp16' : 'q8',
         device,
@@ -29,6 +35,7 @@ self.onmessage = async (e) => {
           }
         },
       });
+      console.log('[dictée:worker] modèle prêt');
       self.postMessage({ type: 'ready' });
     } catch (err) {
       self.postMessage({ type: 'error', error: String(err?.message || err) });
@@ -39,8 +46,9 @@ self.onmessage = async (e) => {
   if (type === 'transcribe' && transcriber) {
     try {
       // audio : Float32Array mono à 16 kHz (préparé côté page)
+      const t0 = Date.now();
       const out = await transcriber(e.data.audio, { language: 'french', task: 'transcribe' });
-      self.postMessage({ type: 'text', text: (out.text || '').trim() });
+      self.postMessage({ type: 'text', text: (out.text || '').trim(), ms: Date.now() - t0 });
     } catch (err) {
       self.postMessage({ type: 'error', error: String(err?.message || err) });
     }
