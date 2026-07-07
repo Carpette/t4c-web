@@ -10,7 +10,6 @@ import { ShopController } from './components/shop/shop.js';
 import { ObeliskController } from './components/obelisk/obelisk.js';
 import { HudBarsController } from './components/hudbars/hudbars.js';
 import { PartyController } from './components/party/party.js';
-import { PartyInviteController } from './components/party-invite/party-invite.js';
 import { LoginController } from './components/login/login.js';
 import { SpellsController } from './components/spells/spells.js';
 import { SettingsController } from './components/settings/settings.js';
@@ -37,14 +36,14 @@ const COMPONENT_MAP = {
   spells: '#spells',
   hudbars: '#hud-bars',
   admin: '#admin-panel',
-  // partyinvite: '#party-invite',
+  // le toast d'invitation vit dans le composant party (plus de party-invite)
   // obelisk: '#obelisk-panel',
 };
 
 const PHASE_COMPONENTS = {
   login: ['login'],
   creation: ['creation'],
-  'in-game': ['chat', 'hudbars', 'help', 'settings', 'admin'],
+  'in-game': ['chat', 'hudbars', 'help', 'settings', 'admin', 'party'],
   death: []
 };
 
@@ -62,11 +61,11 @@ class GuiManager {
       obelisk: ObeliskController,
       hudbars: HudBarsController,
       party: PartyController,
-      partyinvite: PartyInviteController,
       spells: SpellsController,
       settings: SettingsController,
       creation: CreationController,
       admin: AdminController,
+      party: PartyController,
     };
     this.ui = null;
     this.loaded = new Set();

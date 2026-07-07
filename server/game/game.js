@@ -1157,6 +1157,15 @@ export class Game {
             this.partyInvite(p, { name: text });
             return;
           }
+          // canal privé du groupe : /g message (alias /groupe)
+          if (channel === 'g' || channel === 'groupe') {
+            if (!p.party) { this.send(p, { t: 'info', text: 'Vous n\u2019avez pas de groupe. /inviter Nom pour en fonder un.' }); return; }
+            const out = JSON.stringify({ t: 'chat', from: p.name, text, channel: 'groupe' });
+            for (const m of p.party.members) {
+              if (m.ws.readyState === 1) m.ws.send(out);
+            }
+            return;
+          }
           const validChannels = ['general', 'aide', 'ventes', 'roleplay'];
           if (validChannels.includes(channel)) {
             this.broadcastChannelChat(channel, p.name, text);
@@ -1222,7 +1231,7 @@ export class Game {
     const say = (text) => this.send(p, { t: 'info', text });
     switch (cmd) {
       case 'aide': case 'help': {
-        say('Commandes : .pos (position) · .zone (lieu) · .xpstat (XP par heure) · .xpreset (repart de zéro) · .boss (le rendez-vous de la zone) · .qui (en ligne) · .pantheon (âmes déchues)');
+        say('Commandes : .pos (position) · .zone (lieu) · .xpstat (XP par heure) · .xpreset (repart de zéro) · .boss (le rendez-vous de la zone) · .groupe (mon groupe) · .qui (en ligne) · .pantheon (âmes déchues)');
         break;
       }
       case 'pos': {
@@ -1259,6 +1268,13 @@ export class Game {
         say(ms > 0
           ? `☠ ${b.name} est tombé. Il reviendra dans environ ${this.fmtMins(ms / 60e3)}.`
           : `⚔ ${b.name} ne devrait plus tarder...`);
+        break;
+      }
+      case 'groupe': case 'party': {
+        if (!p.party) { say('Vous n\u2019avez pas de groupe. /inviter Nom pour en fonder un.'); break; }
+        const rows = p.party.members.map(m =>
+          `${m === p.party.leader ? '👑 ' : ''}${m.name} (niv ${m.level}, ${Math.round(m.hp)}/${m.eff.maxHp} PV)`);
+        say(`Groupe ${p.party.members.length}/${C.GROUP_MAX_SIZE} : ${rows.join(' · ')} — canal /g.`);
         break;
       }
       case 'qui': case 'who': {
