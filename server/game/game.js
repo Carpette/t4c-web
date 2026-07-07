@@ -1515,7 +1515,7 @@ export class Game {
   // bornes de taille, types de réactions en liste blanche, chaînes tronquées
   sanitizeDialogues(raw) {
     if (!Array.isArray(raw) || raw.length > 30) return null;
-    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'teleport']);
+    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'teleport', 'heal', 'cleanse', 'buff']);
     const out = [];
     for (const d of raw) {
       if (!d || typeof d !== 'object') return null;
@@ -1533,6 +1533,12 @@ export class Game {
           c.item = d.conditions.item;
           if (d.conditions.consume) c.consume = true;
         }
+        if (Number.isFinite(+d.conditions.gold)) {
+          c.gold = Math.max(1, Math.min(1e7, d.conditions.gold | 0));
+          if (d.conditions.consumeGold) c.consumeGold = true;
+        }
+        if (d.conditions.cursed) c.cursed = true;
+        if (d.conditions.notCursed) c.notCursed = true;
         if (Object.keys(c).length) e.conditions = c;
       }
       if (Array.isArray(d.reactions)) {
@@ -1549,6 +1555,11 @@ export class Game {
           if (r.type === 'flag') {
             if (typeof r.key !== 'string' || !r.key) return null;
             rr.key = r.key.slice(0, 48);
+          }
+          if (r.type === 'buff') {
+            if (typeof r.effect === 'string') rr.effect = r.effect.slice(0, 32);
+            if (Number.isFinite(+r.power)) rr.power = Math.max(0, Math.min(50, +r.power));
+            if (Number.isFinite(+r.duration)) rr.duration = Math.max(1, Math.min(3600, r.duration | 0));
           }
           if (r.type === 'teleport') {
             if (Number.isFinite(+r.zoneId)) rr.zoneId = r.zoneId | 0;
