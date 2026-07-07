@@ -406,6 +406,8 @@ export class Game {
     }
     const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
     p.perms = Array.isArray(perms) ? perms : [];
+    p.sessionXp0 = p.xp || 0;      // pour .xpstat : XP au début de la session
+    p.sessionT0 = Date.now();      // (.xpreset repart d'ici)
     for (const it of p.inventory) setNextIid(it.iid + 1);
     for (const it of p.bank) setNextIid(it.iid + 1);
 
@@ -1129,14 +1131,20 @@ export class Game {
       }
       case 'chat': {
         const now = Date.now();
+        const rawText = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
+        if (!rawText) return;
+        // mode expert : les messages commençant par « . » sont des commandes —
+        // réponse privée, jamais diffusés, hors anti-spam (lecture seule)
+        if (rawText.startsWith('.')) {
+          this.dotCommand(p, rawText);
+          return;
+        }
         if (now - p.lastChat < 800) {
           // anti-spam : prévenir plutôt qu'avaler silencieusement le message
           this.send(p, { t: 'info', text: 'Doucement... votre message n\'a pas été envoyé.' });
           return;
         }
         p.lastChat = now;
-        const rawText = String(msg.text || '').slice(0, C.CHAT_MAX).trim();
-        if (!rawText) return;
 
         // Vérifier si c'est un message de canal public (ex: /general message)
         const channelMatch = rawText.match(/^\/(\w+)\s+(.+)$/);
@@ -1205,6 +1213,80 @@ export class Game {
         break;
       }
     }
+  }
+
+  // ---------- Commandes joueur « . » (mode expert, lecture seule) ----------
+  // Tapées dans le chat, préfixe « . » : réponse texte privée, jamais diffusée.
+  dotCommand(p, raw) {
+    const [cmd] = raw.slice(1).toLowerCase().split(/\s+/);
+    const say = (text) => this.send(p, { t: 'info', text });
+    switch (cmd) {
+      case 'aide': case 'help': {
+        say('Commandes : .pos (position) · .zone (lieu) · .xpstat (XP par heure) · .xpreset (repart de zéro) · .boss (le rendez-vous de la zone) · .qui (en ligne) · .pantheon (âmes déchues)');
+        break;
+      }
+      case 'pos': {
+        say(`Position : ${p.x.toFixed(1)} : ${p.z.toFixed(1)} — ${this.placeName(p)}`);
+        break;
+      }
+      case 'zone': {
+        const zd = !p.zi.isTrial && !p.zi.isCave && this.zoneDef(p.zi.zoneId);
+        say(zd
+          ? `${zd.name} — niveaux ${zd.levels[0]} à ${zd.levels[1]}.`
+          : `${this.placeName(p)}.`);
+        break;
+      }
+      case 'xpstat': {
+        const gained = Math.max(0, (p.xp || 0) - p.sessionXp0);
+        const mins = Math.max(0.5, (Date.now() - p.sessionT0) / 60e3);
+        const perHour = Math.round(gained * 60 / mins);
+        say(`Session : +${Math.round(gained)} XP en ${this.fmtMins(mins)} — ${perHour} XP/h.`);
+        break;
+      }
+      case 'xpreset': {
+        p.sessionXp0 = p.xp || 0;
+        p.sessionT0 = Date.now();
+        say('Compteurs de session remis à zéro. Bonne chasse.');
+        break;
+      }
+      case 'boss': {
+        const zd = !p.zi.isTrial && !p.zi.isCave && this.zoneDef(p.zi.zoneId);
+        const b = zd?.boss;
+        if (!b) { say('Aucun boss ne hante ce lieu.'); break; }
+        if (p.zi.bossId != null) { say(`⚔ ${b.name} se dresse quelque part dans ${zd.name}...`); break; }
+        const next = +db.getKV(`boss:next:${p.zi.zoneId}`) || 0;
+        const ms = next - Date.now();
+        say(ms > 0
+          ? `☠ ${b.name} est tombé. Il reviendra dans environ ${this.fmtMins(ms / 60e3)}.`
+          : `⚔ ${b.name} ne devrait plus tarder...`);
+        break;
+      }
+      case 'qui': case 'who': {
+        const names = [...this.players.values()].filter(o => !o.permadead).map(o => `${o.name} (${o.level})`);
+        say(`${names.length} aventurier${names.length > 1 ? 's' : ''} en ligne : ${names.join(', ')}.`);
+        break;
+      }
+      case 'pantheon': {
+        const top = db.pantheon(50).sort((a, b) => b.level - a.level).slice(0, 5);
+        if (!top.length) { say('Le Panthéon est vide — personne n\u2019est encore mort. Ça viendra.'); break; }
+        say('Panthéon : ' + top.map((d, i) => `${i + 1}. ${d.name} (niv ${d.level}, ${d.zone})`).join(' · '));
+        break;
+      }
+      default:
+        say(`Commande .${cmd} inconnue — tape .aide pour la liste.`);
+    }
+  }
+
+  // nom du lieu courant (zone, Épreuve ou caverne) — même logique que l'épitaphe
+  placeName(p) {
+    return p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}`
+      : p.zi.isCave ? p.zi.caveName
+      : this.zoneDef(p.zi.zoneId).name;
+  }
+
+  fmtMins(mins) {
+    if (mins >= 60) { const h = Math.floor(mins / 60); return `${h} h ${String(Math.round(mins % 60)).padStart(2, '0')}`; }
+    return `${Math.max(1, Math.round(mins))} min`;
   }
 
   // ---------- Commandes d'administration (en jeu) ----------
