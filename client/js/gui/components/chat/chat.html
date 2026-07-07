@@ -1,15 +1,50 @@
 <div @vue:mounted="onMounted">
+  <button id="chat-chans-btn" title="Canaux de discussion" @click="showChans = !showChans"
+    style="position:absolute;top:2px;right:4px;z-index:2;background:none;border:none;color:#8fa0b8;cursor:pointer;font-size:13px;padding:2px;">⚙</button>
+
+  <!-- panneau des canaux : abonnements (serveur) + couleurs/visibilité (LOCAL) -->
+  <div v-if="showChans" style="position:absolute;bottom:100%;left:0;right:0;margin-bottom:4px;z-index:5;
+      background:rgba(10,14,22,.95);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;max-height:46vh;overflow-y:auto;">
+    <h3 style="color:var(--gold);font-size:12px;margin:0 0 6px;">Canaux de discussion</h3>
+
+    <div v-for="c in myChannels()" :key="c.name" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <input type="color" :value="colorOf(c.name)" @input="setColor(c.name, $event.target.value)"
+        title="Couleur (locale)" style="width:22px;height:18px;padding:0;border:none;background:none;">
+      <span style="flex:1;" :style="{ color: colorOf(c.name) }">{{ c.private ? '🔒' : '' }}/{{ c.name }}
+        <span v-if="c.mine" style="color:#8fa0b8;">(à toi)</span></span>
+      <label title="Afficher dans le général" style="color:#8fa0b8;cursor:pointer;">
+        <input type="checkbox" :checked="isVisibleChan(c.name)" @change="toggleVisible(c.name)"> 👁
+      </label>
+      <button class="kick" title="Quitter" @click="leave(c.name)">✕</button>
+    </div>
+
+    <div v-if="joinable().length" style="margin-top:8px;">
+      <div style="color:#8fa0b8;margin-bottom:4px;">Rejoindre :</div>
+      <div v-for="c in joinable()" :key="c.name" style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+        <span style="flex:1;">/{{ c.name }} <span v-if="c.owner" style="color:#8fa0b8;">({{ c.owner }})</span></span>
+        <button @click="join(c.name)" style="font-size:11px;padding:1px 8px;">Rejoindre</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:4px;margin-top:8px;align-items:center;">
+      <input v-model="newChan" placeholder="nouveau canal…" maxlength="16" style="flex:1;">
+      <label style="color:#8fa0b8;white-space:nowrap;cursor:pointer;"><input type="checkbox" v-model="newPrive"> 🔒</label>
+      <button @click="create()" style="font-size:11px;">Créer</button>
+    </div>
+    <p style="font-size:10px;color:#8fa0b8;margin:6px 0 0;">Couleurs et 👁 ne concernent que TON affichage. Canal privé : invite avec .canal inviter Nom canal.</p>
+  </div>
+
   <div id="chat-messages">
-    <div v-for="msg in state.chat.messages" :class="getMessageClass(msg)">
-      <span v-if="msg.channel" class="channel-name">[{{ msg.channel }}] </span>
+    <div v-for="msg in state.chat.messages" v-show="isVisible(msg)" :class="getMessageClass(msg)">
+      <span v-if="msg.channel" class="channel-name" :style="{ color: colorOf(msg.channel) }">[{{ msg.channel }}] </span>
       <span v-if="msg.from && msg.from !== 'sys'" class="from">{{ msg.from }}: </span>
       <span :class="{ sys: msg.from === 'sys' }">{{ msg.text }}</span>
     </div>
   </div>
-  <input id="chat-input" 
-         type="text" 
+  <input id="chat-input"
+         type="text"
          v-model="state.chat.input"
          @keydown="onKeyDown"
-         placeholder="Entrée pour parler (local) — /general /aide /ventes /roleplay" 
+         placeholder="Entrée pour parler (local) — /canal message · ⚙ pour gérer les canaux"
          maxlength="200">
 </div>

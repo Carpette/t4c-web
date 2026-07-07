@@ -48,6 +48,10 @@ export class Game {
     this.players = new Map();    // id -> joueur
     this.nextId = 1;
     this.worldTime = C.DAY_LENGTH * 0.3;
+    // canaux de discussion créés par les joueurs (world_kv : survivent aux
+    // redémarrages) : { nom: { owner, ownerName, private, members: [accountId] } }
+    try { this.customChannels = JSON.parse(db.getKV('channels') || '{}'); }
+    catch { this.customChannels = {}; }
     this.tickCount = 0;
 
     for (const z of content.zones) {
@@ -431,6 +435,7 @@ export class Game {
     zi.add(p);
     zi.players++;
     this.send(p, { t: 'welcome', id: p.id, time: this.worldTime, admin: p.isAdmin, perms: this.permsOf(p) });
+    this.sendChannels(p);
     this.sendZone(p);
     this.sendSelf(p);
     this.broadcastChat('sys', `${p.name} entre dans le monde.`);
@@ -1166,6 +1171,24 @@ export class Game {
             }
             return;
           }
+          // canaux créés par les joueurs : abonnés seulement, membres si privé
+          const cc = this.customChannels[channel];
+          if (cc) {
+            if (cc.private && !cc.members.includes(p.accountId)) {
+              this.send(p, { t: 'info', text: `Le canal /${channel} est privé — seul son fondateur peut t\u2019y inviter.` });
+              return;
+            }
+            if (!p.channels.includes(channel)) {
+              this.send(p, { t: 'info', text: `Rejoins d\u2019abord le canal : .canal rejoindre ${channel}` });
+              return;
+            }
+            const out = JSON.stringify({ t: 'chat', from: p.name, text, channel });
+            for (const o of this.players.values()) {
+              if (o.ws.readyState === 1 && o.channels.includes(channel)
+                && (!cc.private || cc.members.includes(o.accountId))) o.ws.send(out);
+            }
+            return;
+          }
           const validChannels = ['general', 'aide', 'ventes', 'roleplay'];
           if (validChannels.includes(channel)) {
             this.broadcastChannelChat(channel, p.name, text);
@@ -1227,11 +1250,12 @@ export class Game {
   // ---------- Commandes joueur « . » (mode expert, lecture seule) ----------
   // Tapées dans le chat, préfixe « . » : réponse texte privée, jamais diffusée.
   dotCommand(p, raw) {
-    const [cmd] = raw.slice(1).toLowerCase().split(/\s+/);
+    const [cmd, ...args] = raw.slice(1).toLowerCase().split(/\s+/);
     const say = (text) => this.send(p, { t: 'info', text });
+    if (cmd === 'canal' || cmd === 'canaux') { this.canalCommand(p, args); return; }
     switch (cmd) {
       case 'aide': case 'help': {
-        say('Commandes : .pos (position) · .zone (lieu) · .xpstat (XP par heure) · .xpreset (repart de zéro) · .boss (le rendez-vous de la zone) · .groupe (mon groupe) · .qui (en ligne) · .pantheon (âmes déchues)');
+        say('Commandes : .pos (position) · .zone (lieu) · .xpstat (XP par heure) · .xpreset (repart de zéro) · .boss (le rendez-vous de la zone) · .groupe (mon groupe) · .canal (canaux de discussion : creer/rejoindre/quitter/inviter…) · .qui (en ligne) · .pantheon (âmes déchues)');
         break;
       }
       case 'pos': {
@@ -1290,6 +1314,114 @@ export class Game {
       }
       default:
         say(`Commande .${cmd} inconnue — tape .aide pour la liste.`);
+    }
+  }
+
+  // ---------- Canaux de discussion personnalisés ----------
+  saveChannels() { db.setKV('channels', JSON.stringify(this.customChannels)); }
+
+  // l'état des canaux du joueur : les fixes, les publics, et ses privés —
+  // le panneau ⚙ du chat s'en nourrit (couleurs et filtre restent locaux)
+  sendChannels(p) {
+    const FIXES = ['general', 'aide', 'ventes', 'roleplay'];
+    const list = FIXES.map(name => ({ name, joined: p.channels.includes(name) }));
+    for (const [name, c] of Object.entries(this.customChannels)) {
+      if (c.private && !c.members.includes(p.accountId)) continue;
+      list.push({ name, private: !!c.private, owner: c.ownerName, mine: c.owner === p.accountId, joined: p.channels.includes(name) });
+    }
+    this.send(p, { t: 'channels', list });
+  }
+
+  canalCommand(p, args) {
+    const say = (text) => this.send(p, { t: 'info', text });
+    const RESERVED = new Set(['general', 'aide', 'ventes', 'roleplay', 'groupe', 'g', 'inviter', 'canal']);
+    const [sub, a1, a2] = args;
+    const name = (sub === 'inviter' ? a2 : a1 || '').toLowerCase();
+    const cc = this.customChannels[name];
+    switch (sub) {
+      case 'creer': {
+        if (!/^[a-z0-9_-]{2,16}$/.test(name)) { say('Nom de canal : 2 à 16 caractères (a-z, 0-9, _ ou -).'); return; }
+        if (RESERVED.has(name) || cc) { say(`Le canal /${name} existe déjà.`); return; }
+        if (Object.keys(this.customChannels).length >= 50) { say('Trop de canaux sur le serveur (50).'); return; }
+        const owned = Object.values(this.customChannels).filter(c => c.owner === p.accountId).length;
+        if (owned >= 5) { say('Tu fondes déjà 5 canaux — supprime-en un d\u2019abord (.canal supprimer nom).'); return; }
+        const priv = a2 === 'prive' || a2 === 'privé';
+        this.customChannels[name] = { owner: p.accountId, ownerName: p.name, private: priv, members: [p.accountId] };
+        if (!p.channels.includes(name)) p.channels.push(name);
+        this.saveChannels();
+        this.sendChannels(p);
+        say(priv
+          ? `Canal privé /${name} fondé. Invite qui tu veux : .canal inviter Nom ${name}`
+          : `Canal public /${name} fondé — tout le monde peut le rejoindre (.canal rejoindre ${name}).`);
+        break;
+      }
+      case 'rejoindre': {
+        const FIXES = ['general', 'aide', 'ventes', 'roleplay'];
+        if (!cc && !FIXES.includes(name)) { say(`Le canal /${name} n\u2019existe pas (.canal liste).`); return; }
+        if (cc?.private && !cc.members.includes(p.accountId)) { say(`Le canal /${name} est privé — seul ${cc.ownerName} peut t\u2019y inviter.`); return; }
+        if (p.channels.includes(name)) { say(`Tu es déjà sur /${name}.`); return; }
+        p.channels.push(name);
+        this.sendChannels(p);
+        say(`Te voilà sur /${name}. Parle avec : /${name} message`);
+        break;
+      }
+      case 'quitter': {
+        const i = p.channels.indexOf(name);
+        if (i < 0) { say(`Tu n\u2019es pas sur /${name}.`); return; }
+        p.channels.splice(i, 1);
+        this.sendChannels(p);
+        say(`Tu quittes /${name}.`);
+        break;
+      }
+      case 'inviter': {
+        if (!cc) { say(`Le canal /${name} n\u2019existe pas.`); return; }
+        if (cc.owner !== p.accountId) { say(`Seul ${cc.ownerName} invite sur /${name}.`); return; }
+        if (!cc.private) { say(`/${name} est public : on peut le rejoindre librement (.canal rejoindre ${name}).`); return; }
+        const targetName = String(a1 || '').toLowerCase();
+        let target = null;
+        for (const o of this.players.values()) if (o.name.toLowerCase() === targetName) { target = o; break; }
+        if (!target) { say('Personne de ce nom en ligne.'); return; }
+        if (!cc.members.includes(target.accountId)) cc.members.push(target.accountId);
+        if (!target.channels.includes(name)) target.channels.push(name);
+        this.saveChannels();
+        this.sendChannels(target);
+        this.send(target, { t: 'info', text: `${p.name} t\u2019ouvre les portes du canal privé /${name}. Parle avec : /${name} message` });
+        say(`${target.name} rejoint /${name}.`);
+        break;
+      }
+      case 'supprimer': {
+        if (!cc) { say(`Le canal /${name} n\u2019existe pas.`); return; }
+        if (cc.owner !== p.accountId && !p.isAdmin) { say(`Seul ${cc.ownerName} peut supprimer /${name}.`); return; }
+        delete this.customChannels[name];
+        this.saveChannels();
+        for (const o of this.players.values()) {
+          const i = o.channels.indexOf(name);
+          if (i >= 0) {
+            o.channels.splice(i, 1);
+            this.sendChannels(o);
+            this.send(o, { t: 'info', text: `Le canal /${name} a été dissous.` });
+          }
+        }
+        break;
+      }
+      case 'membres': {
+        if (!cc) { say(`Le canal /${name} n\u2019existe pas.`); return; }
+        if (cc.private && !cc.members.includes(p.accountId)) { say(`/${name} est privé.`); return; }
+        if (!cc.private) { say(`/${name} est public — pas de liste de membres, tout le monde y est bienvenu.`); return; }
+        const names = cc.members.map(id => db.getAccountById(id)?.name || '?');
+        say(`🔒 /${name} (${cc.ownerName}) : ${names.join(', ')}.`);
+        break;
+      }
+      case 'liste': default: {
+        const FIXES = ['general', 'aide', 'ventes', 'roleplay'];
+        const rows = FIXES.map(n => `${p.channels.includes(n) ? '✓' : '·'} /${n}`);
+        for (const [n, c] of Object.entries(this.customChannels)) {
+          if (c.private && !c.members.includes(p.accountId)) continue;
+          rows.push(`${p.channels.includes(n) ? '✓' : '·'} ${c.private ? '🔒' : ''}/${n} (${c.ownerName})`);
+        }
+        say(`Canaux : ${rows.join(' · ')} — .canal creer|rejoindre|quitter|inviter|supprimer|membres`);
+        break;
+      }
     }
   }
 
