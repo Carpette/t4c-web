@@ -49,13 +49,16 @@ export function containsKeyword(text, keyword) {
 }
 
 // toutes les conditions d'un dialogue sont-elles remplies pour ce joueur ?
-function conditionsMet(p, dlg) {
+function conditionsMet(p, dlg, game) {
   const c = dlg.conditions;
   if (!c) return true;
   if (c.flag && !p.flags[c.flag]) return false;
   if (c.notFlag && p.flags[c.notFlag]) return false;
   if (c.level && p.level < c.level) return false;
   if (c.item && !p.inventory.some(it => it.defId === c.item)) return false;
+  if (c.gold && p.gold < c.gold) return false;                       // seuil d'or (prélevé si consumeGold)
+  if (c.cursed && !(game && game.isCursed(p))) return false;         // réservé aux maudits (purification)
+  if (c.notCursed && game && game.isCursed(p)) return false;         // refusé aux maudits (soins)
   return true;
 }
 
@@ -83,7 +86,7 @@ export function handleNpcKeywords(game, p, text) {
     for (let i = 0; i < dialogues.length; i++) {
       const dlg = dialogues[i];
       if (!Array.isArray(dlg.keywords) || !dlg.keywords.some(k => containsKeyword(text, k))) continue;
-      if (!conditionsMet(p, dlg)) continue;
+      if (!conditionsMet(p, dlg, game)) continue;
       triggerDialogue(game, p, npc, dlg, i);
       return true;
     }
@@ -93,6 +96,12 @@ export function handleNpcKeywords(game, p, text) {
 
 function triggerDialogue(game, p, npc, dlg, index) {
   // objet exigé ET consommé par la condition (offrande, clé, preuve...)
+  // services payants (prêtre, péages…) : l'or n'est prélevé que si l'entrée
+  // déclare consumeGold — sinon conditions.gold n'est qu'un seuil de richesse
+  if (dlg.conditions?.gold && dlg.conditions.consumeGold) {
+    p.gold -= dlg.conditions.gold;
+    game.send(p, { t: 'loot', text: `-${dlg.conditions.gold} or` });
+  }
   if (dlg.conditions?.item && dlg.conditions.consume) {
     const i = p.inventory.findIndex(it => it.defId === dlg.conditions.item);
     if (i >= 0) {
@@ -155,6 +164,35 @@ function triggerDialogue(game, p, npc, dlg, index) {
       }
       case 'teleport': {
         applyTeleport(game, p, r);
+        break;
+      }
+      // ---- services (prêtre) : pas des récompenses, rejouables à volonté ----
+      case 'heal': {
+        // soin complet — la malédiction bloque TOUT soin : l'entrée de contenu
+        // doit porter conditions.notCursed pour ne pas encaisser à vide
+        if (!game.isCursed(p)) {
+          p.hp = p.eff.maxHp;
+          game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id, fx: { self: 'soin_majeur' } });
+        }
+        break;
+      }
+      case 'cleanse': {
+        p.curseUntil = 0;
+        game.eventNear(p, { t: 'fx', kind: 'heal', id: p.id, fx: { self: 'sol_benediction' } });
+        game.send(p, { t: 'info', text: 'La malédiction se dissipe.' });
+        break;
+      }
+      case 'buff': {
+        // bénédiction temporaire, même gestionnaire d'effets que les sorts
+        p.effects.apply({
+          type: r.effect || 'defense_boost',
+          power: Math.max(0, Math.min(50, +r.power || 3)),
+          duration: Math.max(1, Math.min(3600, r.duration | 0 || 600)) * 1000,
+          category: 'magique',
+          from_id: p.id,
+        }, { type: 'npc', id: 'benediction' }, game.now() * 1000, game);
+        p.recompute(game);
+        game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: '#ffd24a', stat: 'def', fx: { self: 'bouclier_sacre' } });
         break;
       }
     }
