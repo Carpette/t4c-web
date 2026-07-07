@@ -334,7 +334,7 @@ export class Player extends Character {
     this.known = new Set();
     this.events = [];
     this.lastChat = 0;
-    this.channels = ['general', 'aide', 'ventes', 'roleplay']; // Abonnés par défaut
+    this.channels = Array.isArray(data.channels) ? data.channels : ['general', 'aide', 'ventes', 'roleplay'];
     this.pendingPickup = null;
     this.pendingInteract = null;
     this.trialOffer = null;
@@ -581,6 +581,7 @@ export class Player extends Character {
       hpAcc: this.hpAcc, manaAcc: this.manaAcc,
       spells: this.spells, skills: this.skills, unlocked: this.unlocked,
       flags: this.flags,
+      channels: this.channels,
       sex: this.sex,
       zoneId: this.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
       trialFor: this.zi.isTrial ? this.zi.trialTarget : null,

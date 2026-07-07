@@ -29,6 +29,7 @@ export const uiStore = reactive({
   party: null,
   partyInvite: null,
   selfId: null,      // id d'entité du joueur (chef de groupe ? etc.)
+  channels: [],      // canaux de discussion (serveur) : {name, private?, owner?, mine?, joined}
   hotkeys: {},
   spellDefs: [],
   activeSpell: null,
