@@ -7,25 +7,10 @@
   <link rel="stylesheet" href="/css/style.css">
   <!-- L'UI en jeu a ete migree vers des classes Tailwind (refactor EventBus),
        mais index.html ne chargeait aucune feuille Tailwind -> panneaux nus
-       (feuille de perso, inventaire, PNJ...). On charge Tailwind comme l'admin,
-       mais SANS son reset « preflight » (corePlugins.preflight=false) pour ne
-       PAS ecraser le style.css existant (HUD, login, boutons, .panel...).
-       NB : le CDN « Play » convient au dev ; pour la prod, generer une feuille
-       statique (npx tailwindcss, la config scanne deja client/**). -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      corePlugins: { preflight: false },
-      theme: { extend: { colors: {
-        't4c-main-bg': '#14101e', 't4c-box-bg': '#1a1428', 't4c-border': '#5a4a8a',
-        't4c-text': '#d8d0f0', 't4c-text-light': '#e8e0ff', 't4c-gold': '#c8b87a',
-        't4c-button': '#4a3a7a', 't4c-button-hover': '#5d4a98', 't4c-button-active': '#7a5ac8',
-        't4c-input-bg': '#0c0a16', 't4c-input-border': '#4a4070',
-        't4c-danger': '#7a2a2a', 't4c-danger-border': '#aa4a4a',
-        't4c-success': '#2f7a4a', 't4c-success-border': '#4aaa6a',
-      } } }
-    }
-  </script>
+       (feuille de perso, inventaire, PNJ...). On charge une feuille Tailwind
+       compilee en local (npm run build:css), SANS preflight pour ne PAS
+       ecraser le style.css existant (HUD, login, boutons, .panel...). -->
+  <link rel="stylesheet" href="/css/game-tailwind.css">
   <style>
     /* Tailwind charge sans preflight : on retablit uniquement la base que les
        utilitaires border-* attendent (sinon les bordures Tailwind ne s'affichent
