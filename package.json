@@ -10,18 +10,20 @@
     "docker:build": "docker build -t t4c-web .",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "build:admin-css": "tailwindcss -i client/css/admin-input.css -o client/css/admin-tailwind.css",
-    "watch:admin-css": "tailwindcss -i client/css/admin-input.css -o client/css/admin-tailwind.css --watch"
+    "build:admin-css": "tailwindcss -i client/css/admin-input.css -o client/css/admin-tailwind.css --minify",
+    "build:game-css": "tailwindcss -i client/css/game-input.css -o client/css/game-tailwind.css --minify",
+    "build:css": "npm run build:admin-css && npm run build:game-css"
   },
   "engines": {
     "node": ">=22.5"
   },
   "dependencies": {
     "expr-eval-fork": "^3.0.3",
-    "ws": "^8.18.0",
-    "petite-vue": "^0.4.1"
+    "petite-vue": "^0.4.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.2",
     "tailwindcss": "^4.3.1"
   }
 }
