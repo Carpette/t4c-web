@@ -1,10 +1,12 @@
-/* Feuille source Tailwind v4 de l'admin — compiler avec `npm run build:css`.
-   Remplace le CDN Play (cdn.tailwindcss.com) : indisponible hors ligne et
-   souvent bloqué par les bloqueurs de pub, il laissait l'admin sans layout.
-   Preflight inclus (comme le faisait le CDN sur cette page). */
-@import "tailwindcss";
+/* Feuille source Tailwind v4 de l'UI en jeu — compiler avec `npm run build:css`.
+   Remplace le CDN Play (voir admin-input.css pour le pourquoi).
+   SANS preflight (on n'importe que theme + utilities) pour ne PAS écraser
+   style.css (HUD, login, boutons, .panel...) — même choix que l'ancien
+   corePlugins.preflight=false du CDN. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
-/* Sources scannées pour les classes (relatif à ce fichier) */
 @source "../**/*.html";
 @source "../js/**/*.js";
 @source not "../js/vendor";
