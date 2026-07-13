@@ -143,6 +143,27 @@ ok('animateur : personnages refusés (players manquant)', (await api2('/api/admi
 ok('animateur : attribution des rôles refusée (réservée aux super admins)',
   (await api2('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [] })).status === 403);
 
+// ---- 8. super admin : promotion à chaud, garde-fous ----
+anim.inbox.length = 0;
+await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [], superAdmin: true });
+const crowned = await waitMsg(anim, m => m.t === 'perms');
+ok('promotion 👑 : TOUTES les permissions à chaud',
+  crowned && ADMIN_PERMS.every(p => crowned.perms.includes(p)));
+ok('promotion 👑 : notification en jeu',
+  !!(await waitMsg(anim, m => m.t === 'info' && /super admin/.test(m.text))));
+// le promu peut désormais gérer les rôles lui-même
+const login3 = await (await fetch(`${BASE}/api/admin/login`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: anim.name, pass: 'test1234' }),
+})).json();
+const r8 = await fetch(`${BASE}/api/admin/roles`, {
+  method: 'PUT', headers: { Authorization: `Bearer ${login3.token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ accountId: animAcc.id, perms: [], superAdmin: false }),
+});
+ok('un super admin peut gérer les rôles (auto-rétrogradation acceptée)', r8.status === 200);
+const r9 = await api('/api/admin/roles', 'PUT', { accountId: 1, perms: [], superAdmin: false });
+ok('le compte fondateur est intouchable (anti-verrouillage)', !!r9.error);
+
 // ---- nettoyage : rôles retirés, npcs.json restauré ----
 await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [] });
 fs.writeFileSync(NPCS_PATH, npcsBackup);

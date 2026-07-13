@@ -131,21 +131,35 @@ export async function handleAdmin(req, res, url, game) {
     }
     if (url === '/api/admin/roles' && req.method === 'PUT') {
       // l'ATTRIBUTION reste réservée aux super admins (need = 'super' ci-dessus)
-      const { accountId, perms } = JSON.parse(await readBody(req));
+      const { accountId, perms, superAdmin } = JSON.parse(await readBody(req));
       const target = db.getAccountById(accountId | 0);
       if (!target) return json(404, { error: 'Compte inconnu' });
-      if (target.is_admin) return json(400, { error: 'Un super admin a déjà toutes les permissions' });
+      // le compte fondateur (n°1) est intouchable : il y a TOUJOURS au moins
+      // un super admin, personne ne peut verrouiller le serveur
+      if (target.id === 1 && superAdmin === false) {
+        return json(400, { error: 'Le compte fondateur reste super admin (anti-verrouillage)' });
+      }
+      if (typeof superAdmin === 'boolean' && target.id !== 1) {
+        db.setAdmin(target.id, superAdmin ? 1 : 0);
+        target.is_admin = superAdmin ? 1 : 0;
+      }
+      if (target.is_admin && typeof superAdmin !== 'boolean') {
+        return json(400, { error: 'Un super admin a déjà toutes les permissions' });
+      }
       const clean = (Array.isArray(perms) ? perms : []).filter(x => ADMIN_PERMS.includes(x));
-      db.setPerms(target.id, clean);
+      if (!target.is_admin) db.setPerms(target.id, clean);
       // appliqué à chaud si le joueur est connecté
       for (const p of game.players.values()) {
         if (p.accountId === target.id) {
+          p.isAdmin = !!target.is_admin;
           p.perms = clean;
           game.send(p, { t: 'perms', perms: game.permsOf(p) });
-          game.send(p, { t: 'info', text: 'Vos rôles d\u2019administration ont été mis à jour.' });
+          game.send(p, { t: 'info', text: p.isAdmin
+            ? '👑 Vous êtes désormais super admin.'
+            : 'Vos rôles d\u2019administration ont été mis à jour.' });
         }
       }
-      return json(200, { ok: true, perms: clean });
+      return json(200, { ok: true, superAdmin: !!target.is_admin, perms: clean });
     }
 
     // ---- contenu (générique, pour les anciens clients) ----
