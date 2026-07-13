@@ -164,6 +164,18 @@ ok('un super admin peut gérer les rôles (auto-rétrogradation acceptée)', r8.
 const r9 = await api('/api/admin/roles', 'PUT', { accountId: 1, perms: [], superAdmin: false });
 ok('le compte fondateur est intouchable (anti-verrouillage)', !!r9.error);
 
+// ---- 9. déconnexion admin : le jeton est invalidé côté serveur ----
+const out = await fetch(`${BASE}/api/admin/logout`, { method: 'POST', headers: H });
+ok('logout accepté', out.status === 200);
+const dead = await fetch(`${BASE}/api/admin/roles`, { headers: H });
+ok('le jeton ne fonctionne plus après déconnexion', dead.status === 401);
+// on se reconnecte pour le nettoyage final
+const relog = await (await fetch(`${BASE}/api/admin/login`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: boss.name, pass: 'test1234' }),
+})).json();
+H.Authorization = `Bearer ${relog.token}`;
+
 // ---- nettoyage : rôles retirés, npcs.json restauré ----
 await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [] });
 fs.writeFileSync(NPCS_PATH, npcsBackup);
