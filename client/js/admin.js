@@ -98,6 +98,18 @@ async function enter(name) {
 
 
 
+// ---------- Déconnexion ----------
+// Le bouton vit dans le composant sidebar, monté après coup : délégation au
+// document. Invalidation serveur en meilleur effort, purge locale TOUJOURS,
+// puis rechargement -> retour à l'écran de connexion.
+document.addEventListener('click', async (e) => {
+  if (e.target?.id !== 'logout-button' && !e.target?.closest?.('#logout-button')) return;
+  try { await api('/api/admin/logout', 'POST'); } catch { /* déjà expiré : peu importe */ }
+  localStorage.removeItem('t4c_admin_token');
+  token = null;
+  location.reload();
+});
+
 // reprise de session
 if (token) {
   api('/api/admin/check-session').then(r => enter(r.name)).catch(() => {

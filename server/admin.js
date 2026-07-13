@@ -104,7 +104,7 @@ export async function handleAdmin(req, res, url, game) {
     const grant = db.getPerms(session.accountId);
     const can = (perm) => grant.isAdmin || grant.perms.includes(perm);
     const need =
-      url === '/api/admin/check-session' || url === '/api/admin/me' ? null
+      url === '/api/admin/check-session' || url === '/api/admin/me' || url === '/api/admin/logout' ? null
         : /^\/api\/admin\/overrides\//.test(url) ? 'map'
         : url === '/api/admin/content/npcs' ? 'quests'
         : url === '/api/admin/characters' || /^\/api\/admin\/character\//.test(url) ? 'players'
@@ -117,6 +117,14 @@ export async function handleAdmin(req, res, url, game) {
     if (url === '/api/admin/check-session') {
       const account = db.getAccountById(session.accountId);
       return json(200, { name: account.name });
+    }
+
+    // déconnexion : le jeton est invalidé côté serveur (sinon il resterait
+    // valable 24 h dans un cache navigateur, un historique, un proxy…)
+    if (url === '/api/admin/logout' && req.method === 'POST') {
+      const raw = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      tokens.delete(raw);
+      return json(200, { ok: true });
     }
 
     // identité et permissions effectives de la session (l'admin web adapte son interface)
