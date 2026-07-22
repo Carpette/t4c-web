@@ -109,6 +109,12 @@ export const WALL_MATERIALS = [
   ['planches', 'Planches'],
   ['pierre', 'Pierre médiévale'],
   ['brique_grise', 'Brique grise'],
+  // --- matériaux procéduraux « atelier » (générés par tools/poc, pièces mur_x/mur_z/angle/tour) ---
+  ['proc_pierre', 'Pierre (atelier)'],
+  ['proc_bois', 'Bois (atelier)'],
+  ['proc_paille', 'Paille (atelier)'],
+  ['proc_terre', 'Terre (atelier)'],
+  ['proc_colombage', 'Colombage (atelier)'],
 ];
 export const WALL_PIECES = 16; // nombre de pièces par matériau (walls.json)
 // type de prop d'un matériau de mur : « wall_rondins », « wall_pierre », etc.

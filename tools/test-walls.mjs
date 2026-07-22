@@ -24,11 +24,13 @@ function pngSize(file) {
 const walls = JSON.parse(fs.readFileSync(path.join(ASSETS, 'tilesets', 'walls', 'walls.json'), 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS, 'manifest.json'), 'utf8'));
 
-// --- 1. bornes des rectangles dans chaque PNG ---
-let allInBounds = true, totalPieces = 0;
+// --- 1. bornes des rectangles dans chaque PNG (tous les matériaux déclarés) ---
+const nMats = WALL_MATERIALS.length;
+let allInBounds = true, present = 0, totalPieces = 0;
 for (const [mat] of WALL_MATERIALS) {
   const pieces = walls[mat];
   if (!pieces) { allInBounds = false; continue; }
+  present++;
   const { w: PW, h: PH } = pngSize(path.join(ASSETS, 'tilesets', 'walls', `${mat}.png`));
   for (const [x, y, w, h] of pieces) {
     totalPieces++;
@@ -38,7 +40,9 @@ for (const [mat] of WALL_MATERIALS) {
     }
   }
 }
-ok(`walls.json : ${totalPieces} pièces, toutes dans les bornes de leur PNG`, allInBounds && totalPieces === 7 * WALL_PIECES);
+ok(`walls.json : ${present}/${nMats} matériaux, ${totalPieces} pièces dans les bornes`,
+  allInBounds && present === nMats && totalPieces > 0);
+void WALL_PIECES;
 
 // --- 2. manifeste : 7 entrées × 16 pièces, schéma Flare [x,y,w,h,ox,oy,imgIndex] ---
 let entries = 0, frames = 0, schemaOk = true;
@@ -52,8 +56,8 @@ for (const [mat] of WALL_MATERIALS) {
     if (!Array.isArray(rect) || rect.length !== 7) schemaOk = false;
   }
 }
-ok('manifeste : 7 entrées wall_<mat> × 16 pièces', entries === 7 && frames === 7 * WALL_PIECES);
-ok('manifeste : schéma Flare [x,y,w,h,ox,oy,imgIndex] + image du matériau', schemaOk);
+ok('manifeste : une entrée wall_<mat> par matériau (walls.json <-> manifeste)', entries === nMats && frames === totalPieces);
+ok('manifeste : schéma [x,y,w,h,ox,oy,imgIndex] + image du matériau', schemaOk);
 
 // --- 3. resolveTile : « wall_pierre:5 » -> image + rect attendus ---
 {
