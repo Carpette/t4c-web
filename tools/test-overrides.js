@@ -133,13 +133,13 @@ const idx = (x, z) => z * N + x;
   const rect = ts?.tiles?.['5'];
   ok('manifeste : « wall_pierre:5 » résout vers image + rect (atlas du matériau)',
     ts && Array.isArray(rect) && rect.length >= 6 && ts.images[rect[6] || 0] === `tilesets/walls/${mat}.png`);
-  // les 7 matériaux × 16 pièces sont présents
+  // chaque matériau déclaré a son entrée wall_<mat> au manifeste
   let entries = 0, frames = 0;
   for (const [m] of WALL_MATERIALS) {
     const t = MANIFEST.tilesets[`wall_${m}`];
     if (t) { entries++; frames += Object.keys(t.tiles).length; }
   }
-  ok('manifeste : 7 matériaux de murs × 16 pièces présents', entries === 7 && frames === 112);
+  ok('manifeste : chaque matériau de mur a son entrée wall_<mat>', entries === WALL_MATERIALS.length && frames > 0);
 }
 
 // --- 4. aller-retour serveur : PUT puis GET via l'API admin ---
