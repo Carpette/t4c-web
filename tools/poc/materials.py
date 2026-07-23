@@ -145,36 +145,63 @@ def _crop(c):
     gx, gy = w2s(0.5, 0.5)
     return (Image.fromarray(c[y0:y1, x0:x1], "RGBA"), int(round(gx+OXo-x0)), int(round(gy+OYo-y0)))
 
+# Rendu générique d'un mur par CONNEXIONS : `dirs` ⊆ {'+x','-x','+z','-z'} dit
+# quels côtés de la case portent un mur. Face avant = +z pour les bras en x (à
+# z=z1), +x pour les bras en z (à x=x1) ; dessus + parapet clair. Ce modèle donne
+# droits, 4 angles, (T/croix/bouts extensibles) sans code par cas.
+def _wallfaces(c, dirs, stone, cap, H, t, cp):
+    x0, x1, z0, z1 = .5-t, .5+t, .5-t, .5+t
+    xa = 0.0 if '-x' in dirs else x0
+    xb = 1.0 if '+x' in dirs else x1
+    za = 0.0 if '-z' in dirs else z0
+    zb = 1.0 if '+z' in dirs else z1
+    hasx = ('+x' in dirs) or ('-x' in dirs)
+    hasz = ('+z' in dirs) or ('-z' in dirs)
+    # faces avant (pierre)
+    if hasx:
+        fill_quad(c, (Pt(xa, z1, 0), Pt(xb, z1, 0), Pt(xb, z1, H), Pt(xa, z1, H)), stone, SH_SW, ao=.4, wrap=1.1)
+    if hasz:
+        fill_quad(c, (Pt(x1, za, 0), Pt(x1, zb, 0), Pt(x1, zb, H), Pt(x1, za, H)), stone, SH_SE, ao=.4, wrap=1.1)
+    # dessus (cap) : un rectangle par bras
+    if hasx:
+        fill_quad(c, (Pt(xa, z0, H), Pt(xb, z0, H), Pt(xb, z1, H), Pt(xa, z1, H)), cap, SH_TOP, wrap=1.1)
+    if hasz:
+        fill_quad(c, (Pt(x0, za, H), Pt(x1, za, H), Pt(x1, zb, H), Pt(x0, zb, H)), cap, SH_TOP, wrap=1.1)
+    if not hasx and not hasz:
+        fill_quad(c, (Pt(x0, z0, H), Pt(x1, z0, H), Pt(x1, z1, H), Pt(x0, z1, H)), cap, SH_TOP)
+    # parapet clair sur les arêtes avant
+    if hasx:
+        fill_quad(c, (Pt(xa, z1, H), Pt(xb, z1, H), Pt(xb, z1, H+cp), Pt(xa, z1, H+cp)), cap, SH_SW*1.06, wrap=1.1)
+    if hasz:
+        fill_quad(c, (Pt(x1, za, H), Pt(x1, zb, H), Pt(x1, zb, H+cp), Pt(x1, za, H+cp)), cap, SH_SE*1.06, wrap=1.1)
+
+_WALL_DIRS = {
+    "mur_x": {'+x', '-x'}, "mur_z": {'+z', '-z'},
+    "angle": {'-x', '-z'}, "angle_fond": {'+x', '+z'},
+    "angle_gauche": {'+x', '-z'}, "angle_droite": {'-x', '+z'},
+}
 def build(kind, stone, cap, H_=78, t=0.17, cp=10):
     c = _c()
-    if kind == "mur_x":
-        z0, z1 = .5-t, .5+t
-        fill_quad(c, (Pt(0, z1, 0), Pt(1, z1, 0), Pt(1, z1, H_), Pt(0, z1, H_)), stone, SH_SW, ao=.4, wrap=1.1)
-        fill_quad(c, (Pt(0, z0, H_), Pt(1, z0, H_), Pt(1, z1, H_), Pt(0, z1, H_)), cap, SH_TOP, wrap=1.1)
-        fill_quad(c, (Pt(0, z1, H_), Pt(1, z1, H_), Pt(1, z1, H_+cp), Pt(0, z1, H_+cp)), cap, SH_SW*1.06, wrap=1.1)
-    elif kind == "mur_z":
-        x0, x1 = .5-t, .5+t
-        fill_quad(c, (Pt(x1, 0, 0), Pt(x1, 1, 0), Pt(x1, 1, H_), Pt(x1, 0, H_)), stone, SH_SE, ao=.4, wrap=1.1)
-        fill_quad(c, (Pt(x0, 0, H_), Pt(x1, 0, H_), Pt(x1, 1, H_), Pt(x0, 1, H_)), cap, SH_TOP, wrap=1.1)
-        fill_quad(c, (Pt(x1, 0, H_), Pt(x1, 1, H_), Pt(x1, 1, H_+cp), Pt(x1, 0, H_+cp)), cap, SH_SE*1.06, wrap=1.1)
-    elif kind == "angle":
-        x0, x1, z0, z1 = .5-t, .5+t, .5-t, .5+t
-        fill_quad(c, (Pt(0, z1, 0), Pt(x1, z1, 0), Pt(x1, z1, H_), Pt(0, z1, H_)), stone, SH_SW, ao=.4, wrap=1.1)
-        fill_quad(c, (Pt(x1, z0, 0), Pt(x1, 1, 0), Pt(x1, 1, H_), Pt(x1, z0, H_)), stone, SH_SE, ao=.4, wrap=1.1)
-        fill_quad(c, (Pt(0, z0, H_), Pt(x1, z0, H_), Pt(x1, 1, H_), Pt(0, 1, H_)), cap, SH_TOP, wrap=1.1)
-    elif kind == "tour":
+    if kind == "tour":
         x0, x1, z0, z1 = .5-.28, .5+.28, .5-.28, .5+.28; Ht = H_+30
         fill_quad(c, (Pt(x0, z1, 0), Pt(x1, z1, 0), Pt(x1, z1, Ht), Pt(x0, z1, Ht)), stone, SH_SW, ao=.45)
         fill_quad(c, (Pt(x1, z0, 0), Pt(x1, z1, 0), Pt(x1, z1, Ht), Pt(x1, z0, Ht)), stone, SH_SE, ao=.45)
         fill_quad(c, (Pt(x0, z0, Ht), Pt(x1, z0, Ht), Pt(x1, z1, Ht), Pt(x0, z1, Ht)), cap, SH_TOP)
         for fx in (x0, (x0+x1)/2-0.06, x1-0.12):
             fill_quad(c, (Pt(fx, z1, Ht), Pt(fx+0.12, z1, Ht), Pt(fx+0.12, z1, Ht+16), Pt(fx, z1, Ht+16)), cap, SH_SW*1.05)
+    else:
+        _wallfaces(c, _WALL_DIRS.get(kind, {'+x', '-x'}), stone, cap, H_, t, cp)
     return _crop(c)
 
-WALL_KINDS = ("mur_x", "mur_z", "angle", "tour")   # ordre des frames 0..3
+# ordre des frames 0..6 + libellé lisible (exposé au manifeste -> palette)
+WALL_KINDS = [
+    ("mur_x", "Mur ↘"), ("mur_z", "Mur ↙"), ("angle", "Angle avant"),
+    ("tour", "Tour"), ("angle_fond", "Angle fond"),
+    ("angle_gauche", "Angle gauche"), ("angle_droite", "Angle droite"),
+]
 def wall_pieces(matkey):
     _, surface, cap = MATERIALS[matkey]
-    return [(k, *build(k, surface, cap)) for k in WALL_KINDS]
+    return [(k, name, *build(k, surface, cap)) for k, name in WALL_KINDS]
 
 if __name__ == "__main__":
     OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "samples")
@@ -189,7 +216,7 @@ if __name__ == "__main__":
         return Image.fromarray(im, "RGBA")
     GRASS = grass()
     def scene(matkey):
-        P = {k: (img, ox, oy) for (k, img, ox, oy) in wall_pieces(matkey)}
+        P = {k: (img, ox, oy) for (k, name, img, ox, oy) in wall_pieces(matkey)}
         walls = [(1, 1, "mur_x"), (2, 1, "mur_x"), (3, 1, "angle"), (3, 2, "mur_z"), (3, 3, "mur_z"), (0, 3, "tour")]
         place = [(x, z, GRASS, HW, HH) for x in range(6) for z in range(5)]
         place += [(x, z, *P[n]) for (x, z, n) in walls]
