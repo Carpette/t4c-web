@@ -339,12 +339,14 @@ export function buildPalette({ container, assets, onSelect }) {
         const type = `wall_${mat}`;
         const frames = Object.keys(tilesets[type].tiles).sort((a, b) => Number(a) - Number(b));
         if (!frames.length) continue;
+        const names = tilesets[type].names || []; // libellés lisibles des pièces (optionnel)
         const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
         for (const frame of frames) {
           const n = Number(frame);
           const tileId = wallPropId(type, n); // « wall_<mat>:frame »
+          const pieceLabel = names[n] || `pièce ${frame}`;
           row.appendChild(makeChip(
-            { label: `${label} — pièce ${frame}`, tileId, glyph: '▮', color: '#ca8' },
+            { label: `${label} — ${pieceLabel}`, tileId, glyph: '▮', color: '#ca8' },
             () => ({ kind: 'prop', type, v: n }),
             (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
           ));

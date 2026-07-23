@@ -23,20 +23,22 @@ manifest = json.load(open(MANIFEST, encoding="utf8"))
 manifest.setdefault("tilesets", {})
 
 for matkey in M.MATERIALS:
-    pieces = M.wall_pieces(matkey)                       # [(kind, img, ox, oy) x4]
-    Hn = max(img.height for _, img, _, _ in pieces)
-    Wn = sum(img.width for _, img, _, _ in pieces) + PAD*(len(pieces)-1)
+    pieces = M.wall_pieces(matkey)                       # [(kind, name, img, ox, oy)]
+    Hn = max(img.height for _, _, img, _, _ in pieces)
+    Wn = sum(img.width for _, _, img, _, _ in pieces) + PAD*(len(pieces)-1)
     atlas = Image.new("RGBA", (Wn, Hn), (0, 0, 0, 0))
-    rects, x = [], 0
-    for _, img, ox, oy in pieces:
+    rects, names, x = [], [], 0
+    for kind, name, img, ox, oy in pieces:
         atlas.alpha_composite(img, (x, 0))
         rects.append([x, 0, img.width, img.height, ox, oy])
+        names.append(name)
         x += img.width + PAD
     atlas.save(os.path.join(WALLS_DIR, f"{matkey}.png"))
     walls[matkey] = rects                                 # source walls.json
     manifest["tilesets"][f"wall_{matkey}"] = {
         "images": [f"tilesets/walls/{matkey}.png"],
         "tiles": {str(i): r + [0] for i, r in enumerate(rects)},   # [x,y,w,h,ox,oy,imgIndex]
+        "names": names,                                   # libellés lisibles des pièces (palette)
     }
     print(f"  wall_{matkey}: {len(rects)} pièces, atlas {Wn}x{Hn}")
 
