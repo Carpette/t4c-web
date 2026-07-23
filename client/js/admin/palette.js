@@ -70,10 +70,18 @@ export function buildPalette({ container, assets, onSelect }) {
   container.innerHTML = '';
   container.appendChild(root);
 
+  // --- en-tête ÉPINGLÉ : recherche + options de pose (échelle/miroir) restent
+  // visibles pendant qu'on fait défiler la liste des ressources (sticky en haut
+  // du panneau scrollable), pour ne plus avoir à remonter pour régler l'échelle.
+  const header = el('div', 'pal-header');
+  header.style.cssText = 'position:sticky;top:0;z-index:5;background:var(--color-t4c-box-bg,#1a1428);'
+    + 'padding:4px 0 6px;margin-bottom:2px;border-bottom:1px solid #4a4070;';
+  root.appendChild(header);
+
   // --- recherche ---
   const search = el('input', 'pal-search');
   search.placeholder = '🔍 filtrer (arbre, mur, pont...)';
-  root.appendChild(search);
+  header.appendChild(search);
 
   // --- options de pose (props) ---
   const optBox = el('div', 'pal-options');
@@ -89,7 +97,7 @@ export function buildPalette({ container, assets, onSelect }) {
   fRow.append(fInput, doc.createTextNode(' Miroir horizontal'));
   fInput.onchange = () => { opts.flip = !!fInput.checked; emit(); };
   optBox.append(sRow, fRow);
-  root.appendChild(optBox);
+  header.appendChild(optBox);
 
   function refreshOptions() {
     const isProp = current.kind === 'prop';
