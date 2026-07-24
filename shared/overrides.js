@@ -91,28 +91,34 @@ export function applyOverrides(world, ov) {
 
   // 3. décors ajoutés
   for (const p of ov.props?.add || []) {
-    const x = Math.floor(p.x), z = Math.floor(p.z);
-    if (x < 0 || z < 0 || x >= N || z >= N) continue;
+    // Les MURS SUR ARÊTES (flag `edge`) sont posés à cheval sur une frontière de
+    // cases : on conserve leurs coordonnées EXACTES (demi-case) au lieu de les
+    // recentrer. Les autres décors restent snappés au centre de la case.
+    const edge = p.edge === true;
+    const fx = Math.floor(p.x), fz = Math.floor(p.z);
+    if (fx < 0 || fz < 0 || fx >= N || fz >= N) continue;
     const prop = {
-      type: p.type, x: x + 0.5, z: z + 0.5,
+      type: p.type,
+      x: edge ? +p.x : fx + 0.5,
+      z: edge ? +p.z : fz + 0.5,
       rot: Number.isFinite(+p.rot) ? +p.rot : 0,
       s: Number.isFinite(+p.s) ? Math.min(3, Math.max(0.25, +p.s)) : 1,
     };
+    if (edge) prop.edge = true;
     if (p.v != null) prop.v = p.v; // variante explicite (sinon : choix par hachage)
     if (p.type === 'house') { prop.w = HOUSE_SIZE.w; prop.d = HOUSE_SIZE.d; }
     world.props.push(prop);
-    // Solidité : si l'éditeur a fixé `solid` (case à cocher), il fait foi —
-    // sinon, défaut historique par type (isBlockingProp). Permet de rendre un
-    // mur franchissable (porte) ou un décor normalement libre bloquant.
+    // Solidité : si l'éditeur a fixé `solid`, il fait foi ; sinon défaut par type.
+    // Les murs d'ARÊTE ne bloquent pas encore (collision par arête = à venir).
     const solid = typeof p.solid === 'boolean' ? p.solid : isBlockingProp(p.type);
-    if (solid) {
+    if (solid && !edge) {
       if (p.type === 'house') {
         for (let dz = 0; dz < HOUSE_SIZE.d; dz++) for (let dx = 0; dx < HOUSE_SIZE.w; dx++) {
-          const X = x - 2 + dx, Z = z - 2 + dz;
+          const X = fx - 2 + dx, Z = fz - 2 + dz;
           if (X >= 0 && Z >= 0 && X < N && Z < N) world.walk[idx(X, Z)] = 0;
         }
       } else {
-        world.walk[idx(x, z)] = 0;
+        world.walk[idx(fx, fz)] = 0;
       }
     }
   }
