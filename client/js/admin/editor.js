@@ -2178,6 +2178,65 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     ov.props.add.push(e);
     rebuild();
   }
+  // ---------- outil « Mur » : tracé de murs sur les ARÊTES des cases ----------
+  // Frames des pièces d'arête (cf. bake_walls / WALL_KINDS) : ex=0, ez=1, poteau=2.
+  const WALL_FRAME = { ex: 0, ez: 1, post: 2 };
+  function currentWallType() {
+    // seuls les matériaux d'ATELIER (wall_proc_*) ont les pièces d'arête ex/ez/poteau
+    return (palTool.kind === 'prop' && typeof palTool.type === 'string'
+      && palTool.type.startsWith('wall_proc_')) ? palTool.type : null;
+  }
+  // arête de case la plus proche de (wx,wz) : arête-X (le long de +x, posée en
+  // (cx+0.5, Z)) ou arête-Z (le long de +z, posée en (X, cz+0.5)).
+  function nearestEdge(wx, wz) {
+    const cx = Math.floor(wx), cz = Math.floor(wz);
+    const fx = wx - cx, fz = wz - cz;
+    const cands = [
+      { kind: 'ex', x: cx + 0.5, z: cz,     d: fz },
+      { kind: 'ex', x: cx + 0.5, z: cz + 1, d: 1 - fz },
+      { kind: 'ez', x: cx,       z: cz + 0.5, d: fx },
+      { kind: 'ez', x: cx + 1,   z: cz + 0.5, d: 1 - fx },
+    ];
+    cands.sort((a, b) => a.d - b.d);
+    const e = cands[0];
+    e.key = e.kind + ':' + e.x + ':' + e.z;
+    return e;
+  }
+  // pose l'arête sous le curseur pendant le tracé (dédup via gesture.placed)
+  function wallDrawTo(wpt) {
+    if (!gesture || gesture.mode !== 'wallDraw' || !world) return;
+    const N = world.size;
+    const e = nearestEdge(wpt.x, wpt.z);
+    const fx = Math.floor(e.x), fz = Math.floor(e.z);
+    if (fx < 0 || fz < 0 || fx >= N || fz >= N) return;   // hors zone
+    if (gesture.placed.has(e.key)) return;
+    gesture.placed.add(e.key);
+    ov.props.add.push({ type: gesture.type, v: WALL_FRAME[e.kind], x: e.x, z: e.z, edge: true, s: 1, solid: false });
+    scheduleRebuild();
+  }
+  // fin du tracé : poteaux aux sommets NON traversants (angles, T, bouts)
+  function finishWallDraw(g) {
+    const verts = new Map();
+    const addv = (vx, vz, dir) => {
+      const k = vx + ':' + vz;
+      let o = verts.get(k); if (!o) verts.set(k, o = { vx, vz, dirs: new Set() });
+      o.dirs.add(dir);
+    };
+    for (const key of g.placed) {
+      const p = key.split(':'); const kind = p[0], sx = parseFloat(p[1]), sz = parseFloat(p[2]);
+      if (kind === 'ex') { const cx = sx - 0.5; addv(cx, sz, '+x'); addv(cx + 1, sz, '-x'); }
+      else { const cz = sz - 0.5; addv(sx, cz, '+z'); addv(sx, cz + 1, '-z'); }
+    }
+    for (const { vx, vz, dirs } of verts.values()) {
+      const straightX = dirs.size === 2 && dirs.has('+x') && dirs.has('-x');
+      const straightZ = dirs.size === 2 && dirs.has('+z') && dirs.has('-z');
+      if (!straightX && !straightZ) {
+        ov.props.add.push({ type: g.type, v: WALL_FRAME.post, x: vx, z: vz, edge: true, s: 1, solid: false });
+      }
+    }
+    rebuild();
+    markDirty();
+  }
   function erasePropAt(x, z) {
     // si on supprime un décor qu'on venait d'ajouter, on retire l'ajout
     const before = ov.props.add.length;
@@ -2356,6 +2415,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     // pose d'une zone musicale / d'ambiance : glisser pour dessiner le rectangle (relâcher = poser)
     if (pendingPlace === 'music') { gesture = { mode: 'musicDraw', x0: wpt.x, z0: wpt.z }; return; }
     if (pendingPlace === 'ambience') { gesture = { mode: 'ambienceDraw', x0: wpt.x, z0: wpt.z }; return; }
+    // outil « Mur » : tracer un mur sur les arêtes en glissant (poteaux auto)
+    if (mode === 'wall') {
+      const wt = currentWallType();
+      if (!wt) { msg('Choisissez d\'abord un matériau d\'atelier (« … (atelier) », thème « Murs ») dans la palette.'); return; }
+      pushHistory();
+      gesture = { mode: 'wallDraw', type: wt, placed: new Set() };
+      wallDrawTo(wpt);
+      return;
+    }
     // pot de peinture : remplissage par contiguïté (Maj+clic : toute la zone)
     if (mode === 'fill') { floodFill(tx, tz, e.shiftKey); return; }
     // outil sélection : glisser pour définir la région à copier
@@ -2420,6 +2488,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       anchorView(gesture.w0.x, gesture.w0.z, px, py); // le point saisi suit le curseur
     } else if (gesture?.mode === 'paint') {
       paintCells(Math.floor(hover.x), Math.floor(hover.z));
+    } else if (gesture?.mode === 'wallDraw') {
+      wallDrawTo(hover);
     } else if (gesture?.mode === 'campMove' || gesture?.mode === 'campResize' || gesture?.mode === 'npcMove') {
       dragEditLayer(gesture);
     } else if (gesture?.mode === 'musicEdit') {
@@ -2450,6 +2520,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         }
       }
       scheduleRebuild();
+    } else if (gesture.mode === 'wallDraw') {
+      finishWallDraw(gesture);
     } else if (gesture.mode === 'moveProp' && hover) {
       const tx = Math.floor(hover.x), tz = Math.floor(hover.z), N = world.size;
       if (tx >= 0 && tz >= 0 && tx < N && tz < N) {
@@ -2858,6 +2930,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     $('tool-select')?.classList.toggle('active', m === 'select');
     $('tool-erase').classList.toggle('active', m === 'erase');
     $('tool-move').classList.toggle('active', m === 'move');
+    $('tool-wall')?.classList.toggle('active', m === 'wall');
     markDirty();
   }
   $('tool-paint').onclick = () => setMode('paint');
@@ -2865,6 +2938,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   $('tool-select')?.addEventListener('click', () => { setMode('select'); msg('Glissez pour sélectionner une région, puis Ctrl+C / Ctrl+V.'); });
   $('tool-erase').onclick = () => setMode('erase');
   $('tool-move').onclick = () => setMode('move');
+  $('tool-wall')?.addEventListener('click', () => { setMode('wall'); msg('Choisissez un matériau d\'atelier (« … (atelier) », thème « Murs »), puis glissez sur la carte pour tracer un mur sur les arêtes.'); });
   $('brush-size').onchange = () => { brushSize = parseInt($('brush-size').value, 10) || 1; };
   $('undo-map').onclick = undo;
   $('redo-map').onclick = redo;
