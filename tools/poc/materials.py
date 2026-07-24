@@ -139,65 +139,57 @@ def fill_quad(canvas, quad, tex, shade, ao=0.0, wrap=1.0):
 
 SH_TOP, SH_SE, SH_SW = 1.04, 0.9, 0.66
 def _c(): return np.zeros((CH, CW, 4), np.uint8)
-def _crop(c):
+def _crop_at(c, ax, az):
     ys, xs = np.where(c[..., 3] > 0)
+    if not len(xs):
+        return (Image.new("RGBA", (1, 1)), 0, 0)
     x0, x1, y0, y1 = xs.min(), xs.max()+1, ys.min(), ys.max()+1
-    gx, gy = w2s(0.5, 0.5)
+    gx, gy = w2s(ax, az)   # ancre = point de pose du prop (arête ou sommet)
     return (Image.fromarray(c[y0:y1, x0:x1], "RGBA"), int(round(gx+OXo-x0)), int(round(gy+OYo-y0)))
 
-# Rendu générique d'un mur par CONNEXIONS : `dirs` ⊆ {'+x','-x','+z','-z'} dit
-# quels côtés de la case portent un mur. Face avant = +z pour les bras en x (à
-# z=z1), +x pour les bras en z (à x=x1) ; dessus + parapet clair. Ce modèle donne
-# droits, 4 angles, (T/croix/bouts extensibles) sans code par cas.
-def _wallfaces(c, dirs, stone, cap, H, t, cp):
-    x0, x1, z0, z1 = .5-t, .5+t, .5-t, .5+t
-    xa = 0.0 if '-x' in dirs else x0
-    xb = 1.0 if '+x' in dirs else x1
-    za = 0.0 if '-z' in dirs else z0
-    zb = 1.0 if '+z' in dirs else z1
-    hasx = ('+x' in dirs) or ('-x' in dirs)
-    hasz = ('+z' in dirs) or ('-z' in dirs)
-    # faces avant (pierre)
-    if hasx:
-        fill_quad(c, (Pt(xa, z1, 0), Pt(xb, z1, 0), Pt(xb, z1, H), Pt(xa, z1, H)), stone, SH_SW, ao=.4, wrap=1.1)
-    if hasz:
-        fill_quad(c, (Pt(x1, za, 0), Pt(x1, zb, 0), Pt(x1, zb, H), Pt(x1, za, H)), stone, SH_SE, ao=.4, wrap=1.1)
-    # dessus (cap) : un rectangle par bras
-    if hasx:
-        fill_quad(c, (Pt(xa, z0, H), Pt(xb, z0, H), Pt(xb, z1, H), Pt(xa, z1, H)), cap, SH_TOP, wrap=1.1)
-    if hasz:
-        fill_quad(c, (Pt(x0, za, H), Pt(x1, za, H), Pt(x1, zb, H), Pt(x0, zb, H)), cap, SH_TOP, wrap=1.1)
-    if not hasx and not hasz:
-        fill_quad(c, (Pt(x0, z0, H), Pt(x1, z0, H), Pt(x1, z1, H), Pt(x0, z1, H)), cap, SH_TOP)
-    # parapet clair sur les arêtes avant
-    if hasx:
-        fill_quad(c, (Pt(xa, z1, H), Pt(xb, z1, H), Pt(xb, z1, H+cp), Pt(xa, z1, H+cp)), cap, SH_SW*1.06, wrap=1.1)
-    if hasz:
-        fill_quad(c, (Pt(x1, za, H), Pt(x1, zb, H), Pt(x1, zb, H+cp), Pt(x1, za, H+cp)), cap, SH_SE*1.06, wrap=1.1)
+# ---------------- MURS SUR ARÊTES ----------------
+# Le mur chevauche la FRONTIÈRE entre deux cases (pas le milieu) : chaque case
+# reste 100% intérieur OU 100% extérieur -> aucune fuite de sol. Trois pièces :
+#   ex  (arête-X) : le long de +x, à cheval sur la ligne z=0 -> posé en (i+0.5, J)
+#   ez  (arête-Z) : le long de +z, à cheval sur x=0        -> posé en (i, J+0.5)
+#   post (poteau) : jonction au sommet                     -> posé en (i, J)
+# Chemin de ronde avec parapet DES DEUX CÔTÉS (créneaux visibles intérieur ET
+# extérieur). L'ancre est le point de pose (cf. _crop_at) : centre d'arête / sommet.
+def _edge_x(c, stone, cap, H, t, cp):
+    fill_quad(c, (Pt(0, -t, H), Pt(1, -t, H), Pt(1, -t, H+cp), Pt(0, -t, H+cp)), cap, SH_SW*0.9, wrap=1.1)  # parapet arrière
+    fill_quad(c, (Pt(0, -t, H), Pt(1, -t, H), Pt(1, t, H), Pt(0, t, H)), cap, SH_TOP, wrap=1.1)             # chemin de ronde
+    fill_quad(c, (Pt(0, t, 0), Pt(1, t, 0), Pt(1, t, H), Pt(0, t, H)), stone, SH_SW, ao=.4, wrap=1.1)       # face avant (+z)
+    fill_quad(c, (Pt(0, t, H), Pt(1, t, H), Pt(1, t, H+cp), Pt(0, t, H+cp)), cap, SH_SW*1.06, wrap=1.1)     # parapet avant
+def _edge_z(c, stone, cap, H, t, cp):
+    fill_quad(c, (Pt(-t, 0, H), Pt(-t, 1, H), Pt(-t, 1, H+cp), Pt(-t, 0, H+cp)), cap, SH_SE*0.9, wrap=1.1)
+    fill_quad(c, (Pt(-t, 0, H), Pt(-t, 1, H), Pt(t, 1, H), Pt(t, 0, H)), cap, SH_TOP, wrap=1.1)
+    fill_quad(c, (Pt(t, 0, 0), Pt(t, 1, 0), Pt(t, 1, H), Pt(t, 0, H)), stone, SH_SE, ao=.4, wrap=1.1)
+    fill_quad(c, (Pt(t, 0, H), Pt(t, 1, H), Pt(t, 1, H+cp), Pt(t, 0, H+cp)), cap, SH_SE*1.06, wrap=1.1)
+def _post(c, stone, cap, H, t, cp):
+    fill_quad(c, (Pt(-t, -t, H), Pt(t, -t, H), Pt(t, t, H), Pt(-t, t, H)), cap, SH_TOP)              # dessus
+    fill_quad(c, (Pt(-t, t, 0), Pt(t, t, 0), Pt(t, t, H), Pt(-t, t, H)), stone, SH_SW, ao=.4)        # face +z
+    fill_quad(c, (Pt(t, -t, 0), Pt(t, t, 0), Pt(t, t, H), Pt(t, -t, H)), stone, SH_SE, ao=.4)        # face +x
+    fill_quad(c, (Pt(-t, t, H), Pt(t, t, H), Pt(t, t, H+cp), Pt(-t, t, H+cp)), cap, SH_SW*1.06)      # parapet
+def _tour(c, stone, cap, H):
+    tt, Ht = 0.34, H+30
+    fill_quad(c, (Pt(-tt, tt, 0), Pt(tt, tt, 0), Pt(tt, tt, Ht), Pt(-tt, tt, Ht)), stone, SH_SW, ao=.45)
+    fill_quad(c, (Pt(tt, -tt, 0), Pt(tt, tt, 0), Pt(tt, tt, Ht), Pt(tt, -tt, Ht)), stone, SH_SE, ao=.45)
+    fill_quad(c, (Pt(-tt, -tt, Ht), Pt(tt, -tt, Ht), Pt(tt, tt, Ht), Pt(-tt, tt, Ht)), cap, SH_TOP)
+    for fx in (-tt, -0.06, tt-0.12):
+        fill_quad(c, (Pt(fx, tt, Ht), Pt(fx+0.12, tt, Ht), Pt(fx+0.12, tt, Ht+16), Pt(fx, tt, Ht+16)), cap, SH_SW*1.05)
 
-_WALL_DIRS = {
-    "mur_x": {'+x', '-x'}, "mur_z": {'+z', '-z'},
-    "angle": {'-x', '-z'}, "angle_fond": {'+x', '+z'},
-    "angle_gauche": {'+x', '-z'}, "angle_droite": {'-x', '+z'},
-}
-def build(kind, stone, cap, H_=78, t=0.17, cp=10):
+def build(kind, stone, cap, H=78, t=0.14, cp=9):
     c = _c()
-    if kind == "tour":
-        x0, x1, z0, z1 = .5-.28, .5+.28, .5-.28, .5+.28; Ht = H_+30
-        fill_quad(c, (Pt(x0, z1, 0), Pt(x1, z1, 0), Pt(x1, z1, Ht), Pt(x0, z1, Ht)), stone, SH_SW, ao=.45)
-        fill_quad(c, (Pt(x1, z0, 0), Pt(x1, z1, 0), Pt(x1, z1, Ht), Pt(x1, z0, Ht)), stone, SH_SE, ao=.45)
-        fill_quad(c, (Pt(x0, z0, Ht), Pt(x1, z0, Ht), Pt(x1, z1, Ht), Pt(x0, z1, Ht)), cap, SH_TOP)
-        for fx in (x0, (x0+x1)/2-0.06, x1-0.12):
-            fill_quad(c, (Pt(fx, z1, Ht), Pt(fx+0.12, z1, Ht), Pt(fx+0.12, z1, Ht+16), Pt(fx, z1, Ht+16)), cap, SH_SW*1.05)
-    else:
-        _wallfaces(c, _WALL_DIRS.get(kind, {'+x', '-x'}), stone, cap, H_, t, cp)
-    return _crop(c)
+    if kind == "ex":     _edge_x(c, stone, cap, H, t, cp); a = (0.5, 0.0)
+    elif kind == "ez":   _edge_z(c, stone, cap, H, t, cp); a = (0.0, 0.5)
+    elif kind == "tour": _tour(c, stone, cap, H);          a = (0.0, 0.0)
+    else:                _post(c, stone, cap, H, t, cp);   a = (0.0, 0.0)
+    return _crop_at(c, *a)
 
-# ordre des frames 0..6 + libellé lisible (exposé au manifeste -> palette)
+# ordre des frames 0..3 + libellé lisible (exposé au manifeste -> palette)
 WALL_KINDS = [
-    ("mur_x", "Mur ↘"), ("mur_z", "Mur ↙"), ("angle", "Angle avant"),
-    ("tour", "Tour"), ("angle_fond", "Angle fond"),
-    ("angle_gauche", "Angle gauche"), ("angle_droite", "Angle droite"),
+    ("ex", "Mur ↘ (arête)"), ("ez", "Mur ↙ (arête)"),
+    ("post", "Poteau / jonction"), ("tour", "Tour"),
 ]
 def wall_pieces(matkey):
     _, surface, cap = MATERIALS[matkey]
@@ -217,9 +209,12 @@ if __name__ == "__main__":
     GRASS = grass()
     def scene(matkey):
         P = {k: (img, ox, oy) for (k, name, img, ox, oy) in wall_pieces(matkey)}
-        walls = [(1, 1, "mur_x"), (2, 1, "mur_x"), (3, 1, "angle"), (3, 2, "mur_z"), (3, 3, "mur_z"), (0, 3, "tour")]
-        place = [(x, z, GRASS, HW, HH) for x in range(6) for z in range(5)]
-        place += [(x, z, *P[n]) for (x, z, n) in walls]
+        room = []                                   # pièce 3x3 fermée par des murs d'arête
+        for i in (2, 3, 4): room += [(i+0.5, 2, "ex"), (i+0.5, 5, "ex")]
+        for j in (2, 3, 4): room += [(2, j+0.5, "ez"), (5, j+0.5, "ez")]
+        for (i, j) in [(2, 2), (5, 2), (2, 5), (5, 5)]: room.append((i, j, "post"))
+        place = [(x, z, GRASS, HW, HH) for x in range(8) for z in range(8)]
+        place += [(x, z, *P[n]) for (x, z, n) in room]
         sxs = [w2s(x, z)[0] for (x, z, *_) in place]; sysv = [w2s(x, z)[1] for (x, z, *_) in place]
         minx = min(sxs)-100; miny = min(sysv)-150
         cv = Image.new("RGBA", (int(max(sxs)+100-minx), int(max(sysv)+110-miny)), (30, 28, 40, 255))
