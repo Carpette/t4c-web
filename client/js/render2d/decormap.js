@@ -133,6 +133,22 @@ export function wallPropId(type, v) {
   return WALL_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
 }
 
+// --- Toits « atelier » : un tileset roof_<mat> par couverture ---
+// 6 pièces par matériau : faîte complet (bâtiment de profondeur 1) et pans
+// avant/arrière (profondeur 2), dans les deux orientations. Posés PAR CASE au
+// centre, élevés à la hauteur des murs. Les pignons (triangles) sont des pièces
+// de MUR (frames pignon_* des tilesets wall_proc_*).
+export const ROOF_MATERIALS = [
+  ['toit_tuile', 'Toit tuiles (atelier)'],
+  ['toit_ardoise', 'Toit ardoise (atelier)'],
+  ['toit_chaume', 'Toit chaume (atelier)'],
+];
+export const ROOF_PROP_TYPES = ROOF_MATERIALS.map(([mat]) => `roof_${mat}`);
+const ROOF_PROP_SET = new Set(ROOF_PROP_TYPES);
+export function roofPropId(type, v) {
+  return ROOF_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
+}
+
 // --- Sols « atelier » (dalles posables) : un tileset floor_<mat> par matériau ---
 // Chaque matériau expose 16 VARIANTES pleines (frames 0..15, échantillonnées sur
 // une grille 4x4 d'une texture seamless) + 8 pièces de BORD (frames 16..23).
@@ -317,6 +333,12 @@ export function propSprites(p, { inCemetery = false } = {}) {
   // dalle de sol « atelier » : variante explicite ou choisie par position
   if (FLOOR_PROP_SET.has(p.type)) {
     const id = floorPropId(p.type, p.v, p.x, p.z);
+    if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
+  // pièce de toit « atelier » : id « roof_<mat>:frame »
+  if (ROOF_PROP_SET.has(p.type)) {
+    const id = roofPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
