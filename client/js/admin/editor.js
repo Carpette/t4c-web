@@ -2174,7 +2174,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (palTool.v != null) e.v = palTool.v;
     if (palTool.s && palTool.s !== 1) e.s = palTool.s;
     if (poseFlip()) e.rot = Math.PI; // miroir horizontal (cf. propFlip, decormap.js)
-    e.solid = collide; // franchissable ou non (case « Solide » du rail)
+    // une dalle de sol (atelier) est du TERRAIN : jamais solide, quel que soit le rail
+    e.solid = palTool.type?.startsWith?.('floor_') ? false : collide;
     ov.props.add.push(e);
     rebuild();
   }

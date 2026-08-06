@@ -126,6 +126,33 @@ export function wallPropId(type, v) {
   return WALL_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
 }
 
+// --- Sols « atelier » (dalles posables) : un tileset floor_<mat> par matériau ---
+// Chaque matériau expose 16 VARIANTES pleines (frames 0..15, échantillonnées sur
+// une grille 4x4 d'une texture seamless) + 8 pièces de BORD (frames 16..23).
+// Si `v` est null, la variante est choisie PAR POSITION ((x%4) + (z%4)*4) : deux
+// cases voisines échantillonnent des blocs adjacents de la texture -> raccord
+// parfait, zéro couture. Le mappeur peut aussi forcer une frame précise.
+// [clé de matériau (= suffixe de tileset), libellé affiché]
+export const FLOOR_MATERIALS = [
+  ['herbe', 'Herbe (atelier)'],
+  ['terre', 'Terre (atelier)'],
+  ['sable', 'Sable (atelier)'],
+  ['dalle', 'Dallage pierre (atelier)'],
+  ['neige', 'Neige (atelier)'],
+  ['chemin', 'Chemin (atelier)'],
+];
+export const FLOOR_VARIANTS = 16;   // frames 0..15 : variantes pleines (grille 4x4)
+export const FLOOR_PROP_TYPES = FLOOR_MATERIALS.map(([mat]) => `floor_${mat}`);
+const FLOOR_PROP_SET = new Set(FLOOR_PROP_TYPES);
+// id de tuile rendu pour une dalle : frame explicite, sinon variante par position
+export function floorPropId(type, v, x = 0, z = 0) {
+  if (!FLOOR_PROP_SET.has(type)) return null;
+  if (v != null) return `${type}:${v}`;
+  const fx = Math.floor(x), fz = Math.floor(z);
+  const auto = ((fx % 4) + 4) % 4 + (((fz % 4) + 4) % 4) * 4;
+  return `${type}:${auto}`;
+}
+
 // --- Famille générique « frame grassland » (ids NUMÉRIQUES) ---
 // Le tileset grassland (sol historique d'Arakas) est référencé par des ids
 // NUMÉRIQUES directs dans manifest.tiles (≠ les ids texte « cave:42 »). Pour
@@ -277,6 +304,12 @@ export function propSprites(p, { inCemetery = false } = {}) {
   // pièce de mur IA (un tileset par matériau) : id « wall_<mat>:frame »
   if (WALL_PROP_SET.has(p.type)) {
     const id = wallPropId(p.type, p.v);
+    if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
+  // dalle de sol « atelier » : variante explicite ou choisie par position
+  if (FLOOR_PROP_SET.has(p.type)) {
+    const id = floorPropId(p.type, p.v, p.x, p.z);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
