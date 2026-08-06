@@ -107,5 +107,11 @@ export function buildDecor(world) {
     lights.push({ x: li.x, z: li.z, r: li.r, flicker: !!li.flicker, color: li.color || null });
   }
 
-  return { floor, isWater, props: props.concat(smallProps), lights };
+  // Les dalles de sol « atelier » (tileId floor_<mat>:v) se dessinent SOUS les
+  // autres décors de la même case : on les place en tête de liste — les tris par
+  // profondeur (renderer/éditeur) étant STABLES, l'ordre d'insertion départage
+  // les égalités de profondeur.
+  const all = props.concat(smallProps);
+  const isFloor = (p) => typeof p.tileId === 'string' && p.tileId.startsWith('floor_');
+  return { floor, isWater, props: all.filter(isFloor).concat(all.filter(p => !isFloor(p))), lights };
 }
