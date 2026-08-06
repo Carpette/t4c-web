@@ -100,13 +100,23 @@ def m_colombage(seed=5, daub=(210, 196, 168), timber=(74, 50, 32)):
     frame = top | bot | postm | diag
     return post(np.where(frame[..., None], tb, d))
 
-# [clé, libellé, surface, cap]
+# [clé -> (libellé, surface, cap[, options])] ; options : {"H": hauteur du mur}
+# Les VARIANTES par recolor multiplient la bibliothèque à coût quasi nul : même
+# géométrie/maçonnerie, seule la palette du matériau change.
 MATERIALS = {
     "proc_pierre":    ("Pierre (atelier)",    m_pierre(),                    m_pierre(base=(150, 146, 138), moss=False)),
     "proc_bois":      ("Bois (atelier)",       m_bois(),                      m_bois(base=(96, 64, 38))),
     "proc_paille":    ("Paille (atelier)",     m_paille(),                    m_paille(base=(172, 148, 80))),
     "proc_terre":     ("Terre (atelier)",      m_terre(),                     m_terre(base=(150, 112, 76))),
     "proc_colombage": ("Colombage (atelier)",  m_colombage(),                 m_colombage(daub=(150, 110, 74))),
+    # --- variantes recolor ---
+    "proc_gres":      ("Grès (atelier)",       m_pierre(seed=13, base=(168, 138, 96)),  m_pierre(seed=27, base=(196, 170, 128), moss=False)),
+    "proc_basalte":   ("Basalte (atelier)",    m_pierre(seed=17, base=(74, 72, 80), moss=False), m_pierre(seed=29, base=(96, 94, 104), moss=False)),
+    "proc_brique":    ("Brique cuite (atelier)", m_pierre(seed=19, base=(152, 82, 58), moss=False), m_pierre(seed=31, base=(178, 108, 80), moss=False)),
+    "proc_chene":     ("Chêne sombre (atelier)", m_bois(seed=9, base=(74, 48, 30)),     m_bois(seed=15, base=(58, 38, 24))),
+    "proc_colombage_blanc": ("Colombage blanc (atelier)", m_colombage(seed=11, daub=(226, 218, 200)), m_colombage(seed=21, daub=(200, 190, 170))),
+    # --- palissade : mur bas en bois (même jeu de pièces, hauteur réduite) ---
+    "proc_palissade": ("Palissade (atelier)",  m_bois(seed=6, base=(112, 78, 46)),      m_bois(seed=12, base=(90, 62, 38)), {"H": 46}),
 }
 
 # ---------------- géométrie iso (identique aux générateurs) ----------------
@@ -192,8 +202,11 @@ WALL_KINDS = [
     ("post", "Poteau / jonction"), ("tour", "Tour"),
 ]
 def wall_pieces(matkey):
-    _, surface, cap = MATERIALS[matkey]
-    return [(k, name, *build(k, surface, cap)) for k, name in WALL_KINDS]
+    entry = MATERIALS[matkey]
+    label, surface, cap = entry[0], entry[1], entry[2]
+    opts = entry[3] if len(entry) > 3 else {}
+    H = opts.get("H", 78)
+    return [(k, name, *build(k, surface, cap, H=H)) for k, name in WALL_KINDS]
 
 if __name__ == "__main__":
     OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "samples")
