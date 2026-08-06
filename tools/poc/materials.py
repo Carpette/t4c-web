@@ -193,13 +193,38 @@ def build(kind, stone, cap, H=78, t=0.14, cp=9):
     if kind == "ex":     _edge_x(c, stone, cap, H, t, cp); a = (0.5, 0.0)
     elif kind == "ez":   _edge_z(c, stone, cap, H, t, cp); a = (0.0, 0.5)
     elif kind == "tour": _tour(c, stone, cap, H);          a = (0.0, 0.0)
+    elif kind.startswith("pignon_"):
+        axis = 'ez' if kind.startswith("pignon_ez") else 'ex'
+        shape = "plein" if kind in ("pignon_ez", "pignon_ex") else ("mont" if kind.endswith("mont") else "desc")
+        _pignon(c, stone, axis, shape, t)
+        a = (0.0, 0.5) if axis == 'ez' else (0.5, 0.0)
     else:                _post(c, stone, cap, H, t, cp);   a = (0.0, 0.0)
     return _crop_at(c, *a)
 
-# ordre des frames 0..3 + libellé lisible (exposé au manifeste -> palette)
+# ---- pignons : triangles de mur fermant l'espace sous un toit à 2 pans ----
+# (texture du MUR, dessinés de la hauteur du mur HBW jusqu'au faîte HBW+RISE_W).
+# « ez » : posé sur une arête ez (face vers +x, ombrage SE) ; « ex » : arête ex
+# (face vers +z, SW). Plein = apex au milieu (bâtiment de profondeur 1) ;
+# demi montant/descendant = pour les bâtiments de profondeur 2.
+HBW, RISE_W = 86, 46
+def _pignon(c, stone, axis, shape, t=0.14):
+    SH = SH_SE if axis == 'ez' else SH_SW
+    def Q(a, y):   # point sur l'arête : a = position le long de l'arête (0..1)
+        return Pt(t, a, y) if axis == 'ez' else Pt(a, t, y)
+    if shape == "plein":
+        quad = (Q(0, HBW), Q(1, HBW), Q(0.5, HBW+RISE_W), Q(0.5, HBW+RISE_W))
+    elif shape == "mont":   # monte de 0 -> 1
+        quad = (Q(0, HBW), Q(1, HBW), Q(1, HBW+RISE_W), Q(1, HBW+RISE_W))
+    else:                    # descend de 0 -> 1
+        quad = (Q(0, HBW), Q(1, HBW), Q(0, HBW+RISE_W), Q(0, HBW+RISE_W))
+    fill_quad(c, quad, stone, SH, ao=0.0, wrap=1.1)
+
+# ordre des frames 0..9 + libellé lisible (exposé au manifeste -> palette)
 WALL_KINDS = [
     ("ex", "Mur ↘ (arête)"), ("ez", "Mur ↙ (arête)"),
     ("post", "Poteau / jonction"), ("tour", "Tour"),
+    ("pignon_ez", "Pignon ↙ plein"), ("pignon_ez_mont", "Pignon ↙ montant"), ("pignon_ez_desc", "Pignon ↙ descendant"),
+    ("pignon_ex", "Pignon ↘ plein"), ("pignon_ex_mont", "Pignon ↘ montant"), ("pignon_ex_desc", "Pignon ↘ descendant"),
 ]
 def wall_pieces(matkey):
     entry = MATERIALS[matkey]
@@ -207,6 +232,65 @@ def wall_pieces(matkey):
     opts = entry[3] if len(entry) > 3 else {}
     H = opts.get("H", 78)
     return [(k, name, *build(k, surface, cap, H=H)) for k, name in WALL_KINDS]
+
+# ---------------- TOITS ----------------
+# Pièces de toit posées PAR CASE, au-dessus des murs (base HB = hauteur mur +
+# parapet). Un toit à deux pans dont le faîte court le long d'un axe :
+#   faite_x : pièce complète (2 pans, faîte au milieu de la case, le long de +x)
+#   pan_x_av / pan_x_ar : demi-toits pour bâtiments profonds (faîte au bord)
+#   idem en z. Débord léger aux gouttières. Textures : rangées de tuiles/ardoises
+#   (assises décalées) ou chaume (paille).
+def t_tuiles(seed=3, base=(178, 92, 60)):
+    ch = 26
+    row = YS//ch; yin = (YS % ch)/ch
+    rng = np.random.default_rng(seed)
+    jit = rng.uniform(-1, 1, (H//ch+2, 40))
+    scallop = 0.5+0.5*np.sin((XS + (row % 2)*19)*np.pi/19)
+    val = np.array(base, float)[None, None, :]*(0.82+0.22*scallop[..., None])
+    val *= (1+0.10*jit[np.clip(row, 0, H//ch+1), (XS % 40)][..., None])
+    val = np.where((yin > 0.82)[..., None], val*0.55, val)   # ombre de recouvrement
+    val += (fbm2(H, W, seed+2, (8, 16, 32), (.5, .3, .2))[..., None]-0.5)*10
+    return post(val)
+
+def t_ardoise(seed=8):
+    return t_tuiles(seed, base=(84, 90, 104))
+
+ROOF_MATERIALS = {
+    "toit_tuile":   ("Toit tuiles (atelier)",   t_tuiles()),
+    "toit_ardoise": ("Toit ardoise (atelier)",  t_ardoise()),
+    "toit_chaume":  ("Toit chaume (atelier)",   m_paille(seed=14, base=(188, 160, 92))),
+}
+HB = 86      # base du toit (hauteur mur 78 + parapet ~8)
+RISE = 46    # hauteur du faîte au-dessus de la base
+OVER = 0.15  # débord de gouttière (fraction de case)
+SH_ROOF_AV, SH_ROOF_AR = 0.98, 0.78   # pan côté caméra / pan opposé
+
+def _roof(kind, tex):
+    c = _c()
+    if kind == "faite_x":     # faîte au milieu, le long de +x : 2 pans complets
+        fill_quad(c, (Pt(-OVER, .5, HB+RISE), Pt(1+OVER, .5, HB+RISE), Pt(1+OVER, -OVER, HB), Pt(-OVER, -OVER, HB)), tex, SH_ROOF_AR, wrap=1.2)
+        fill_quad(c, (Pt(-OVER, .5, HB+RISE), Pt(1+OVER, .5, HB+RISE), Pt(1+OVER, 1+OVER, HB), Pt(-OVER, 1+OVER, HB)), tex, SH_ROOF_AV, wrap=1.2)
+    elif kind == "faite_z":
+        fill_quad(c, (Pt(.5, -OVER, HB+RISE), Pt(.5, 1+OVER, HB+RISE), Pt(-OVER, 1+OVER, HB), Pt(-OVER, -OVER, HB)), tex, SH_ROOF_AR, wrap=1.2)
+        fill_quad(c, (Pt(.5, -OVER, HB+RISE), Pt(.5, 1+OVER, HB+RISE), Pt(1+OVER, 1+OVER, HB), Pt(1+OVER, -OVER, HB)), tex, SH_ROOF_AV, wrap=1.2)
+    elif kind == "pan_x_av":  # demi-toit, faîte au bord z=0, pente vers la caméra
+        fill_quad(c, (Pt(-OVER, 0, HB+RISE), Pt(1+OVER, 0, HB+RISE), Pt(1+OVER, 1+OVER, HB), Pt(-OVER, 1+OVER, HB)), tex, SH_ROOF_AV, wrap=1.2)
+    elif kind == "pan_x_ar":  # demi-toit, faîte au bord z=1, pente vers l'arrière
+        fill_quad(c, (Pt(-OVER, 1, HB+RISE), Pt(1+OVER, 1, HB+RISE), Pt(1+OVER, -OVER, HB), Pt(-OVER, -OVER, HB)), tex, SH_ROOF_AR, wrap=1.2)
+    elif kind == "pan_z_av":
+        fill_quad(c, (Pt(0, -OVER, HB+RISE), Pt(0, 1+OVER, HB+RISE), Pt(1+OVER, 1+OVER, HB), Pt(1+OVER, -OVER, HB)), tex, SH_ROOF_AV, wrap=1.2)
+    elif kind == "pan_z_ar":
+        fill_quad(c, (Pt(1, -OVER, HB+RISE), Pt(1, 1+OVER, HB+RISE), Pt(-OVER, 1+OVER, HB), Pt(-OVER, -OVER, HB)), tex, SH_ROOF_AR, wrap=1.2)
+    return _crop_at(c, 0.5, 0.5)
+
+ROOF_KINDS = [
+    ("faite_x", "Faîte ↘ (2 pans)"), ("faite_z", "Faîte ↙ (2 pans)"),
+    ("pan_x_av", "Pan ↘ avant"), ("pan_x_ar", "Pan ↘ arrière"),
+    ("pan_z_av", "Pan ↙ avant"), ("pan_z_ar", "Pan ↙ arrière"),
+]
+def roof_pieces(matkey):
+    label, tex = ROOF_MATERIALS[matkey]
+    return [(k, name, *_roof(k, tex)) for k, name in ROOF_KINDS]
 
 if __name__ == "__main__":
     OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "samples")

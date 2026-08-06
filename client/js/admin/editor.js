@@ -2174,8 +2174,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (palTool.v != null) e.v = palTool.v;
     if (palTool.s && palTool.s !== 1) e.s = palTool.s;
     if (poseFlip()) e.rot = Math.PI; // miroir horizontal (cf. propFlip, decormap.js)
-    // une dalle de sol (atelier) est du TERRAIN : jamais solide, quel que soit le rail
-    e.solid = palTool.type?.startsWith?.('floor_') ? false : collide;
+    // une dalle de sol (atelier) est du TERRAIN et un toit est AU-DESSUS des têtes :
+    // jamais solides, quel que soit le rail (les murs, eux, bloquent)
+    const overlay = palTool.type?.startsWith?.('floor_') || palTool.type?.startsWith?.('roof_');
+    e.solid = overlay ? false : collide;
     ov.props.add.push(e);
     rebuild();
   }

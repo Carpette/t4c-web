@@ -10,6 +10,7 @@ import {
   GRASS_PROP_TYPE, GRASS_PROP_LABEL, grasslandPropId, classifyGrasslandFrame,
   WALL_MATERIALS, WALL_PIECES, wallPropId,
   FLOOR_MATERIALS, FLOOR_VARIANTS, floorPropId,
+  ROOF_MATERIALS, roofPropId,
 } from '../render2d/decormap.js';
 import { resolveTile } from '../render2d/assets.js';
 
@@ -360,6 +361,37 @@ export function buildPalette({ container, assets, onSelect }) {
     }
   }
   void FLOOR_VARIANTS;
+
+  // --- thème « Toits (atelier) » : pièces de toit posées par case, au-dessus des murs ---
+  {
+    const tilesets = assets?.manifest?.tilesets || {};
+    const present = ROOF_MATERIALS.filter(([mat]) => tilesets[`roof_${mat}`]?.tiles);
+    if (present.length) {
+      const total = present.reduce((n, [mat]) =>
+        n + Object.keys(tilesets[`roof_${mat}`].tiles).length, 0);
+      const body = makeTheme('roofs', 'Toits (atelier)', total);
+      const subGroups = [];
+      for (const [mat, label] of present) {
+        const type = `roof_${mat}`;
+        const ts = tilesets[type];
+        const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
+        if (!frames.length) continue;
+        const names = ts.names || [];
+        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
+        for (const frame of frames) {
+          const n = Number(frame);
+          row.appendChild(makeChip(
+            { label: `${label} — ${names[n] || `pièce ${frame}`}`, tileId: roofPropId(type, n), glyph: '⌂', color: '#d86' },
+            () => ({ kind: 'prop', type, v: n }),
+            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
+          ));
+        }
+        subGroups.push({ div: sub, text: ('toit toits atelier ' + mat + ' ' + label).toLowerCase() });
+      }
+      themes[themes.length - 1].subGroups = subGroups;
+      themes[themes.length - 1].text = ('toits atelier ' + present.map(([, l]) => l).join(' ')).toLowerCase();
+    }
+  }
 
   // --- thème « Murs » : murs IA (assets propres au projet, pas Flare) ---
   // Un ACCORDÉON « Murs » avec une SOUS-SECTION par matériau (Rondins, Brique
