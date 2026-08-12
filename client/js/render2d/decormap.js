@@ -127,10 +127,13 @@ export const WALL_PIECES = 16; // nombre de pièces par matériau (walls.json)
 // type de prop d'un matériau de mur : « wall_rondins », « wall_pierre », etc.
 // (le type EST déjà le nom du tileset : pas de table de préfixe séparée).
 export const WALL_PROP_TYPES = WALL_MATERIALS.map(([mat]) => `wall_${mat}`);
-const WALL_PROP_SET = new Set(WALL_PROP_TYPES);
+// Reconnaissance PAR PRÉFIXE : tout tileset « wall_* » du manifeste est un
+// matériau de mur — y compris ceux créés à chaud dans l'atelier (wall_u_*),
+// sans avoir à toucher cette liste.
+export const isWallProp = (type) => typeof type === 'string' && type.startsWith('wall_');
 // id de tuile rendu pour une pièce de mur (type `wall_<mat>` + frame `v`)
 export function wallPropId(type, v) {
-  return WALL_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
+  return isWallProp(type) && v != null ? `${type}:${v}` : null;
 }
 
 // --- Toits « atelier » : un tileset roof_<mat> par couverture ---
@@ -144,9 +147,9 @@ export const ROOF_MATERIALS = [
   ['toit_chaume', 'Toit chaume (atelier)'],
 ];
 export const ROOF_PROP_TYPES = ROOF_MATERIALS.map(([mat]) => `roof_${mat}`);
-const ROOF_PROP_SET = new Set(ROOF_PROP_TYPES);
+export const isRoofProp = (type) => typeof type === 'string' && type.startsWith('roof_');
 export function roofPropId(type, v) {
-  return ROOF_PROP_SET.has(type) && v != null ? `${type}:${v}` : null;
+  return isRoofProp(type) && v != null ? `${type}:${v}` : null;
 }
 
 // --- Sols « atelier » (dalles posables) : un tileset floor_<mat> par matériau ---
@@ -166,10 +169,10 @@ export const FLOOR_MATERIALS = [
 ];
 export const FLOOR_VARIANTS = 16;   // frames 0..15 : variantes pleines (grille 4x4)
 export const FLOOR_PROP_TYPES = FLOOR_MATERIALS.map(([mat]) => `floor_${mat}`);
-const FLOOR_PROP_SET = new Set(FLOOR_PROP_TYPES);
+export const isFloorProp = (type) => typeof type === 'string' && type.startsWith('floor_');
 // id de tuile rendu pour une dalle : frame explicite, sinon variante par position
 export function floorPropId(type, v, x = 0, z = 0) {
-  if (!FLOOR_PROP_SET.has(type)) return null;
+  if (!isFloorProp(type)) return null;
   if (v != null) return `${type}:${v}`;
   const fx = Math.floor(x), fz = Math.floor(z);
   const auto = ((fx % 4) + 4) % 4 + (((fz % 4) + 4) % 4) * 4;
@@ -287,16 +290,20 @@ export const PROP_TYPES = {
 const TILESET_PROP_TYPES = TILESET_PROP_FAMILIES.map(([type]) => type);
 export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 'torch', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES, ...WALL_PROP_TYPES]);
 export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES, ...WALL_PROP_TYPES]);
+// Généralisation par préfixe : TOUT matériau de mur (y compris créé à chaud) est
+// scalable et flippable ; sols/toits ne le sont pas (alignement à la case).
+export const isScalableProp = (type) => SCALABLE_PROPS.has(type) || isWallProp(type);
+export const isFlippableProp = (type) => FLIPPABLE_PROPS.has(type) || isWallProp(type);
 
 // échelle effective d'un prop (bornée, 1 pour les types non redimensionnables)
 export function propScale(p) {
-  if (!SCALABLE_PROPS.has(p.type) || !Number.isFinite(p.s)) return 1;
+  if (!isScalableProp(p.type) || !Number.isFinite(p.s)) return 1;
   return Math.min(3, Math.max(0.25, p.s));
 }
 // miroir horizontal : la rotation (les sprites Flare étant pré-rendus en iso,
 // seule la symétrie a un sens) bascule le sprite quand elle « regarde » à gauche
 export function propFlip(p) {
-  return FLIPPABLE_PROPS.has(p.type) && Math.cos(p.rot || 0) < 0;
+  return isFlippableProp(p.type) && Math.cos(p.rot || 0) < 0;
 }
 
 // id de tuile pour une variante explicite (index dans PROP_TYPES[type].variants)
@@ -325,19 +332,19 @@ export function propSprites(p, { inCemetery = false } = {}) {
     return { sprites, lights };
   }
   // pièce de mur IA (un tileset par matériau) : id « wall_<mat>:frame »
-  if (WALL_PROP_SET.has(p.type)) {
+  if (isWallProp(p.type)) {
     const id = wallPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
   // dalle de sol « atelier » : variante explicite ou choisie par position
-  if (FLOOR_PROP_SET.has(p.type)) {
+  if (isFloorProp(p.type)) {
     const id = floorPropId(p.type, p.v, p.x, p.z);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }
   // pièce de toit « atelier » : id « roof_<mat>:frame »
-  if (ROOF_PROP_SET.has(p.type)) {
+  if (isRoofProp(p.type)) {
     const id = roofPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };

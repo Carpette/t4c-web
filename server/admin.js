@@ -339,13 +339,13 @@ export async function handleAdmin(req, res, url, game) {
     // d'écrire le fichier et de fusionner le manifeste — MÊME patron que /skins/enemy.
     // Aucune bibliothèque d'image côté serveur (offline, pas de dépendance native).
     if (url === '/api/admin/tiles' && req.method === 'POST') {
-      const { name, kind, data, tiles, types } = JSON.parse(await readBody(req, 16e6));
+      const { name, kind, data, tiles, types, names } = JSON.parse(await readBody(req, 16e6));
       const buf = Buffer.from(String(data || ''), 'base64');
       pngSize(buf); // valide que c'est bien un PNG (en-tête IHDR)
       if (!tiles || typeof tiles !== 'object' || !Object.keys(tiles).length) {
         return json(400, { error: 'aucune pièce (rects) fournie' });
       }
-      const kd = kind === 'mur' ? 'mur' : kind === 'objet' ? 'objet' : 'sol';
+      const kd = kind === 'mur' ? 'mur' : kind === 'toit' ? 'toit' : kind === 'objet' ? 'objet' : 'sol';
       const cleanTiles = {}, cleanTypes = {};
       for (const [frame, rect] of Object.entries(tiles)) {
         const f = String(parseInt(frame, 10));
@@ -355,7 +355,7 @@ export async function handleAdmin(req, res, url, game) {
         }
         cleanTiles[f] = [...rect.slice(0, 6).map(n => n | 0), 0]; // [x,y,w,h,ox,oy,imgIndex=0]
         const t = types && types[frame];
-        cleanTypes[f] = (t === 'sol' || t === 'mur' || t === 'objet') ? t : kd;
+        cleanTypes[f] = (t === 'sol' || t === 'mur' || t === 'objet') ? t : (kd === 'toit' ? 'objet' : kd);
       }
       const nm = safeName(name);
       const userDir = path.join(ASSETS_DIR, 'tilesets', 'user');
@@ -363,16 +363,21 @@ export async function handleAdmin(req, res, url, game) {
       fs.writeFileSync(path.join(userDir, `${nm}.png`), buf);
       const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      const tsName = `user_${nm}`;
+      // Le PRÉFIXE du tileset détermine sa famille côté client (reconnaissance
+      // par préfixe : palette, rendu, collision, outil de tracé pour les murs).
+      const tsName = kd === 'mur' ? `wall_u_${nm}` : kd === 'toit' ? `roof_u_${nm}` : kd === 'sol' ? `floor_u_${nm}` : `user_${nm}`;
       const existed = !!manifest.tilesets[tsName];
-      manifest.tilesets[tsName] = {
+      const entry = {
         images: [`tilesets/user/${nm}.png`],
         tiles: cleanTiles,
         types: cleanTypes,
-        family: kd,       // sol | mur | objet : pilote la sous-section de palette
+        family: kd,       // sol | mur | toit | objet
         label: String(name || nm).slice(0, 60),
-        user: true,       // marque « asset créé dans l'atelier » (surfaçage palette)
+        user: true,       // marque « asset créé dans l'atelier »
       };
+      if (Array.isArray(names)) entry.names = names.map(s => String(s).slice(0, 40));
+      if (kd === 'mur') entry.edgekit = true; // jeu de pièces d'ARÊTE (outil de tracé ▦)
+      manifest.tilesets[tsName] = entry;
       fs.writeFileSync(manifestPath, JSON.stringify(manifest));
       return json(200, {
         ok: true, tileset: tsName, frames: Object.keys(cleanTiles).length, existed,

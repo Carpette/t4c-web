@@ -5,13 +5,24 @@
 // La sélection devient l'outil de pose de l'éditeur (editor.js).
 import { TILE } from '../../../shared/worldgen.js';
 import {
-  FLOOR_IDS, PROP_TYPES, SCALABLE_PROPS, FLIPPABLE_PROPS,
+  FLOOR_IDS, PROP_TYPES, isScalableProp, isFlippableProp,
   TILESET_PROP_FAMILIES, tilesetPropId,
   GRASS_PROP_TYPE, GRASS_PROP_LABEL, grasslandPropId, classifyGrasslandFrame,
   WALL_MATERIALS, WALL_PIECES, wallPropId,
   FLOOR_MATERIALS, FLOOR_VARIANTS, floorPropId,
   ROOF_MATERIALS, roofPropId,
 } from '../render2d/decormap.js';
+
+// matériaux déclarés + matériaux découverts au MANIFESTE (créés à chaud dans
+// l'atelier, tilesets « <prefix><clé> ») : [clé, libellé], sans doublon.
+function withDynamicMaterials(declared, tilesets, prefix) {
+  const known = new Set(declared.map(([m]) => prefix + m));
+  const extra = Object.keys(tilesets || {})
+    .filter(k => k.startsWith(prefix) && !known.has(k) && tilesets[k]?.tiles)
+    .sort()
+    .map(k => [k.slice(prefix.length), tilesets[k].label || k.slice(prefix.length)]);
+  return declared.concat(extra);
+}
 import { resolveTile } from '../render2d/assets.js';
 
 // couleurs d'aplat (rendu rapide à faible zoom + repli sans assets)
@@ -103,8 +114,8 @@ export function buildPalette({ container, assets, onSelect }) {
 
   function refreshOptions() {
     const isProp = current.kind === 'prop';
-    sRow.style.display = isProp && SCALABLE_PROPS.has(current.type) ? '' : 'none';
-    fRow.style.display = isProp && FLIPPABLE_PROPS.has(current.type) ? '' : 'none';
+    sRow.style.display = isProp && isScalableProp(current.type) ? '' : 'none';
+    fRow.style.display = isProp && isFlippableProp(current.type) ? '' : 'none';
   }
 
   function emit() {
@@ -327,7 +338,8 @@ export function buildPalette({ container, assets, onSelect }) {
   // sans couture. Suivent les 16 variantes explicites puis les 8 bords (transitions).
   {
     const tilesets = assets?.manifest?.tilesets || {};
-    const present = FLOOR_MATERIALS.filter(([mat]) => tilesets[`floor_${mat}`]?.tiles);
+    const present = withDynamicMaterials(FLOOR_MATERIALS, tilesets, 'floor_')
+      .filter(([mat]) => tilesets[`floor_${mat}`]?.tiles);
     if (present.length) {
       const total = present.reduce((n, [mat]) =>
         n + Object.keys(tilesets[`floor_${mat}`].tiles).length, 0);
@@ -365,7 +377,8 @@ export function buildPalette({ container, assets, onSelect }) {
   // --- thème « Toits (atelier) » : pièces de toit posées par case, au-dessus des murs ---
   {
     const tilesets = assets?.manifest?.tilesets || {};
-    const present = ROOF_MATERIALS.filter(([mat]) => tilesets[`roof_${mat}`]?.tiles);
+    const present = withDynamicMaterials(ROOF_MATERIALS, tilesets, 'roof_')
+      .filter(([mat]) => tilesets[`roof_${mat}`]?.tiles);
     if (present.length) {
       const total = present.reduce((n, [mat]) =>
         n + Object.keys(tilesets[`roof_${mat}`].tiles).length, 0);
@@ -402,8 +415,9 @@ export function buildPalette({ container, assets, onSelect }) {
   // Les pièces de mur sont flippables : l'option « Miroir horizontal » s'affiche.
   {
     const tilesets = assets?.manifest?.tilesets || {};
-    // ne garder que les matériaux réellement présents au manifeste
-    const present = WALL_MATERIALS.filter(([mat]) => tilesets[`wall_${mat}`]?.tiles);
+    // matériaux déclarés + créés à chaud, réellement présents au manifeste
+    const present = withDynamicMaterials(WALL_MATERIALS, tilesets, 'wall_')
+      .filter(([mat]) => tilesets[`wall_${mat}`]?.tiles);
     if (present.length) {
       const total = present.reduce((n, [mat]) =>
         n + Object.keys(tilesets[`wall_${mat}`].tiles).length, 0);

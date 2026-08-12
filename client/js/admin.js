@@ -11,6 +11,7 @@ import { NpcsEditorController } from './admin/components/npcs-editor/npcs-editor
 import { ParticleEditorController } from './admin/components/particle-editor/particle-editor.js';
 import { MusicsController } from './admin/components/musics/musics.js';
 import { SkinsController } from './admin/components/skins/skins.js';
+import { MaterialsController } from './admin/components/materials/materials.js';
 import { CharactersController } from './admin/components/characters/characters.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
@@ -69,6 +70,7 @@ async function enter(name) {
   guiManagerAdmin.registerController('particle-editor', ParticleEditorController);
   guiManagerAdmin.registerController('musics', MusicsController);
   guiManagerAdmin.registerController('skins', SkinsController);
+  guiManagerAdmin.registerController('materials', MaterialsController);
   guiManagerAdmin.registerController('characters', CharactersController);
   guiManagerAdmin.registerController('pantheon', PantheonController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
@@ -83,6 +85,7 @@ async function enter(name) {
     { name: 'particle-editor', selector: '#tab-particle-editor' },
     { name: 'musics', selector: '#tab-music' },
     { name: 'skins', selector: '#tab-skins' },
+    { name: 'materials', selector: '#tab-materials' },
     { name: 'characters', selector: '#tab-chars' },
     { name: 'pantheon', selector: '#tab-pantheon' }
   ]);

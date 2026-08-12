@@ -2185,9 +2185,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // Frames des pièces d'arête (cf. bake_walls / WALL_KINDS) : ex=0, ez=1, poteau=2.
   const WALL_FRAME = { ex: 0, ez: 1, post: 2 };
   function currentWallType() {
-    // seuls les matériaux d'ATELIER (wall_proc_*) ont les pièces d'arête ex/ez/poteau
-    return (palTool.kind === 'prop' && typeof palTool.type === 'string'
-      && palTool.type.startsWith('wall_proc_')) ? palTool.type : null;
+    // matériaux au jeu de pièces d'ARÊTE (ex/ez/poteau...) : les wall_proc_* bakés
+    // + tout tileset marqué edgekit au manifeste (matériaux créés à chaud)
+    if (palTool.kind !== 'prop' || typeof palTool.type !== 'string') return null;
+    if (palTool.type.startsWith('wall_proc_')) return palTool.type;
+    if (palTool.type.startsWith('wall_') && assets?.manifest?.tilesets?.[palTool.type]?.edgekit) return palTool.type;
+    return null;
   }
   // arête de case la plus proche de (wx,wz) : arête-X (le long de +x, posée en
   // (cx+0.5, Z)) ou arête-Z (le long de +z, posée en (X, cz+0.5)).
