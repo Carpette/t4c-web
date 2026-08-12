@@ -1,0 +1,33 @@
+<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
+    <h2 class="text-xl text-t4c-gold mb-2">Atelier matériaux — murs, toits et sols depuis une texture</h2>
+    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">
+        Chargez une <b>texture carrée tuilable</b> (photo de matériau CC0 — ex. ambientCG —, ou image IA générée
+        en mode « tiling » — ex. Leonardo). L'atelier fabrique les <b>pièces de jeu</b> : murs d'arête
+        (compatibles avec l'outil de tracé ▦ de l'éditeur), pans de toit, ou dalles de sol sans couture.
+        La structure (projection isométrique, orientation, ancres) est calculée par le code ; la texture
+        apporte le rendu. Pensez à créditer la source dans CREDITS.txt.
+    </p>
+    <div class="toolbar flex flex-wrap items-center gap-2 mb-3">
+        <input type="file" id="mat-file" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-300" />
+        <select id="mat-kind" class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light">
+            <option value="mur">Mur (10 pièces d'arête)</option>
+            <option value="toit">Toit (6 pièces)</option>
+            <option value="sol">Sol (16 variantes + 8 bords)</option>
+        </select>
+        <input type="text" id="mat-name" placeholder="nom du matériau (ex. granit)"
+            class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light" />
+        <button @click="generate" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">⚙ Générer les pièces</button>
+        <button @click="save" id="mat-save" disabled class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed">💾 Enregistrer dans la palette</button>
+    </div>
+    <p id="mat-msg" class="text-green-400 min-h-[1.5em]"></p>
+    <div class="flex flex-wrap gap-6 mt-2">
+        <div>
+            <h3 class="text-t4c-gold text-sm mb-1">Texture source (tuilée 2×2 pour contrôle)</h3>
+            <canvas id="mat-src" width="256" height="256" class="border border-t4c-input-border bg-black"></canvas>
+        </div>
+        <div class="flex-1 min-w-[420px]">
+            <h3 class="text-t4c-gold text-sm mb-1">Pièces générées</h3>
+            <div id="mat-pieces" class="flex flex-wrap gap-2 items-end"></div>
+        </div>
+    </div>
+</div>
