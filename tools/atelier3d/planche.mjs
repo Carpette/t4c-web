@@ -29,12 +29,13 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gltf': 'model/gltf+json', '.glb': 'model/gltf-binary',
   '.bin': 'application/octet-stream', '.fbx': 'application/octet-stream' };
 
-// /js/* et /assets/* -> client/ ; /src3d/* -> modèles extraits ; / -> page
+// /js/* et /assets/* -> client/ ; /shared/* -> shared/ ; /src3d/* -> modèles extraits ; / -> page
 function servir(req, res) {
   const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   let base, rel;
   if (url.startsWith('/src3d/')) { base = SRC3D; rel = url.slice(7); }
   else if (url.startsWith('/outil/')) { base = ICI; rel = url.slice(7); }
+  else if (url.startsWith('/shared/')) { base = path.join(RACINE, 'shared'); rel = url.slice(8); }
   else if (url === '/') { base = ICI; rel = 'planche.html'; }
   else { base = path.join(RACINE, 'client'); rel = url.slice(1); }
   const f = path.resolve(base, rel);
