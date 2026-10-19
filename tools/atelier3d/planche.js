@@ -1,6 +1,5 @@
 // Page de la planche contact (voir planche.mjs). Rend chaque modèle du
-// catalogue avec bake3d.js dans les deux styles (« net » et « retro »), sur
-// un losange de case 192x96 pour juger l'échelle, à côté de sprites Flare.
+// catalogue avec bake3d.js, sur un losange de case 192x96 pour juger l'échelle, à côté de sprites Flare.
 import { Atelier3D } from '/js/admin/bake3d.js';
 import { MOBS } from '/shared/defs.js';
 
@@ -128,14 +127,14 @@ function composer(titre, sections) {
 async function planche() {
   const refs = await refsFlare();
   const images = {};
-  for (const style of ['net', 'retro']) {
+  {
     const sections = [['Référence : sprites Flare actuels', refs]];
     for (const [nom, entrees] of CATALOGUE) {
       const items = [];
       for (const e of entrees) {
         try {
           const m = await modele(e);
-          items.push({ nom: e.nom, ...atelier.rendre(m, { dir: DIR, clip: e.clip, t: 0.3, style }) });
+          items.push({ nom: e.nom, ...atelier.rendre(m, { dir: DIR, clip: e.clip, t: 0.3 }) });
         } catch (err) {
           console.log('échec', e.nom, err.message);
           items.push({ nom: e.nom, erreur: true, ox: 0, oy: 100 });
@@ -143,7 +142,7 @@ async function planche() {
       }
       sections.push([nom, items]);
     }
-    images['planche_' + style] = composer(`Atelier 3D — style « ${style} » — direction ${DIR} (SE), case 192×96`, sections).toDataURL('image/png');
+    images.planche = composer(`Atelier 3D — direction ${DIR} (SE), case 192×96`, sections).toDataURL('image/png');
   }
 
   // 8 directions + cycle de marche de l'humain Quaternius (Rôdeur + UAL), face à l'avatar Flare
@@ -153,7 +152,7 @@ async function planche() {
   const m = await modele(CATALOGUE[0][1][1]);
   const dirs = [], flare = [], marche = [];
   for (let d = 0; d < 8; d++) {
-    dirs.push({ nom: 'dir ' + d, ...atelier.rendre(m, { dir: d, clip: '^Idle_Loop$', t: 0.3, style: 'retro' }) });
+    dirs.push({ nom: 'dir ' + d, ...atelier.rendre(m, { dir: d, clip: '^Idle_Loop$', t: 0.3 }) });
     const c = document.createElement('canvas'); c.width = 300; c.height = 300;
     couches.forEach((n, i) => {
       const [x, y, w, h, ox, oy] = av[n].anims.stance.fr[d][0];
@@ -162,8 +161,8 @@ async function planche() {
     flare.push({ nom: 'Flare dir ' + d, canvas: c, ox: 150, oy: 250 });
   }
   const clipMarche = m.clips.find(c => /^Walk_Loop$/i.test(c.name));
-  for (let i = 0; i < 8; i++) marche.push({ nom: 'marche ' + i, ...atelier.rendre(m, { dir: DIR, clip: clipMarche, t: i * (clipMarche ? clipMarche.duration / 8 : 0), style: 'retro' }) });
-  images.directions = composer('8 directions Flare et cycle de marche (Quaternius Rôdeur + UAL, style retro)', [['Rôdeur 3D — 8 directions', dirs], ['Avatar Flare — 8 directions', flare], ['Marche (' + (clipMarche?.name || 'aucun clip') + ')', marche]]).toDataURL('image/png');
+  for (let i = 0; i < 8; i++) marche.push({ nom: 'marche ' + i, ...atelier.rendre(m, { dir: DIR, clip: clipMarche, t: i * (clipMarche ? clipMarche.duration / 8 : 0) }) });
+  images.directions = composer('8 directions Flare et cycle de marche (Quaternius Rôdeur + UAL)', [['Rôdeur 3D — 8 directions', dirs], ['Avatar Flare — 8 directions', flare], ['Marche (' + (clipMarche?.name || 'aucun clip') + ')', marche]]).toDataURL('image/png');
   return { images };
 }
 

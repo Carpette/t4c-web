@@ -3,8 +3,7 @@
 Rendus produits par `tools/atelier3d/planche.mjs` (moteur `client/js/admin/bake3d.js`) :
 même caméra 2:1, même soleil haut-gauche, même ombre portée pour tous les packs.
 
-- `atelier3d/planche_net.png` — style « net » (anticrénelé)
-- `atelier3d/planche_retro.png` — style « retro » (désaturé, palette tramée, contour)
+- `atelier3d/planche.png` — catalogue à côté des sprites Flare
 - `atelier3d/directions.png` — 8 directions Flare + cycle de marche (Quaternius Rôdeur + UAL)
 
 ## Sources archivées (`~/t4c-assets-sources/`, hors dépôt)

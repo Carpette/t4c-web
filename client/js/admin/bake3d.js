@@ -16,7 +16,6 @@ const PX_PAR_CASE = HW * Math.SQRT2;        // 1 case monde = losange 192x96 à 
 const ELEVATION = Math.PI / 6;              // 30° : sin(30°) = 1/2 -> projection 2:1
 export const METRES_PAR_CASE = 1.75;        // humain de 1,8 m ≈ 120 px (avatar Flare)
 const SUR = 2;                              // suréchantillonnage (anticrénelage)
-const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 
 // Axes écran exprimés dans le monde : x monde -> bas-droite, z monde ->
 // bas-gauche (mêmes conventions que renderer.js : px = (x - z) * HW).
@@ -130,7 +129,7 @@ export class Atelier3D {
 
   // Rend une frame. Renvoie { canvas, ox, oy } : canvas rogné au contenu,
   // (ox, oy) = position des pieds dans ce canvas (format des frames du jeu).
-  rendre(modele, { dir = 6, clip = null, t = 0, style = 'net', ombre = true } = {}) {
+  rendre(modele, { dir = 6, clip = null, t = 0, ombre = true } = {}) {
     const { pivot, mixer } = modele;
     pivot.rotation.y = rotationDirection(dir);
     mixer.stopAllAction();
@@ -165,14 +164,13 @@ export class Atelier3D {
     this.renderer.render(this.scene, cam);
     this.scene.remove(pivot);
 
-    // réduction (anticrénelage) puis étalonnage 2D
+    // réduction (anticrénelage)
     const out = document.createElement('canvas');
     out.width = cote; out.height = cote;
     const g = out.getContext('2d', { willReadFrequently: true });
     g.imageSmoothingEnabled = true;
     g.imageSmoothingQuality = 'high';
     g.drawImage(this.renderer.domElement, 0, 0, cote, cote);
-    if (style === 'retro') etalonnerRetro(g, cote, cote);
 
     // position écran des pieds (origine monde), puis rognage au contenu
     const p = new THREE.Vector3(0, 0, 0).project(cam);
@@ -194,33 +192,4 @@ function rogner(cv, fx, fy) {
   res.width = x1 - x0 + 1; res.height = y1 - y0 + 1;
   res.getContext('2d').drawImage(cv, x0, y0, res.width, res.height, 0, 0, res.width, res.height);
   return { canvas: res, ox: Math.round(fx - x0), oy: Math.round(fy - y0) };
-}
-
-// Étalonnage « T4C old school » : couleurs désaturées et réchauffées,
-// contraste relevé, palette réduite par tramage ordonné, contour sombre
-// d'un pixel autour de la silhouette (lisibilité sur n'importe quel sol).
-function etalonnerRetro(g, w, h) {
-  const img = g.getImageData(0, 0, w, h), d = img.data;
-  const NIV = 7, PAS = 255 / (NIV - 1);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = (y * w + x) * 4;
-    if (d[i + 3] < 8) continue;
-    let r = d[i], v = d[i + 1], b = d[i + 2];
-    const l = 0.3 * r + 0.59 * v + 0.11 * b;
-    r = l + (r - l) * 0.72; v = l + (v - l) * 0.72; b = l + (b - l) * 0.72;   // désaturation
-    r = (r - 128) * 1.12 + 128 + 6; v = (v - 128) * 1.12 + 128; b = (b - 128) * 1.12 + 128 - 10; // contraste + chaud
-    const s = (BAYER[y & 3][x & 3] / 16 - 0.5) * PAS;
-    d[i] = Math.round(Math.min(255, Math.max(0, r + s)) / PAS) * PAS;
-    d[i + 1] = Math.round(Math.min(255, Math.max(0, v + s)) / PAS) * PAS;
-    d[i + 2] = Math.round(Math.min(255, Math.max(0, b + s)) / PAS) * PAS;
-  }
-  // contour : pixel transparent voisin d'un pixel opaque -> brun très sombre
-  const a = new Uint8Array(w * h);
-  for (let k = 0; k < w * h; k++) a[k] = d[k * 4 + 3] > 96 ? 1 : 0;
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    const k = y * w + x;
-    if (a[k] || !(a[k - 1] | a[k + 1] | a[k - w] | a[k + w])) continue;
-    d[k * 4] = 22; d[k * 4 + 1] = 16; d[k * 4 + 2] = 12; d[k * 4 + 3] = 200;
-  }
-  g.putImageData(img, 0, 0);
 }
