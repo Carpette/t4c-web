@@ -28,6 +28,6 @@ root : `apt-get download` des paquets puis `dpkg -x` dans un dossier local, et
 
 - `h` : hauteur réelle en mètres (personnages, créatures, props) — 1 case = 1,75 m ;
 - `module` : unités du fichier par case, pour les kits modulaires (Kenney ≈ 0.5,
-  graveyard 0.75, KayKit dungeon 4, Medieval Village 2) ;
+  graveyard 0.75, Medieval Village 2) ;
 - `clip` : motif (regex) du clip de pose ; `anims` : fichiers de clips partagés ;
 - `texture` : texture à appliquer quand le pack la livre à part (FBX).

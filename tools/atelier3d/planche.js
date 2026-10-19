@@ -8,8 +8,6 @@ const UM = S + 'ultimate_monsters/Ultimate Monsters/';
 const ANI = S + 'ultimate_animated_animals/Ultimate Animated Animals - July 2021/glTF/';
 const RPG = S + 'rpg_characters/RPG Characters - Nov 2020/glTF/';
 const OUT = S + 'modular_character_outfits_fantasy/Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/';
-const KKS = S + 'kaykit_skeletons_1_1_free/KayKit_Skeletons_1.1_FREE/';
-const KKS_ANIM = [KKS + 'Animations/gltf/Rig_Medium/Rig_Medium_General.glb', KKS + 'Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'];
 const UAL = [S + 'universal_animation_library/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb'];
 const PROPS = S + 'fantasy_props_megakit/Exports/glTF/';
 const NAT = S + 'stylized_nature_megakit/glTF/';
@@ -28,8 +26,6 @@ const CATALOGUE = [
     { nom: 'Kenney Vampire', url: KG + 'character-vampire.glb', h: 1.8, clip: '^idle$' },
   ]],
   ['Créatures', [
-    { nom: 'KayKit Squelette', url: KKS + 'characters/gltf/Skeleton_Warrior.glb', anims: KKS_ANIM, h: 1.8, clip: '^Idle_A$' },
-    { nom: 'KayKit Squel. mage', url: KKS + 'characters/gltf/Skeleton_Mage.glb', anims: KKS_ANIM, h: 1.8, clip: '^Idle_A$' },
     { nom: 'Zombie (FBX)', url: S + 'zombie_by_quaternius/Zombie by @Quaternius/FBX/Zombie.fbx', texture: S + 'zombie_by_quaternius/Zombie by @Quaternius/Blends/ZombieTexture.png', h: 1.8, clip: 'ZombieIdle' },
     { nom: 'UM Orc', url: UM + 'Big/glTF/Orc.gltf', h: 1.9, clip: '^idle$' },
     { nom: 'UM Ninja (brigand ?)', url: UM + 'Big/glTF/Ninja.gltf', h: 1.75, clip: '^idle$' },
@@ -53,7 +49,6 @@ const CATALOGUE = [
     { nom: 'Arbre mort', url: NAT + 'DeadTree_1.gltf', h: 4.5 },
     { nom: 'Rocher', url: NAT + 'Rock_Medium_1.gltf', h: 1.1 },
     { nom: 'Mur village', url: S + 'medieval_village_megakit/Medieval Village MegaKit[Standard]/glTF/Wall_UnevenBrick_Window_Wide_Round.gltf', module: 2 },
-    { nom: 'KayKit mur donjon', url: S + 'kaykit_dungeon_pack_1_1_free/KayKit_Dungeon_Pack_1.1_FREE/Assets/gltf/wall.gltf', module: 4 },
     { nom: 'Kenney crypte', url: KG + 'crypt.glb', module: 0.75 },
     { nom: 'Kenney tombe', url: KG + 'gravestone-cross.glb', module: 0.75 },
     { nom: 'Kenney tour', url: S + 'kenney_castle_kit/Models/GLB format/tower-square.glb', module: 0.5 },
@@ -161,21 +156,24 @@ async function planche() {
     images['planche_' + style] = composer(`Atelier 3D — style « ${style} » — direction ${DIR} (SE), case 192×96`, sections).toDataURL('image/png');
   }
 
-  // 8 directions + cycle de marche du squelette KayKit, face au squelette Flare
+  // 8 directions + cycle de marche de l'humain Quaternius (Rôdeur + UAL), face à l'avatar Flare
   const man = await (await fetch('/assets/manifest.json')).json();
-  const sq = man.enemies.skeleton, img = await chargerImage('/assets/' + sq.image);
-  const m = await modele(CATALOGUE[1][1][0]);
+  const av = man.avatar.male, couches = ['default_feet', 'cloth_pants', 'default_hands', 'default_chest', 'head_short'].filter(c => av[c]);
+  const imgs = await Promise.all(couches.map(c => chargerImage('/assets/' + av[c].image)));
+  const m = await modele(CATALOGUE[0][1][1]);
   const dirs = [], flare = [], marche = [];
   for (let d = 0; d < 8; d++) {
-    dirs.push({ nom: 'dir ' + d, ...atelier.rendre(m, { dir: d, clip: '^Idle_A$', t: 0.3, style: 'retro' }) });
-    const [x, y, w, h, ox, oy] = sq.anims.stance.fr[d][0];
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
-    flare.push({ nom: 'Flare dir ' + d, canvas: c, ox, oy });
+    dirs.push({ nom: 'dir ' + d, ...atelier.rendre(m, { dir: d, clip: '^Idle_Loop$', t: 0.3, style: 'retro' }) });
+    const c = document.createElement('canvas'); c.width = 300; c.height = 300;
+    couches.forEach((n, i) => {
+      const [x, y, w, h, ox, oy] = av[n].anims.stance.fr[d][0];
+      c.getContext('2d').drawImage(imgs[i], x, y, w, h, 150 - ox, 250 - oy, w, h);
+    });
+    flare.push({ nom: 'Flare dir ' + d, canvas: c, ox: 150, oy: 250 });
   }
-  const clipMarche = m.clips.find(c => /walk/i.test(c.name));
+  const clipMarche = m.clips.find(c => /^Walk_Loop$/i.test(c.name));
   for (let i = 0; i < 8; i++) marche.push({ nom: 'marche ' + i, ...atelier.rendre(m, { dir: DIR, clip: clipMarche, t: i * (clipMarche ? clipMarche.duration / 8 : 0), style: 'retro' }) });
-  images.directions = composer('8 directions Flare et cycle de marche (KayKit Squelette, style retro)', [['Squelette 3D — 8 directions', dirs], ['Squelette Flare — 8 directions', flare], ['Marche (' + (clipMarche?.name || 'aucun clip') + ')', marche]]).toDataURL('image/png');
+  images.directions = composer('8 directions Flare et cycle de marche (Quaternius Rôdeur + UAL, style retro)', [['Rôdeur 3D — 8 directions', dirs], ['Avatar Flare — 8 directions', flare], ['Marche (' + (clipMarche?.name || 'aucun clip') + ')', marche]]).toDataURL('image/png');
   return { images };
 }
 
