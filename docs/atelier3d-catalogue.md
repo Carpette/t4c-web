@@ -5,14 +5,15 @@ même caméra 2:1, même soleil haut-gauche, même ombre portée pour tous les p
 
 - `atelier3d/planche_net.png` — style « net » (anticrénelé)
 - `atelier3d/planche_retro.png` — style « retro » (désaturé, palette tramée, contour)
-- `atelier3d/directions.png` — 8 directions Flare + cycle de marche (KayKit Squelette)
+- `atelier3d/directions.png` — 8 directions Flare + cycle de marche (Quaternius Rôdeur + UAL)
 
 ## Sources archivées (`~/t4c-assets-sources/`, hors dépôt)
 
 Toutes **CC0 1.0** (texte de licence vérifié dans chaque zip le 2026-10-19 ; empreintes
 sha256 dans `MANIFEST.json`). Quaternius publie désormais certains packs sous sa licence
 **QAL**, qui INTERDIT la redistribution dans un moteur/template : n'utiliser que les
-versions CC0 archivées. Exclu : *Bestiary – Dungeon Monsters Kit* (QAL).
+versions CC0 archivées. Exclus : *Bestiary – Dungeon Monsters Kit* (QAL) et **tout KayKit**
+(style trop cartoon/chibi, ne colle pas à l'ambiance T4C — décision du 2026-10-19).
 
 | Pack | Contenu utile | Remarque |
 |---|---|---|
@@ -27,8 +28,6 @@ versions CC0 archivées. Exclu : *Bestiary – Dungeon Monsters Kit* (QAL).
 | Quaternius Ultimate Monsters | 50 monstres animés | style « mignon » marqué |
 | Quaternius Ultimate Animated Animals | loup, renard, cerf, cheval, taureau… (12) | pas d'ours ni de sanglier |
 | Quaternius Zombie | zombie animé (FBX) | texture livrée à part |
-| KayKit Skeletons 1.1 | guerrier, mage, voleur, sbire + 26 clips | proportions chibi |
-| KayKit Dungeon Pack 1.1 | 211 pièces de donjon | pas de 4 unités |
 | Kenney (8 kits) | town, castle, graveyard, dungeons, cave, forest, nature | très simple, couleurs plates |
 
 Les versions payantes « Source » de Quaternius (proportions Regular, 12 tenues) sont aussi
@@ -40,8 +39,6 @@ CC0 : les acheter ne pose pas de problème de licence pour la plateforme.
 
 | Monstre (clé) | Nom | Proposition | |
 |---|---|---|---|
-| squelette | Squelette | KayKit Skeleton_Warrior | ✅ |
-| liche_mineure | Liche mineure | KayKit Skeleton_Mage | ✅ |
 | zombie | Zombie | Quaternius Zombie | ✅ |
 | loup | Loup | Animals Wolf | ✅ |
 | loup_noir | Loup noir | Animals Wolf + teinte | ✅ |
@@ -49,9 +46,9 @@ CC0 : les acheter ne pose pas de problème de licence pour la plateforme.
 | voleur | Voleur | UBC + Outfit Rôdeur / RPG Rogue + teinte | ✅ |
 | gobelin | Gobelin | UM Orc réduit + teinte | 🟡 |
 | orc | Hobgobelin | UM Orc | 🟡 |
-| orc_eclaireur | Éclaireur orc | UM Orc + arme KayKit | 🟡 |
+| orc_eclaireur | Éclaireur orc | UM Orc + arme Fantasy Props (hache/épée bronze) | 🟡 |
 | orc_guerrier | Guerrier orc | UM Orc + arme/bouclier | 🟡 |
-| orc_chaman | Chaman orc | UM Orc + bâton (Skeleton_Staff) | 🟡 |
+| orc_chaman | Chaman orc | UM Orc + bâton du RPG Mage | 🟡 |
 | skraug_vert | Skraug vert | UM Orc + teinte (pas d'homme-lézard) | 🟡 |
 | skraug_rouge | Skraug rouge | idem, teinte rouge | 🟡 |
 | troll | Troll | UM Yeti + teinte | 🟡 |
@@ -60,6 +57,8 @@ CC0 : les acheter ne pose pas de problème de licence pour la plateforme.
 | goule | Goule | Zombie + teinte | 🟡 |
 | guepe | Guêpe géante | UM Armabee (mignon) | 🟡 |
 | golem_pierre | Golem de pierre | rochers Nature assemblés sur un squelette UBC | 🟡 |
+| squelette | Squelette | — (seul squelette CC0 réaliste trouvé : aucun ; Kenney trop simple) | 🔴 |
+| liche_mineure | Liche mineure | — (dépend du squelette) | 🔴 |
 | sanglier | Sanglier | (Taureau réduit : peu crédible) | 🔴 |
 | ours | Ours brun | — | 🔴 |
 | rat_caverne | Rat des cavernes | — | 🔴 |
@@ -76,7 +75,7 @@ CC0 : les acheter ne pose pas de problème de licence pour la plateforme.
 | tarentule_geante | Tarentule géante | — | 🔴 |
 | necro_araignee | Nécro-araignée | — | 🔴 |
 
-Bilan : **7 ✅, 13 🟡, 15 🔴**. 9 des 15 trous sont des **insectes / arachnides** (une
+Bilan : **5 ✅, 13 🟡, 17 🔴**. 9 des 17 trous sont des **insectes / arachnides** (une
 seule famille de modèles à trouver, à générer ou à animer procéduralement : un rig de
 pattes en IK se code sans talent graphique). Les décors, eux, sont largement couverts.
 
@@ -87,6 +86,7 @@ pattes en IK se code sans talent graphique). Les décors, eux, sont largement co
 - **Humains** (UBC / Outfits / UAL) : les plus proches de l'esprit T4C ; les animations
   partagées s'appliquent telles quelles.
 - **Ultimate Monsters** : trop « mignon » pour un T4C sombre, hors Orc/Yeti.
-- **KayKit** : chibi, détonne à côté des humains Quaternius — à réserver ou exclure.
+- **KayKit** : chibi, détonne à côté des humains Quaternius — **écarté**. Les squelettes
+  sont donc à retrouver (modèle CC0 réaliste, génération image→3D sur le corps UBC).
 - Pièges gérés par `bake3d.js` : > 4 influences d'os (renormalisation), opacité FBX à 0,
   texture FBX livrée à part, métal noir sans environnement.

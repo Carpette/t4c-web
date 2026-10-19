@@ -100,7 +100,7 @@ export class Atelier3D {
   }
 
   // Ajoute des clips venant d'un autre fichier (bibliothèques d'animations
-  // partagées : KayKit Rig_Medium, Quaternius UAL) — liés par nom d'os.
+  // partagées, ex. Quaternius UAL) — liés par nom d'os.
   async ajouterAnimations(modele, url) {
     const res = await (/\.fbx$/i.test(url) ? this.fbx : this.gltf).loadAsync(url);
     modele.clips.push(...(res.animations || []));
