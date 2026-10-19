@@ -9,6 +9,7 @@ import { PROTOCOL_VERSION } from '../shared/constants.js';
 import { handleAdmin } from './admin.js';
 import { VERSION } from './version.js';
 import * as db from './db.js';
+import { fichierSrc3d } from './src3d.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -26,6 +27,13 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.mp3': 'audio/mpeg',
   '.ogg': 'audio/ogg',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  // modèles 3D de l'atelier (servis sous /src3d/)
+  '.gltf': 'model/gltf+json',
+  '.glb': 'model/gltf-binary',
+  '.bin': 'application/octet-stream',
+  '.fbx': 'application/octet-stream',
 };
 
 const server = http.createServer((req, res) => {
@@ -41,13 +49,17 @@ const server = http.createServer((req, res) => {
   if (url === '/admin') url = '/admin.html';
 
   let file;
-  if (url.startsWith('/shared/') || url.startsWith('/content/')) {
+  if (url.startsWith('/src3d/')) {
+    // modèles 3D sources de l'atelier (hors dépôt, voir server/src3d.js)
+    file = fichierSrc3d(url.slice('/src3d/'.length));
+    if (!file) { res.writeHead(404); res.end('404'); return; }
+  } else if (url.startsWith('/shared/') || url.startsWith('/content/')) {
     file = path.join(ROOT, url);
   } else {
     file = path.join(ROOT, 'client', url);
   }
-  // anti-traversée
-  if (!file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
+  // anti-traversée (les modèles /src3d/ sont déjà confinés à leur dossier)
+  if (!url.startsWith('/src3d/') && !file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
 
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('404'); return; }
