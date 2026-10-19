@@ -1,47 +1,15 @@
 // Page de la planche contact (voir planche.mjs). Rend chaque modèle du
-// catalogue avec bake3d.js, sur un losange de case 192x96 pour juger l'échelle, à côté de sprites Flare.
+// catalogue avec bake3d.js, sur un losange de case 192x96 pour juger
+// l'échelle, à côté de sprites Flare.
 import { Atelier3D } from '/js/admin/bake3d.js';
 import { MOBS } from '/shared/defs.js';
+import { CATALOGUE3D } from '/js/admin/catalogue3d.js';
 
 const S = '/src3d/';
-const ANI = S + 'ultimate_animated_animals/Ultimate Animated Animals - July 2021/glTF/';
-const OUT = S + 'modular_character_outfits_fantasy/Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/';
-const UAL = [S + 'universal_animation_library/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb'];
-const PROPS = S + 'fantasy_props_megakit/Exports/glTF/';
-const NAT = S + 'stylized_nature_megakit/glTF/';
-const KG = S + 'kenney_graveyard_kit_5_0/Models/GLB format/';
-const RUI = S + 'ultimate_modular_ruins_pack/Ultimate Modular Ruins Pack - Aug 2021/FBX/';
-
-// hauteur réelle en mètres ; clip = motif du clip de pose (repos)
-const CATALOGUE = [
-  ['Personnages (avatar / PNJ)', [
-    { nom: 'UBC Superhero ♂ + UAL', url: S + 'universal_base_characters/Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
-    { nom: 'Outfit Rôdeur ♂', url: OUT + 'Male_Ranger.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
-    { nom: 'Outfit Paysanne ♀', url: OUT + 'Female_Peasant.gltf', anims: UAL, h: 1.7, clip: '^Idle_Loop$' },
-  ]],
-  ['Créatures', [
-    { nom: 'Zombie (FBX)', url: S + 'zombie_by_quaternius/Zombie by @Quaternius/FBX/Zombie.fbx', texture: S + 'zombie_by_quaternius/Zombie by @Quaternius/Blends/ZombieTexture.png', h: 1.8, clip: 'ZombieIdle' },
-    { nom: 'Loup', url: ANI + 'Wolf.gltf', h: 0.95, clip: '^idle$' },
-    { nom: 'Cerf', url: ANI + 'Stag.gltf', h: 1.9, clip: '^idle$' },
-    { nom: 'Taureau (sanglier ?)', url: ANI + 'Bull.gltf', h: 1.6, clip: '^idle$' },
-  ]],
-  ['Décors', [
-    { nom: 'Tonneau', url: PROPS + 'Barrel.gltf', h: 1.0 },
-    { nom: 'Coffre', url: PROPS + 'Chest_Wood.gltf', h: 0.7 },
-    { nom: 'Étal', url: PROPS + 'Stall_Empty.gltf', h: 2.4 },
-    { nom: 'Kenney étal', url: S + 'kenney_fantasy_town_kit_2_0/Models/GLB format/stall-red.glb', module: 0.5 },
-    { nom: 'Arbre', url: NAT + 'CommonTree_1.gltf', h: 5.5 },
-    { nom: 'Pin', url: NAT + 'Pine_2.gltf', h: 6.5 },
-    { nom: 'Arbre mort', url: NAT + 'DeadTree_1.gltf', h: 4.5 },
-    { nom: 'Rocher', url: NAT + 'Rock_Medium_1.gltf', h: 1.1 },
-    { nom: 'Mur village', url: S + 'medieval_village_megakit/Medieval Village MegaKit[Standard]/glTF/Wall_UnevenBrick_Window_Wide_Round.gltf', module: 2 },
-    { nom: 'Kenney crypte', url: KG + 'crypt.glb', module: 0.75 },
-    { nom: 'Kenney tombe', url: KG + 'gravestone-cross.glb', module: 0.75 },
-    { nom: 'Kenney tour', url: S + 'kenney_castle_kit/Models/GLB format/tower-square.glb', module: 0.5 },
-    { nom: 'Ruines arche', url: RUI + 'Arch_Gothic.fbx', h: 4.0 },
-    { nom: 'Ruines statue', url: RUI + 'Statue_Stag.fbx', h: 2.5 },
-  ]],
-];
+// catalogue partagé avec l'onglet Atelier 3D de l'admin (chemins relatifs à /src3d/)
+const CATALOGUE = CATALOGUE3D.map(([groupe, , entrees]) => [groupe, entrees.map(e => ({
+  ...e, url: S + e.url, texture: e.texture && S + e.texture, anims: (e.anims || []).map(a => S + a),
+}))]);
 
 const DIR = 5;            // SE : trois-quarts face, comme la plupart des captures Flare
 const LARG = 1900, CELL = 200, MARGE = 16;
