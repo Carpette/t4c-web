@@ -244,7 +244,8 @@ export const MOBS = {
     name: 'Squelette', level: 8, hp: 70, dmg: 8, def: 7, speed: 3.6,
     aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.7,
     resist: { feu: -0.3, lumiere: -0.5, eau: 0.3, arcane: 0.5 }, undead: true,
-    sprite: 'skeleton',
+    // la planche Flare dépasse l'avatar d'une tête : ramené à taille humaine
+    sprite: 'skeleton', spriteScale: 0.85,
     drops: [['or', 0.95, 10, 25], ['potion_vie', 0.15, 1, 2], ['mailles', 0.06, 1, 1], ['dague_du_crane', 0.02, 1, 1], ['dague_perceuse', 0.025, 1, 1], ['anneau_os', 0.07, 1, 1], ['casque_fer', 0.05, 1, 1]],
   },
   zombie: {
@@ -266,8 +267,9 @@ export const MOBS = {
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
     resist: { feu: 0.3, arcane: -0.25 },
     // la planche Flare du minotaure est en ~25x42 px/frame (4x plus petite
-    // que les autres monstres) : on compense au rendu
-    sprite: 'minotaur', spriteScale: 3.2,
+    // que les autres monstres) : on compense au rendu ; 4.5 = une bonne tête
+    // de plus que l'avatar (3.2 le laissait à taille humaine)
+    sprite: 'minotaur', spriteScale: 4.5,
     drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1], ['ecu_de_drachen', 0.01, 1, 1]],
   },
 
@@ -312,7 +314,7 @@ export const MOBS = {
     name: 'Serpent venimeux', level: 10, hp: 85, dmg: 11, def: 7, speed: 3.6,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.4,
     resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
-    sprite: 'wyvern', tint: '#5fae4f', spriteScale: 2.0,
+    sprite: 'wyvern', tint: '#5fae4f', spriteScale: 3.0,
     drops: [['or', 0.9, 8, 24], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.06, 1, 1]],
   },
 
