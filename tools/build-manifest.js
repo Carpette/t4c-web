@@ -67,12 +67,6 @@ const ENEMIES = [
   ['zombie_dark', 'empyrean_campaign', 'empyrean_campaign'], // goule
   ['hobgoblin', 'empyrean_campaign', 'fantasycore'],
   ['hobgoblin_archer', 'empyrean_campaign', 'fantasycore'], // brigands, voleurs (teintes)
-  ['minotaur', 'minicore', 'minicore'],
-  ['wyvern', 'minicore', 'minicore'],                   // serpents (teinte)
-  ['wyvern_adult', 'minicore', 'minicore'],             // guêpe géante (teinte)
-  ['wyvern_air', 'minicore', 'minicore'],
-  ['wyvern_fire', 'minicore', 'minicore'],
-  ['wyvern_water', 'minicore', 'minicore'],
   ['boulder', 'empyrean_campaign', 'empyrean_campaign'],
   ['goblin_minecart', 'empyrean_campaign', 'empyrean_campaign'],
   ['grisbon', 'alpha_demo', 'alpha_demo'],              // bêtes : loups, ours, sanglier, rat (teintes)

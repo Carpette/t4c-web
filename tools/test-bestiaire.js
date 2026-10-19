@@ -69,8 +69,7 @@ const NEEDED_ANIMS = ['stance', 'run', 'swing', 'die'];
     }
     if (d.element) e(ELEMENTS.includes(d.element), `élément d'attaque inconnu « ${d.element} »`);
     if (d.tint) e(/^#[0-9a-f]{6}$/i.test(d.tint), `tint invalide (${d.tint})`);
-    // borne haute 5 : la planche du minotaure est ~4x plus petite que les autres (25x42 px)
-    if (d.spriteScale) e(d.spriteScale >= 0.3 && d.spriteScale <= 5, `spriteScale hors bornes (${d.spriteScale})`);
+    if (d.spriteScale) e(d.spriteScale >= 0.3 && d.spriteScale <= 4, `spriteScale hors bornes (${d.spriteScale})`);
     e(mobXpReward(d.level, d.level) > 0, 'XP nulle');
   }
   ok('stats complètes et bornées (PV, dégâts, CA, vitesse, résistances, tint...)', bad.length === 0);
