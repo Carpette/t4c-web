@@ -67,8 +67,9 @@ cohérence.
 ## Constats de la planche
 
 La ligne de référence montre les sprites Flare **à leur taille en jeu** (`spriteScale` de
-`MOBS`). Ajustés suite à la planche : squelette ×0.85, minotaure ×4.5, serpent venimeux
-(wyvern) ×3. Le minotaure Flare, planche de 25×42 px agrandie ×4.5, reste flou.
+`MOBS`). Suite à la planche : squelette ×0.85 ; planches minotaure et wyvern **retirées**
+(trop basse résolution, inexploitables même agrandies) — Minotaure, Golem, Centaure, Serpent
+venimeux et Guêpe gardent leurs stats avec un sprite Flare provisoire.
 
 - **Décors** : cohérents entre packs une fois passés par la même lumière ; les kits
   modulaires s'emboîtent à l'échelle « 1 pas de grille = 1 case » (`module`).

@@ -266,10 +266,9 @@ export const MOBS = {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
     resist: { feu: 0.3, arcane: -0.25 },
-    // la planche Flare du minotaure est en ~25x42 px/frame (4x plus petite
-    // que les autres monstres) : on compense au rendu ; 4.5 = une bonne tête
-    // de plus que l'avatar (3.2 le laissait à taille humaine)
-    sprite: 'minotaur', spriteScale: 4.5,
+    // sprite provisoire (planches Flare minotaure/wyvern retirées, trop
+    // basse résolution) : en attente d'un modèle de l'atelier 3D
+    sprite: 'goblin_elite', tint: '#7a4f2e', spriteScale: 1.7,
     drops: [['or', 1.0, 50, 130], ['potion_vie', 0.4, 2, 3], ['epee_large_ensanglantee', 0.05, 1, 1], ['plates', 0.08, 1, 1], ['anneau_saphir', 0.10, 1, 1], ['ecu_de_drachen', 0.01, 1, 1]],
   },
 
@@ -314,7 +313,7 @@ export const MOBS = {
     name: 'Serpent venimeux', level: 10, hp: 85, dmg: 11, def: 7, speed: 3.6,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.4,
     resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
-    sprite: 'wyvern', tint: '#5fae4f', spriteScale: 3.0,
+    sprite: 'antlion_small', tint: '#5fae4f', spriteScale: 1.3, // provisoire
     drops: [['or', 0.9, 8, 24], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.06, 1, 1]],
   },
 
@@ -340,7 +339,7 @@ export const MOBS = {
     name: 'Guêpe géante', level: 12, hp: 90, dmg: 12, def: 8, speed: 5.0,
     aggro: 9, leash: 24, atkRange: 1.4, atkSpeed: 1.1,
     resist: { air: 0.4, terre: -0.3 },
-    sprite: 'wyvern_adult', tint: '#e0c24a', spriteScale: 1.5,
+    sprite: 'antlion_small', tint: '#e0c24a', spriteScale: 1.0, // provisoire
     drops: [['or', 0.9, 9, 26], ['potion_mana', 0.1, 1, 1], ['potion_vie', 0.1, 1, 1]],
   },
   kraanian: {
@@ -488,7 +487,7 @@ export const MOBS = {
     name: 'Golem de pierre', level: 23, hp: 460, dmg: 23, def: 26, speed: 2.4,
     aggro: 9, leash: 24, atkRange: 1.9, atkSpeed: 2.4,
     resist: { terre: 0.6, arcane: 0.4, feu: 0.3, eau: -0.4 },
-    sprite: 'minotaur', tint: '#7a8088', spriteScale: 3.4,
+    sprite: 'hobgoblin', tint: '#7a8088', spriteScale: 2.0, // provisoire
     drops: [['or', 0.95, 25, 75], ['potion_vie', 0.2, 1, 2], ['anneau_saphir', 0.08, 1, 1], ['marteau_guerre_renforce', 0.03, 1, 1]],
   },
   centaure: {
@@ -496,7 +495,7 @@ export const MOBS = {
     name: 'Centaure', level: 19, hp: 300, dmg: 19, def: 16, speed: 5.2,
     aggro: 12, leash: 32, atkRange: 1.8, atkSpeed: 1.6,
     resist: { air: 0.25, terre: 0.2 },
-    sprite: 'minotaur', tint: '#9a6a42', spriteScale: 2.9,
+    sprite: 'hobgoblin_archer', tint: '#9a6a42', spriteScale: 1.6, // provisoire
     drops: [['or', 0.95, 18, 50], ['potion_vie', 0.2, 1, 2], ['grand_arc_frene', 0.05, 1, 1], ['arc_courbe_frene', 0.03, 1, 1], ['arc_pourfendeur_centaures', 0.01, 1, 1]],
   },
 };

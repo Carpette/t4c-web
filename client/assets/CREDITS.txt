@@ -6,7 +6,7 @@ Flare (Free Libre Action Roleplaying Engine) — https://flarerpg.org
 Dépôt : https://github.com/flareteam/flare-game
 Mods utilisés : fantasycore, empyrean_campaign, minicore et alpha_demo
 (planches d'ennemis : antlions, fourmis, gobelins, squelettes, zombies,
-hobgobelins, minotaure, wyvernes, grisbon, necromancer, scathelocke, vesuvvio,
+hobgobelins, grisbon, necromancer, scathelocke, vesuvvio,
 boulder, goblin_minecart). Plusieurs créatures du bestiaire sont des
 RECOLORATIONS de ces planches (champ `tint` des monstres, recoloration au
 chargement côté client) : ces variantes restent couvertes par la même licence.

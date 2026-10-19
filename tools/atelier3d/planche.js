@@ -75,7 +75,7 @@ async function refsFlare() {
     g.drawImage(await chargerImage('/assets/' + av[c].image), x, y, w, h, 150 - ox, 250 - oy, w, h);
   }
   refs.push({ nom: 'Flare avatar', canvas: cv, ox: 150, oy: 250 });
-  for (const cle of ['gobelin', 'squelette', 'zombie', 'orc', 'ogre', 'serpent_venimeux', 'araignee_geante']) {
+  for (const cle of ['gobelin', 'squelette', 'zombie', 'orc', 'ogre', 'golem_pierre', 'araignee_geante']) {
     const mob = MOBS[cle], def = man.enemies[mob?.sprite]; if (!def) continue;
     const k = mob.spriteScale || 1;
     const [x, y, w, h, ox, oy] = frame(def, DIR);
