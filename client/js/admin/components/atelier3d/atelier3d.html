@@ -1,0 +1,92 @@
+<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
+    <h2 class="text-xl text-t4c-gold mb-2">Atelier 3D — modèle 3D vers sprites du jeu</h2>
+    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">
+        Choisissez un modèle du <b>catalogue CC0</b> (packs extraits sur le serveur) ou un <b>fichier de votre poste</b>
+        (.glb seul, ou .gltf avec son .bin et ses textures, ou .fbx). L'atelier le rend avec la caméra, la lumière
+        et l'échelle du jeu : une <b>créature</b> devient une planche 8 directions (repos, course, coup, mort)
+        assignable à un monstre ; un <b>décor</b> devient 4 orientations posables dans la palette de l'éditeur
+        (thème « Décors 3D »). Licence : n'importez que du CC0 / CC-BY, et créditez-le dans CREDITS.txt.
+    </p>
+
+    <!-- 1. source -->
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+        <select v-model="preset" @change="chargerPreset" :disabled="!catalogue.length || occupe"
+            class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light">
+            <option value="">{{ catalogue.length ? '— catalogue CC0 —' : 'catalogue indisponible (T4C_SRC3D)' }}</option>
+            <optgroup v-for="g in catalogue" :label="g.groupe">
+                <option v-for="e in g.entrees" :value="e.cle">{{ e.nom }}</option>
+            </optgroup>
+        </select>
+        <span class="text-gray-400 text-sm">ou</span>
+        <input type="file" id="a3d-fichiers" multiple accept=".glb,.gltf,.bin,.fbx,.png,.jpg,.jpeg" @change="chargerFichiers"
+            :disabled="occupe" class="text-sm text-gray-300" />
+    </div>
+
+    <!-- 2. réglages -->
+    <div class="flex flex-wrap items-center gap-3 mb-3 text-sm text-t4c-text-light" v-if="charge">
+        <label><input type="radio" value="creature" v-model="type" @change="apercu" /> Créature</label>
+        <label><input type="radio" value="decor" v-model="type" @change="apercu" /> Décor</label>
+        <label>Échelle
+            <select v-model="mode" @change="reprendre" class="px-1 bg-t4c-input-bg border border-t4c-input-border rounded-md">
+                <option value="h">hauteur (m)</option>
+                <option value="module">module (unités / case)</option>
+            </select>
+        </label>
+        <input type="number" step="0.05" min="0.05" v-model.number="valeur" @change="reprendre"
+            class="w-20 px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md" />
+        <label v-if="libs.length">Animations en plus
+            <select v-model="lib" @change="ajouterLib" class="px-1 bg-t4c-input-bg border border-t4c-input-border rounded-md">
+                <option value="">—</option>
+                <option v-for="l in libs" :value="l">{{ l.split('/').pop() }}</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-3 text-sm text-t4c-text-light" v-if="charge && type === 'creature'">
+        <label v-for="a in ['stance', 'run', 'swing', 'die']" class="flex items-center gap-1">
+            {{ ({ stance: 'Repos', run: 'Course', swing: 'Coup', die: 'Mort' })[a] }}
+            <select v-model="choix[a]" @change="apercu" class="px-1 bg-t4c-input-bg border border-t4c-input-border rounded-md max-w-[180px]">
+                <option value="">(pose fixe)</option>
+                <option v-for="c in clips" :value="c">{{ c }}</option>
+            </select>
+        </label>
+    </div>
+
+    <!-- 3. aperçu -->
+    <div class="flex flex-wrap gap-6" v-if="charge">
+        <div>
+            <canvas id="a3d-apercu" width="420" height="420" class="border border-t4c-input-border bg-[#1d1b22]"></canvas>
+            <div class="flex flex-wrap gap-1 mt-2 text-sm" v-if="type === 'creature'">
+                <button v-for="a in ['stance', 'run', 'swing', 'die']" @click="anim = a; apercu()"
+                    :class="anim === a ? 'bg-t4c-button-active' : 'bg-t4c-button'" class="px-2 py-1 rounded-md text-t4c-text-light">
+                    {{ ({ stance: 'Repos', run: 'Course', swing: 'Coup', die: 'Mort' })[a] }}</button>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1 text-sm">
+                <span class="text-gray-400 mr-1">Direction</span>
+                <button v-for="d in 8" @click="dir = d - 1; apercu()"
+                    :class="dir === d - 1 ? 'bg-t4c-button-active' : 'bg-t4c-button'" class="px-2 py-1 rounded-md text-t4c-text-light">
+                    {{ ['O', 'NO', 'N', 'NE', 'E', 'SE', 'S', 'SO'][d - 1] }}</button>
+            </div>
+        </div>
+
+        <!-- 4. publication -->
+        <div class="flex flex-col gap-2 text-sm text-t4c-text-light min-w-[280px]">
+            <input type="text" v-model="nom" placeholder="nom (ex. loup_gris)"
+                class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md" />
+            <label v-if="type === 'creature'">Assigner au monstre
+                <select v-model="mob" class="px-1 bg-t4c-input-bg border border-t4c-input-border rounded-md max-w-[220px]">
+                    <option value="">(aucun, planche seule)</option>
+                    <option v-for="m in mobs" :value="m.id">{{ m.name }} ({{ m.id }})</option>
+                </select>
+            </label>
+            <button @click="publier" :disabled="occupe || !nom.trim()"
+                class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
+                💾 {{ type === 'creature' ? 'Cuire la planche et publier' : 'Cuire et ajouter à la palette' }}</button>
+            <div v-if="progres !== null" class="w-full bg-t4c-input-bg rounded h-2">
+                <div class="bg-t4c-gold h-2 rounded" :style="{ width: Math.round(progres * 100) + '%' }"></div>
+            </div>
+        </div>
+    </div>
+
+    <p id="a3d-msg" class="min-h-[1.5em] mt-3" :class="erreur ? 'text-red-400' : 'text-green-400'">{{ message }}</p>
+</div>

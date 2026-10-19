@@ -12,6 +12,7 @@ import { ParticleEditorController } from './admin/components/particle-editor/par
 import { MusicsController } from './admin/components/musics/musics.js';
 import { SkinsController } from './admin/components/skins/skins.js';
 import { MaterialsController } from './admin/components/materials/materials.js';
+import { Atelier3DController } from './admin/components/atelier3d/atelier3d.js';
 import { CharactersController } from './admin/components/characters/characters.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
@@ -71,6 +72,7 @@ async function enter(name) {
   guiManagerAdmin.registerController('musics', MusicsController);
   guiManagerAdmin.registerController('skins', SkinsController);
   guiManagerAdmin.registerController('materials', MaterialsController);
+  guiManagerAdmin.registerController('atelier3d', Atelier3DController);
   guiManagerAdmin.registerController('characters', CharactersController);
   guiManagerAdmin.registerController('pantheon', PantheonController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
@@ -86,6 +88,7 @@ async function enter(name) {
     { name: 'musics', selector: '#tab-music' },
     { name: 'skins', selector: '#tab-skins' },
     { name: 'materials', selector: '#tab-materials' },
+    { name: 'atelier3d', selector: '#tab-atelier3d' },
     { name: 'characters', selector: '#tab-chars' },
     { name: 'pantheon', selector: '#tab-pantheon' }
   ]);
