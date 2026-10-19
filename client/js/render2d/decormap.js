@@ -136,6 +136,17 @@ export function wallPropId(type, v) {
   return isWallProp(type) && v != null ? `${type}:${v}` : null;
 }
 
+// --- Décors « atelier 3D » : un tileset user_<nom> par modèle cuit ---
+// Reconnaissance PAR PRÉFIXE (comme les murs) : tout tileset « user_* » du
+// manifeste est un décor posable, créé à chaud par l'atelier (POST
+// /api/admin/tiles, kind « objet »). Le type de prop EST le nom du tileset, la
+// variante `v` le numéro de frame (une orientation par frame : quarts de tour
+// rendus en 3D, d'où AUCUN miroir — il inverserait l'éclairage).
+export const isUserProp = (type) => typeof type === 'string' && type.startsWith('user_');
+export function userPropId(type, v) {
+  return isUserProp(type) && v != null ? `${type}:${v}` : null;
+}
+
 // --- Toits « atelier » : un tileset roof_<mat> par couverture ---
 // 6 pièces par matériau : faîte complet (bâtiment de profondeur 1) et pans
 // avant/arrière (profondeur 2), dans les deux orientations. Posés PAR CASE au
@@ -292,7 +303,7 @@ export const SCALABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', 'cave', 
 export const FLIPPABLE_PROPS = new Set(['tree', 'rock', 'grave', 'ruin', GRASS_PROP_TYPE, ...TILESET_PROP_TYPES, ...WALL_PROP_TYPES]);
 // Généralisation par préfixe : TOUT matériau de mur (y compris créé à chaud) est
 // scalable et flippable ; sols/toits ne le sont pas (alignement à la case).
-export const isScalableProp = (type) => SCALABLE_PROPS.has(type) || isWallProp(type);
+export const isScalableProp = (type) => SCALABLE_PROPS.has(type) || isWallProp(type) || isUserProp(type);
 export const isFlippableProp = (type) => FLIPPABLE_PROPS.has(type) || isWallProp(type);
 
 // échelle effective d'un prop (bornée, 1 pour les types non redimensionnables)
@@ -328,6 +339,12 @@ export function propSprites(p, { inCemetery = false } = {}) {
   // décors issus des tilesets Flare additionnels (cave/dungeon/ruins/snow)
   if (TILESET_PROP_PREFIX[p.type]) {
     const id = tilesetPropId(p.type, p.v);
+    if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
+    return { sprites, lights };
+  }
+  // décor de l'atelier 3D : id « user_<nom>:frame »
+  if (isUserProp(p.type)) {
+    const id = userPropId(p.type, p.v);
     if (id) sprites.push({ tileId: id, x: p.x, z: p.z });
     return { sprites, lights };
   }

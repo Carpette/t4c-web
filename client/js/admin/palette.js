@@ -11,6 +11,7 @@ import {
   WALL_MATERIALS, WALL_PIECES, wallPropId,
   FLOOR_MATERIALS, FLOOR_VARIANTS, floorPropId,
   ROOF_MATERIALS, roofPropId,
+  userPropId,
 } from '../render2d/decormap.js';
 
 // matériaux déclarés + matériaux découverts au MANIFESTE (créés à chaud dans
@@ -403,6 +404,39 @@ export function buildPalette({ container, assets, onSelect }) {
       }
       themes[themes.length - 1].subGroups = subGroups;
       themes[themes.length - 1].text = ('toits atelier ' + present.map(([, l]) => l).join(' ')).toLowerCase();
+    }
+  }
+
+  // --- thème « Décors 3D (atelier) » : modèles 3D cuits dans l'onglet Atelier 3D ---
+  // Un tileset « user_<nom> » (famille objet) par modèle, découvert au manifeste :
+  // une sous-section par modèle, une vignette par orientation (frame).
+  {
+    const tilesets = assets?.manifest?.tilesets || {};
+    const decors = Object.keys(tilesets)
+      .filter(k => k.startsWith('user_') && tilesets[k]?.tiles && (tilesets[k].family || 'objet') === 'objet')
+      .sort();
+    if (decors.length) {
+      const total = decors.reduce((n, k) => n + Object.keys(tilesets[k].tiles).length, 0);
+      const body = makeTheme('decors3d', 'Décors 3D (atelier)', total);
+      const subGroups = [];
+      for (const type of decors) {
+        const ts = tilesets[type];
+        const label = ts.label || type.slice(5);
+        const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
+        const names = ts.names || [];
+        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
+        for (const frame of frames) {
+          const n = Number(frame);
+          row.appendChild(makeChip(
+            { label: `${label} — ${names[n] || `frame ${frame}`}`, tileId: userPropId(type, n), glyph: '◆', color: '#9bd' },
+            () => ({ kind: 'prop', type, v: n }),
+            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
+          ));
+        }
+        subGroups.push({ div: sub, text: ('décor decor 3d atelier ' + type + ' ' + label).toLowerCase() });
+      }
+      themes[themes.length - 1].subGroups = subGroups;
+      themes[themes.length - 1].text = ('décors decors 3d atelier ' + decors.join(' ')).toLowerCase();
     }
   }
 
