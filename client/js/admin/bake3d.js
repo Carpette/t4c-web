@@ -67,15 +67,27 @@ export class Atelier3D {
     this.fbx = new FBXLoader();
   }
 
+  // Chargeurs : ceux par défaut (URL servies), ou, pour des fichiers choisis
+  // sur le poste (Map nom -> URL blob), des chargeurs dont chaque ressource
+  // annexe (.bin, textures référencés par le glTF) est retrouvée par son nom.
+  chargeurs(fichiers) {
+    if (!fichiers) return { gltf: this.gltf, fbx: this.fbx };
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier(u => fichiers.get(decodeURIComponent(u.split('?')[0].split(/[\\/]/).pop())) || u);
+    return { gltf: new GLTFLoader(manager), fbx: new FBXLoader(manager) };
+  }
+
   // Charge un modèle et l'enveloppe dans un pivot (rotation par direction).
   // texture : image à appliquer quand le pack la livre à part (FBX dont le
-  // chemin de texture ne correspond pas à l'archive).
-  async charger(url, { texture = null } = {}) {
-    const fbx = /\.fbx$/i.test(url);
-    const res = await (fbx ? this.fbx : this.gltf).loadAsync(url);
+  // chemin de texture ne correspond pas à l'archive) ; fichiers : voir
+  // chargeurs() ; format : 'fbx' | 'gltf' quand l'URL n'a pas d'extension (blob).
+  async charger(url, { texture = null, fichiers = null, format = null } = {}) {
+    const fbx = format ? format === 'fbx' : /\.fbx$/i.test(url);
+    const ch = this.chargeurs(fichiers);
+    const res = await (fbx ? ch.fbx : ch.gltf).loadAsync(url);
     const racine = fbx ? res : res.scene;
-    const clips = (fbx ? res.animations : res.animations) || [];
-    const carte = texture ? await new THREE.TextureLoader().loadAsync(texture) : null;
+    const clips = res.animations || [];
+    const carte = texture ? await new THREE.TextureLoader(ch.gltf.manager).loadAsync(texture) : null;
     if (carte) carte.colorSpace = THREE.SRGBColorSpace;
     racine.traverse(o => {
       if (!o.isMesh) return;
@@ -100,8 +112,10 @@ export class Atelier3D {
 
   // Ajoute des clips venant d'un autre fichier (bibliothèques d'animations
   // partagées, ex. Quaternius UAL) — liés par nom d'os.
-  async ajouterAnimations(modele, url) {
-    const res = await (/\.fbx$/i.test(url) ? this.fbx : this.gltf).loadAsync(url);
+  async ajouterAnimations(modele, url, { fichiers = null, format = null } = {}) {
+    const ch = this.chargeurs(fichiers);
+    const fbx = format ? format === 'fbx' : /\.fbx$/i.test(url);
+    const res = await (fbx ? ch.fbx : ch.gltf).loadAsync(url);
     modele.clips.push(...(res.animations || []));
   }
 
@@ -178,6 +192,93 @@ export class Atelier3D {
     return rogner(out, fx, fy);
   }
 }
+
+// ---------- publication : atlas au format des routes admin existantes ----------
+
+// Animations exigées par le moteur (server/enemy-import.js) ; nombres de
+// frames et durées calés sur les planches Flare (gobelin, squelette, zombie).
+export const ANIMS_CREATURE = {
+  stance: { frames: 4, duration: 800, type: 'back_forth' },
+  run: { frames: 8, duration: 600, type: 'looped' },
+  swing: { frames: 5, duration: 450, type: 'play_once' },
+  die: { frames: 6, duration: 700, type: 'play_once' },
+};
+
+// Instants d'échantillonnage d'un clip pour n frames selon le type Flare :
+// boucle = période complète sans doublon ; aller-retour = demi-clip (le moteur
+// rejoue à l'envers) ; une fois = du début à la toute fin (pose finale).
+function instants(clip, { frames: n, type }) {
+  const d = clip ? clip.duration : 0;
+  return Array.from({ length: n }, (_, i) =>
+    type === 'looped' ? i * d / n
+      : type === 'back_forth' ? i * (d / 2) / Math.max(1, n - 1)
+        : i * (d * 0.999) / Math.max(1, n - 1));
+}
+
+const pause = () => new Promise(r => setTimeout(r, 0)); // rend la main à l'UI
+
+// Créature : 8 lignes (directions Flare) x colonnes (frames des 4 animations),
+// cases de taille commune et ancre commune aux pieds — la grille attendue par
+// POST /api/admin/skins/enemy. clips : { stance, run, swing, die } -> clip ou
+// null (repli sur la pose de repos). Renvoie { canvas, cfg } (cfg sans nom).
+export async function cuireCreature(atelier, modele, clips, { progres = null } = {}) {
+  const repos = clips.stance || null;
+  const frames = {}; // anim -> [dir][i] = { canvas, ox, oy }
+  let L = 0, R = 0, U = 0, D = 0, fait = 0;
+  const total = 8 * Object.values(ANIMS_CREATURE).reduce((n, a) => n + a.frames, 0);
+  for (const [nom, spec] of Object.entries(ANIMS_CREATURE)) {
+    const clip = clips[nom] || repos;
+    const ts = instants(clip, spec);
+    frames[nom] = [];
+    for (let d = 0; d < 8; d++) {
+      frames[nom][d] = ts.map(t => {
+        const f = atelier.rendre(modele, { dir: d, clip, t });
+        L = Math.max(L, f.ox); R = Math.max(R, f.canvas.width - f.ox);
+        U = Math.max(U, f.oy); D = Math.max(D, f.canvas.height - f.oy);
+        return f;
+      });
+      fait += ts.length;
+      progres?.(fait / total);
+      await pause();
+    }
+  }
+  const cw = L + R, ch = U + D;
+  const cols = Object.values(ANIMS_CREATURE).reduce((n, a) => n + a.frames, 0);
+  const cv = document.createElement('canvas');
+  cv.width = cols * cw; cv.height = 8 * ch;
+  const g = cv.getContext('2d');
+  const anims = {};
+  let col = 0;
+  for (const [nom, spec] of Object.entries(ANIMS_CREATURE)) {
+    anims[nom] = { from: col, to: col + spec.frames - 1, duration: spec.duration, type: spec.type };
+    for (let d = 0; d < 8; d++) {
+      frames[nom][d].forEach((f, i) => g.drawImage(f.canvas, (col + i) * cw + L - f.ox, d * ch + U - f.oy));
+    }
+    col += spec.frames;
+  }
+  return { canvas: cv, cfg: { cell: [cw, ch], anchor: [L, U], anims } };
+}
+
+// Décor : une frame par orientation (quarts de tour), rangées côte à côte —
+// le format de POST /api/admin/tiles (rects [x, y, w, h, ox, oy]).
+export const ORIENTATIONS_DECOR = [[5, 'face SE'], [7, 'face SO'], [1, 'face NO'], [3, 'face NE']];
+export function cuireDecor(atelier, modele) {
+  const fr = ORIENTATIONS_DECOR.map(([d]) => atelier.rendre(modele, { dir: d }));
+  const cv = document.createElement('canvas');
+  cv.width = fr.reduce((n, f) => n + f.canvas.width + 2, 0);
+  cv.height = Math.max(...fr.map(f => f.canvas.height));
+  const g = cv.getContext('2d');
+  const tiles = {};
+  let x = 0;
+  fr.forEach((f, i) => {
+    g.drawImage(f.canvas, x, 0);
+    tiles[i] = [x, 0, f.canvas.width, f.canvas.height, f.ox, f.oy];
+    x += f.canvas.width + 2;
+  });
+  return { canvas: cv, tiles, names: ORIENTATIONS_DECOR.map(([, n]) => n) };
+}
+
+export const versBase64 = (cv) => cv.toDataURL('image/png').split(',')[1];
 
 // Rognage au contenu non transparent ; ancre recalculée.
 function rogner(cv, fx, fy) {
