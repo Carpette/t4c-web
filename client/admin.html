@@ -122,11 +122,16 @@
       <div id="tab-music" class="tab-content"></div>
       <div id="tab-skins" class="tab-content"></div>
       <div id="tab-materials" class="tab-content"></div>
+      <div id="tab-atelier3d" class="tab-content"></div>
       <div id="tab-chars" class="tab-content"></div>
       <div id="tab-pantheon" class="tab-content"></div>
     </main>
   </div>
 
+  <!-- three.js vendoré (atelier 3D) : résolution des imports « three » -->
+  <script type="importmap">
+  { "imports": { "three": "/js/vendor/three/three.module.min.js", "three/addons/": "/js/vendor/three/addons/" } }
+  </script>
   <script type="module" src="/js/admin.js"></script>
 </body>
 </html>
