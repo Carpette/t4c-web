@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
 import { content, saveContentFile } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
+import { src3dDisponible, listerModeles } from './src3d.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
@@ -109,7 +110,7 @@ export async function handleAdmin(req, res, url, game) {
         : url === '/api/admin/content/npcs' ? 'quests'
         : url === '/api/admin/characters' || /^\/api\/admin\/character\//.test(url) ? 'players'
         : url === '/api/admin/roles' && req.method === 'GET' ? 'roles'
-        : url === '/api/admin/tiles' ? 'map'
+        : url === '/api/admin/tiles' || url === '/api/admin/src3d' ? 'map'
         : 'super';
     if (need === 'super' ? !grant.isAdmin : (need && !can(need))) {
       return json(403, { error: 'Permission insuffisante pour cette action' });
@@ -332,6 +333,11 @@ export async function handleAdmin(req, res, url, game) {
         anims: Object.keys(entry.anims),
         note: 'Assignez ce sprite à une créature ci-dessous, puis rechargez le client (F5).',
       });
+    }
+
+    // ---- atelier 3D : modèles sources disponibles (servis sous /src3d/) ----
+    if (url === '/api/admin/src3d' && req.method === 'GET') {
+      return json(200, { disponible: src3dDisponible(), modeles: listerModeles() });
     }
 
     // ---- atelier terrains : tuiles/murs générés (PNG + rects) enregistrés en tileset user_ ----
