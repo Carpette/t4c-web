@@ -2,11 +2,10 @@
 // catalogue avec bake3d.js dans les deux styles (« net » et « retro »), sur
 // un losange de case 192x96 pour juger l'échelle, à côté de sprites Flare.
 import { Atelier3D } from '/js/admin/bake3d.js';
+import { MOBS } from '/shared/defs.js';
 
 const S = '/src3d/';
-const UM = S + 'ultimate_monsters/Ultimate Monsters/';
 const ANI = S + 'ultimate_animated_animals/Ultimate Animated Animals - July 2021/glTF/';
-const RPG = S + 'rpg_characters/RPG Characters - Nov 2020/glTF/';
 const OUT = S + 'modular_character_outfits_fantasy/Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/';
 const UAL = [S + 'universal_animation_library/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb'];
 const PROPS = S + 'fantasy_props_megakit/Exports/glTF/';
@@ -20,21 +19,10 @@ const CATALOGUE = [
     { nom: 'UBC Superhero ♂ + UAL', url: S + 'universal_base_characters/Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
     { nom: 'Outfit Rôdeur ♂', url: OUT + 'Male_Ranger.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
     { nom: 'Outfit Paysanne ♀', url: OUT + 'Female_Peasant.gltf', anims: UAL, h: 1.7, clip: '^Idle_Loop$' },
-    { nom: 'RPG Guerrier', url: RPG + 'Warrior.gltf', h: 1.8, clip: '^idle$' },
-    { nom: 'RPG Mage', url: RPG + 'Wizard.gltf', h: 1.8, clip: '^idle$' },
-    { nom: 'RPG Voleur', url: RPG + 'Rogue.gltf', h: 1.75, clip: '^idle$' },
     { nom: 'Kenney Vampire', url: KG + 'character-vampire.glb', h: 1.8, clip: '^idle$' },
   ]],
   ['Créatures', [
     { nom: 'Zombie (FBX)', url: S + 'zombie_by_quaternius/Zombie by @Quaternius/FBX/Zombie.fbx', texture: S + 'zombie_by_quaternius/Zombie by @Quaternius/Blends/ZombieTexture.png', h: 1.8, clip: 'ZombieIdle' },
-    { nom: 'UM Orc', url: UM + 'Big/glTF/Orc.gltf', h: 1.9, clip: '^idle$' },
-    { nom: 'UM Ninja (brigand ?)', url: UM + 'Big/glTF/Ninja.gltf', h: 1.75, clip: '^idle$' },
-    { nom: 'UM Yeti (ogre ?)', url: UM + 'Big/glTF/Yeti.gltf', h: 2.6, clip: '^idle$' },
-    { nom: 'UM Démon', url: UM + 'Flying/glTF/Demon.gltf', h: 2.0, clip: '^Flying_Idle$' },
-    { nom: 'UM Fantôme', url: UM + 'Flying/glTF/Ghost.gltf', h: 1.6, clip: '^Flying_Idle$' },
-    { nom: 'UM Dragon', url: UM + 'Flying/glTF/Dragon.gltf', h: 2.4, clip: '^Flying_Idle$' },
-    { nom: 'UM Armabee (guêpe ?)', url: UM + 'Flying/glTF/Armabee.gltf', h: 1.0, clip: '^Flying_Idle$' },
-    { nom: 'UM Goleling (golem ?)', url: UM + 'Flying/glTF/Goleling.gltf', h: 2.0, clip: '^Flying_Idle$' },
     { nom: 'Loup', url: ANI + 'Wolf.gltf', h: 0.95, clip: '^idle$' },
     { nom: 'Cerf', url: ANI + 'Stag.gltf', h: 1.9, clip: '^idle$' },
     { nom: 'Taureau (sanglier ?)', url: ANI + 'Bull.gltf', h: 1.6, clip: '^idle$' },
@@ -75,7 +63,8 @@ function chargerImage(src) {
   return new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error(src)); i.src = src; });
 }
 
-// Références Flare : avatar composé + quelques monstres, même direction.
+// Références Flare : avatar composé + monstres du jeu À LEUR TAILLE EN JEU
+// (spriteScale de MOBS appliqué, comme entities2d.js), même direction.
 async function refsFlare() {
   const man = await (await fetch('/assets/manifest.json')).json();
   const refs = [];
@@ -88,12 +77,13 @@ async function refsFlare() {
     g.drawImage(await chargerImage('/assets/' + av[c].image), x, y, w, h, 150 - ox, 250 - oy, w, h);
   }
   refs.push({ nom: 'Flare avatar', canvas: cv, ox: 150, oy: 250 });
-  for (const n of ['goblin', 'skeleton', 'zombie', 'hobgoblin', 'minotaur', 'wyvern', 'antlion']) {
-    const def = man.enemies[n]; if (!def) continue;
+  for (const cle of ['gobelin', 'squelette', 'zombie', 'orc', 'ogre', 'serpent_venimeux', 'araignee_geante']) {
+    const mob = MOBS[cle], def = man.enemies[mob?.sprite]; if (!def) continue;
+    const k = mob.spriteScale || 1;
     const [x, y, w, h, ox, oy] = frame(def, DIR);
-    const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
-    c2.getContext('2d').drawImage(await chargerImage('/assets/' + def.image), x, y, w, h, 0, 0, w, h);
-    refs.push({ nom: 'Flare ' + n, canvas: c2, ox, oy });
+    const c2 = document.createElement('canvas'); c2.width = Math.ceil(w * k); c2.height = Math.ceil(h * k);
+    c2.getContext('2d').drawImage(await chargerImage('/assets/' + def.image), x, y, w, h, 0, 0, w * k, h * k);
+    refs.push({ nom: `${mob.name} (${mob.sprite}${k !== 1 ? ' ×' + k : ''})`, canvas: c2, ox: Math.round(ox * k), oy: Math.round(oy * k) });
   }
   return refs;
 }
