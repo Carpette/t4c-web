@@ -6,7 +6,9 @@
 //   python3 -I tools/atelier3d/extraire.py            # une fois : zips -> _extrait/
 //   node tools/atelier3d/planche.mjs [sortie=tools/atelier3d/sortie] [--sonde]
 //
-// --sonde : liste les clips d'animation de chaque modèle du catalogue.
+// --sonde   : liste les clips d'animation de chaque modèle du catalogue.
+// --serveur : sert seulement la page (http://localhost:8091, PORT pour changer)
+//             pour la consulter dans son propre navigateur, sans playwright.
 // Dépendance d'outillage (non installée par défaut) : playwright, résolu via
 // PLAYWRIGHT_DIR (dossier contenant node_modules/playwright) ou le projet.
 import http from 'node:http';
@@ -41,6 +43,14 @@ function servir(req, res) {
   fs.createReadStream(f).pipe(res);
 }
 
+if (args.includes('--serveur')) {
+  const port = Number(process.env.PORT) || 8091;
+  http.createServer(servir).listen(port, '127.0.0.1', () => {
+    console.log(`Planche : http://localhost:${port}/   (sonde : http://localhost:${port}/?sonde)`);
+    console.log('Modèles servis depuis', SRC3D);
+  });
+} else {
+
 const require = createRequire(path.join(process.env.PLAYWRIGHT_DIR || RACINE, 'x.js'));
 const { chromium } = require('playwright');
 
@@ -67,3 +77,4 @@ for (const [nom, dataUrl] of Object.entries(resultat.images || {})) {
   console.log('✔', path.relative(RACINE, f));
 }
 if (resultat.sonde) console.log(JSON.stringify(resultat.sonde, null, 1));
+}

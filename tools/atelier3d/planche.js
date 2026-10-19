@@ -194,6 +194,24 @@ async function sonde() {
   return { sonde: res };
 }
 
+// Affichage dans la page (consultation dans un navigateur via --serveur) ;
+// le pilote headless, lui, lit window.__fini.
+function afficher(r) {
+  if (r.erreur) document.body.insertAdjacentHTML('beforeend', '<pre style="color:#e66"></pre>');
+  if (r.erreur) document.body.lastElementChild.textContent = r.erreur;
+  for (const src of Object.values(r.images || {})) {
+    const img = document.createElement('img');
+    img.src = src; img.style.cssText = 'display:block;max-width:100%;margin-bottom:24px';
+    document.body.append(img);
+  }
+  if (r.sonde) {
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(r.sonde, null, 1);
+    document.body.append(pre);
+  }
+}
+
+document.body.insertAdjacentHTML('beforeend', '<p id="attente" style="padding:16px">Rendu en cours (une trentaine de secondes)…</p>');
 (location.search.includes('sonde') ? sonde() : planche())
-  .then(r => { window.__fini = r; })
-  .catch(err => { window.__fini = { erreur: err.stack || String(err) }; });
+  .catch(err => ({ erreur: err.stack || String(err) }))
+  .then(r => { document.getElementById('attente')?.remove(); afficher(r); window.__fini = r; });
