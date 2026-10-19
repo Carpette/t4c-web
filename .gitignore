@@ -10,3 +10,6 @@ version.json
 # Python
 __pycache__/
 *.pyc
+
+# Atelier 3D : rendus locaux de la planche contact
+tools/atelier3d/sortie/
