@@ -14,7 +14,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 export const HW = 96, HH = 48;              // demi-tuile écran (renderer.js)
 const PX_PAR_CASE = HW * Math.SQRT2;        // 1 case monde = losange 192x96 à l'écran
 const ELEVATION = Math.PI / 6;              // 30° : sin(30°) = 1/2 -> projection 2:1
-export const METRES_PAR_CASE = 1.75;        // humain de 1,8 m ≈ 120 px (avatar Flare)
+export const METRES_PAR_CASE = 1.55;        // humain de 1,8 m ≈ 130 px pieds->tête (mesuré sur l'avatar Flare)
 const SUR = 2;                              // suréchantillonnage (anticrénelage)
 
 // Axes écran exprimés dans le monde : x monde -> bas-droite, z monde ->

@@ -18,7 +18,6 @@ const CATALOGUE = [
     { nom: 'UBC Superhero ♂ + UAL', url: S + 'universal_base_characters/Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
     { nom: 'Outfit Rôdeur ♂', url: OUT + 'Male_Ranger.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
     { nom: 'Outfit Paysanne ♀', url: OUT + 'Female_Peasant.gltf', anims: UAL, h: 1.7, clip: '^Idle_Loop$' },
-    { nom: 'Kenney Vampire', url: KG + 'character-vampire.glb', h: 1.8, clip: '^idle$' },
   ]],
   ['Créatures', [
     { nom: 'Zombie (FBX)', url: S + 'zombie_by_quaternius/Zombie by @Quaternius/FBX/Zombie.fbx', texture: S + 'zombie_by_quaternius/Zombie by @Quaternius/Blends/ZombieTexture.png', h: 1.8, clip: 'ZombieIdle' },

@@ -26,7 +26,7 @@ root : `apt-get download` des paquets puis `dpkg -x` dans un dossier local, et
 
 ## Régler un modèle (entrée du catalogue de `planche.js`)
 
-- `h` : hauteur réelle en mètres (personnages, créatures, props) — 1 case = 1,75 m ;
+- `h` : hauteur réelle en mètres (personnages, créatures, props) — 1 case = 1,55 m ;
 - `module` : unités du fichier par case, pour les kits modulaires (Kenney ≈ 0.5,
   graveyard 0.75, Medieval Village 2) ;
 - `clip` : motif (regex) du clip de pose ; `anims` : fichiers de clips partagés ;
