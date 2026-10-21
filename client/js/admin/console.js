@@ -32,6 +32,8 @@ export const ICONES = {
 // est en lecture seule sans le niveau Édition. Sans droits : super admin.
 export const ECRANS = [
   { id: 'carte', espace: 'monde', section: 'Monde en direct', nom: 'Carte du monde', icone: 'carte', droits: ['carte'], tab: 'monde-carte',
+    // actions de la carte, chacune protégée par son propre droit
+    ecritures: ['pnj_placement', 'zones_musicales', 'joueurs', 'sanctions'],
     desc: 'Les joueurs et les PNJ en direct sur la carte, avec les actions d’animation sur le joueur choisi.' },
   { id: 'joueurs', espace: 'monde', section: 'Monde en direct', nom: 'Joueurs', icone: 'joueurs', tab: 'chars', droits: ['joueurs'],
     desc: 'Les personnages du serveur. Une modification déconnecte le joueur pour qu’il recharge ses données.' },
@@ -40,7 +42,7 @@ export const ECRANS = [
   { id: 'acces', espace: 'monde', section: 'Administration', nom: 'Accès et rôles', icone: 'acces', tab: 'access', droits: ['acces'],
     desc: 'Qui administre le serveur, et avec quelles permissions. Appliqué à chaud si le compte est connecté.' },
 
-  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', droits: ['zones', 'pnj_placement', 'zones_musicales'],
+  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', droits: ['zones'],
     sous: [{ tab: 'map', nom: 'Terrain' }, { tab: 'zone-props', nom: 'Propriétés et créatures' }],
     desc: 'Le terrain, les décors, les camps et les lumières de chaque zone.' },
   { id: 'pnj', espace: 'forge', section: 'Habitants', nom: 'PNJ', icone: 'pnj', tab: 'npcs-editor', droits: ['pnj'],
@@ -89,6 +91,9 @@ export const niveauEcran = (e) => {
   return Math.max(0, ...(e?.droits || []).map(d => moi.droits?.[d] | 0));
 };
 export const peutVoir = (e) => niveauEcran(e) > 0;
+// l'écran est-il en lecture seule ? Un écran peut porter des actions relevant
+// d'autres droits (la carte : placer un PNJ, sanctionner...)
+export const niveauEdition = (e) => Math.max(niveauEcran(e), ...(e?.ecritures || []).map(d => niveauEcran({ droits: [d] })));
 
 // tab-content réellement affiché pour un écran (sous-écran éventuel)
 export const tabDe = (e) => e.sous ? (consoleEtat.sous[e.id] || e.sous[0].tab) : e.tab;
@@ -102,7 +107,7 @@ export function allerA(id, sous) {
   const tab = tabDe(e);
   document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('visible', tc.id === `tab-${tab}`));
   // lecture seule : les actions d'écriture sont masquées (le serveur refuse de toute façon)
-  document.body.classList.toggle('cs-lecture', niveauEcran(e) < 2);
+  document.body.classList.toggle('cs-lecture', niveauEdition(e) < 2);
   const h = '#' + e.id + (e.sous ? '/' + tab : '');
   if (location.hash !== h) history.replaceState(null, '', h);
 }
