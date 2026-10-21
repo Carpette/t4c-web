@@ -11,7 +11,7 @@ import * as db from './db.js';
 import { content, saveContentFile, validerSurcharges } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
-import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS } from '../shared/constants.js';
+import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS, KIND } from '../shared/constants.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
@@ -107,7 +107,7 @@ export async function handleAdmin(req, res, url, game) {
     const need =
       url === '/api/admin/check-session' || url === '/api/admin/me' || url === '/api/admin/logout' ? null
         : /^\/api\/admin\/overrides\//.test(url) ? 'map'
-        : url === '/api/admin/content/npcs' ? 'quests'
+        : url === '/api/admin/content/npcs' || url === '/api/admin/npcs/positions' ? 'quests'
         : url === '/api/admin/characters' || /^\/api\/admin\/character\//.test(url) ? 'players'
         : url === '/api/admin/roles' && req.method === 'GET' ? 'roles'
         : url === '/api/admin/tiles' || url === '/api/admin/src3d' ? 'map'
@@ -202,6 +202,8 @@ export async function handleAdmin(req, res, url, game) {
       if (req.method === 'PUT' || (['spells', 'particles'].includes(name) && req.method === 'POST')) {
         const data = JSON.parse(await readBody(req)); // valide le JSON
         saveContentFile(name, data);
+        // PNJ en jeu : ils pointent sur l'ancienne définition, on les recrée
+        if (name === 'npcs') game.refreshNpcs();
         return json(200, { ok: true, note: name === 'zones' ? 'Redémarrage du serveur requis pour les seeds/zones.' : 'Appliqué à chaud.' });
       }
     }
@@ -481,6 +483,20 @@ export async function handleAdmin(req, res, url, game) {
         const body = JSON.parse(await readBody(req));
         if (body.admin != null) { db.setAdmin(accountId, !!body.admin); return json(200, { ok: true }); }
       }
+    }
+
+    // ---- PNJ présents dans le monde (position effective : worldgen + overrides) ----
+    if (url === '/api/admin/npcs/positions' && req.method === 'GET') {
+      const pnj = [];
+      for (const zi of game.zones.values()) {
+        if (zi.isTrial) continue;
+        for (const e of zi.entities.values()) {
+          if (e.kind !== KIND.NPC) continue;
+          pnj.push({ npcId: e.npcId, name: e.name, zoneId: zi.zoneId, zone: content.zones[zi.zoneId]?.name || `zone ${zi.zoneId}`,
+            x: Math.round(e.x), z: Math.round(e.z), retouche: e.def !== content.npc[e.npcId] });
+        }
+      }
+      return json(200, { pnj });
     }
 
     // ---- objets en circulation : exemplaires par defId dans les sauvegardes

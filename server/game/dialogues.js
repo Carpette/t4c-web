@@ -30,50 +30,22 @@
 import * as C from '../../shared/constants.js';
 import { ITEMS } from '../../shared/defs.js';
 import { makeItem, itemLabel, itemWeight, inventoryWeight } from './items.js';
+import { normalize, containsKeyword, conditionBloquante, rootKeywordsHint } from '../../shared/mots-cles.js';
+
+export { normalize, containsKeyword, rootKeywordsHint };
 
 const INVENTORY_MAX = 24;        // taille de l'inventaire (cf. game.js)
 const ITEM_REWARD_MAX = 10;      // objets remis par réaction, au plus
-const HINT_KEYWORDS_MAX = 4;     // mots-clés racine glissés dans le salut
-
-// minuscules + accents retirés : « Quête » et « quete » se valent
-export function normalize(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-// le message contient-il le mot-clé en MOT ENTIER ? (« or » ne réagit pas à « mort »)
-export function containsKeyword(text, keyword) {
-  const k = normalize(keyword).trim();
-  if (!k) return false;
-  const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, 'u').test(normalize(text));
-}
 
 // toutes les conditions d'un dialogue sont-elles remplies pour ce joueur ?
 function conditionsMet(p, dlg, game) {
-  const c = dlg.conditions;
-  if (!c) return true;
-  if (c.flag && !p.flags[c.flag]) return false;
-  if (c.notFlag && p.flags[c.notFlag]) return false;
-  if (c.level && p.level < c.level) return false;
-  if (c.item && !p.inventory.some(it => it.defId === c.item)) return false;
-  if (c.gold && p.gold < c.gold) return false;                       // seuil d'or (prélevé si consumeGold)
-  if (c.cursed && !(game && game.isCursed(p))) return false;         // réservé aux maudits (purification)
-  if (c.notCursed && game && game.isCursed(p)) return false;         // refusé aux maudits (soins)
-  return true;
-}
-
-// Indice des mots-clés « racine » à glisser dans le salut du PNJ : le premier
-// mot-clé de chaque dialogue accessible d'emblée (sans drapeau requis) — le
-// reste se découvre en tapant, comme dans T4C.
-export function rootKeywordsHint(def) {
-  const roots = [];
-  for (const dlg of Array.isArray(def?.dialogues) ? def.dialogues : []) {
-    if (dlg.conditions?.flag) continue; // réservé : se mérite en jouant
-    const k = Array.isArray(dlg.keywords) ? dlg.keywords[0] : null;
-    if (k && !roots.includes(k)) roots.push(k);
-  }
-  if (!roots.length) return null;
-  return `(Parlez-moi de ${roots.slice(0, HINT_KEYWORDS_MAX).map(k => `« ${k} »`).join(', ')}.)`;
+  return !conditionBloquante(dlg.conditions, {
+    flags: p.flags,
+    level: p.level,
+    gold: p.gold,
+    aObjet: (defId) => p.inventory.some(it => it.defId === defId),
+    maudit: game ? () => game.isCursed(p) : null,
+  });
 }
 
 // Point d'entrée : un joueur vient de parler en chat local. Le premier PNJ à
