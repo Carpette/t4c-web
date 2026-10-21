@@ -5,7 +5,8 @@
 //   Sélection (V)     — inspecteur du joueur choisi (aller à lui, l'amener,
 //                       message, état à chaud, drapeaux, sanctions), d'un PNJ
 //                       (glisser pour le déplacer, retirer) ou d'une zone
-//                       musicale (groupe, priorité, suppression) ;
+//                       musicale (glisser pour la déplacer, poignée pour la
+//                       redimensionner, groupe, priorité, suppression) ;
 //   Placer un PNJ (P) — pose un PNJ retiré ou une copie d'un modèle ;
 //   Zone musicale (M) — dessine une zone et lui associe un groupe.
 // Placement et zones musicales s'enregistrent dans les retouches de la zone
@@ -38,7 +39,7 @@ const idNeuf = (pre) => pre + Date.now().toString(36);
 export function MondeCarteController(api) {
   // hors réactivité : moteur de rendu, entités, gros tableaux, canevas
   let assets = null, renderer = null, em = null, monde = null, ov = null, fond = null;
-  let cv = null, mini = null, glisse = null, brouillon = null, tirePnj = null;
+  let cv = null, mini = null, glisse = null, brouillon = null, tirePnj = null, tireMus = null;
   let worldTime = 0, dernier = 0, npcDefs = {};
 
   return {
@@ -221,6 +222,12 @@ export function MondeCarteController(api) {
             g.fillStyle = 'rgba(11, 12, 15, .8)'; g.fillRect(p.x - w / 2, p.y - 9, w, 18);
             g.fillStyle = '#d6c8ff'; g.fillText(t, p.x, p.y + 4);
           }
+          if (choisi && this.peut('zones_musicales')) {
+            const p = this.poignee(m);
+            g.setLineDash([]); g.fillStyle = '#c9a45c'; g.strokeStyle = '#0b0c0f'; g.lineWidth = 1.5;
+            g.fillRect(p.x - 5, p.y - 5, 10, 10); g.strokeRect(p.x - 5, p.y - 5, 10, 10);
+            g.setLineDash([6, 4]);
+          }
         }
         g.setLineDash([]);
       }
@@ -271,6 +278,13 @@ export function MondeCarteController(api) {
         cv.setPointerCapture(e.pointerId);
         const { sx, sy } = pos(e), m = renderer.s2w(sx, sy);
         if (this.outil === 'musique') { brouillon = { id: '', shape: 'rect', x0: Math.floor(m.x), z0: Math.floor(m.z), x: Math.floor(m.x), z: Math.floor(m.z), w: 1, h: 1 }; return; }
+        // zone musicale choisie : la poignée la redimensionne, l'intérieur la déplace
+        const zm = this.outil === 'selection' && this.peut('zones_musicales') && this.zoneMus;
+        if (zm) {
+          const p = this.poignee(zm);
+          if (Math.abs(sx - p.x) <= 8 && Math.abs(sy - p.y) <= 8) { tireMus = { m: zm, mode: 'taille', avant: copie(zm), bouge: false }; return; }
+          if (this.dans(zm, m)) { tireMus = { m: zm, mode: 'deplacer', avant: copie(zm), dx: m.x - zm.x, dz: m.z - zm.z, bouge: false }; return; }
+        }
         // PNJ déjà choisi : on le saisit pour le déplacer
         if (this.outil === 'selection' && this.choix?.type === 'pnj' && this.peut('pnj_placement')) {
           const v = this.filtrees().views.get(this.choix.id);
@@ -288,6 +302,19 @@ export function MondeCarteController(api) {
           return;
         }
         if (tirePnj) { tirePnj.x = Math.round(m.x * 2) / 2; tirePnj.z = Math.round(m.z * 2) / 2; tirePnj.bouge = true; return; }
+        if (tireMus) {
+          const zm = tireMus.m, a = tireMus.avant;
+          if (tireMus.mode === 'deplacer') {
+            const nx = Math.round(m.x - tireMus.dx), nz = Math.round(m.z - tireMus.dz);
+            tireMus.bouge ||= nx !== +a.x || nz !== +a.z;
+            zm.x = nx; zm.z = nz;
+          } else if (zm.shape === 'circle') {
+            zm.r = Math.max(MUS_MIN / 2, Math.round(Math.hypot(m.x - zm.x, m.z - zm.z))); tireMus.bouge = true;
+          } else {
+            zm.w = Math.max(MUS_MIN, x - zm.x + 1); zm.h = Math.max(MUS_MIN, z - zm.z + 1); tireMus.bouge = true;
+          }
+          return;
+        }
         if (!glisse) return;
         const dx = sx - glisse.sx, dy = sy - glisse.sy;
         if (Math.abs(dx) + Math.abs(dy) > 3) glisse.bouge = true;
@@ -299,6 +326,7 @@ export function MondeCarteController(api) {
       cv.addEventListener('pointerup', (e) => {
         if (brouillon) { const b = brouillon; brouillon = null; this.creerZoneMusicale(b); return; }
         if (tirePnj) { const t = tirePnj; tirePnj = null; if (t.bouge) this.deplacerPnj(this.choix.npcId, t.x, t.z); return; }
+        if (tireMus) { const t = tireMus; tireMus = null; if (t.bouge) this.formeZoneMusicale(t.m); return; }
         const g0 = glisse; glisse = null;
         if (!g0 || g0.bouge) return;
         const { sx, sy } = pos(e);
@@ -324,8 +352,7 @@ export function MondeCarteController(api) {
       this.onglet = 'selection';
       if (v?.kind === KIND.NPC) { this.choix = { type: 'pnj', id: v.id, nom: v.meta.name, npcId: v.meta.npcId, x: v.x, z: v.z }; return; }
       if (v?.kind === KIND.MOB) { this.choix = { type: 'creature', id: v.id, nom: v.meta.name, niveau: v.level || v.meta.level, boss: !!v.meta.boss }; return; }
-      const mz = this.calques.musique && [...this.musZones].reverse().find(z => z.shape === 'circle'
-        ? Math.hypot(m.x - z.x, m.z - z.z) <= +z.r : m.x >= z.x && m.x < +z.x + +z.w && m.z >= z.z && m.z < +z.z + +z.h);
+      const mz = this.calques.musique && [...this.musZones].reverse().find(z => this.dans(z, m));
       if (mz) { this.choix = { type: 'musique', id: mz.id }; return; }
       this.point = ici;
       this.choix = null;
@@ -429,6 +456,24 @@ export function MondeCarteController(api) {
       if (!confirm('Supprimer cette zone musicale ?')) return;
       this.majOv(o => { o.music = (o.music || []).filter(x => x.id !== id); }, 'Zone musicale supprimée.')
         .then(ok => { if (ok) this.choix = null; });
+    },
+    dans(z, m) {
+      return z.shape === 'circle' ? Math.hypot(m.x - z.x, m.z - z.z) <= +z.r
+        : m.x >= z.x && m.x < +z.x + +z.w && m.z >= z.z && m.z < +z.z + +z.h;
+    },
+    // poignée de redimensionnement (écran) : coin opposé du rectangle, bord est du cercle
+    poignee(z) {
+      return z.shape === 'circle' ? renderer.w2s(+z.x + +z.r, +z.z) : renderer.w2s(+z.x + +z.w, +z.z + +z.h);
+    },
+    // position et taille après un glisser (rien d'autre n'est réécrit)
+    formeZoneMusicale(z) {
+      const forme = z.shape === 'circle' ? { x: z.x, z: z.z, r: z.r } : { x: z.x, z: z.z, w: z.w, h: z.h };
+      this.majOv(o => {
+        const m = (o.music || []).find(x => x.id === z.id);
+        if (!m) throw new Error('Cette zone musicale n’existe plus.');
+        Object.assign(m, forme);
+      }, `Zone musicale ${z.shape === 'circle' ? `centrée en ${z.x}, ${z.z}, rayon ${z.r}` : `en ${z.x}, ${z.z}, ${z.w} × ${z.h} cases`}.`)
+        .then(ok => { if (!ok) this.lireOv(); });
     },
     choisirZoneMusicale(id) { this.choix = { type: 'musique', id }; this.centrer(); },
 

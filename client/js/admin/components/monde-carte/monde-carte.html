@@ -93,6 +93,7 @@
             <div v-if="choix?.type === 'musique' && zoneMus" class="flex flex-col gap-3">
                 <div><div class="text-[17px] font-semibold text-t4c-text-light">Zone musicale</div>
                     <div class="text-gray-500 font-mono text-[13px]">{{ zoneMus.shape === 'circle' ? 'cercle de rayon ' + zoneMus.r : zoneMus.w + ' × ' + zoneMus.h + ' cases' }} · {{ zoneMus.x }}, {{ zoneMus.z }}</div></div>
+                <p class="text-xs text-gray-500" v-if="peut('zones_musicales')">Glissez la zone pour la déplacer, la poignée dorée pour la redimensionner.</p>
                 <div class="cs-field"><label class="cs-label" for="mc-mgroupe">Groupe joué</label>
                     <select id="mc-mgroupe" class="cs-input" :disabled="!peut('zones_musicales')" @change="majZoneMusicale('groupe', $event.target.value)">
                         <option value="" disabled :selected="!zoneMus.track?.group">{{ zoneMus.track?.group ? '' : nomPiste(zoneMus.track) + ' (piste seule)' }}</option>
