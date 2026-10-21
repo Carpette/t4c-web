@@ -1,3 +1,54 @@
-<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <table id="pantheon-table" class="w-full text-sm text-left text-gray-400"></table>
+<div class="flex flex-col gap-[18px]" @vue:mounted="init()">
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-gray-400">{{ texteCompte }}</span>
+        <div class="flex-1"></div>
+        <button type="button" class="cs-btn" @click="charger()">Rafraîchir</button>
+        <button type="button" class="cs-btn" @click="exporter()" :disabled="!filtres.length">Exporter en CSV</button>
+    </div>
+
+    <div class="flex gap-3 flex-wrap">
+        <div class="cs-stat"><div class="cs-label">Morts sur 7 jours</div><div class="font-serif font-semibold text-[28px] text-t4c-text-light">{{ stats.semaine }}</div></div>
+        <div class="cs-stat"><div class="cs-label">Plus meurtrier</div>
+            <div class="text-base font-semibold mt-1.5">{{ stats.tueur ? stats.tueur[0] : '—' }}</div>
+            <div class="text-xs text-gray-500" v-if="stats.tueur">{{ pluriel(stats.tueur[1], 'victime') }}</div></div>
+        <div class="cs-stat"><div class="cs-label">Zone la plus dangereuse</div>
+            <div class="text-base font-semibold mt-1.5">{{ stats.zone ? stats.zone[0] : '—' }}</div>
+            <div class="text-xs text-gray-500" v-if="stats.zone">{{ pluriel(stats.zone[1], 'mort') }}</div></div>
+        <div class="cs-stat"><div class="cs-label">Niveau moyen à la mort</div><div class="font-serif font-semibold text-[28px] text-t4c-text-light">{{ stats.niveau }}</div></div>
+    </div>
+
+    <div class="flex gap-2.5 flex-wrap items-center">
+        <div class="flex-[0_1_300px] min-w-[200px]"><label for="pq" class="sr-only">Rechercher</label>
+            <input id="pq" class="cs-input" v-model="q" placeholder="Personnage ou cause de la mort" /></div>
+        <label for="pz" class="sr-only">Zone</label>
+        <select id="pz" class="cs-input w-[200px]" v-model="zone">
+            <option value="">Toutes les zones</option>
+            <option v-for="z in zones" :value="z">{{ z }}</option>
+        </select>
+        <label for="pk" class="sr-only">Cause</label>
+        <select id="pk" class="cs-input w-[180px]" v-model="cause">
+            <option value="">Toutes les causes</option>
+            <option value="creature">Créature</option>
+            <option value="joueur">Joueur</option>
+        </select>
+    </div>
+
+    <p class="text-red-400" v-if="erreur">✘ {{ erreur }}</p>
+
+    <div class="cs-panel overflow-x-auto">
+        <table class="cs-table">
+            <thead><tr><th>Personnage</th><th class="text-right">Niveau</th><th>Zone</th><th>Tué par</th><th>Date</th></tr></thead>
+            <tbody>
+                <tr v-for="d in filtres">
+                    <td class="font-semibold">{{ d.name }}</td>
+                    <td class="font-mono text-right">{{ d.level }}</td>
+                    <td>{{ d.zone }}</td>
+                    <td><span :class="d.joueur ? 'text-[#a9cdf0]' : ''">{{ d.killer }}</span>
+                        <span class="cs-chip ml-1 h-[18px] text-[11px]" v-if="d.joueur">joueur</span></td>
+                    <td class="text-gray-400">{{ date(d.died_at) }}</td>
+                </tr>
+                <tr v-if="!filtres.length"><td colspan="5" class="text-gray-500">{{ morts.length ? 'Aucune mort ne correspond aux filtres.' : 'Personne n’est encore tombé.' }}</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
