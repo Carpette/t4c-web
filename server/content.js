@@ -169,15 +169,17 @@ function erreursObjet(id, o) {
 }
 
 // Liste des erreurs (vide = valide) pour une nouvelle version de zones.json.
-// Mêmes zones qu'au démarrage (ajouter ou retirer une zone touche la
-// génération, les musiques, les cartes : pas depuis la console).
+// Les zones existantes restent (leurs numéros sont dans les sauvegardes, les
+// retouches, les musiques) ; de nouvelles peuvent s'ajouter à la suite, elles
+// sont générées au prochain redémarrage.
 export function validerZones(data) {
   const zones = data?.zones;
   if (!Array.isArray(zones)) return ['« zones » doit être une liste'];
   const err = [];
   const ids = zones.map(z => z?.id);
   const avant = content.zones.map(z => z.id);
-  if (ids.length !== avant.length || avant.some(id => !ids.includes(id))) err.push(`les zones doivent rester ${avant.join(', ')}`);
+  if (avant.some(id => !ids.includes(id))) err.push(`les zones ${avant.join(', ')} ne peuvent pas être retirées`);
+  if (new Set(ids).size !== ids.length || [...ids].sort((a, b) => a - b).some((id, i) => id !== i)) err.push('numéros de zone attendus : 0, 1, 2… sans trou ni doublon');
   for (const z of zones) {
     const nom = `zone ${z?.id}`;
     if (!z || typeof z !== 'object') { err.push(`${nom} : fiche invalide`); continue; }

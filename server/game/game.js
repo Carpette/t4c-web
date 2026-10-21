@@ -614,7 +614,8 @@ export class Game {
   startTrial(p) {
     if (p.zi.isTrial) return;
     const target = p.zi.zoneId + 1;
-    if (target >= content.zones.length) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
+    // zone créée dans la Forge mais pas encore générée : elle existe au redémarrage
+    if (target >= content.zones.length || !this.island(target)) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
     if (p.unlocked.includes(target)) { this.send(p, { t: 'info', text: 'Vous avez déjà conquis cette Épreuve. Utilisez l\'obélisque.' }); return; }
     const zi = this.createTrial(p, target);
     p.trialFrom = p.zi.zoneId;
@@ -1878,7 +1879,8 @@ export class Game {
       });
     } else if (prop.type === 'trialgate') {
       const target = p.zi.zoneId + 1;
-      if (target >= content.zones.length) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
+      // zone créée dans la Forge mais pas encore générée : elle existe au redémarrage
+      if (target >= content.zones.length || !this.island(target)) { this.send(p, { t: 'info', text: 'Il n\'y a plus rien au-delà... pour le moment.' }); return; }
       if (p.unlocked.includes(target)) { this.send(p, { t: 'info', text: 'Épreuve déjà conquise. L\'obélisque vous mènera à ' + this.zoneDef(target).name + '.' }); return; }
       p.trialOffer = this.now() + 30;
       this.send(p, {
