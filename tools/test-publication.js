@@ -71,6 +71,11 @@ ok('version vide refusée', (await api('/api/admin/publication/version', 'POST',
 await majSort(s0.id, { mana: manaAvant + 20, level: (s0.level || 1) + 1 });
 pub = await api('/api/admin/publication');
 ok('historique : v1 avec sa note', pub.versions[0]?.note === 'Rééquilibrage' && pub.versions[0]?.n >= 1);
+// Fichiers bruts, vue « Différences » : l'état du fichier à la version v1
+const ref = await api('/api/admin/content/spells/reference');
+const refSort = ref.contenu?.spells?.find(x => x.id === s0.id);
+ok('référence : sorts tels qu’en v1', ref.version?.id === v1.id && !ref.inchange && refSort?.mana === manaAvant + 7);
+ok('référence : fichier inchangé depuis v1 signalé', (await api('/api/admin/content/particles/reference')).inchange === true);
 
 // ---- 3. annuler une modification : seules ses valeurs sont défaites ----
 const m2 = pub.modifications.find(m => m.fichier === 'spells');

@@ -15,16 +15,41 @@
             <span class="cs-chip" :class="valide ? 'bg-[rgba(95,185,138,.14)] text-[#8fd1a8]' : 'bg-[rgba(224,113,95,.14)] text-[#f2917f]'">{{ valide ? 'JSON valide' : 'JSON invalide' }}</span>
             <span class="cs-chip" v-if="modifie">Modifié</span>
             <div class="flex-1"></div>
+            <div role="group" aria-label="Vue" class="cs-segs">
+                <button type="button" class="cs-seg" :class="{ on: vue === 'fichier' }" :aria-pressed="vue === 'fichier'" @click="vue = 'fichier'">Fichier</button>
+                <button type="button" class="cs-seg" :class="{ on: vue === 'diff' }" :aria-pressed="vue === 'diff'" @click="voirDifferences()"
+                    title="Ce qui a changé depuis la dernière version marquée (Publication)">Différences</button>
+            </div>
             <button type="button" class="cs-btn h-[30px]" @click="recharger()" :disabled="!modifie">Annuler les modifications</button>
             <button type="button" class="cs-btn h-[30px]" @click="formater()" :disabled="!valide">Formater</button>
             <button type="button" class="cs-btn cs-primary h-[30px]" @click="enregistrer()" :disabled="!valide || !modifie">Enregistrer</button>
         </div>
         <label for="content-editor" class="sr-only">Contenu de {{ courant }}.json</label>
-        <textarea id="content-editor" spellcheck="false" v-model="texte" @keyup="curseur($event)" @click="curseur($event)"
+        <div class="flex-1 min-h-[480px] overflow-auto bg-[#111317] p-4 flex flex-col gap-2" v-if="vue === 'diff'">
+            <p class="text-gray-400" v-if="!reference">Chargement…</p>
+            <template v-else>
+                <p class="text-gray-400">Depuis la version {{ libelleReference }}{{ modifie ? ', modifications non enregistrées comprises' : '' }} :
+                    <span class="text-gray-200">{{ diffs.length >= 300 ? '300 différences ou plus' : diffs.length ? diffs.length + ' différence' + (diffs.length > 1 ? 's' : '') : 'aucune différence' }}</span>.</p>
+                <p class="text-[#f2917f]" v-if="!valide">JSON invalide : corrigez-le dans la vue Fichier pour comparer.</p>
+                <table class="cs-table" v-if="diffs.length">
+                    <thead><tr><th>Élément</th><th>Champ</th><th>Avant</th><th>Après</th></tr></thead>
+                    <tbody>
+                        <tr v-for="d in diffs">
+                            <td class="font-semibold">{{ d.objet }}</td>
+                            <td class="font-mono text-xs text-gray-400">{{ d.champ }}</td>
+                            <td class="font-mono text-xs" :class="d.avant === null ? 'text-gray-600' : 'text-[#f2917f]'">{{ d.avant === null ? 'absent' : d.avant }}</td>
+                            <td class="font-mono text-xs" :class="d.apres === null ? 'text-gray-600' : 'text-[#8fd1a8]'">{{ d.apres === null ? 'retiré' : d.apres }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </template>
+        </div>
+        <textarea v-else id="content-editor" spellcheck="false" v-model="texte" @keyup="curseur($event)" @click="curseur($event)"
             class="flex-1 min-h-[480px] w-full bg-[#111317] border-0 p-4 text-gray-100 font-mono text-[13px] leading-[22px] resize-none outline-none"></textarea>
         <div class="flex gap-4 px-4 py-2 border-t border-gray-800 text-xs text-gray-500 flex-wrap">
             <span>Ligne {{ ligne }}, colonne {{ colonne }}</span>
             <span v-if="resume">{{ resume }}</span>
+            <button type="button" class="cs-lien" v-if="ecran" @click="ouvrirEcran()">Ouvrir l’écran {{ ecran.nom }}</button>
             <span v-if="!valide" class="text-[#f2917f]">{{ erreurJson }}</span>
             <span class="flex-1"></span>
             <span :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message">{{ message }}</span>
