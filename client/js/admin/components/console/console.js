@@ -17,7 +17,8 @@ function surligner(nom, q) {
 export function ConsoleController(api) {
   return {
     etat: consoleEtat,
-    espaces: ESPACES,
+    // espaces où le compte a au moins un écran (un animateur ne voit pas la Forge)
+    get espaces() { return ESPACES.filter(s => ECRANS.some(e => e.espace === s.id && !e.bientot && peutVoir(e))); },
     icones: ICONES,
     palette: false, requete: '', choix: 0,
 
