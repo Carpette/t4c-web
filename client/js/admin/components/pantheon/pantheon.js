@@ -1,7 +1,11 @@
 // Panthéon : registre des personnages tombés (100 derniers), statistiques,
-// filtres et export CSV. Le serveur enregistre le NOM du tueur : une créature
-// porte le nom de sa définition (MOBS), sinon c'est un joueur.
+// filtres et export CSV, lieu de la mort sur la carte et restauration d'un
+// personnage (mort injuste : bogue, déconnexion). Le serveur enregistre le
+// NOM du tueur : une créature porte le nom de sa définition (MOBS), sinon
+// c'est un joueur.
 import { MOBS } from '../../../../shared/defs.js';
+import { allerA, consoleEtat, ecranParId, peutVoir } from '../../console.js';
+import { montrerPointSurCarte } from '../monde-carte/monde-carte.js';
 
 const SEMAINE = 7 * 24 * 3600e3;
 const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -17,7 +21,7 @@ function plusFrequent(valeurs) {
 
 export function PantheonController(api) {
   return {
-    morts: [], erreur: '',
+    morts: [], erreur: '', info: '',
     q: '', zone: '', cause: '',
 
     get zones() { return [...new Set(this.morts.map(d => d.zone))].sort((a, b) => a.localeCompare(b)); },
@@ -42,6 +46,26 @@ export function PantheonController(api) {
     get texteCompte() {
       const n = this.morts.length;
       return n ? `${this.pluriel(n, 'mort')} enregistrée${n > 1 ? 's' : ''}${n >= 100 ? ' (les 100 plus récentes)' : ''}` : '';
+    },
+
+    get voitCarte() { return peutVoir(ecranParId('carte')); },
+    // restaurer : écrire un personnage, droit « Joueurs » en édition
+    get peutRestaurer() { const m = consoleEtat.moi; return !!m && (m.isAdmin || (m.droits?.joueurs | 0) >= 2); },
+    lieu(d) { allerA('carte'); montrerPointSurCarte(d.zoneId, Math.round(d.x), Math.round(d.z)); },
+    async restaurer(d, remplacer = false) {
+      if (!remplacer && !confirm(`Rendre ${d.name} (niveau ${d.level}) à son compte, tel qu’il était à sa mort ?`)) return;
+      try {
+        await api(`/api/admin/pantheon/${d.id}/restaurer`, 'POST', { remplacer });
+        this.info = `✔ ${d.name} restauré : le joueur le retrouve à sa prochaine connexion.`; this.erreur = '';
+        await this.charger();
+      } catch (e) {
+        // le compte s'est réincarné : on ne remplace qu'après confirmation
+        if (!remplacer && /confirmez le remplacement/.test(e.message)) {
+          if (confirm(`${e.message.replace(' : confirmez le remplacement', '')}.\nIl sera remplacé par ${d.name} et définitivement perdu. Continuer ?`)) await this.restaurer(d, true);
+          return;
+        }
+        this.erreur = e.message; this.info = '';
+      }
     },
 
     pluriel(n, mot) { return `${n} ${mot}${n > 1 ? 's' : ''}`; },

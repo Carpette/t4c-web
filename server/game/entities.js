@@ -570,10 +570,15 @@ export class Player extends Character {
 
   save() {
     if (this.permadead) return;
+    db.saveCharacter(this.accountId, this.donnees());
+  }
+
+  // état sauvegardé du personnage (aussi gardé au Panthéon à sa mort)
+  donnees() {
     // en caverne, on sauvegarde le point de retour à la surface : les
     // coordonnées de la grotte n'auraient aucun sens sur la carte de l'île
     const pos = this.zi.isCave ? this.zi.returnTo : this;
-    db.saveCharacter(this.accountId, {
+    return {
       name: this.name, level: this.level, xp: this.xp, statPoints: this.statPoints,
       stats: this.stats, hp: this.hp, mana: this.mana, x: pos.x, z: pos.z,
       gold: this.gold, inventory: this.inventory, equip: this.equip,
@@ -585,7 +590,7 @@ export class Player extends Character {
       sex: this.sex,
       zoneId: this.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
       trialFor: this.zi.isTrial ? this.zi.trialTarget : null,
-    });
+    };
   }
 
   // renaissance après la mort définitive (nouveau personnage, même compte)

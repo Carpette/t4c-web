@@ -50,6 +50,10 @@ try { db.exec('ALTER TABLE accounts ADD COLUMN profil_id INTEGER'); } catch { /*
 // sanctions : silence jusqu'à une date (ms), bannissement (connexion refusée)
 try { db.exec('ALTER TABLE accounts ADD COLUMN muet_jusqua INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
 try { db.exec('ALTER TABLE accounts ADD COLUMN banni INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
+// Panthéon : compte, personnage à sa mort (restauration par un MJ), lieu
+for (const col of ['account_id INTEGER', 'data TEXT', 'zone_id INTEGER', 'x REAL', 'z REAL', 'restored_at INTEGER']) {
+  try { db.exec(`ALTER TABLE deaths ADD COLUMN ${col}`); } catch { /* déjà présente */ }
+}
 
 // Historique de la Forge : chaque écriture d'un fichier de contenu ou de
 // retouches de carte (état avant / après, JSON compact), et les versions
@@ -128,9 +132,25 @@ export function deleteCharacter(accountId) {
   db.prepare('DELETE FROM characters WHERE account_id = ?').run(accountId);
 }
 
-export function recordDeath(name, level, zone, killer) {
-  db.prepare('INSERT INTO deaths (name, level, zone, killer, died_at) VALUES (?, ?, ?, ?, ?)')
-    .run(name, level, zone, killer, Date.now());
+export function recordDeath(name, level, zone, killer, { accountId = null, data = null, lieu = null } = {}) {
+  db.prepare(`INSERT INTO deaths (name, level, zone, killer, died_at, account_id, data, zone_id, x, z)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(name, level, zone, killer, Date.now(), accountId, data && JSON.stringify(data),
+      lieu?.zoneId ?? null, lieu?.x ?? null, lieu?.z ?? null);
+}
+
+// Panthéon de la console : lieu de la mort et restauration possible
+export function pantheonAdmin(limit = 100) {
+  return db.prepare(`SELECT id, name, level, zone, killer, died_at, account_id AS accountId, zone_id AS zoneId, x, z,
+                     restored_at AS restaureLe, data IS NOT NULL AS restaurable
+                     FROM deaths ORDER BY died_at DESC LIMIT ?`).all(limit)
+    .map(d => ({ ...d, restaurable: !!d.restaurable }));
+}
+export function getDeath(id) {
+  return db.prepare('SELECT * FROM deaths WHERE id = ?').get(id);
+}
+export function marquerRestauree(id) {
+  db.prepare('UPDATE deaths SET restored_at = ? WHERE id = ?').run(Date.now(), id);
 }
 
 export function pantheon(limit = 10) {
