@@ -1,39 +1,126 @@
-<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <div class="toolbar flex items-center gap-2 mb-3">
-        <button @click="loadMusic" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Rafraîchir</button>
-        <button @click="saveMusic" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
-    </div>
-    <p id="music-msg" class="text-green-400 min-h-[1.5em]"></p>
-
-    <!-- sous-onglets : Emplacements (par défaut) | Groupes de musique -->
-    <div class="flex gap-1 border-b border-t4c-border mb-4">
-        <button id="music-subtab-empl" @click="showSubtab('empl')"
-            class="px-4 py-2 rounded-t-md font-bold text-t4c-text-light bg-t4c-button">Emplacements</button>
-        <button id="music-subtab-grp" @click="showSubtab('grp')"
-            class="px-4 py-2 rounded-t-md font-bold text-gray-400 bg-t4c-input-bg">Groupes de musique</button>
-    </div>
-
-    <!-- onglet Emplacements : à quoi joue chaque zone / écran -->
-    <div id="music-pane-empl">
-        <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mb-4">Chaque emplacement (zone, écran de connexion, Épreuve) joue soit un
-        <b>groupe</b> de musiques (liste tirée au sort et enchaînée côté joueur — à définir dans l'onglet
-        « Groupes de musique »), soit une <b>piste seule</b> en repli, avec deux variantes : la <b>nouvelle</b>
-        musique (pack par défaut) et l'<b>ancienne</b> (pack « legacy »). Appliqué à chaud. « — silence — » coupe la musique.</p>
-        <table id="music-table" class="w-full text-sm text-left text-gray-400 mt-2"></table>
-    </div>
-
-    <!-- onglet Groupes : définition réutilisable des listes de musiques -->
-    <div id="music-pane-grp" class="hidden">
-        <p class="hint text-sm text-gray-400 mb-3">Un groupe = une <b>liste</b> de pistes pour le pack
-        « nouvelles » (tirées au sort et enchaînées en boucle chez le joueur) + une <b>seule</b> piste
-        pour le pack « legacy ». Une fois créé, référencez-le dans l'onglet « Emplacements ».</p>
-        <div class="toolbar flex items-center gap-2 mb-3">
-            <input id="group-new-name" type="text" placeholder="nom du groupe (ex. forêt)" class="px-2 py-1 bg-t4c-input-bg border border-t4c-input-border rounded-md text-t4c-text-light" />
-            <button @click="addGroup" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">+ Créer le groupe</button>
+<div class="cs-panel flex flex-col min-h-[640px] overflow-hidden" @vue:mounted="init()">
+<div class="flex flex-wrap flex-1 min-h-0">
+    <!-- groupes, emplacements, pistes -->
+    <section aria-label="Groupes" data-col="musiques-liste" data-bord="droite" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
+        <div class="p-3.5 flex items-center gap-2 border-b border-gray-800">
+            <span class="text-[15px] font-semibold">Groupes</span>
+            <span class="text-gray-500">{{ groupes.length }}</span>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn h-7" @click="nouveau()">Nouveau</button>
         </div>
-        <div id="groups-list" class="space-y-3 mb-2"></div>
-    </div>
+        <div class="flex-1 overflow-y-auto max-h-[70vh] pb-2">
+            <button v-for="g in groupes" type="button" class="cs-item" :class="{ on: vue === 'groupe' && g.id === courant }" @click="ouvrir(g.id)">
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ g.id }}</span><span class="text-xs text-gray-500">{{ g.n }} piste{{ g.n > 1 ? 's' : '' }} · {{ g.resume }}</span></span>
+            </button>
+            <p class="px-4 py-2 text-gray-500" v-if="!groupes.length">Aucun groupe.</p>
+            <div class="cs-sect">Emplacements</div>
+            <button type="button" class="cs-item" :class="{ on: vue === 'emplacements' }" @click="vue = 'emplacements'">
+                <span class="flex-1 min-w-0 text-left"><span class="block">Écrans et zones</span><span class="text-xs text-gray-500">{{ emplacements.length }} emplacements</span></span>
+            </button>
+            <div class="cs-sect">Pistes</div>
+            <div class="px-4 flex flex-col gap-2">
+                <span class="text-gray-400">{{ fichiers.length }} fichier{{ fichiers.length > 1 ? 's' : '' }} audio</span>
+                <label class="cs-btn justify-center cursor-pointer" :class="{ 'opacity-50 pointer-events-none': envoi }">Importer des pistes
+                    <input id="mu-import" type="file" accept=".mp3,.ogg,audio/mpeg,audio/ogg" multiple class="sr-only" @change="importer($event)" /></label>
+                <span class="text-xs text-gray-500" v-if="envoi">{{ envoi }}</span>
+            </div>
+        </div>
+    </section>
 
-    <h2 class="text-xl text-t4c-gold mt-6 mb-2">Pré-écoute</h2>
-    <audio id="music-preview" controls class="w-full max-w-md"></audio>
+    <!-- édition d'un groupe -->
+    <section aria-label="Édition du groupe" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="vue === 'groupe' && groupe">
+        <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ courant }}</h2>
+            <span :class="etat === 'Enregistré' ? 'text-gray-500' : 'text-amber-400'">{{ etat }}</span>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn" @click="renommer()">Renommer</button>
+            <button type="button" class="cs-btn cs-danger" @click="supprimer()">Supprimer</button>
+        </div>
+        <div class="cs-card">
+            <div><h3>Pack « nouvelles musiques »</h3><p class="text-xs text-gray-500">Tirées au sort et enchaînées en boucle chez le joueur.</p></div>
+            <div class="flex flex-col border border-gray-800 rounded-lg overflow-hidden">
+                <div v-for="(f, i) in groupe.new" class="flex items-center gap-3 px-3 h-10 border-b border-gray-800 last:border-b-0" :class="{ 'bg-gray-800/40': lecture.fichier === f }">
+                    <button type="button" class="cs-btn cs-icon h-7 w-7" :aria-label="(lecture.fichier === f && lecture.joue ? 'Pause ' : 'Écouter ') + f" @click="jouer(f)">
+                        <svg v-if="lecture.fichier === f && lecture.joue" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3" height="10"></rect><rect x="7" y="1" width="3" height="10"></rect></svg>
+                        <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button>
+                    <span class="flex-1 min-w-0 truncate">{{ f }}</span>
+                    <span class="cs-chip text-amber-400" v-if="ajouts.includes(f)">ajoutée</span>
+                    <span class="cs-chip text-red-400" v-if="!fichiers.includes(f)" title="Fichier absent de client/assets/music">introuvable</span>
+                    <span class="font-mono text-gray-500 w-12 text-right">{{ duree(f) }}</span>
+                    <button type="button" class="cs-x" :aria-label="'Retirer ' + f" @click="retirer(i)">×</button>
+                </div>
+                <p class="px-3 py-2 text-gray-500" v-if="!groupe.new.length">Aucune piste.</p>
+            </div>
+            <div class="flex gap-2 items-center flex-wrap">
+                <select class="cs-input w-[280px]" v-model="ajout" aria-label="Piste à ajouter"><option value="">Choisir une piste…</option><option v-for="f in disponibles" :value="f">{{ f }}</option></select>
+                <button type="button" class="cs-btn" :disabled="!ajout" @click="ajouter()">Ajouter une piste</button>
+            </div>
+        </div>
+        <div class="cs-card">
+            <h3>Pack « ancien » (legacy)</h3>
+            <div class="flex gap-2 items-center flex-wrap">
+                <label class="cs-label" for="mu-leg">Piste legacy</label>
+                <select id="mu-leg" class="cs-input w-[240px]" :value="groupe.legacy || ''" @change="groupe.legacy = $event.target.value || null"><option value="">Silence</option><option v-for="f in fichiers" :value="f">{{ f }}</option></select>
+                <button type="button" class="cs-btn cs-icon h-7 w-7" :aria-label="'Écouter ' + groupe.legacy" :disabled="!groupe.legacy" @click="jouer(groupe.legacy)">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button>
+                <span class="text-xs text-gray-500">Une seule piste, jouée en boucle.</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800 mt-auto">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn" v-if="sale" @click="annuler()">Annuler les modifications</button>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- emplacements -->
+    <section aria-label="Emplacements" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="vue === 'emplacements'">
+        <div><h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">Écrans et zones</h2>
+            <p class="text-gray-500">Chaque emplacement joue un groupe, ou une piste seule en deux variantes. Les zones musicales plus fines se dessinent sur la carte.</p></div>
+        <div class="cs-card p-0 overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="text-xs text-gray-500"><tr><th class="px-4 py-2 font-medium">Emplacement</th><th class="px-2 py-2 font-medium">Groupe</th><th class="px-2 py-2 font-medium">Piste seule (nouvelle)</th><th class="px-2 py-2 font-medium">Piste seule (legacy)</th></tr></thead>
+                <tbody>
+                    <tr v-for="e in emplacements" class="border-t border-gray-800">
+                        <td class="px-4 py-2">{{ e.nom }}</td>
+                        <td class="px-2 py-2"><select class="cs-input" :aria-label="'Groupe joué : ' + e.nom" :value="slot(e.k).group || ''" @change="choisirGroupe(e.k, $event.target.value)">
+                            <option value="">aucun (piste seule)</option><option v-for="g in groupes" :value="g.id">{{ g.id }}</option></select></td>
+                        <td class="px-2 py-2" v-for="v in ['new', 'legacy']" :class="{ 'opacity-40': slot(e.k).group }" :title="slot(e.k).group ? 'Inutilisé : un groupe est choisi' : ''">
+                            <div class="flex gap-1.5 items-center">
+                                <select class="cs-input" :aria-label="(v === 'new' ? 'Piste nouvelle : ' : 'Piste legacy : ') + e.nom" :disabled="!!slot(e.k).group" :value="slot(e.k)[v] || ''" @change="piste(e.k, v, $event.target.value)">
+                                    <option value="">Silence</option><option v-for="f in fichiers" :value="f">{{ f }}</option></select>
+                                <button type="button" class="cs-btn cs-icon h-7 w-7 flex-none" aria-label="Écouter" :disabled="!!slot(e.k).group || !slot(e.k)[v]" @click="jouer(slot(e.k)[v])">
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button></div></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800 mt-auto">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn" v-if="sale" @click="annuler()">Annuler les modifications</button>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- utilisation -->
+    <aside aria-label="Utilisation" data-col="musiques-contexte" data-bord="gauche" class="flex-[1_1_260px] max-w-[300px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-1.5" v-if="vue === 'groupe' && groupe">
+        <span class="cs-sect p-0 mb-1">Joué dans</span>
+        <div v-for="u in usages(courant)" class="flex justify-between gap-2"><span>{{ u.nom }}</span><span class="text-gray-500 flex-none">{{ u.ou }}</span></div>
+        <span class="text-gray-500" v-if="!usages(courant).length">Nulle part : choisissez-le dans Écrans et zones, ou sur une zone musicale de la carte.</span>
+    </aside>
+</div>
+
+    <!-- lecteur de pré-écoute -->
+    <div class="flex items-center gap-3 px-4 h-14 border-t border-gray-800 bg-gray-950 flex-wrap" aria-label="Pré-écoute" role="region">
+        <button type="button" class="cs-btn cs-icon h-8 w-8" :aria-label="lecture.joue ? 'Pause' : 'Lecture'" :disabled="!lecture.fichier" @click="basculer()">
+            <svg v-if="lecture.joue" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3" height="10"></rect><rect x="7" y="1" width="3" height="10"></rect></svg>
+            <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button>
+        <div class="min-w-[140px] max-w-[260px]"><div class="truncate">{{ lecture.fichier || 'Aucune piste' }}</div><div class="text-xs text-gray-500">Pré-écoute</div></div>
+        <span class="font-mono text-xs text-gray-500">{{ lecture.fichier ? temps(lecture.t) : '' }}</span>
+        <div class="flex-1 min-w-[120px] h-1.5 rounded bg-gray-800 cursor-pointer" @click="chercher($event)" role="progressbar" aria-label="Position de lecture" :aria-valuenow="Math.round(progression)" aria-valuemin="0" aria-valuemax="100">
+            <div class="h-full rounded bg-amber-400" :style="{ width: progression + '%' }"></div></div>
+        <span class="font-mono text-xs text-gray-500">{{ temps(lecture.d) }}</span>
+        <label for="mu-vol" class="text-xs text-gray-500">Volume</label>
+        <input id="mu-vol" type="range" min="0" max="100" class="w-24" :value="lecture.volume" @input="volume($event.target.value)" />
+    </div>
 </div>

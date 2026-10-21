@@ -230,7 +230,15 @@ export async function handleAdmin(req, res, url, game) {
         try {
           files = fs.readdirSync(musicDir).filter(f => /\.(mp3|ogg)$/i.test(f)).sort();
         } catch { /* pas de dossier musique */ }
-        return json(200, { files, map: content.music });
+        // sous-zones musicales dessinées sur la carte : l'écran Musiques montre
+        // où chaque groupe est joué et refuse d'en supprimer un encore utilisé
+        const sousZones = [];
+        for (const z of content.zones || []) {
+          for (const m of loadOverrides(z.id)?.music || []) {
+            sousZones.push({ zoneId: z.id, zone: z.name, id: String(m?.id ?? ''), track: m?.track || null });
+          }
+        }
+        return json(200, { files, map: content.music, sousZones });
       }
       if (req.method === 'PUT') {
         const map = JSON.parse(await readBody(req));
@@ -259,6 +267,26 @@ export async function handleAdmin(req, res, url, game) {
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
         return json(200, { ok: true });
       }
+    }
+
+    // ---- import d'une piste audio (MP3 ou Ogg) dans client/assets/music ----
+    if (url === '/api/admin/music/upload' && req.method === 'POST') {
+      const { name, data } = JSON.parse(await readBody(req, 40e6));
+      const m = String(name || '').match(/^(.+)\.(mp3|ogg)$/i);
+      // nom lisible conservé (espaces, accents, parenthèses), sans séparateur de chemin
+      const base = m ? m[1].replace(/[^\p{L}\p{N} ()_.'-]+/gu, '_').replace(/^[.\s]+/, '').slice(0, 80).trim() : '';
+      if (!base) return json(400, { error: 'Fichier .mp3 ou .ogg attendu' });
+      const buf = Buffer.from(String(data || ''), 'base64');
+      const ogg = buf.subarray(0, 4).toString('latin1') === 'OggS';
+      const mp3 = buf.subarray(0, 3).toString('latin1') === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0);
+      if (!(m[2].toLowerCase() === 'ogg' ? ogg : mp3)) return json(400, { error: `${name} n'est pas un fichier ${m[2].toUpperCase()} valide` });
+      const musicDir = path.join(CONTENT_DIR, '..', 'client', 'assets', 'music');
+      const file = `${base}.${m[2].toLowerCase()}`;
+      // pas d'écrasement : une piste déjà jouée changerait sous les pieds des joueurs
+      if (fs.existsSync(path.join(musicDir, file))) return json(409, { error: `${file} existe déjà` });
+      fs.mkdirSync(musicDir, { recursive: true });
+      fs.writeFileSync(path.join(musicDir, file), buf);
+      return json(200, { ok: true, file });
     }
 
     // ---- skins : images d'objets et planches de créatures fournies ----
