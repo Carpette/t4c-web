@@ -216,10 +216,11 @@
         <div class="flex flex-col gap-2">
             <span class="cs-sect p-0">Dans le monde</span>
             <div class="cs-panel p-3 flex flex-col gap-2">
-                <div v-for="p in ouCa" class="flex justify-between gap-2"><span>{{ p.zone }}<span class="text-amber-400" v-if="p.retouche" title="Fiche retouchée dans cette zone (Zones et terrain)"> *</span></span><span class="font-mono text-gray-500">{{ p.x }}, {{ p.z }}</span></div>
+                <div v-for="p in ouCa" class="flex items-center justify-between gap-2"><span class="flex-1">{{ p.zone }}<span class="text-amber-400" v-if="p.retouche" title="Fiche retouchée dans cette zone (Zones et terrain)"> *</span></span><span class="font-mono text-gray-500">{{ p.x }}, {{ p.z }}</span>
+                    <button type="button" class="cs-lien" v-if="voitCarte" @click="voirSurCarte(p)" :aria-label="'Voir sur la carte, ' + p.zone">Voir sur la carte</button></div>
                 <span class="text-gray-500" v-if="!ouCa.length">Placé nulle part pour l’instant.</span>
-                <a class="cs-btn self-start" href="#zones">Voir sur la carte</a>
-                <span class="text-xs text-gray-500">Le placement se fait dans Zones et terrain, la fiche ici.<span v-if="ouCa.some(p => p.retouche)"> * : une zone retouche des champs de cette fiche.</span></span>
+                <a class="cs-btn self-start" href="#zones" v-if="!voitCarte">Voir sur la carte</a>
+                <span class="text-xs text-gray-500">Le placement se fait sur la Carte du monde, la fiche ici.<span v-if="ouCa.some(p => p.retouche)"> * : une zone retouche des champs de cette fiche.</span></span>
             </div>
         </div>
         <div class="flex flex-col gap-2">
