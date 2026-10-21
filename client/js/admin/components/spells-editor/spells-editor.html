@@ -1,241 +1,191 @@
-<div @vue:mounted="init()" class="flex flex-col h-full">
-  <!-- Barre de navigation -->
-  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center rounded-t-lg">
-    <span class="font-mono text-xs text-gray-400">content/spells.json</span>
-    <div class="flex items-center gap-4">
-      <button id="save-file-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
-        💾 Sauvegarder spells.json
-      </button>
-    </div>
-  </header>
-
-  <!-- Contenu principal -->
-  <main class="flex-1 flex overflow-hidden">
-    <!-- Liste des sorts (Sidebar) -->
-    <aside data-col="sorts-liste" data-bord="droite" class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
-      <div class="p-3 border-b border-gray-800 space-y-2">
-        <div class="text-[10px] text-amber-500 font-mono text-center py-1 bg-gray-900 border border-gray-800 rounded">
-          📁 spells.json
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- liste -->
+    <section aria-label="Liste des sorts" data-col="sorts-liste" data-bord="droite" class="flex-[1_1_260px] max-w-[300px] border-r border-gray-800 bg-gray-950 flex flex-col">
+        <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <span class="text-[15px] font-semibold">Sorts</span>
+                <span class="text-gray-500">{{ sorts.length }}</span>
+                <div class="flex-1"></div>
+                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouveau sort" title="Nouveau sort" @click="dupliquer(true)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg></button>
+            </div>
+            <label for="sp-q" class="sr-only">Filtrer les sorts</label>
+            <input id="sp-q" class="cs-input" v-model="q" placeholder="Filtrer les sorts" />
+            <div class="flex flex-wrap gap-1.5">
+                <button v-for="t in filtres" type="button" class="cs-fchip" :class="{ on: type === t.id }" @click="type = t.id">{{ t.nom }}<span class="text-gray-500" v-if="t.n !== null"> · {{ t.n }}</span></button>
+            </div>
         </div>
-        <button id="new-spell-btn" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1.5 px-3 rounded text-xs transition">
-          + Nouveau Sortilège
-        </button>
-      </div>
-      <ul id="spells-list" class="flex-1 divide-y divide-gray-900">
-        <!-- Rempli par JS -->
-      </ul>
-    </aside>
-
-    <!-- Zone d'édition -->
-    <section id="editor-pane" class="flex-1 p-5 overflow-y-auto bg-gray-900 hidden">
-      <div class="max-w-5xl mx-auto space-y-4">
-        <div class="flex justify-between items-center pb-2">
-          <h2 id="spell-title" class="text-xl font-bold text-white">Édition du sort</h2>
-          <button id="save-spell-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-xs transition shadow flex items-center gap-1.5">
-            Enregistrer les modifications
-          </button>
-        </div>
-
-        <!-- Metadata Grid (2 Columns for compact dashboard view) -->
-        <div class="grid grid-cols-2 gap-4">
-          
-          <!-- Column 1: Identification & Gameplay Stacked -->
-          <div class="space-y-4">
-            
-            <!-- SECTION 1: Identification Informations -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🪪 1. Identification</h3>
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">ID</label>
-                  <input type="text" id="spell-id" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: eclair_de_feu">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Nom Français</label>
-                  <input type="text" id="spell-name" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: Éclair de feu">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Type de Sort</label>
-                  <select id="spell-type" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="bolt">Bolt (Projectile)</option>
-                    <option value="aoe">AoE (Zone)</option>
-                    <option value="heal">Heal (Soin)</option>
-                    <option value="buff">Buff (Amélioration)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- SECTION 3: Gameplay Settings -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🎮 3. Paramètres de Gameplay</h3>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Coût en Mana</label>
-                  <input type="number" id="spell-mana" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Coût apprentissage (Or/Points)</label>
-                  <input type="number" id="spell-price" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none">
-                </div>
-                <div class="col-span-2">
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Formule de Cooldown (FormulaEngine)</label>
-                  <input type="text" id="spell-cooldown" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: max(1000, 1720 - max(0, self.level - 22) * 20)">
-                  
-                  <!-- Real-time Cooldown Formula Metrics Panel -->
-                  <div id="cooldown-metrics" class="mt-2 text-[10px] text-gray-500 flex gap-4 hidden bg-gray-900/40 border border-gray-800 rounded px-2.5 py-1.5">
-                    <span class="flex items-center gap-1">🐌 Plus lent : <strong id="metric-slowest" class="text-amber-500/80">1500 ms</strong> (niv. <span id="metric-start-lvl">1</span>)</span>
-                    <span class="flex items-center gap-1">⚡ Plus rapide : <strong id="metric-fastest" class="text-emerald-500/80">1000 ms</strong></span>
-                    <span class="flex items-center gap-1">🎯 Cap au niveau : <strong id="metric-cap-lvl" class="text-sky-500/80">22</strong></span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Ciblage dynamique -->
-              <div id="ciblage-pane" class="border-t border-gray-900 pt-3 space-y-3 hidden">
-                <div class="grid grid-cols-3 gap-3">
-                  <div id="field-range">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Portée (Range)</label>
-                    <input type="number" step="0.1" id="spell-range" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none">
-                  </div>
-                  <div id="field-radius">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Rayon (Radius)</label>
-                    <input type="number" step="0.1" id="spell-radius" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none">
-                  </div>
-                  <div id="field-centered" class="flex items-center pt-4">
-                    <label class="inline-flex items-center cursor-pointer">
-                      <input type="checkbox" id="spell-centered" class="form-checkbox bg-gray-900 border-gray-700 text-amber-500 h-4 w-4 rounded">
-                      <span class="ml-1.5 text-[10px] font-semibold uppercase text-gray-400">Centré</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Effets visuels : presets de content/particles.json -->
-              <div class="border-t border-gray-900 pt-3 space-y-2">
-                <div class="text-[10px] font-semibold uppercase text-gray-400">Effets visuels (bibliothèque de particules)</div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div id="field-fx-trail">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Traînée (vol)</label>
-                    <select id="spell-fx-trail" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none"></select>
-                  </div>
-                  <div id="field-fx-impact">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Impact (arrivée)</label>
-                    <select id="spell-fx-impact" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none"></select>
-                  </div>
-                  <div id="field-fx-ground">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Zone au sol (durée)</label>
-                    <select id="spell-fx-ground" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none"></select>
-                  </div>
-                  <div id="field-fx-self">
-                    <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Sur la cible / le lanceur</label>
-                    <select id="spell-fx-self" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none"></select>
-                  </div>
-                </div>
-                <p class="text-[10px] text-gray-500">Vide = effet par défaut de l'élément. L'aperçu (▶) rejoue le preset choisi. Les presets se créent dans l'onglet Particules.</p>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Column 2: Prerequisites Side-by-Side -->
-          <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 flex flex-col justify-between space-y-3">
-            <div class="space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🎓 2. Prérequis d'apprentissage</h3>
-              <div class="grid grid-cols-3 gap-3 border-b border-gray-900 pb-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Niveau req.</label>
-                  <input type="number" id="spell-req-level" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="1">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Wis req.</label>
-                  <input type="number" id="spell-req-wis" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Int req.</label>
-                  <input type="number" id="spell-req-int" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
-                </div>
-              </div>
-              
-              <!-- Multiple Prerequisites list -->
-              <div class="space-y-1.5">
-                <label class="block text-[10px] font-semibold uppercase text-gray-400">Sortilèges requis</label>
-                <ul id="spell-requires-list" class="space-y-1 max-h-[110px] overflow-y-auto">
-                  <!-- Rempli dynamiquement par JS -->
-                </ul>
-              </div>
-            </div>
-
-            <!-- Add Prereq select -->
-            <div class="flex gap-2 border-t border-gray-900 pt-3">
-              <select id="spell-requires-select" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-amber-500">
-                <option value="">— Ajouter prérequis —</option>
-                <!-- Rempli dynamiquement par JS -->
-              </select>
-              <button type="button" id="add-prereq-btn" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-[10px] font-bold text-white px-3 rounded transition flex-shrink-0">
-                +
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- SECTION 4: Magic Effects -->
-        <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-          <div class="flex justify-between items-center border-b border-gray-900 pb-2">
-            <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🧬 4. Effets magiques déclenchés</h3>
-            <button id="add-effect-btn" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-[10px] font-semibold text-white py-1 px-3 rounded transition">
-              + Ajouter un Effet
+        <div class="flex-1 overflow-y-auto max-h-[70vh]">
+            <button v-for="s in liste" type="button" class="cs-item" :class="{ on: s.id === courant && !nouveau }" @click="ouvrir(s.id)">
+                <span class="cs-mod" :class="{ invisible: !(s.id === courant && sale && !nouveau) }" title="Modifié, non enregistré"></span>
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ s.name }}</span><span class="font-mono text-[11px] text-gray-500">{{ s.id }}</span></span>
+                <span class="cs-hint">{{ nomType(s) }}</span>
             </button>
-          </div>
-          <div id="effects-container" class="space-y-3">
-            <!-- Rempli par JS -->
-          </div>
         </div>
-
-        <!-- SECTION 5: HUD / SFX & Preview -->
-        <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-          <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">✨ 5. HUD / Effets visuels & SFX</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="grid grid-cols-2 gap-3 items-end">
-              <div>
-                <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Couleur d'effet (Hex)</label>
-                <input type="color" id="spell-color" class="w-full h-8 bg-gray-900 border border-gray-700 rounded px-1 py-1 cursor-pointer">
-              </div>
-              <div>
-                <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Style d'élément</label>
-                <select id="spell-element" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                  <option value="neutre">Neutre</option>
-                  <option value="fire">Feu (Fire)</option>
-                  <option value="water">Eau / Glace (Water)</option>
-                  <option value="earth">Terre (Earth)</option>
-                  <option value="air">Air (Air)</option>
-                  <option value="light">Lumière (Light)</option>
-                  <option value="dark">Ténèbres (Dark)</option>
-                  <option value="arcane">Arcane</option>
-                </select>
-              </div>
-              <button type="button" id="open-preview-btn" class="col-span-2 bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-3 rounded text-xs transition shadow flex items-center justify-center gap-1.5">
-                👁️ Prévisualiser l'effet visuel
-              </button>
-            </div>
-
-            <!-- Integrated Live Preview Screen (Super compact) -->
-            <div class="flex flex-col">
-              <div class="flex-1 bg-black rounded border border-gray-800 p-2 flex items-center justify-center min-h-[110px] relative overflow-hidden">
-                <canvas id="preview-canvas" width="290" height="90" class="bg-black rounded"></canvas>
-                <button type="button" id="close-preview-btn" class="absolute top-1.5 right-1.5 text-[9px] bg-gray-900/95 hover:bg-gray-800 text-gray-400 hover:text-white px-1.5 py-0.5 rounded border border-gray-800">
-                  Arrêter
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
     </section>
-  </main>
 
-  <!-- Dummy invisible element to avoid breaking index.js or scripts expecting a modal div -->
-  <div id="preview-modal" class="hidden"></div>
+    <!-- fiche -->
+    <section aria-label="Édition du sort" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex-1 min-w-[200px]">
+                <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
+                <div class="text-gray-500"><span class="font-mono">{{ fiche.id }}</span>
+                    <span v-if="nouveau"> · nouveau sort</span>
+                    <span v-else-if="modifies.length" class="text-amber-400"> · {{ modifies.length }} champ{{ modifies.length > 1 ? 's' : '' }} modifié{{ modifies.length > 1 ? 's' : '' }}</span></div>
+            </div>
+            <button type="button" class="cs-btn" v-if="sale" @click="annuler()">Annuler les modifications</button>
+            <button type="button" class="cs-btn" @click="dupliquer()" :disabled="nouveau">Dupliquer</button>
+            <button type="button" class="cs-btn cs-danger" @click="supprimer()">{{ nouveau ? 'Abandonner' : 'Supprimer' }}</button>
+        </div>
+
+        <div class="cs-card">
+            <h3>Identité</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="sp-id">Identifiant</label>
+                    <input id="sp-id" class="cs-input font-mono" v-model="fiche.id" :readonly="nouveau ? null : true" :title="nouveau ? '' : 'Fixé : les PNJ, les prérequis et les personnages y font référence'" /></div>
+                <div class="cs-field"><label class="cs-label" for="sp-nom">Nom affiché</label><input id="sp-nom" class="cs-input" v-model="fiche.name" /></div>
+                <div class="cs-field"><label class="cs-label" for="sp-type">Type</label>
+                    <select id="sp-type" class="cs-input" :value="fiche.type || ''" @change="changerType($event.target.value)"><option v-for="t in TYPES" :value="t[0]">{{ t[1] }}</option></select></div>
+            </div>
+            <label class="flex items-center gap-2 text-gray-200" title="Mécanique pas encore implémentée : le sort n'est ni vendu ni lançable"><input type="checkbox" :checked="!!fiche.todo" @change="drapeau('todo', $event.target.checked)" />En développement (ni vendu, ni lançable)</label>
+        </div>
+
+        <div class="cs-card">
+            <h3>Apprentissage</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field" v-for="c in [['level', 'Niveau requis'], ['wis', 'Sagesse requise'], ['int', 'Intelligence requise']]">
+                    <label class="cs-label" :for="'sp-' + c[0]">{{ c[1] }}</label>
+                    <input :id="'sp-' + c[0]" class="cs-input font-mono" type="number" min="0" :value="fiche[c[0]]" @change="nombre(c[0], $event.target.value)" />
+                    <span class="text-xs text-gray-500" v-if="avant(c[0]) !== undefined">Avant : {{ avant(c[0]) }}</span></div>
+            </div>
+            <div class="cs-field">
+                <span class="cs-label">Sorts requis</span>
+                <div class="flex flex-wrap gap-1.5 items-center">
+                    <span v-for="id in requis" class="cs-chip gap-1.5">{{ nomSort(id) }}<button type="button" class="cs-x" :aria-label="'Retirer ' + nomSort(id)" @click="retirerRequis(id)">×</button></span>
+                    <span class="text-gray-500" v-if="!requis.length">Aucun</span>
+                    <select class="cs-input w-[240px]" @change="ajouterRequis($event.target.value); $event.target.value = ''" aria-label="Ajouter un sort requis">
+                        <option value="">Ajouter un sort requis…</option><option v-for="s in requisDispo" :value="s.id">{{ s.name }}</option></select>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500">Le prix d’apprentissage se règle chez chaque entraîneur (fiche PNJ, onglet Enseignement).</p>
+        </div>
+
+        <div class="cs-card">
+            <h3>Lancement</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="sp-mana">Coût en mana</label>
+                    <input id="sp-mana" class="cs-input font-mono" type="number" min="0" :value="fiche.mana" @change="nombre('mana', $event.target.value)" />
+                    <span class="text-xs text-gray-500" v-if="avant('mana') !== undefined">Avant : {{ avant('mana') }}</span></div>
+                <div class="cs-field" v-if="fiche.type === 'bolt' || fiche.type === 'aoe'"><label class="cs-label" for="sp-range">Portée (cases)</label>
+                    <input id="sp-range" class="cs-input font-mono" type="number" min="0" step="0.5" :value="fiche.range" @change="nombre('range', $event.target.value)" /></div>
+                <div class="cs-field" v-if="fiche.type === 'aoe'"><label class="cs-label" for="sp-radius">Rayon (cases)</label>
+                    <input id="sp-radius" class="cs-input font-mono" type="number" min="0" step="0.5" :value="fiche.radius" @change="nombre('radius', $event.target.value)" /></div>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-2 text-gray-200">
+                <label class="flex items-center gap-2" v-if="fiche.type === 'aoe'"><input type="checkbox" :checked="!!fiche.centered" @change="drapeau('centered', $event.target.checked)" />Centré sur le lanceur</label>
+                <label class="flex items-center gap-2" v-if="fiche.type === 'bolt'"><input type="checkbox" :checked="!!fiche.undeadOnly" @change="drapeau('undeadOnly', $event.target.checked)" />Morts-vivants seulement</label>
+            </div>
+            <div class="cs-field">
+                <label class="cs-label" for="sp-cd">Formule de recharge (ms)</label>
+                <input id="sp-cd" class="cs-input font-mono" v-model="fiche.cooldown" placeholder="vide : vitesse d’incantation (cast, castMin, castStep)" />
+                <div class="flex flex-wrap gap-1.5 items-center text-xs text-gray-500">Insérer :
+                    <button v-for="t in INSERTIONS" type="button" class="cs-fchip font-mono" @click="inserer(t)">{{ t }}</button></div>
+                <span class="text-xs text-red-400" v-if="courbe?.erreur">Formule non évaluable : vérifiez la syntaxe.</span>
+                <div class="flex flex-wrap gap-x-6 gap-y-1 text-gray-300" v-else-if="courbe">
+                    <span>Au niveau requis ({{ courbe.n0 }}) <b class="font-mono text-t4c-text-light">{{ courbe.depart.toLocaleString('fr-FR') }} ms</b></span>
+                    <span>Plancher <b class="font-mono text-t4c-text-light">{{ courbe.plancher.toLocaleString('fr-FR') }} ms</b></span>
+                    <span>Plancher atteint au niveau <b class="font-mono text-t4c-text-light">{{ courbe.auNiveau }}</b></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <div class="flex items-center gap-2"><h3 class="flex-1">Effets</h3><button type="button" class="cs-btn" @click="ajouterEffet()">Ajouter un effet</button></div>
+            <div v-for="(e, i) in fiche.effects || []" class="border border-gray-800 rounded-lg p-3 flex flex-col gap-3 bg-gray-950">
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 items-end">
+                    <div class="cs-field"><label class="cs-label" :for="'sp-et-' + i">Type</label>
+                        <select :id="'sp-et-' + i" class="cs-input" v-model="e.type"><option v-for="t in TYPES_EFFET" :value="t[0]">{{ t[1] }}</option>
+                            <option v-if="!TYPES_EFFET.some(t => t[0] === e.type)" :value="e.type">{{ e.type }}</option></select></div>
+                    <div class="cs-field col-span-2"><label class="cs-label" :for="'sp-ef-' + i">Formule</label>
+                        <input :id="'sp-ef-' + i" class="cs-input font-mono" v-model="e.formula" /></div>
+                    <div class="cs-field"><label class="cs-label" :for="'sp-ed-' + i">Durée (s)</label>
+                        <input :id="'sp-ed-' + i" class="cs-input font-mono" type="number" min="0" :value="e.duration" @change="champEffet(e, 'duration', $event.target.value, true)" /></div>
+                </div>
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                    <div class="cs-field" v-if="AVEC_PARAMETRE.includes(e.type) || e.target_parameter"><label class="cs-label" :for="'sp-ep-' + i">Caractéristique visée</label>
+                        <select :id="'sp-ep-' + i" class="cs-input font-mono" :value="e.target_parameter || ''" @change="champEffet(e, 'target_parameter', $event.target.value)"><option value="">aucune</option><option v-for="p in PARAMETRES" :value="p">{{ p }}</option></select></div>
+                    <div class="cs-field" v-if="e.type === 'damage'"><label class="cs-label" :for="'sp-ec-' + i">Armure</label>
+                        <select :id="'sp-ec-' + i" class="cs-input" :value="e.damageCategory || ''" @change="champEffet(e, 'damageCategory', $event.target.value)"><option value="">non précisé</option><option value="physical">réduit par l’armure</option><option value="mental">ignore l’armure</option></select></div>
+                    <div class="cs-field" v-if="e.type === 'damage' || e.type === 'heal' || e.interval"><label class="cs-label" :for="'sp-ei-' + i">Toutes les (s)</label>
+                        <input :id="'sp-ei-' + i" class="cs-input font-mono" type="number" min="0" step="0.5" placeholder="une fois" :value="e.interval" @change="champEffet(e, 'interval', $event.target.value, true)" /></div>
+                    <div class="cs-field" v-if="e.interval"><label class="cs-label" :for="'sp-emin-' + i">Par tic : min / max</label>
+                        <div class="flex gap-2"><input :id="'sp-emin-' + i" class="cs-input font-mono" type="number" :value="e.dot_min" @change="champEffet(e, 'dot_min', $event.target.value, true)" />
+                        <input class="cs-input font-mono" type="number" :value="e.dot_max" @change="champEffet(e, 'dot_max', $event.target.value, true)" aria-label="Maximum par tic" /></div></div>
+                    <div class="cs-field" v-if="e.type === 'drain'"><label class="cs-label" :for="'sp-edr-' + i">Part rendue au lanceur</label>
+                        <input :id="'sp-edr-' + i" class="cs-input font-mono" type="number" min="0" step="0.1" :value="e.drain_ratio ?? 1" @change="champEffet(e, 'drain_ratio', $event.target.value, true)" /></div>
+                    <div class="cs-field"><label class="cs-label" :for="'sp-eel-' + i">Élément</label>
+                        <select :id="'sp-eel-' + i" class="cs-input" :value="e.element || ''" @change="champEffet(e, 'element', $event.target.value)"><option value="">celui du sort</option><option v-for="x in ELEMENTS" :value="x[0]">{{ x[1] }}</option>
+                            <option v-if="e.element && !ELEMENTS.some(x => x[0] === e.element)" :value="e.element">{{ e.element }}</option></select></div>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-xs text-gray-500" v-if="moyenne(e) !== null">≈ {{ moyenne(e) }} en moyenne au niveau requis ({{ fiche.level || 1 }}, Int {{ fiche.int || 0 }}, Sag {{ fiche.wis || 0 }})</span>
+                    <div class="flex-1"></div>
+                    <button type="button" class="cs-btn cs-ghost h-7" :aria-label="'Retirer l’effet ' + (i + 1)" @click="retirerEffet(i)">Retirer l’effet</button>
+                </div>
+            </div>
+            <p class="text-gray-500" v-if="!(fiche.effects || []).length">Aucun effet{{ fiche.todo ? ' (sort en développement)' : '' }}.</p>
+        </div>
+
+        <div class="cs-card">
+            <h3>Rendu</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="sp-el">Élément</label>
+                    <select id="sp-el" class="cs-input" v-model="fiche.element" @change="rejouer()"><option v-for="x in ELEMENTS" :value="x[0]">{{ x[1] }}</option>
+                        <option v-if="fiche.element && !ELEMENTS.some(x => x[0] === fiche.element)" :value="fiche.element">{{ fiche.element }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="sp-col">Couleur</label>
+                    <div class="flex gap-2"><input id="sp-col" type="color" class="h-8 w-12 bg-transparent border border-gray-700 rounded" :value="fiche.color || '#ffffff'" @input="fiche.color = $event.target.value; rejouer()" />
+                    <input class="cs-input font-mono" :value="fiche.color" @change="fiche.color = $event.target.value; rejouer()" aria-label="Couleur hexadécimale" /></div></div>
+                <div class="cs-field" v-for="e in emplacementsFx"><label class="cs-label" :for="'sp-fx-' + e[0]">{{ e[1] }}</label>
+                    <select :id="'sp-fx-' + e[0]" class="cs-input" :value="fiche.fx?.[e[0]] || ''" @change="fixerFx(e[0], $event.target.value)">
+                        <option value="">par défaut (élément)</option>
+                        <optgroup v-for="g in fxParFamille" :label="g.famille"><option v-for="p in g.effets" :value="p.id">{{ p.name }}</option></optgroup></select>
+                    <a class="text-xs text-amber-400 hover:underline" href="#effets" v-if="fiche.fx?.[e[0]]">Modifier cet effet</a></div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800 mt-auto">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- aperçu et contexte -->
+    <aside aria-label="Aperçu et contexte" data-col="sorts-contexte" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center"><span class="cs-sect p-0 flex-1">Aperçu en jeu</span><button type="button" class="cs-btn h-7" @click="rejouer()">Rejouer</button></div>
+            <canvas id="sp-apercu" width="288" height="170" class="rounded-lg bg-[#0b0c0f] border border-gray-800 w-full"></canvas>
+        </div>
+        <div class="flex flex-col gap-2" v-if="courbe && !courbe.erreur">
+            <span class="cs-sect p-0">Recharge selon le niveau</span>
+            <svg viewBox="0 0 280 130" width="100%" role="img" :aria-label="`La recharge passe de ${courbe.depart} ms au niveau ${courbe.n0} à ${courbe.plancher} ms au niveau ${courbe.auNiveau}`">
+                <line x1="34" y1="10" x2="34" y2="104" stroke="#2a2e36"></line>
+                <line x1="34" y1="104" x2="270" y2="104" stroke="#2a2e36"></line>
+                <line :x1="courbe.xPlancher" y1="10" :x2="courbe.xPlancher" y2="104" stroke="#3a3424" stroke-dasharray="3 3"></line>
+                <path :d="courbe.trace" fill="none" stroke="#c9a45c" stroke-width="2"></path>
+                <text x="30" y="14" text-anchor="end" fill="#8b8f98" font-size="10">{{ courbe.max }}</text>
+                <text x="30" y="104" text-anchor="end" fill="#8b8f98" font-size="10">{{ courbe.plancher }}</text>
+                <text x="34" y="120" fill="#8b8f98" font-size="10">niv. {{ courbe.n0 }}</text>
+                <text x="270" y="120" text-anchor="end" fill="#8b8f98" font-size="10">niv. 100</text>
+            </svg>
+        </div>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Enseigné par</span>
+            <a v-for="n in enseignants" class="flex justify-between gap-2" href="#pnj"><span>{{ n.name }}</span><span class="font-mono text-gray-500">{{ n.prix }} PO</span></a>
+            <span class="text-gray-500" v-if="!enseignants.length">Aucun entraîneur.</span>
+        </div>
+        <div class="flex flex-col gap-1.5" v-if="requisPar.length">
+            <span class="cs-sect p-0">Requis pour</span>
+            <button v-for="s in requisPar" type="button" class="cs-lien text-left text-[13px]" @click="ouvrir(s.id)">{{ s.name }}</button>
+        </div>
+    </aside>
 </div>
