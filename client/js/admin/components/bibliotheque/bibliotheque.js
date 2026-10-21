@@ -18,8 +18,61 @@ const TYPES = [
 const MATERIAU = /^(wall|roof|floor)_/;
 const NOM_MATERIAU = { wall: 'Mur', roof: 'Toit', floor: 'Sol' };
 
+// ---------- vignettes des modèles 3D ----------
+// Rendues par le moteur de l'Atelier 3D (même caméra, même lumière que les
+// sprites cuits), une à la fois, et gardées pour la session : id -> canvas.
+// File d'attente : l'aperçu de la fiche passe devant les cartes, et une carte
+// sortie de la grille (filtre changé) est abandonnée avant son rendu.
+let atelier3d = null, actif = false;
+const rendus3d = new Map(), attente = [];
+const urlSource = (f) => '/src3d/' + f.split('/').map(encodeURIComponent).join('/');
+function liberer(racine) {
+  racine.traverse(o => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) {
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+      m.dispose();
+    }
+  });
+}
+async function rendre3d(r) {
+  try {
+    const B = await import('../../bake3d.js');
+    atelier3d ||= new B.Atelier3D();
+    const m = await atelier3d.charger(urlSource(r.cle));
+    // cadrage par la plus grande dimension (une dalle plate ne doit pas
+    // être étirée comme le serait un personnage mis à sa hauteur)
+    atelier3d.preparer(m, { module: 1 });
+    atelier3d.preparer(m, { module: Math.max(1e-6, m.rayon) });
+    const out = atelier3d.rendre(m, { dir: 5 }).canvas;
+    liberer(m.racine);
+    return out;
+  } catch { return null; } // modèle illisible : pas de vignette
+}
+async function pomper() {
+  if (actif) return;
+  actif = true;
+  while (attente.length) {
+    const t = attente.shift();
+    if (!t.utile()) { t.fin(undefined); continue; }
+    const out = await rendre3d(t.r);
+    rendus3d.set(t.r.id, out);
+    t.fin(out);
+  }
+  actif = false;
+}
+// résout le canvas rendu, null si illisible, undefined si abandonné
+function rendu3d(r, utile, prioritaire) {
+  if (rendus3d.has(r.id)) return Promise.resolve(rendus3d.get(r.id));
+  return new Promise(fin => {
+    const t = { r, utile, fin };
+    if (prioritaire) attente.unshift(t); else attente.push(t);
+    pomper();
+  });
+}
+
 export function BibliothequeController(api) {
-  let manifest = null, retouches = {}, pnjBrut = '';
+  let manifest = null, retouches = {}, pnjBrut = '', veilleur = null;
 
   return {
     TYPES,
@@ -79,9 +132,17 @@ export function BibliothequeController(api) {
       g.clearRect(0, 0, cv.width, cv.height);
       try {
         if (r.type === 'creature') { await dessinerCreature(cv, `bib_${r.cle}`, { sprite: r.cle, name: r.nom }); return; }
-        if (r.type === 'modele') return;
         let src, x, y, w, h;
-        if (r.type === 'objet') { const e = manifest.loot[r.cle]; src = await image(e.image); [x, y, w, h] = e.frame; }
+        if (r.type === 'modele') {
+          const apercu = cv.id === 'bib-apercu';
+          if (!rendus3d.has(r.id)) r.enRendu = true;
+          src = await rendu3d(r, () => cv.isConnected && cv.dataset.fait === r.id, apercu);
+          if (src !== undefined) r.enRendu = false;
+          if (src === undefined) { if (cv.dataset.fait === r.id) delete cv.dataset.fait; return; }
+          if (!src) { r.illisible = true; return; }
+          [x, y, w, h] = [0, 0, src.width, src.height];
+        }
+        else if (r.type === 'objet') { const e = manifest.loot[r.cle]; src = await image(e.image); [x, y, w, h] = e.frame; }
         else if (r.type === 'personnage') {
           const [sexe, cle] = r.cle.split('/'), e = manifest.avatar[sexe][cle];
           const f = e.anims?.stance?.fr?.['6']?.[0];
@@ -92,18 +153,30 @@ export function BibliothequeController(api) {
           if (!premiere) return;
           src = await image(t.images[0]); [x, y, w, h] = premiere;
         }
-        if (!r.dims && src) r.dims = r.type === 'personnage' ? `${w} × ${h} px` : `planche ${src.width} × ${src.height} px`;
-        const k = Math.min((cv.width - 8) / w, (cv.height - 8) / h, r.type === 'objet' ? 3 : 1.5);
+        // le canevas a pu être réattribué à une autre ressource pendant le chargement
+        if (cv.dataset.fait !== r.id) return;
+        if (!r.dims && src && r.type !== 'modele') r.dims = r.type === 'personnage' ? `${w} × ${h} px` : `planche ${src.width} × ${src.height} px`;
+        const k = Math.min((cv.width - 8) / w, (cv.height - 8) / h, r.type === 'objet' ? 3 : r.type === 'modele' ? 4 : 1.5);
         g.imageSmoothingEnabled = k < 1;
         g.drawImage(src, x, y, w, h, (cv.width - w * k) / 2, (cv.height - h * k) / 2, w * k, h * k);
       } catch { /* image absente : vignette vide */ }
     },
-    // dessine les vignettes visibles (après rendu de la grille)
+    // dessine les vignettes (après rendu de la grille) ; celles des modèles
+    // 3D, coûteuses, seulement quand la carte entre dans la vue
     peindre() {
       setTimeout(() => {
+        veilleur ||= new IntersectionObserver(entrees => {
+          for (const e of entrees) {
+            if (!e.isIntersecting) continue;
+            veilleur.unobserve(e.target);
+            const r = this.ressources.find(x => x.id === e.target.dataset.res);
+            if (r) this.vignette(r, e.target);
+          }
+        }, { rootMargin: '200px' });
         for (const cv of document.querySelectorAll('#tab-bibliotheque canvas[data-res]')) {
           const r = this.ressources.find(x => x.id === cv.dataset.res);
-          if (r) this.vignette(r, cv);
+          if (!r || cv.dataset.fait === r.id) continue;
+          if (r.type === 'modele') { veilleur.unobserve(cv); veilleur.observe(cv); } else this.vignette(r, cv);
         }
       }, 0);
     },
@@ -132,7 +205,7 @@ export function BibliothequeController(api) {
         try {
           const m = await api('/api/admin/src3d');
           for (const f of (m.modeles || []).slice(0, 400)) {
-            res.push({ id: `modele:${f}`, type: 'modele', cle: f, nom: f.split('/').pop().replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), fichier: f, dims: f.split('.').pop().toUpperCase(), usages: null });
+            res.push({ id: `modele:${f}`, type: 'modele', cle: f, nom: f.split('/').pop().replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), fichier: f, format: f.split('.').pop().toUpperCase(), usages: null });
           }
         } catch { /* sources 3D indisponibles */ }
         this.ressources = res;

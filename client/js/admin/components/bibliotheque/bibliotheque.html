@@ -26,9 +26,12 @@
         <p class="text-gray-400" v-if="chargement">Recensement des ressources…</p>
         <p class="text-red-400" v-if="message">{{ message }}</p>
         <div class="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2.5 overflow-y-auto max-h-[72vh] pr-1">
-            <button v-for="r in liste" type="button" class="cs-res" :class="{ on: r.id === courant }" @click="ouvrir(r.id)" :title="r.cle">
-                <canvas v-if="r.type !== 'modele'" :data-res="r.id" width="116" height="84" class="w-full h-[84px] rounded bg-[#14161a]"></canvas>
-                <span v-else class="w-full h-[84px] rounded bg-[#14161a] grid place-items-center text-gray-500 font-mono text-xs">{{ r.dims }}</span>
+            <button v-for="r in liste" :key="r.id" type="button" class="cs-res" :class="{ on: r.id === courant }" @click="ouvrir(r.id)" :title="r.cle">
+                <span class="relative block">
+                    <canvas :data-res="r.id" width="116" height="84" class="w-full h-[84px] rounded bg-[#14161a]"></canvas>
+                    <span v-if="r.format" class="absolute right-1 bottom-1 font-mono text-[10px] text-gray-500">{{ r.format }}</span>
+                    <span v-if="r.illisible" class="absolute inset-0 grid place-items-center text-xs text-gray-500">aperçu impossible</span>
+                    <span v-if="r.enRendu" class="absolute inset-0 grid place-items-center text-xs text-gray-600">rendu…</span></span>
                 <span class="block truncate text-left text-[13px] text-gray-200 mt-1.5">{{ r.nom }}</span>
                 <span class="flex justify-between text-[11px] text-gray-500"><span>{{ nomType(r.type) }}</span>
                     <span v-if="r.usages && !r.usages.length" class="text-amber-400">inutilisée</span></span>
@@ -39,7 +42,7 @@
 
     <!-- détail -->
     <aside aria-label="Détail de la ressource" data-col="bib-detail" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-4" v-if="fiche">
-        <canvas id="bib-apercu" width="288" height="200" class="w-full rounded-lg bg-[#14161a] border border-gray-800" v-if="fiche.type !== 'modele'"></canvas>
+        <canvas id="bib-apercu" width="288" height="200" class="w-full rounded-lg bg-[#14161a] border border-gray-800"></canvas>
         <div>
             <div class="text-[17px] font-semibold text-t4c-text-light">{{ fiche.nom }}</div>
             <div class="text-gray-500">{{ nomType(fiche.type) }}</div>
@@ -47,6 +50,7 @@
         <dl class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
             <dt class="text-gray-500">Clé</dt><dd class="font-mono break-all">{{ fiche.cle }}</dd>
             <dt class="text-gray-500" v-if="fiche.fichier">Fichier</dt><dd class="font-mono break-all text-gray-300" v-if="fiche.fichier">{{ fiche.fichier }}</dd>
+            <dt class="text-gray-500" v-if="fiche.format">Format</dt><dd v-if="fiche.format">{{ fiche.format }}</dd>
             <dt class="text-gray-500" v-if="fiche.dims">Dimensions</dt><dd v-if="fiche.dims">{{ fiche.dims }}</dd>
             <dt class="text-gray-500" v-if="fiche.anims">Animations</dt><dd v-if="fiche.anims">{{ fiche.anims }}</dd>
             <dt class="text-gray-500" v-if="fiche.pieces">Pièces</dt><dd v-if="fiche.pieces">{{ fiche.pieces }}</dd>
