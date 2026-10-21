@@ -1,0 +1,62 @@
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- filtres -->
+    <section aria-label="Filtres" data-col="bib-filtres" data-bord="droite" class="flex-[1_1_220px] max-w-[260px] border-r border-gray-800 bg-gray-950 flex flex-col py-2">
+        <div class="cs-sect">Nature</div>
+        <button v-for="t in filtres" type="button" class="cs-item" :class="{ on: type === t.id }" @click="type = t.id; peindre()">
+            <span class="flex-1 text-left">{{ t.nom }}</span><span class="text-gray-500">{{ t.n }}</span></button>
+        <div class="cs-sect">État</div>
+        <label class="px-4 py-1.5 flex items-center gap-2 text-gray-200"><input type="checkbox" v-model="inutilisees" @change="peindre()" />Non utilisées</label>
+        <div class="cs-sect">Créer ou importer</div>
+        <div class="px-3 flex flex-col gap-1.5">
+            <a class="cs-btn justify-center" href="#bibliotheque/skins">Atelier 2D</a>
+            <a class="cs-btn justify-center" href="#bibliotheque/materials">Matériaux</a>
+            <a class="cs-btn justify-center" href="#bibliotheque/atelier3d">Atelier 3D</a>
+        </div>
+    </section>
+
+    <!-- grille -->
+    <section aria-label="Ressources" class="flex-[999_1_360px] min-w-0 p-4 flex flex-col gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-[15px] font-semibold">Bibliothèque</span>
+            <span class="text-gray-500">{{ liste.length }} ressource{{ liste.length > 1 ? 's' : '' }}</span>
+            <div class="flex-1"></div>
+            <label for="bib-q" class="sr-only">Filtrer les ressources</label>
+            <input id="bib-q" class="cs-input w-[240px]" v-model="q" placeholder="Filtrer" @input="peindre()" />
+        </div>
+        <p class="text-gray-400" v-if="chargement">Recensement des ressources…</p>
+        <p class="text-red-400" v-if="message">{{ message }}</p>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2.5 overflow-y-auto max-h-[72vh] pr-1">
+            <button v-for="r in liste" type="button" class="cs-res" :class="{ on: r.id === courant }" @click="ouvrir(r.id)" :title="r.cle">
+                <canvas v-if="r.type !== 'modele'" :data-res="r.id" width="116" height="84" class="w-full h-[84px] rounded bg-[#14161a]"></canvas>
+                <span v-else class="w-full h-[84px] rounded bg-[#14161a] grid place-items-center text-gray-500 font-mono text-xs">{{ r.dims }}</span>
+                <span class="block truncate text-left text-[13px] text-gray-200 mt-1.5">{{ r.nom }}</span>
+                <span class="flex justify-between text-[11px] text-gray-500"><span>{{ nomType(r.type) }}</span>
+                    <span v-if="r.usages && !r.usages.length" class="text-amber-400">inutilisée</span></span>
+            </button>
+        </div>
+        <p class="text-gray-500" v-if="!chargement && !liste.length">Aucune ressource ne correspond.</p>
+    </section>
+
+    <!-- détail -->
+    <aside aria-label="Détail de la ressource" data-col="bib-detail" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-4" v-if="fiche">
+        <canvas id="bib-apercu" width="288" height="200" class="w-full rounded-lg bg-[#14161a] border border-gray-800" v-if="fiche.type !== 'modele'"></canvas>
+        <div>
+            <div class="text-[17px] font-semibold text-t4c-text-light">{{ fiche.nom }}</div>
+            <div class="text-gray-500">{{ nomType(fiche.type) }}</div>
+        </div>
+        <dl class="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+            <dt class="text-gray-500">Clé</dt><dd class="font-mono break-all">{{ fiche.cle }}</dd>
+            <dt class="text-gray-500" v-if="fiche.fichier">Fichier</dt><dd class="font-mono break-all text-gray-300" v-if="fiche.fichier">{{ fiche.fichier }}</dd>
+            <dt class="text-gray-500" v-if="fiche.dims">Dimensions</dt><dd v-if="fiche.dims">{{ fiche.dims }}</dd>
+            <dt class="text-gray-500" v-if="fiche.anims">Animations</dt><dd v-if="fiche.anims">{{ fiche.anims }}</dd>
+            <dt class="text-gray-500" v-if="fiche.pieces">Pièces</dt><dd v-if="fiche.pieces">{{ fiche.pieces }}</dd>
+        </dl>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Utilisée dans</span>
+            <a v-for="u in fiche.usages || []" class="flex justify-between gap-2" :href="u.lien"><span>{{ u.nom }}</span><span class="text-gray-500">{{ u.ou }}</span></a>
+            <span class="text-gray-500" v-if="fiche.usages && !fiche.usages.length">Nulle part pour l’instant.</span>
+            <span class="text-gray-500" v-if="!fiche.usages">Non suivi pour ce type de ressource.</span>
+        </div>
+        <button type="button" class="cs-btn justify-center" @click="atelier()">Ouvrir dans l’{{ typeFiche.nomAtelier === 'Matériaux' ? 'atelier Matériaux' : typeFiche.nomAtelier }}</button>
+    </aside>
+</div>

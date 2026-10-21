@@ -56,7 +56,7 @@ export const ECRANS = [
     desc: 'Armes, armures, bijoux et potions : règles, économie et apparence. Appliqué à chaud aux prochains objets générés.' },
   { id: 'bibliotheque', espace: 'forge', section: 'Ressources', nom: 'Bibliothèque', icone: 'bibliotheque', droits: ['bibliotheque'],
     desc: 'Les ressources graphiques du jeu : sprites 2D, matériaux de construction et modèles 3D cuits en sprites.',
-    sous: [{ tab: 'skins', nom: 'Atelier 2D' }, { tab: 'materials', nom: 'Matériaux' }, { tab: 'atelier3d', nom: 'Atelier 3D' }] },
+    sous: [{ tab: 'bibliotheque', nom: 'Catalogue' }, { tab: 'skins', nom: 'Atelier 2D' }, { tab: 'materials', nom: 'Matériaux' }, { tab: 'atelier3d', nom: 'Atelier 3D' }] },
   { id: 'musiques', espace: 'forge', section: 'Ressources', nom: 'Musiques', icone: 'musiques', tab: 'music', droits: ['musiques'],
     desc: 'Ce que joue chaque zone et chaque écran, et les groupes de pistes.' },
   { id: 'fichiers', espace: 'forge', section: 'Avancé', nom: 'Fichiers bruts', icone: 'fichiers', tab: 'content', droits: ['fichiers'],

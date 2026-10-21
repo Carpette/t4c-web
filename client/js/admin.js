@@ -25,6 +25,7 @@ import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
 import { ZonePropsController } from './admin/components/zone-props/zone-props.js';
 import { MondeCarteController } from './admin/components/monde-carte/monde-carte.js';
+import { BibliothequeController } from './admin/components/bibliotheque/bibliotheque.js';
 
 const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem('t4c_admin_token') || null;
@@ -93,6 +94,7 @@ async function enter(name) {
   guiManagerAdmin.registerController('map-editor', MapEditorController);
   guiManagerAdmin.registerController('zone-props', ZonePropsController);
   guiManagerAdmin.registerController('monde-carte', MondeCarteController);
+  guiManagerAdmin.registerController('bibliotheque', BibliothequeController);
 
   console.log("admin.js: Initializing components...");
   await guiManagerAdmin.init([
@@ -101,6 +103,7 @@ async function enter(name) {
     { name: 'map-editor', selector: '#tab-map' },
     { name: 'zone-props', selector: '#tab-zone-props' },
     { name: 'monde-carte', selector: '#tab-monde-carte' },
+    { name: 'bibliotheque', selector: '#tab-bibliotheque' },
     { name: 'content', selector: '#tab-content' },
     { name: 'spells-editor', selector: '#tab-spells-editor' },
     { name: 'spells-table', selector: '#tab-spells-table' },

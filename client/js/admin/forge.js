@@ -16,7 +16,8 @@ export async function chargerRessources() {
   return ressources;
 }
 
-function image(chemin) {
+// image de client/assets, chargée une fois (aussi pour la Bibliothèque)
+export function image(chemin) {
   let p = ressources.images.get(chemin);
   if (!p) {
     p = new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = '/assets/' + chemin; });
