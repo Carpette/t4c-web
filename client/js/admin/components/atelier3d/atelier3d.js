@@ -28,6 +28,11 @@ const devinerClip = (noms, a) => {
 };
 const slug = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 
+// demande d'ouverture venue d'un autre écran (Bibliothèque) : chemin sous
+// /src3d/, traité dès que l'atelier a fini son initialisation
+let demande = null, recepteur = null;
+export function ouvrirDansAtelier3D(fichier) { demande = fichier; recepteur?.(); }
+
 export function Atelier3DController(api) {
   let atelier = null;     // créé à l'ouverture (contexte WebGL)
   let modele = null;      // modèle chargé (three.js, non réactif)
@@ -36,7 +41,7 @@ export function Atelier3DController(api) {
 
   return {
     catalogue: [], libs: [], mobs: [],
-    preset: '', lib: '', charge: false, occupe: false,
+    preset: '', lib: '', fichierSource: '', charge: false, occupe: false,
     type: 'creature', mode: 'h', valeur: 1.8,
     clips: [], choix: { stance: '', run: '', swing: '', die: '' },
     anim: 'stance', dir: 5, nom: '', mob: '',
@@ -56,6 +61,28 @@ export function Atelier3DController(api) {
       } catch (e) {
         this.dire('Catalogue indisponible : ' + e.message, true);
       }
+      recepteur = () => { const f = demande; demande = null; if (f) this.ouvrirFichier(f); };
+      recepteur();
+    },
+
+    // ouvre un modèle source par son chemin : préréglage du catalogue s'il y
+    // figure (échelle, animations), sinon chargement direct du fichier
+    async ouvrirFichier(f) {
+      if (this.occupe) { demande = f; setTimeout(() => recepteur?.(), 300); return; }
+      const e = this.catalogue.flatMap(g => g.entrees).find(x => x.url === f);
+      if (e) { this.preset = e.cle; this.fichierSource = ''; await this.chargerPreset(); return; }
+      this.preset = '';
+      this.fichierSource = f;
+      this.nom = slug(f.split('/').pop().replace(/\.\w+$/, ''));
+      this.mode = 'h';
+      const url = '/src3d/' + f.split('/').map(encodeURIComponent).join('/');
+      await this.charger(url, { format: /\.fbx$/i.test(f) ? 'fbx' : 'gltf' });
+      if (source?.url !== url) return; // échec : message déjà affiché
+      // sans animation, c'est un décor (taille d'objet), sinon une créature
+      const decor = !modele.clips.length;
+      this.type = decor ? 'decor' : 'creature';
+      this.valeur = decor ? 1 : 1.8;
+      this.reprendre();
     },
 
     dire(texte, erreur = false) { this.message = texte; this.erreur = erreur; },
@@ -85,6 +112,7 @@ export function Atelier3DController(api) {
     },
 
     async chargerPreset() {
+      this.fichierSource = '';
       const e = this.catalogue.flatMap(g => g.entrees).find(x => x.cle === this.preset);
       if (!e) return;
       this.type = e.type;
@@ -106,6 +134,7 @@ export function Atelier3DController(api) {
       if (!principal) { this.dire('Sélectionnez au moins un fichier .glb, .gltf ou .fbx.', true); return; }
       const fichiers = new Map(liste.map(f => [f.name, URL.createObjectURL(f)]));
       this.preset = '';
+      this.fichierSource = '';
       this.nom = slug(principal.name.replace(/\.\w+$/, ''));
       this.mode = 'h';
       await this.charger(fichiers.get(principal.name), {

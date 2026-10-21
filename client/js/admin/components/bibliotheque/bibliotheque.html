@@ -2,10 +2,10 @@
     <!-- filtres -->
     <section aria-label="Filtres" data-col="bib-filtres" data-bord="droite" class="flex-[1_1_220px] max-w-[260px] border-r border-gray-800 bg-gray-950 flex flex-col py-2">
         <div class="cs-sect">Nature</div>
-        <button v-for="t in filtres" type="button" class="cs-item" :class="{ on: type === t.id }" @click="type = t.id; peindre()">
+        <button v-for="t in filtres" type="button" class="cs-item" :class="{ on: type === t.id }" @click="type = t.id; refiltrer()">
             <span class="flex-1 text-left">{{ t.nom }}</span><span class="text-gray-500">{{ t.n }}</span></button>
         <div class="cs-sect">État</div>
-        <label class="px-4 py-1.5 flex items-center gap-2 text-gray-200"><input type="checkbox" v-model="inutilisees" @change="peindre()" />Non utilisées</label>
+        <label class="px-4 py-1.5 flex items-center gap-2 text-gray-200"><input type="checkbox" v-model="inutilisees" @change="refiltrer()" />Non utilisées</label>
         <div class="cs-sect">Créer ou importer</div>
         <div class="px-3 flex flex-col gap-1.5">
             <a class="cs-btn justify-center" href="#bibliotheque/skins">Atelier 2D</a>
@@ -21,12 +21,12 @@
             <span class="text-gray-500">{{ liste.length }} ressource{{ liste.length > 1 ? 's' : '' }}</span>
             <div class="flex-1"></div>
             <label for="bib-q" class="sr-only">Filtrer les ressources</label>
-            <input id="bib-q" class="cs-input w-[240px]" v-model="q" placeholder="Filtrer" @input="peindre()" />
+            <input id="bib-q" class="cs-input w-[240px]" v-model="q" placeholder="Filtrer" @input="refiltrer()" />
         </div>
         <p class="text-gray-400" v-if="chargement">Recensement des ressources…</p>
         <p class="text-red-400" v-if="message">{{ message }}</p>
         <div class="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2.5 overflow-y-auto max-h-[72vh] pr-1">
-            <button v-for="r in liste" :key="r.id" type="button" class="cs-res" :class="{ on: r.id === courant }" @click="ouvrir(r.id)" :title="r.cle">
+            <button v-for="r in visibles" :key="r.id" type="button" class="cs-res" :class="{ on: r.id === courant }" @click="ouvrir(r.id)" :title="r.cle">
                 <span class="relative block">
                     <canvas :data-res="r.id" width="116" height="84" class="w-full h-[84px] rounded bg-[#14161a]"></canvas>
                     <span v-if="r.format" class="absolute right-1 bottom-1 font-mono text-[10px] text-gray-500">{{ r.format }}</span>
@@ -37,6 +37,7 @@
                     <span v-if="r.usages && !r.usages.length" class="text-amber-400">inutilisée</span></span>
             </button>
         </div>
+        <button type="button" class="cs-btn self-center" v-if="liste.length > limite" @click="plus()">Afficher plus ({{ liste.length - limite }} restantes)</button>
         <p class="text-gray-500" v-if="!chargement && !liste.length">Aucune ressource ne correspond.</p>
     </section>
 
