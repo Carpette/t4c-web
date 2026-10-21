@@ -88,8 +88,8 @@ export function buildPalette({ container, assets, onSelect }) {
   // visibles pendant qu'on fait défiler la liste des ressources (sticky en haut
   // du panneau scrollable), pour ne plus avoir à remonter pour régler l'échelle.
   const header = el('div', 'pal-header');
-  header.style.cssText = 'position:sticky;top:0;z-index:5;background:var(--color-t4c-box-bg,#1a1428);'
-    + 'padding:4px 0 6px;margin-bottom:2px;border-bottom:1px solid #4a4070;';
+  header.style.cssText = 'position:sticky;top:0;z-index:5;background:var(--color-t4c-box-bg,#16181c);'
+    + 'padding:4px 0 6px;margin-bottom:2px;border-bottom:1px solid var(--color-t4c-input-border,#2e323b);';
   root.appendChild(header);
 
   // --- recherche ---
