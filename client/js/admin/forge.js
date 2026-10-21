@@ -53,6 +53,35 @@ export async function dessinerCreature(cv, id, def) {
   return true;
 }
 
+// personnage (PNJ) d'après son `look`, mêmes couches et ordre que le jeu
+// (EntityView2D.setLook), au repos face au sud, cadré en buste si `buste`
+const ORDRE_SUD = ['main', 'feet', 'legs', 'hands', 'chest', 'head', 'off'];
+export async function dessinerPersonnage(cv, look, buste = false) {
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, cv.width, cv.height);
+  const { manifest } = await chargerRessources();
+  const sexe = look?.sex === 'female' ? 'female' : 'male';
+  const couches = {
+    chest: look?.chest || 'default_chest', head: look?.head || (sexe === 'female' ? 'head_long' : 'head_short'),
+    legs: look?.legs || 'cloth_pants', hands: look?.hands || 'default_hands', feet: look?.feet || 'default_feet',
+    main: look?.main || null, off: look?.off || null,
+  };
+  const k = buste ? cv.width / 70 : Math.min(1.6, cv.height / 150);
+  const pieds = buste ? cv.height + 52 * k : cv.height - 16;
+  g.imageSmoothingEnabled = false;
+  for (const type of ORDRE_SUD) {
+    const def = couches[type] && manifest.avatar[sexe]?.[couches[type]];
+    const f = def?.anims?.stance?.fr?.['6']?.[0];
+    if (!f) continue;
+    const img = await image(def.image).catch(() => null);
+    if (!img) continue;
+    const [x, y, w, h, ox, oy] = f;
+    g.drawImage(img, x, y, w, h, cv.width / 2 - ox * k, pieds - oy * k, w * k, h * k);
+  }
+}
+
+export const COUCHES_PERSONNAGE = async () => Object.keys((await chargerRessources()).manifest.avatar.male);
+
 // icône d'objet (skin de l'atelier prioritaire, sinon sprite « loot » Flare)
 export async function iconeObjet(id, def, taille = 24) {
   const { manifest, skins } = await chargerRessources();
