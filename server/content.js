@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FormulaEngine } from '../shared/formula-engine.js';
-import { ORIGINE_MOBS, ORIGINE_ITEMS, SLOTS, appliquerSurcharges } from '../shared/defs.js';
+import { ORIGINE_MOBS, ORIGINE_ITEMS, SLOTS, MOBS, appliquerSurcharges } from '../shared/defs.js';
+import { MAX_LEVEL } from '../shared/constants.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
@@ -165,6 +166,36 @@ function erreursObjet(id, o) {
   if (nombre(o.dmgMin) && nombre(o.dmgMax) && o.dmgMax < o.dmgMin) e.push('dégâts max < dégâts min');
   if (o.req != null && (typeof o.req !== 'object' || Object.values(o.req).some(v => !nombre(v)))) e.push('prérequis invalides');
   return e.map(x => `${id} : ${x}`);
+}
+
+// Liste des erreurs (vide = valide) pour une nouvelle version de zones.json.
+// Mêmes zones qu'au démarrage (ajouter ou retirer une zone touche la
+// génération, les musiques, les cartes : pas depuis la console).
+export function validerZones(data) {
+  const zones = data?.zones;
+  if (!Array.isArray(zones)) return ['« zones » doit être une liste'];
+  const err = [];
+  const ids = zones.map(z => z?.id);
+  const avant = content.zones.map(z => z.id);
+  if (ids.length !== avant.length || avant.some(id => !ids.includes(id))) err.push(`les zones doivent rester ${avant.join(', ')}`);
+  for (const z of zones) {
+    const nom = `zone ${z?.id}`;
+    if (!z || typeof z !== 'object') { err.push(`${nom} : fiche invalide`); continue; }
+    if (!String(z.name ?? '').trim()) err.push(`${nom} : nom vide`);
+    const [a, b] = Array.isArray(z.levels) ? z.levels : [];
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < a || b > MAX_LEVEL) err.push(`${nom} : niveaux entre 1 et ${MAX_LEVEL}, minimum ≤ maximum`);
+    if (!Number.isInteger(z.seed)) err.push(`${nom} : graine entière attendue`);
+    if (z.map != null && z.map !== 'arakas') err.push(`${nom} : carte inconnue « ${z.map} »`);
+    if (z.tint != null && !/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\)$/.test(String(z.tint))) err.push(`${nom} : teinte rgba(r, g, b, a) attendue`);
+    if (!Array.isArray(z.mobs) || !z.mobs.length) err.push(`${nom} : au moins une créature`);
+    else for (const id of z.mobs) if (!MOBS[id]) err.push(`${nom} : créature inconnue « ${id} »`);
+    if (z.boss != null) {
+      if (!MOBS[z.boss.defId]) err.push(`${nom} : boss d’une créature inconnue « ${z.boss.defId} »`);
+      if (!String(z.boss.name ?? '').trim()) err.push(`${nom} : nom du boss vide`);
+      if (!(+z.boss.respawnMs > 0)) err.push(`${nom} : délai de retour du boss > 0`);
+    }
+  }
+  return err;
 }
 
 // Liste des erreurs (vide = valide) pour une nouvelle version de creatures.json

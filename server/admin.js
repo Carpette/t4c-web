@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
-import { content, saveContentFile, validerSurcharges } from './content.js';
+import { content, saveContentFile, validerSurcharges, validerZones } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
@@ -249,6 +249,10 @@ export async function handleAdmin(req, res, url, game) {
       }
       if (req.method === 'PUT' || (['spells', 'particles'].includes(name) && req.method === 'POST')) {
         const data = JSON.parse(await readBody(req)); // valide le JSON
+        if (name === 'zones') {
+          const erreurs = validerZones(data);
+          if (erreurs.length) return json(400, { error: erreurs.slice(0, 8).join(' ; '), erreurs });
+        }
         saveContentFile(name, data);
         // PNJ en jeu : ils pointent sur l'ancienne définition, on les recrée
         if (name === 'npcs') game.refreshNpcs();
