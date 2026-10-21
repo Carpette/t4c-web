@@ -6,25 +6,31 @@
             <select id="mc-zone" class="cs-input w-[280px]" :value="zoneId" @change="changerZone($event.target.value)">
                 <option v-for="z in zones" :value="z.id" :selected="z.id === zoneId">{{ z.id }} · {{ z.name }} (niv. {{ z.levels[0] }} à {{ z.levels[1] }})</option></select>
             <div class="cs-segs" role="group" aria-label="Outils de carte">
-                <button type="button" class="cs-seg on" aria-pressed="true">Sélection</button>
-                <a class="cs-seg" href="#zones/map" title="Le placement des PNJ se fait dans Zones et terrain, calque PNJ">Placer un PNJ</a>
-                <a class="cs-seg" href="#zones/map" title="Les zones musicales se dessinent dans Zones et terrain, calque Zones musicales">Zone musicale</a>
+                <button type="button" class="cs-seg gap-2" :class="{ on: outil === 'selection' }" :aria-pressed="outil === 'selection'" @click="choisirOutil('selection')">Sélection <kbd class="cs-kbd">V</kbd></button>
+                <button type="button" class="cs-seg gap-2" :class="{ on: outil === 'pnj' }" :aria-pressed="outil === 'pnj'" :disabled="!peut('pnj_placement')"
+                    :title="peut('pnj_placement') ? '' : 'Droit « Placement des PNJ » en édition requis'" @click="choisirOutil('pnj')">Placer un PNJ <kbd class="cs-kbd">P</kbd></button>
+                <button type="button" class="cs-seg gap-2" :class="{ on: outil === 'musique' }" :aria-pressed="outil === 'musique'" :disabled="!peut('zones_musicales')"
+                    :title="peut('zones_musicales') ? '' : 'Droit « Zones musicales » en édition requis'" @click="choisirOutil('musique')">Zone musicale <kbd class="cs-kbd">M</kbd></button>
             </div>
             <div class="flex-1"></div>
             <span class="font-mono text-[13px] text-gray-400 min-w-[150px] text-right">{{ curseur }}</span>
             <button type="button" class="cs-btn" v-if="animer" :disabled="!point" @click="entrerIci()" title="Téléporte votre personnage connecté au point choisi">Entrer en jeu ici</button>
         </div>
         <div class="relative flex-1 min-h-[560px]">
-            <canvas id="mc-carte" width="900" height="600" class="w-full h-[600px] block cursor-crosshair touch-none" aria-label="Carte de la zone : clic pour choisir un joueur, un PNJ ou un point ; glisser pour déplacer ; molette pour zoomer"></canvas>
-            <div class="absolute inset-0 grid place-items-center text-gray-400 bg-black/40" v-if="chargement">Génération de la zone…</div>
+            <canvas id="mc-carte" width="900" height="600" class="w-full h-[600px] block touch-none" :class="outil === 'selection' ? 'cursor-grab' : 'cursor-crosshair'"
+                aria-label="Carte de la zone en direct : clic pour choisir un joueur, un PNJ, une créature ou un point ; glisser pour déplacer la vue ; molette pour zoomer"></canvas>
+            <div class="absolute inset-0 grid place-items-center text-gray-400 bg-black/40" v-if="chargement">Chargement du monde…</div>
+            <div class="absolute left-1/2 -translate-x-1/2 top-3 max-w-[460px] bg-amber-950/95 border border-amber-700 text-amber-200 rounded-lg px-4 py-2.5 text-[13px]" role="alert" v-if="indispo">{{ indispo }}</div>
+            <canvas id="mc-mini" width="150" height="150" class="absolute left-3 bottom-3 w-[150px] h-[150px] rounded border border-gray-700 bg-black cursor-pointer" aria-label="Minicarte : clic pour y centrer la vue"></canvas>
             <div class="absolute left-3 top-3 bg-gray-950/90 border border-gray-800 rounded-lg p-3 flex flex-col gap-1.5 text-[13px] text-gray-200 min-w-[190px]">
                 <span class="cs-sect p-0">Calques</span>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.terrain" @change="dessiner()" />Terrain</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.pnj" @change="dessiner()" /><span class="w-2 h-2 rotate-45 bg-[#e8c37a]"></span>PNJ <span class="text-gray-500 ml-auto">{{ pnj.length }}</span></label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.joueurs" @change="dessiner()" /><span class="w-2 h-2 rounded-full bg-[#5fb3f0]"></span>Joueurs <span class="text-gray-500 ml-auto">{{ ici.length }}</span></label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.musique" @change="dessiner()" /><span class="w-2 h-2 border border-dashed border-[#9678e6]"></span>Zones musicales</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.apparition" @change="dessiner()" /><span class="w-2 h-2 rounded-full bg-[#f06e5a]/60"></span>Zones d’apparition</label>
-                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.noms" @change="dessiner()" />Noms</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.joueurs" /><span class="w-2 h-2 rounded-full bg-[#5fb3f0]"></span>Joueurs <span class="text-gray-500 ml-auto">{{ ici.length }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.pnj" /><span class="w-2 h-2 rotate-45 bg-[#e8c37a]"></span>PNJ <span class="text-gray-500 ml-auto">{{ compte.pnj }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.creatures" /><span class="w-2 h-2 rounded-full bg-[#f06e5a]"></span>Créatures <span class="text-gray-500 ml-auto">{{ compte.creatures }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.objets" /><span class="w-2 h-2 bg-[#c9a45c]"></span>Objets au sol <span class="text-gray-500 ml-auto">{{ compte.objets }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.musique" /><span class="w-2 h-2 border border-dashed border-[#9678e6]"></span>Zones musicales <span class="text-gray-500 ml-auto">{{ musZones.length }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.apparition" /><span class="w-2 h-2 rounded-full bg-[#f06e5a]/60"></span>Zones d’apparition</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.eclairage" />Jour et nuit du jeu</label>
                 <span class="text-xs text-gray-500 pt-1 border-t border-gray-800">Musique par défaut : <span class="text-gray-300">{{ groupeMusique }}</span></span>
             </div>
             <div class="absolute right-3 bottom-3 flex gap-1.5">
@@ -46,7 +52,26 @@
 
         <!-- sélection -->
         <div class="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-4" v-if="onglet === 'selection'">
-            <p class="text-gray-500" v-if="!choix && !point">Cliquez un joueur ou un PNJ sur la carte, ou choisissez un joueur dans « En ligne ».</p>
+            <!-- outil Placer un PNJ -->
+            <div v-if="outil === 'pnj'" class="flex flex-col gap-2">
+                <span class="cs-sect p-0">PNJ à placer</span>
+                <label for="mc-qpnj" class="sr-only">Filtrer les PNJ</label>
+                <input id="mc-qpnj" class="cs-input" v-model="qModele" placeholder="Filtrer" />
+                <div class="max-h-[260px] overflow-y-auto border border-gray-800 rounded-lg">
+                    <button v-for="m in aPlacerListe" type="button" class="cs-item" :class="{ on: aPlacer === m.cle }" @click="aPlacer = m.cle">
+                        <span class="flex-1 min-w-0 text-left truncate">{{ m.nom }}</span><span class="text-xs text-gray-500 flex-none">{{ m.groupe }}</span></button>
+                </div>
+                <span class="text-xs text-gray-500">{{ aPlacer ? 'Cliquez sur la carte pour poser « ' + nomAPlacer + ' ». Appliqué à chaud.' : 'Choisissez un PNJ : un PNJ retiré de la zone y revient, un modèle est copié (apparence, rôle, étal, sans ses quêtes).' }}</span>
+            </div>
+            <!-- outil Zone musicale -->
+            <div v-if="outil === 'musique' && !choix" class="flex flex-col gap-2">
+                <span class="cs-sect p-0">Zones musicales de la zone</span>
+                <span class="text-xs text-gray-500">Glissez sur la carte pour en dessiner une nouvelle, ou choisissez-en une.</span>
+                <button v-for="m in musZones" type="button" class="cs-item" @click="choisirZoneMusicale(m.id)">
+                    <span class="flex-1 min-w-0 text-left truncate">{{ nomPiste(m.track) }}</span><span class="text-xs text-gray-500 font-mono">{{ m.x }}, {{ m.z }}</span></button>
+                <span class="text-gray-500" v-if="!musZones.length">Aucune pour l’instant.</span>
+            </div>
+            <p class="text-gray-500" v-if="outil === 'selection' && !choix && !point">Cliquez un joueur, un PNJ ou une créature sur la carte, ou choisissez un joueur dans « En ligne ».</p>
             <div v-if="!choix && point" class="flex flex-col gap-2">
                 <span class="cs-sect p-0">Point</span>
                 <span class="font-mono">{{ nomZone(zoneId) }} · {{ point.x }}, {{ point.z }}</span>
@@ -54,8 +79,27 @@
             </div>
             <div v-if="choix?.type === 'pnj'" class="flex flex-col gap-2">
                 <div class="text-[17px] font-semibold text-t4c-text-light">{{ choix.nom }}</div>
-                <div class="text-gray-500">PNJ · <span class="font-mono">{{ choix.npcId }}</span> · {{ choix.x }}, {{ choix.z }}</div>
-                <a class="cs-btn self-start" href="#pnj">Ouvrir la fiche PNJ</a>
+                <div class="text-gray-500">PNJ · <span class="font-mono">{{ choix.npcId }}</span> · {{ Math.round(choix.x) }}, {{ Math.round(choix.z) }}</div>
+                <span class="text-xs text-gray-500" v-if="peut('pnj_placement')">Glissez-le sur la carte pour le déplacer : appliqué à chaud.</span>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" class="cs-btn cs-danger" v-if="peut('pnj_placement')" @click="retirerPnj()">Retirer de la carte</button>
+                    <a class="cs-btn" href="#pnj" v-if="peut('pnj', 1)">Ouvrir la fiche PNJ</a>
+                </div>
+            </div>
+            <div v-if="choix?.type === 'creature'" class="flex flex-col gap-1">
+                <div class="text-[17px] font-semibold text-t4c-text-light">{{ choix.nom }}</div>
+                <div class="text-gray-500">{{ choix.boss ? 'Boss' : 'Créature' }} · niveau {{ choix.niveau }}</div>
+            </div>
+            <div v-if="choix?.type === 'musique' && zoneMus" class="flex flex-col gap-3">
+                <div><div class="text-[17px] font-semibold text-t4c-text-light">Zone musicale</div>
+                    <div class="text-gray-500 font-mono text-[13px]">{{ zoneMus.shape === 'circle' ? 'cercle de rayon ' + zoneMus.r : zoneMus.w + ' × ' + zoneMus.h + ' cases' }} · {{ zoneMus.x }}, {{ zoneMus.z }}</div></div>
+                <div class="cs-field"><label class="cs-label" for="mc-mgroupe">Groupe joué</label>
+                    <select id="mc-mgroupe" class="cs-input" :disabled="!peut('zones_musicales')" @change="majZoneMusicale('groupe', $event.target.value)">
+                        <option value="" disabled :selected="!zoneMus.track?.group">{{ zoneMus.track?.group ? '' : nomPiste(zoneMus.track) + ' (piste seule)' }}</option>
+                        <option v-for="gr in groupes" :value="gr" :selected="zoneMus.track?.group === gr">{{ gr }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="mc-mprio">Priorité (chevauchements)</label>
+                    <input id="mc-mprio" class="cs-input font-mono w-[100px]" type="number" :value="zoneMus.priority || 0" :readonly="peut('zones_musicales') ? null : true" @change="majZoneMusicale('priorite', $event.target.value)" /></div>
+                <button type="button" class="cs-btn cs-danger self-start" v-if="peut('zones_musicales')" @click="supprimerZoneMusicale()">Supprimer la zone</button>
             </div>
             <div v-if="choix?.type === 'joueur' && fiche?.id === choix.id" class="contents">
                 <div class="flex items-center gap-3">
@@ -117,7 +161,8 @@
                 <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ j.name }}</span><span class="text-xs text-gray-500">niv. {{ j.level }} · {{ j.lieu || nomZone(j.zoneId) }}</span></span>
                 <span class="text-xs text-gray-500">{{ depuis(j.depuis) }}</span>
             </button>
-            <p class="px-4 py-2 text-gray-500" v-if="!joueurs.length">Personne en ligne.</p>
+            <p class="px-4 py-2 text-amber-300" v-if="indispo">{{ indispo }}</p>
+            <p class="px-4 py-2 text-gray-500" v-else-if="!joueurs.length">Personne en ligne.</p>
         </div>
 
         <!-- journal -->

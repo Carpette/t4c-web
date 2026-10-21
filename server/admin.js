@@ -652,7 +652,14 @@ export async function handleAdmin(req, res, url, game) {
         if (e.kind === KIND.NPC) pnj.push({ id: e.id, npcId: e.npcId, name: e.name, x: Math.round(e.x * 10) / 10, z: Math.round(e.z * 10) / 10 });
       }
       const joueurs = [...game.players.values()].map(resumeJoueur);
-      return json(200, { zoneId, joueurs, pnj, musique: content.music.zones?.[zoneId] || null });
+      // entités au format du client de jeu (meta + état), pour la vue en
+      // direct : mêmes sprites, mêmes apparences, mêmes animations
+      const entites = [];
+      for (const e of zi?.entities?.values?.() || []) {
+        entites.push({ ...game.metaFor(e), x: e.x, z: e.z, dir: e.dir || 0, state: e.state || 0,
+          hpPct: e.kind === KIND.MOB ? Math.max(0, Math.min(100, Math.round((e.hp / e.maxHp) * 100))) : 100 });
+      }
+      return json(200, { zoneId, joueurs, pnj, entites, worldTime: game.worldTime, musique: content.music.zones?.[zoneId] || null });
     }
     if (url === '/api/admin/monde/journal' && req.method === 'GET') {
       return json(200, { journal: game.journal.slice(-150).reverse() });
