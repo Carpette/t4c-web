@@ -52,6 +52,9 @@
     </button>
 </aside>
 
+<p role="status" class="fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg border border-gray-800 bg-[#17191d] shadow-lg"
+    :class="avis.erreur ? 'text-red-400' : 'text-green-400'" v-if="avis">{{ avis.texte }}</p>
+
 <div class="cs-voile" v-if="palette" @click.self="fermerPalette()">
     <div role="dialog" aria-modal="true" aria-label="Palette de commandes" class="cs-palette" @keydown="clavierPalette($event)">
         <div class="flex items-center gap-3 px-4 h-14 border-b border-gray-800">
@@ -59,7 +62,7 @@
             <label for="cs-cmd" class="sr-only">Commande</label>
             <input id="cs-cmd" v-model="requete" @input="choix = 0" autocomplete="off" spellcheck="false"
                 class="flex-1 h-10 border-0 bg-transparent text-t4c-text-light text-[17px] font-medium outline-none"
-                placeholder="Écran, joueur ou action" />
+                placeholder="Écran, joueur, action ou :x, z" />
             <span class="cs-kbd">Échap</span>
         </div>
         <div class="flex gap-1.5 px-4 pt-2.5 flex-wrap text-xs text-gray-500">
@@ -67,6 +70,7 @@
             <span class="cs-kbd">@</span><span>joueurs</span>
             <span class="cs-kbd">#</span><span>écrans</span>
             <span class="cs-kbd">&gt;</span><span>actions</span>
+            <span class="cs-kbd">:</span><span>coordonnées</span>
         </div>
         <div class="max-h-[55vh] overflow-y-auto py-1.5">
             <div v-for="g in resultats" class="contents">
