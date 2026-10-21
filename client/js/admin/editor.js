@@ -68,6 +68,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   const mctx = mini.getContext('2d');
   const msg = (t) => { $('map-msg').textContent = t; };
   const W = () => canvas.width, H = () => canvas.height;
+  // la carte occupe toute la largeur disponible (fenêtre, colonne d'outils
+  // redimensionnée) : la résolution du canevas suit sa taille affichée
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      const l = Math.round(canvas.clientWidth);
+      if (l > 0 && l !== canvas.width) { canvas.width = l; dirty = true; }
+    }).observe(canvas);
+  }
 
   // ---------- état ----------
   let curZone = zones[0]?.id ?? 0;
