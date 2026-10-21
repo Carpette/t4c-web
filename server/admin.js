@@ -137,6 +137,7 @@ export async function handleAdmin(req, res, url, game) {
         : /^\/api\/admin\/comptes\/\d+\/debannir$/.test(url) ? [['sanctions'], EDITION]
         : url === '/api/admin/teleport' ? 'animer'
         : url === '/api/admin/pantheon' ? [['pantheon'], LECTURE]
+        : /^\/api\/admin\/pantheon\/\d+\/restaurer$/.test(url) ? [['joueurs'], EDITION]
         : url === '/api/admin/roles' || url === '/api/admin/profils' || /^\/api\/admin\/profils\/\d+$/.test(url) ? [['acces'], min]
         : url === '/api/admin/music' || url === '/api/admin/music/upload' ? (lecture ? 'console' : [['musiques'], EDITION])
         : url === '/api/admin/tiles' ? (lecture ? 'console' : [['bibliotheque', 'zones'], EDITION])
@@ -688,7 +689,27 @@ export async function handleAdmin(req, res, url, game) {
 
     // ---- panthéon ----
     if (url === '/api/admin/pantheon' && req.method === 'GET') {
-      return json(200, { deaths: db.pantheon(100) });
+      return json(200, { deaths: db.pantheonAdmin(100) });
+    }
+    // rend au compte le personnage tel qu'il était à sa mort ; il remplace
+    // le personnage actuel (la réincarnation) seulement si on le demande
+    const mRest = url.match(/^\/api\/admin\/pantheon\/(\d+)\/restaurer$/);
+    if (mRest && req.method === 'POST') {
+      const mort = db.getDeath(mRest[1] | 0);
+      if (!mort) return json(404, { error: 'Mort inconnue' });
+      if (!mort.data || !mort.account_id) return json(409, { error: 'Mort enregistrée avant la restauration : rien à rendre' });
+      if (mort.restored_at) return json(409, { error: 'Ce personnage a déjà été restauré' });
+      if (!db.getAccountById(mort.account_id)) return json(404, { error: 'Le compte n’existe plus' });
+      const { remplacer } = JSON.parse(await readBody(req) || '{}');
+      const actuel = db.loadCharacter(mort.account_id);
+      if (actuel && !remplacer) return json(409, { error: `Le compte a un personnage (${actuel.name}, niveau ${actuel.level}) : confirmez le remplacement`, actuel: { name: actuel.name, level: actuel.level } });
+      const data = JSON.parse(mort.data);
+      data.hp = null; data.mana = null; // recalculés au chargement : pleine vie
+      db.saveCharacter(mort.account_id, data);
+      db.marquerRestauree(mort.id);
+      kickIfOnline(game, mort.account_id); // le joueur reprend son personnage à la reconnexion
+      game.journaliser(`${auteur} : restaure ${mort.name} (niveau ${mort.level})${actuel ? `, à la place de ${actuel.name} (niveau ${actuel.level})` : ''}`, 'mj');
+      return json(200, { ok: true });
     }
 
     // ---- joueurs connectés (position en direct, pour la carte admin) ----

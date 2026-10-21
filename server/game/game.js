@@ -2281,6 +2281,8 @@ export class Game {
   // Mort définitive : le personnage est effacé. Roguelike.
   killPlayer(p, killer) {
     this.leaveParty(p); // le mort quitte le groupe
+    // le personnage tel qu'il était, gardé au Panthéon (restauration par un MJ)
+    const avant = p.donnees();
     p.dead = true; p.permadead = true; p.state = C.ST.DEAD; p.hp = 0;
     p.path = null; p.moveDir = null; p.attackTarget = null;
     p.casting = null; p.pendingCast = null; // la mort interrompt l'incantation
@@ -2288,7 +2290,12 @@ export class Game {
     const zoneName = p.zi.isTrial ? `l'Épreuve vers ${this.zoneDef(p.zi.trialTarget).name}`
       : p.zi.isCave ? p.zi.caveName
       : this.zoneDef(p.zi.zoneId).name;
-    db.recordDeath(p.name, p.level, zoneName, who);
+    db.recordDeath(p.name, p.level, zoneName, who, {
+      accountId: p.accountId, data: avant,
+      // lieu sur la carte : pas pour une Épreuve (carte instanciée) ; en
+      // caverne, l'entrée à la surface (cf. donnees())
+      lieu: p.zi.isTrial ? null : { zoneId: avant.zoneId, x: avant.x, z: avant.z },
+    });
     db.deleteCharacter(p.accountId);
     this.broadcastChat('sys', `☠ ${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
     this.send(p, { t: 'died', by: who, level: p.level, zone: zoneName, permadeath: true, pantheon: db.pantheon(8) });

@@ -33,11 +33,12 @@
         </select>
     </div>
 
-    <p class="text-red-400" v-if="erreur">✘ {{ erreur }}</p>
+    <p class="text-red-400" v-if="erreur" role="status">✘ {{ erreur }}</p>
+    <p class="text-green-400" v-if="info" role="status">{{ info }}</p>
 
     <div class="cs-panel overflow-x-auto">
         <table class="cs-table">
-            <thead><tr><th>Personnage</th><th class="text-right">Niveau</th><th>Zone</th><th>Tué par</th><th>Date</th></tr></thead>
+            <thead><tr><th>Personnage</th><th class="text-right">Niveau</th><th>Zone</th><th>Tué par</th><th>Date</th><th class="text-right">Actions</th></tr></thead>
             <tbody>
                 <tr v-for="d in filtres">
                     <td class="font-semibold">{{ d.name }}</td>
@@ -46,8 +47,13 @@
                     <td><span :class="d.joueur ? 'text-[#a9cdf0]' : ''">{{ d.killer }}</span>
                         <span class="cs-chip ml-1 h-[18px] text-[11px]" v-if="d.joueur">joueur</span></td>
                     <td class="text-gray-400">{{ date(d.died_at) }}</td>
+                    <td class="text-right whitespace-nowrap">
+                        <button type="button" class="cs-btn cs-ghost h-7" v-if="voitCarte && d.zoneId != null" @click="lieu(d)">Lieu sur la carte</button>
+                        <span class="cs-chip ml-1" v-if="d.restaureLe" :title="'Le ' + date(d.restaureLe)">restauré</span>
+                        <button type="button" class="cs-btn h-7 ml-1" v-else-if="peutRestaurer && d.restaurable" @click="restaurer(d)">Restaurer</button>
+                    </td>
                 </tr>
-                <tr v-if="!filtres.length"><td colspan="5" class="text-gray-500">{{ morts.length ? 'Aucune mort ne correspond aux filtres.' : 'Personne n’est encore tombé.' }}</td></tr>
+                <tr v-if="!filtres.length"><td colspan="6" class="text-gray-500">{{ morts.length ? 'Aucune mort ne correspond aux filtres.' : 'Personne n’est encore tombé.' }}</td></tr>
             </tbody>
         </table>
     </div>

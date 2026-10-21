@@ -56,7 +56,8 @@ ws.on('message', (raw, bin) => {
 });
 
 await new Promise(r => ws.on('open', r));
-send({ t: 'register', v: PROTOCOL_VERSION, name: 'Rogue_' + Math.floor(Math.random() * 1e6), pass: 'test1234' });
+const NOM = 'Rogue_' + Math.floor(Math.random() * 1e6);
+send({ t: 'register', v: PROTOCOL_VERSION, name: NOM, pass: 'test1234' });
 
 await waitFor(() => S.self && S.zone);
 ok('connexion + zone reçue', S.zone?.zoneId === 0 && S.zone?.kind === 'island');
@@ -196,6 +197,22 @@ S.zone = null;
 send({ t: 'newchar' });
 await waitFor(() => S.zone?.zoneId === 0 && S.self?.level === 1, 6000);
 ok('réincarnation niveau 1 zone 0', S.zone?.zoneId === 0 && S.self?.level === 1 && (S.self?.spells || []).length === 0);
+
+// --- Panthéon de la console : restauration du personnage mort ---
+const HTTP = URL.replace(/^ws/, 'http');
+const { token } = await (await fetch(HTTP + '/api/admin/login', { method: 'POST', body: JSON.stringify({ name: NOM, pass: 'test1234' }) })).json();
+const adm = async (u, method = 'GET', body = null) => {
+  const r = await fetch(HTTP + u, { method, headers: { Authorization: `Bearer ${token}` }, body: body && JSON.stringify(body) });
+  return { status: r.status, ...(await r.json()) };
+};
+const mort = (await adm('/api/admin/pantheon')).deaths.find(d => d.name === NOM);
+ok('panthéon admin : mort restaurable, sans lieu (Épreuve)', mort?.restaurable && mort.zoneId === null && !mort.restaureLe);
+const sansConfirmer = await adm(`/api/admin/pantheon/${mort.id}/restaurer`, 'POST', {});
+ok('restauration : remplacement de la réincarnation à confirmer', sansConfirmer.status === 409 && sansConfirmer.actuel?.level === 1);
+const rendu = await adm(`/api/admin/pantheon/${mort.id}/restaurer`, 'POST', { remplacer: true });
+const perso = (await adm('/api/admin/characters')).characters.find(c => c.account === NOM)?.char;
+ok('restauration : personnage rendu au niveau de sa mort', rendu.ok && perso?.level === 15);
+ok('restauration : une seule fois', (await adm(`/api/admin/pantheon/${mort.id}/restaurer`, 'POST', { remplacer: true })).status === 409);
 
 const failed = checks.filter(([, c]) => !c);
 console.log(failed.length === 0 ? '\nTOUT EST OK' : `\n${failed.length} ÉCHEC(S): ${failed.map(([n]) => n).join(', ')}`);
