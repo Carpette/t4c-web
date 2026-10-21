@@ -93,6 +93,16 @@ export function AccessController(api) {
     },
 
     // ---------- comptes ----------
+    // comptes : rechargés à chaque ouverture (sanctions et profils changent ailleurs)
+    async voirComptes() { this.onglet = 'comptes'; try { await this.charger(); } catch (e) { this.dire('✘ ' + e.message, true); } },
+    get peutSanctionner() { return this.superAdmin || (this.moi?.droits?.sanctions | 0) >= 2; },
+    async debannir(c) {
+      try {
+        await api(`/api/admin/comptes/${c.id}/debannir`, 'POST');
+        await this.charger();
+        this.dire(`✔ ${c.name} peut de nouveau se connecter.`);
+      } catch (e) { this.dire('✘ ' + e.message, true); }
+    },
     peutChanger(c) { return this.edition && c.id !== 1 && (this.superAdmin || (!c.isAdmin && c.id !== this.moiId)); },
     async attribuer(c, valeur) {
       const corps = { accountId: c.id };

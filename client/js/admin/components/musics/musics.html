@@ -60,7 +60,7 @@
             <h3>Pack « ancien » (legacy)</h3>
             <div class="flex gap-2 items-center flex-wrap">
                 <label class="cs-label" for="mu-leg">Piste legacy</label>
-                <select id="mu-leg" class="cs-input w-[240px]" :value="groupe.legacy || ''" @change="groupe.legacy = $event.target.value || null"><option value="">Silence</option><option v-for="f in fichiers" :value="f">{{ f }}</option></select>
+                <select id="mu-leg" class="cs-input w-[240px]" :value="groupe.legacy || ''" @change="groupe.legacy = $event.target.value || null"><option value="">Silence</option><option v-for="f in fichiers" :value="f" :selected="f === groupe.legacy">{{ f }}</option></select>
                 <button type="button" class="cs-btn cs-icon h-7 w-7" :aria-label="'Écouter ' + groupe.legacy" :disabled="!groupe.legacy" @click="jouer(groupe.legacy)">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button>
                 <span class="text-xs text-gray-500">Une seule piste, jouée en boucle.</span>

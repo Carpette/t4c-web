@@ -1,0 +1,137 @@
+<div class="cs-panel flex flex-wrap min-h-[660px] overflow-hidden" @vue:mounted="init()">
+    <!-- carte -->
+    <section aria-label="Carte" class="flex-[999_1_480px] min-w-0 flex flex-col">
+        <div class="flex items-center gap-3 flex-wrap px-4 py-2.5 border-b border-gray-800">
+            <label for="mc-zone" class="text-gray-400">Zone</label>
+            <select id="mc-zone" class="cs-input w-[280px]" :value="zoneId" @change="changerZone($event.target.value)">
+                <option v-for="z in zones" :value="z.id" :selected="z.id === zoneId">{{ z.id }} · {{ z.name }} (niv. {{ z.levels[0] }} à {{ z.levels[1] }})</option></select>
+            <div class="cs-segs" role="group" aria-label="Outils de carte">
+                <button type="button" class="cs-seg on" aria-pressed="true">Sélection</button>
+                <a class="cs-seg" href="#zones/map" title="Le placement des PNJ se fait dans Zones et terrain, calque PNJ">Placer un PNJ</a>
+                <a class="cs-seg" href="#zones/map" title="Les zones musicales se dessinent dans Zones et terrain, calque Zones musicales">Zone musicale</a>
+            </div>
+            <div class="flex-1"></div>
+            <span class="font-mono text-[13px] text-gray-400 min-w-[150px] text-right">{{ curseur }}</span>
+            <button type="button" class="cs-btn" v-if="animer" :disabled="!point" @click="entrerIci()" title="Téléporte votre personnage connecté au point choisi">Entrer en jeu ici</button>
+        </div>
+        <div class="relative flex-1 min-h-[560px]">
+            <canvas id="mc-carte" width="900" height="600" class="w-full h-[600px] block cursor-crosshair touch-none" aria-label="Carte de la zone : clic pour choisir un joueur, un PNJ ou un point ; glisser pour déplacer ; molette pour zoomer"></canvas>
+            <div class="absolute inset-0 grid place-items-center text-gray-400 bg-black/40" v-if="chargement">Génération de la zone…</div>
+            <div class="absolute left-3 top-3 bg-gray-950/90 border border-gray-800 rounded-lg p-3 flex flex-col gap-1.5 text-[13px] text-gray-200 min-w-[190px]">
+                <span class="cs-sect p-0">Calques</span>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.terrain" @change="dessiner()" />Terrain</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.pnj" @change="dessiner()" /><span class="w-2 h-2 rotate-45 bg-[#e8c37a]"></span>PNJ <span class="text-gray-500 ml-auto">{{ pnj.length }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.joueurs" @change="dessiner()" /><span class="w-2 h-2 rounded-full bg-[#5fb3f0]"></span>Joueurs <span class="text-gray-500 ml-auto">{{ ici.length }}</span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.musique" @change="dessiner()" /><span class="w-2 h-2 border border-dashed border-[#9678e6]"></span>Zones musicales</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.apparition" @change="dessiner()" /><span class="w-2 h-2 rounded-full bg-[#f06e5a]/60"></span>Zones d’apparition</label>
+                <label class="flex items-center gap-2"><input type="checkbox" v-model="calques.noms" @change="dessiner()" />Noms</label>
+                <span class="text-xs text-gray-500 pt-1 border-t border-gray-800">Musique par défaut : <span class="text-gray-300">{{ groupeMusique }}</span></span>
+            </div>
+            <div class="absolute right-3 bottom-3 flex gap-1.5">
+                <button type="button" class="cs-btn cs-icon h-8 w-8" aria-label="Zoom avant" @click="zoom(1.4)">+</button>
+                <button type="button" class="cs-btn cs-icon h-8 w-8" aria-label="Zoom arrière" @click="zoom(1 / 1.4)">−</button>
+                <button type="button" class="cs-btn h-8" @click="centrer()" :disabled="!choix && !point">Centrer sur la sélection</button>
+            </div>
+        </div>
+        <p class="px-4 py-2 border-t border-gray-800 min-h-[38px]" :class="erreur ? 'text-red-400' : 'text-green-400'" role="status">{{ message }}</p>
+    </section>
+
+    <!-- inspecteur -->
+    <aside aria-label="Inspecteur" data-col="carte-inspecteur" data-bord="gauche" class="flex-[1_1_320px] max-w-[380px] border-l border-gray-800 bg-gray-950 flex flex-col">
+        <div role="tablist" class="cs-segs m-3 self-start">
+            <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'selection' }" @click="onglet = 'selection'">Sélection</button>
+            <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'enligne' }" @click="onglet = 'enligne'">En ligne · {{ joueurs.length }}</button>
+            <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'journal' }" @click="voirJournal()">Journal</button>
+        </div>
+
+        <!-- sélection -->
+        <div class="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-4" v-if="onglet === 'selection'">
+            <p class="text-gray-500" v-if="!choix && !point">Cliquez un joueur ou un PNJ sur la carte, ou choisissez un joueur dans « En ligne ».</p>
+            <div v-if="!choix && point" class="flex flex-col gap-2">
+                <span class="cs-sect p-0">Point</span>
+                <span class="font-mono">{{ nomZone(zoneId) }} · {{ point.x }}, {{ point.z }}</span>
+                <span class="text-xs text-gray-500" v-if="animer">« Entrer en jeu ici » y téléporte votre personnage connecté.</span>
+            </div>
+            <div v-if="choix?.type === 'pnj'" class="flex flex-col gap-2">
+                <div class="text-[17px] font-semibold text-t4c-text-light">{{ choix.nom }}</div>
+                <div class="text-gray-500">PNJ · <span class="font-mono">{{ choix.npcId }}</span> · {{ choix.x }}, {{ choix.z }}</div>
+                <a class="cs-btn self-start" href="#pnj">Ouvrir la fiche PNJ</a>
+            </div>
+            <div v-if="choix?.type === 'joueur' && fiche?.id === choix.id" class="contents">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-gray-800 grid place-items-center font-semibold">{{ fiche.name[0] }}</div>
+                    <div><div class="text-[17px] font-semibold text-t4c-text-light">{{ fiche.name }}</div>
+                        <div class="text-xs text-gray-500">{{ fiche.admin ? 'Super admin' : 'Joueur' }} · en ligne depuis {{ depuis(fiche.depuis) }}</div></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" class="cs-btn justify-center" v-if="animer" @click="agir('aller', {}, 'Vous êtes à ses côtés.')">Aller à lui</button>
+                    <button type="button" class="cs-btn justify-center" v-if="peut('joueurs')" @click="agir('amener', {}, fiche.name + ' est à vos côtés.')">L’amener à moi</button>
+                    <button type="button" class="cs-btn justify-center cs-danger" v-if="peut('sanctions')" @click="sanction('expulser')">Expulser</button>
+                </div>
+                <div class="flex gap-2" v-if="peut('joueurs')">
+                    <label for="mc-msg" class="sr-only">Message privé</label>
+                    <input id="mc-msg" class="cs-input flex-1" v-model="texte" placeholder="Message privé" maxlength="300" @keydown.enter="envoyer()" />
+                    <button type="button" class="cs-btn" :disabled="!texte.trim()" @click="envoyer()">Envoyer</button>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <span class="cs-sect p-0">État</span>
+                    <div><div class="flex justify-between text-xs text-gray-400"><span>Vie</span><span class="font-mono">{{ fiche.hp }} / {{ fiche.maxHp }}</span></div>
+                        <div class="h-1.5 rounded bg-gray-800"><div class="h-full rounded bg-red-500" :style="{ width: pct(fiche.hp, fiche.maxHp) + '%' }"></div></div></div>
+                    <div><div class="flex justify-between text-xs text-gray-400"><span>Mana</span><span class="font-mono">{{ fiche.mana }} / {{ fiche.maxMana }}</span></div>
+                        <div class="h-1.5 rounded bg-gray-800"><div class="h-full rounded bg-sky-500" :style="{ width: pct(fiche.mana, fiche.maxMana) + '%' }"></div></div></div>
+                    <div class="grid grid-cols-3 gap-2" v-if="peut('joueurs')">
+                        <div class="cs-field"><label class="cs-label" for="mc-lvl">Niveau</label><input id="mc-lvl" class="cs-input font-mono" type="number" min="1" v-model="etat.level" /></div>
+                        <div class="cs-field"><label class="cs-label" for="mc-gold">Or</label><input id="mc-gold" class="cs-input font-mono" type="number" min="0" v-model="etat.gold" /></div>
+                        <div class="cs-field"><label class="cs-label" for="mc-hp">Vie</label><input id="mc-hp" class="cs-input font-mono" type="number" min="1" v-model="etat.hp" /></div>
+                    </div>
+                    <div class="flex justify-between text-gray-400"><span>Position</span><span class="font-mono">{{ fiche.lieu || nomZone(fiche.zoneId) }} · {{ Math.round(fiche.x) }}, {{ Math.round(fiche.z) }}</span></div>
+                </div>
+                <div class="flex flex-col gap-2" v-if="peut('joueurs', 1)">
+                    <span class="cs-sect p-0">Drapeaux de quête</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span v-for="d in drapeaux" class="cs-chip gap-1.5 font-mono" :title="String(d.v)">{{ d.k }}<button type="button" class="cs-x" v-if="peut('joueurs')" :aria-label="'Retirer ' + d.k" @click="retirerDrapeau(d.k)">×</button></span>
+                        <span class="text-gray-500" v-if="!drapeaux.length">Aucun</span>
+                    </div>
+                    <div class="flex gap-2" v-if="peut('joueurs')">
+                        <label for="mc-flag" class="sr-only">Nouveau drapeau</label>
+                        <input id="mc-flag" class="cs-input flex-1 font-mono" v-model="drapeauNeuf" placeholder="quete:id:1" @keydown.enter="ajouterDrapeau()" />
+                        <button type="button" class="cs-btn" :disabled="!drapeauNeuf.trim()" @click="ajouterDrapeau()">Ajouter</button>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2" v-if="peut('sanctions')">
+                    <span class="cs-sect p-0">Sanctions</span>
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <label for="mc-muet" class="sr-only">Durée du silence</label>
+                        <select id="mc-muet" class="cs-input w-[110px]" v-model.number="muetMin"><option :value="15">15 min</option><option :value="60">1 h</option><option :value="1440">1 jour</option><option :value="0">Lever</option></select>
+                        <button type="button" class="cs-btn" @click="sanction('muet')">{{ muetMin ? 'Rendre muet' : 'Rendre la parole' }}</button>
+                        <button type="button" class="cs-btn cs-danger" @click="sanction('bannir')">Bannir</button>
+                    </div>
+                    <span class="text-xs text-amber-400" v-if="fiche.muetJusqua > Date.now()">Muet encore {{ restant(fiche.muetJusqua) }}.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- en ligne -->
+        <div class="flex-1 overflow-y-auto pb-2" v-if="onglet === 'enligne'">
+            <button v-for="j in joueurs" type="button" class="cs-item" :class="{ on: choix?.type === 'joueur' && choix.id === j.id }" @click="choisirJoueur(j.id)">
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ j.name }}</span><span class="text-xs text-gray-500">niv. {{ j.level }} · {{ j.lieu || nomZone(j.zoneId) }}</span></span>
+                <span class="text-xs text-gray-500">{{ depuis(j.depuis) }}</span>
+            </button>
+            <p class="px-4 py-2 text-gray-500" v-if="!joueurs.length">Personne en ligne.</p>
+        </div>
+
+        <!-- journal -->
+        <div class="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-2" v-if="onglet === 'journal'">
+            <div v-for="e in journal" class="flex gap-2 text-[13px]"><span class="font-mono text-gray-500 flex-none">{{ heure(e.t) }}</span>
+                <span :class="e.type === 'mj' ? 'text-amber-300' : 'text-gray-200'">{{ e.texte }}</span></div>
+            <p class="text-gray-500" v-if="!journal.length">Rien depuis le démarrage du serveur.</p>
+        </div>
+
+        <!-- barre d'application de l'état -->
+        <div class="flex items-center gap-2 px-4 py-3 border-t border-gray-800" v-if="onglet === 'selection' && dirtyEtat">
+            <span class="flex-1 text-amber-400">{{ changements }} changement{{ changements > 1 ? 's' : '' }}</span>
+            <button type="button" class="cs-btn" @click="annulerEtat()">Annuler</button>
+            <button type="button" class="cs-btn cs-primary" @click="appliquerEtat()">Appliquer à chaud</button>
+        </div>
+    </aside>
+</div>

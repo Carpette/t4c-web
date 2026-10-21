@@ -138,7 +138,7 @@
             <h3>Apparence</h3>
             <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
                 <div class="cs-field"><label class="cs-label" for="ob-l">Icône (sprite au sol)</label>
-                    <select id="ob-l" class="cs-input font-mono" :value="fiche.loot" @change="changerIcone($event.target.value)"><option v-for="k in lootCles" :value="k">{{ k }}</option></select></div>
+                    <select id="ob-l" class="cs-input font-mono" :value="fiche.loot" @change="changerIcone($event.target.value)"><option v-for="k in lootCles" :value="k" :selected="k === fiche.loot">{{ k }}</option></select></div>
                 <div class="cs-field" v-if="equipable"><label class="cs-label" for="ob-ly" title="Calque porté par le personnage (poupée Flare)">Calque sur le personnage</label>
                     <input id="ob-ly" class="cs-input font-mono" placeholder="aucun" :value="fiche.layer || ''" @change="fiche.layer = $event.target.value.trim() || null" /></div>
             </div>

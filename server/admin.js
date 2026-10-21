@@ -121,6 +121,9 @@ export async function handleAdmin(req, res, url, game) {
         : url === '/api/admin/objets/circulation' ? [['objets'], LECTURE]
         : url === '/api/admin/characters' || /^\/api\/admin\/character\/\d+$/.test(url) ? [['joueurs'], min]
         : url === '/api/admin/players' ? [['carte', 'joueurs'], LECTURE]
+        : /^\/api\/admin\/monde\/zone\/\d+$/.test(url) || url === '/api/admin/monde/journal' ? [['carte'], LECTURE]
+        : /^\/api\/admin\/monde\/joueur\/\d+$/.test(url) ? (lecture ? [['joueurs', 'sanctions'], LECTURE] : [['carte', 'joueurs', 'sanctions'], LECTURE])
+        : /^\/api\/admin\/comptes\/\d+\/debannir$/.test(url) ? [['sanctions'], EDITION]
         : url === '/api/admin/teleport' ? 'animer'
         : url === '/api/admin/pantheon' ? [['pantheon'], LECTURE]
         : url === '/api/admin/roles' || url === '/api/admin/profils' || /^\/api\/admin\/profils\/\d+$/.test(url) ? [['acces'], min]
@@ -629,6 +632,123 @@ export async function handleAdmin(req, res, url, game) {
     // ---- téléport « tester ici » : envoie le perso EN LIGNE de ce compte admin
     // à une case d'une zone (depuis l'éditeur de carte). Réutilise la logique de
     // déplacement de zone du jeu ; refuse si le compte n'a pas de perso connecté.
+    // ---- Carte du monde : état en direct d'une zone, journal, actions ----
+    const enLigne = (id) => game.players.get(id | 0) || null;
+    const moiEnJeu = () => [...game.players.values()].find(p => p.accountId === session.accountId) || null;
+    const zoneDe = (p) => (p.zi.isTrial ? p.zi.trialTarget : p.zi.zoneId);
+    const resumeJoueur = (p) => ({
+      id: p.id, accountId: p.accountId, name: p.name, level: p.level, admin: !!p.isAdmin,
+      x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10, zoneId: zoneDe(p),
+      lieu: p.zi.isTrial ? 'Épreuve' : p.zi.isCave ? p.zi.caveName : null,
+      hp: Math.round(p.hp), maxHp: Math.round(p.eff.maxHp), mana: Math.round(p.mana), maxMana: Math.round(p.eff.maxMana),
+      gold: p.gold, depuis: p.sessionT0 || null, muetJusqua: p.muetJusqua || 0,
+    });
+    const mZoneLive = url.match(/^\/api\/admin\/monde\/zone\/(\d+)$/);
+    if (mZoneLive && req.method === 'GET') {
+      const zoneId = mZoneLive[1] | 0;
+      const zi = game.island(zoneId);
+      const pnj = [];
+      for (const e of zi?.entities?.values?.() || []) {
+        if (e.kind === KIND.NPC) pnj.push({ id: e.id, npcId: e.npcId, name: e.name, x: Math.round(e.x * 10) / 10, z: Math.round(e.z * 10) / 10 });
+      }
+      const joueurs = [...game.players.values()].map(resumeJoueur);
+      return json(200, { zoneId, joueurs, pnj, musique: content.music.zones?.[zoneId] || null });
+    }
+    if (url === '/api/admin/monde/journal' && req.method === 'GET') {
+      return json(200, { journal: game.journal.slice(-150).reverse() });
+    }
+    const mJoueur = url.match(/^\/api\/admin\/monde\/joueur\/(\d+)$/);
+    if (mJoueur) {
+      const cible = enLigne(mJoueur[1]);
+      if (!cible) return json(404, { error: 'Ce joueur n’est plus connecté' });
+      if (req.method === 'GET') return json(200, { ...resumeJoueur(cible), flags: cible.flags || {} });
+      if (req.method === 'POST') {
+        const corps = JSON.parse(await readBody(req));
+        const action = String(corps.action || '');
+        const DROIT_ACTION = { aller: ['carte', LECTURE], amener: ['joueurs', EDITION], message: ['joueurs', EDITION],
+          etat: ['joueurs', EDITION], drapeaux: ['joueurs', EDITION], expulser: ['sanctions', EDITION], muet: ['sanctions', EDITION], bannir: ['sanctions', EDITION] };
+        const r = DROIT_ACTION[action];
+        if (!r) return json(400, { error: 'Action inconnue' });
+        if (!acces.superAdmin && niveau(acces, r[0]) < r[1]) return json(403, { error: 'Permission insuffisante pour cette action' });
+        if (!acces.superAdmin && ['expulser', 'muet', 'bannir'].includes(action) && cible.isAdmin) return json(403, { error: 'On ne sanctionne pas un super admin' });
+        const auteur = db.getAccountById(session.accountId)?.name || '?';
+        const trace = (texte) => game.journaliser(`${auteur} : ${texte}`, 'mj');
+        switch (action) {
+          case 'aller': case 'amener': {
+            const moi = moiEnJeu();
+            if (!moi) return json(409, { error: 'Aucun personnage de ce compte n’est connecté en jeu. Entrez d’abord en jeu.' });
+            if (action === 'aller' && !acces.animer) return json(403, { error: 'Votre profil n’autorise pas l’entrée en jeu comme animateur' });
+            const [qui, vers] = action === 'aller' ? [moi, cible] : [cible, moi];
+            if (qui === vers) return json(400, { error: 'C’est votre propre personnage' });
+            const t = game.teleportPlayerTo(qui, zoneDe(vers), vers.x + 1, vers.z);
+            if (t.error) return json(400, { error: t.error });
+            if (action === 'amener') { game.send(cible, { t: 'info', text: 'Un maître du jeu vous a fait venir à lui.' }); trace(`amène ${cible.name} à lui`); }
+            return json(200, { ok: true });
+          }
+          case 'message': {
+            const texte = String(corps.texte || '').trim().slice(0, 300);
+            if (!texte) return json(400, { error: 'Message vide' });
+            game.send(cible, { t: 'chat', from: 'Maître du jeu', text: texte, kind: 'mj' });
+            trace(`message à ${cible.name} : ${texte}`);
+            return json(200, { ok: true });
+          }
+          case 'etat': {
+            const n = (v) => (v === undefined || v === null || v === '' ? null : Math.round(+v));
+            const lvl = n(corps.level), gold = n(corps.gold), hp = n(corps.hp);
+            if ([lvl, gold, hp].some(v => v !== null && !Number.isFinite(v))) return json(400, { error: 'Valeurs numériques attendues' });
+            if (lvl !== null) {
+              cible.level = Math.max(1, Math.min(MAX_LEVEL, lvl));
+              cible.xp = xpForLevel(cible.level);
+              cible.recompute(game);
+            }
+            if (gold !== null) cible.gold = Math.max(0, gold);
+            if (hp !== null) cible.hp = Math.max(1, Math.min(cible.eff.maxHp, hp));
+            game.sendSelf(cible);
+            trace(`état de ${cible.name} : ${[lvl !== null && `niveau ${cible.level}`, gold !== null && `or ${cible.gold}`, hp !== null && `vie ${Math.round(cible.hp)}`].filter(Boolean).join(', ')}`);
+            return json(200, { ok: true, joueur: resumeJoueur(cible) });
+          }
+          case 'drapeaux': {
+            const flags = corps.flags;
+            if (!flags || typeof flags !== 'object' || Array.isArray(flags)) return json(400, { error: 'Drapeaux : objet attendu' });
+            const propre = {};
+            for (const [k, v] of Object.entries(flags)) if (/^[\w:.-]{1,60}$/.test(k)) propre[k] = v;
+            cible.flags = propre;
+            trace(`drapeaux de ${cible.name} modifiés`);
+            return json(200, { ok: true, flags: propre });
+          }
+          case 'expulser': {
+            trace(`expulse ${cible.name}`);
+            game.send(cible, { t: 'info', text: 'Vous avez été expulsé par un maître du jeu.' });
+            game.removePlayer(cible, 'Expulsé');
+            return json(200, { ok: true });
+          }
+          case 'muet': {
+            const minutes = Math.max(0, Math.min(10080, Math.round(+corps.minutes || 0)));
+            cible.muetJusqua = minutes ? Date.now() + minutes * 60000 : 0;
+            db.setMuet(cible.accountId, cible.muetJusqua);
+            game.send(cible, { t: 'info', text: minutes ? `Un maître du jeu vous réduit au silence pour ${minutes} min.` : 'Vous pouvez de nouveau parler.' });
+            trace(minutes ? `rend ${cible.name} muet ${minutes} min` : `rend la parole à ${cible.name}`);
+            return json(200, { ok: true, muetJusqua: cible.muetJusqua });
+          }
+          case 'bannir': {
+            db.setBanni(cible.accountId, true);
+            trace(`bannit ${cible.name}`);
+            game.send(cible, { t: 'info', text: 'Votre compte a été banni.' });
+            game.removePlayer(cible, 'Banni');
+            return json(200, { ok: true });
+          }
+        }
+      }
+    }
+    const mDeban = url.match(/^\/api\/admin\/comptes\/(\d+)\/debannir$/);
+    if (mDeban && req.method === 'POST') {
+      const compte = db.getAccountById(mDeban[1] | 0);
+      if (!compte) return json(404, { error: 'Compte inconnu' });
+      db.setBanni(compte.id, false);
+      game.journaliser(`${db.getAccountById(session.accountId)?.name || '?'} : lève le bannissement de ${compte.name}`, 'mj');
+      return json(200, { ok: true });
+    }
+
     if (url === '/api/admin/teleport' && req.method === 'POST') {
       const { zoneId, x, z } = JSON.parse(await readBody(req));
       const player = [...game.players.values()].find(p => p.accountId === session.accountId);

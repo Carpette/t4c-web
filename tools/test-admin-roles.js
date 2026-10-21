@@ -181,6 +181,26 @@ ok('gestionnaire : profil encore attribué non supprimable',
   (await api('/api/admin/profils/' + pAnim.id, 'DELETE')).error?.includes('attribué'));
 gest.ws.close();
 
+// ---- 7ter. Carte du monde : sanctions (droit « Joueurs : sanctions ») ----
+const vilain = await connect('Vil_' + Math.floor(Math.random() * 1e6));
+const vivant = (await api('/api/admin/monde/zone/0')).joueurs.find(j => j.name === vilain.name);
+ok('carte du monde : joueur connecté listé', !!vivant);
+ok('animateur sans sanctions : bannir refusé',
+  (await api2('/api/admin/monde/joueur/' + vivant.id, 'POST', { action: 'bannir' })).status === 403);
+await api('/api/admin/monde/joueur/' + vivant.id, 'POST', { action: 'muet', minutes: 5 });
+vilain.inbox.length = 0;
+send(vilain, { t: 'chat', text: 'bonjour' });
+ok('muet : message refusé', !!(await waitMsg(vilain, m => m.t === 'info' && /silence/.test(m.text))));
+await api('/api/admin/monde/joueur/' + vivant.id, 'POST', { action: 'bannir' });
+const relogVilain = await (await fetch(`${BASE}/api/admin/login`, { method: 'POST', body: JSON.stringify({ name: vilain.name, pass: 'test1234' }) })).json();
+ok('banni : connexion refusée', /banni/.test(relogVilain.error || ''));
+const vilAcc = (await api('/api/admin/roles')).accounts.find(a => a.name === vilain.name);
+ok('banni : visible dans les comptes', vilAcc.banni && vilAcc.muetJusqua > Date.now());
+await api(`/api/admin/comptes/${vilAcc.id}/debannir`, 'POST');
+ok('bannissement levé', !(await api('/api/admin/roles')).accounts.find(a => a.name === vilain.name).banni);
+ok('journal : actions du MJ consignées',
+  (await api('/api/admin/monde/journal')).journal.some(e => e.type === 'mj' && e.texte.includes(`bannit ${vilain.name}`)));
+
 // ---- 8. super admin : promotion à chaud, garde-fous ----
 anim.inbox.length = 0;
 await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, superAdmin: true });

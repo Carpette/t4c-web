@@ -31,9 +31,8 @@ export const ICONES = {
 // droits = droits de profil qui ouvrent l'écran (shared/acces.js) ; l'écran
 // est en lecture seule sans le niveau Édition. Sans droits : super admin.
 export const ECRANS = [
-  { id: 'carte', espace: 'monde', section: 'Monde en direct', nom: 'Carte du monde', icone: 'carte', droits: ['carte'], bientot: true,
-    desc: 'Les joueurs et les créatures en direct sur la carte, avec les actions d’animation au clic.',
-    prevu: ['Position des joueurs connectés, rafraîchie en continu', 'Sélection d’un joueur : aller à lui, l’amener à soi, message privé, expulsion', 'Journal des événements du serveur'] },
+  { id: 'carte', espace: 'monde', section: 'Monde en direct', nom: 'Carte du monde', icone: 'carte', droits: ['carte'], tab: 'monde-carte',
+    desc: 'Les joueurs et les PNJ en direct sur la carte, avec les actions d’animation sur le joueur choisi.' },
   { id: 'joueurs', espace: 'monde', section: 'Monde en direct', nom: 'Joueurs', icone: 'joueurs', tab: 'chars', droits: ['joueurs'],
     desc: 'Les personnages du serveur. Une modification déconnecte le joueur pour qu’il recharge ses données.' },
   { id: 'pantheon', espace: 'monde', section: 'Monde en direct', nom: 'Panthéon', icone: 'pantheon', tab: 'pantheon', droits: ['pantheon'],
