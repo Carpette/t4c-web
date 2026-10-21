@@ -100,6 +100,25 @@
 .cs-card h3 { font-size: 13px; font-weight: 600; color: var(--color-t4c-text-light); }
 .cs-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 
+/* fiche PNJ : onglets, pastilles de condition / réaction, bulles du simulateur */
+.cs-onglets { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--color-t4c-border); }
+.cs-onglet { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--color-gray-400);
+  font-size: 13px; font-weight: 500; cursor: pointer; }
+.cs-onglet:hover { color: var(--color-t4c-text-light); }
+.cs-onglet.on { color: var(--color-t4c-text-light); border-bottom-color: var(--color-amber-500); }
+.cs-cond { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 30px; padding: 2px 8px 2px 10px;
+  border: 1px solid #3a3424; border-radius: 6px; background: rgba(201, 164, 92, .07); color: var(--color-gray-200); font-size: 12px; }
+/* boutons sans habillage (× d'une pastille, lien) : annulent le button{} global d'admin.html */
+.cs-x, .cs-lien { background: transparent; border: 0; padding: 0 2px; margin: 0; height: auto; min-width: 0; box-shadow: none;
+  color: var(--color-gray-500); font-size: 13px; line-height: 1; cursor: pointer; }
+.cs-x:hover { background: transparent; color: var(--color-t4c-text-light); }
+.cs-lien { color: var(--color-amber-400); font-size: 12px; padding: 0; }
+.cs-lien:hover { background: transparent; text-decoration: underline; }
+.cs-bulle { align-self: flex-start; max-width: 92%; padding: 7px 10px; border-radius: 10px 10px 10px 2px; background: #23262c;
+  color: var(--color-gray-200); font-size: 13px; line-height: 1.45; }
+.cs-bulle.moi { align-self: flex-end; border-radius: 10px 10px 2px 10px; background: #3a3220; color: var(--color-t4c-text-light); }
+
 .cs-panel { background: var(--color-gray-900); border: 1px solid var(--color-t4c-border); border-radius: 10px; }
 .cs-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; background: #23262c;
   color: var(--color-gray-200); font-size: 12px; white-space: nowrap; }
@@ -145,6 +164,10 @@
   .cs-input { height: 32px; width: 100%; border: 1px solid var(--color-t4c-input-border); background: var(--color-t4c-input-bg);
     border-radius: 6px; color: var(--color-gray-100); padding: 0 10px; font-size: 13px; }
   .cs-input:focus { outline: none; border-color: var(--color-amber-500); }
+  /* champ compact dans une pastille (conditions, réactions, simulateur) */
+  .cs-mini { height: 24px; width: 120px; border: 1px solid var(--color-t4c-input-border); background: var(--color-t4c-input-bg);
+    border-radius: 4px; color: var(--color-gray-100); padding: 0 6px; font-size: 12px; }
+  .cs-mini:focus { outline: none; border-color: var(--color-amber-500); }
 }
 .cs-input[type=number], .cs-ci[type=number] { appearance: textfield; -moz-appearance: textfield; }
 .cs-input[type=number]::-webkit-inner-spin-button, .cs-ci[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

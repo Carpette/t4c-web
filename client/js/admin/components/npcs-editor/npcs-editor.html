@@ -1,287 +1,249 @@
-<div class="flex flex-col h-full relative" @vue:mounted="init()">
-  
-  <!-- Barre de navigation du haut (Header) -->
-  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center rounded-t-lg">
-    <span class="font-mono text-xs text-gray-400">content/npcs.json</span>
-    <div class="flex items-center gap-4">
-      <div class="text-xs text-green-400 font-semibold" v-if="message">{{ message }}</div>
-      <button @click="saveFileToServer()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
-        💾 Sauvegarder npcs.json
-      </button>
-    </div>
-  </header>
-
-  <!-- Contenu principal -->
-  <main class="flex-1 flex overflow-hidden">
-    
-    <!-- Liste des PNJ (Sidebar gauche) -->
-    <aside class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
-      <div class="p-3 border-b border-gray-800 space-y-2">
-        <div class="text-[10px] text-amber-500 font-mono text-center py-1 bg-gray-900 border border-gray-800 rounded">
-          📁 npcs.json
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- liste -->
+    <section aria-label="Liste des PNJ" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
+        <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <span class="text-[15px] font-semibold">PNJ</span>
+                <span class="text-gray-500">{{ Object.keys(npcs).length }}</span>
+                <div class="flex-1"></div>
+                <button type="button" class="cs-btn" @click="nouveauPnj()">Nouveau</button>
+            </div>
+            <label for="pnj-q" class="sr-only">Filtrer les PNJ</label>
+            <input id="pnj-q" class="cs-input" v-model="q" placeholder="Filtrer les PNJ" />
         </div>
-        <div class="relative">
-          <input type="text" v-model="searchQuery" placeholder="🔍 Filtrer les PNJ..." class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
-        </div>
-        <button @click="createNewNpc()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1.5 px-3 rounded text-xs transition">
-          + Nouveau PNJ
-        </button>
-      </div>
-      <ul class="flex-1 divide-y divide-gray-900 list-none p-0">
-        <li v-for="id in filteredNpcIds" :key="id"
-            @click="selectNpc(id)"
-            :class="{'bg-gray-800 border-l-4 border-amber-500': activeNpcId === id}"
-            class="p-4 cursor-pointer transition hover:bg-gray-900 flex justify-between items-center border-b border-gray-900">
-            <div>
-              <div class="font-semibold text-white text-sm">{{ npcs[id].name || 'Sans nom' }}</div>
-              <div class="text-xs text-gray-500 font-mono mt-0.5">{{ id }}</div>
-            </div>
-            <span class="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 font-mono uppercase">{{ npcs[id].role || 'merchant' }}</span>
-        </li>
-      </ul>
-    </aside>
-
-    <!-- Zone d'édition (Editor Pane droit) -->
-    <section v-if="activeNpc" class="flex-1 p-5 overflow-y-auto bg-gray-900">
-      <div class="max-w-5xl mx-auto space-y-4">
-        
-        <!-- Titre et Bouton Enregistrer PNJ -->
-        <div class="flex justify-between items-center pb-2">
-          <h2 class="text-xl font-bold text-white flex items-center gap-2">
-            Édition du PNJ : <span class="text-amber-500 font-mono text-lg font-semibold">{{ activeNpcId }}</span>
-          </h2>
-          <button @click="saveCurrentNpc()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-xs transition shadow flex items-center gap-1.5">
-            Appliquer les modifications
-          </button>
-        </div>
-
-        <!-- Layout Grille 2 Colonnes -->
-        <div class="grid grid-cols-2 gap-4">
-          
-          <!-- Colonne Gauche : Identification, Caractéristiques & Ambiances -->
-          <div class="space-y-4">
-            
-            <!-- SECTION 1 : Identification -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🪪 1. Identification</h3>
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">ID</label>
-                  <input type="text" id="npc-id" :value="activeNpcId" :disabled="!isNew" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 disabled:opacity-50" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Nom Français</label>
-                  <input type="text" v-model="activeNpc.name" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Rôle / Métier</label>
-                  <select v-model="activeNpc.role" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="merchant">Marchand / Entraîneur</option>
-                    <option value="teacher">Enseignant de sortilèges</option>
-                    <option value="bavard">Bavard (Dialogue)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- SECTION 2 : Combat Stats & Vitals -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">⚔️ 2. Combat & Statistiques</h3>
-              <div class="grid grid-cols-2 gap-3 pb-2 border-b border-gray-900">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Niveau</label>
-                  <input type="number" v-model="activeNpc.level" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Points de vie (HP)</label>
-                  <input type="number" v-model="activeNpc.hp" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" />
-                </div>
-              </div>
-              <div class="grid grid-cols-5 gap-2">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">STR</label>
-                  <input type="number" v-model="activeNpc.stats.str" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">END</label>
-                  <input type="number" v-model="activeNpc.stats.end" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">AGI</label>
-                  <input type="number" v-model="activeNpc.stats.agi" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">INT</label>
-                  <input type="number" v-model="activeNpc.stats.int" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1 text-center">WIS</label>
-                  <input type="number" v-model="activeNpc.stats.wis" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-amber-500" />
-                </div>
-              </div>
-            </div>
-
-            <!-- SECTION 3 : Ambiances & Greetings -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">💬 3. Phrases d'ambiance (une par ligne)</h3>
-              <textarea id="npc-greetings" :value="(activeNpc.greetings || []).join('\n')" class="w-full bg-gray-900 border border-gray-700 rounded p-2.5 h-24 text-xs text-white focus:outline-none focus:border-amber-500 font-sans leading-relaxed" placeholder="Entrez les phrases d'accueil..."></textarea>
-            </div>
-
-          </div>
-
-          <!-- Colonne Droite : Enseignements (Sorts / Compétences) -->
-          <div class="space-y-4">
-            
-            <!-- SECTION 4 : Répertoire d'enseignement -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3 h-[455px] flex flex-col justify-between">
-              
-              <!-- Cas : Enseignant de sortilèges -->
-              <div v-show="activeNpc.role === 'teacher'" class="flex-1 flex flex-col justify-between overflow-hidden">
-                <div>
-                  <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">🔮 4. Sortilèges enseignés</h3>
-                  
-                  <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-                    <div v-for="(price, id) in activeNpc.teachesSpells" :key="id" class="flex items-center justify-between p-2 bg-gray-900 border border-gray-800 rounded">
-                      <span class="text-gray-300 font-medium text-xs">{{ getSpellName(id) }} ({{ id }})</span>
-                      <div class="flex items-center gap-2 bg-gray-950 px-2 py-1 rounded border border-gray-800">
-                        <span class="text-[10px] text-gray-500 font-medium">Prix :</span>
-                        <input type="number" :value="price" @input="updateSpellPrice(id, $event.target.value)" style="width: 70px" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1.5 py-0.5 text-xs text-center focus:outline-none" />
-                        <span class="text-[10px] text-gray-500 font-medium">PO</span>
-                        <button @click="removeSpellFromNpc(id)" class="text-red-400 hover:text-red-500 text-xs font-bold ml-2">✕</button>
-                      </div>
-                    </div>
-                    <div v-if="Object.keys(activeNpc.teachesSpells).length === 0" class="text-center text-xs text-gray-500 py-6">
-                      Aucun sortilège dans son répertoire.
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="availableSpells.length > 0" class="pt-3 border-t border-gray-900">
-                  <select @change="addSpellToNpc($event.target.value); $event.target.value = ''" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="">➕ Ajouter un sortilège au répertoire...</option>
-                    <option v-for="sp in availableSpells" :key="sp.id" :value="sp.id">{{ sp.name }} ({{ sp.id }})</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- Cas : Marchand / Entraîneur -->
-              <div v-show="activeNpc.role === 'merchant'" class="flex-1 flex flex-col justify-between overflow-hidden">
-                <div>
-                  <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">🎓 4. Compétences enseignées</h3>
-                  
-                  <div class="space-y-3 max-h-72 overflow-y-auto pr-1">
-                    <div v-for="(costs, id) in activeNpc.teachesSkills" :key="id" class="flex flex-col gap-2 p-2.5 bg-gray-900 border border-gray-800 rounded">
-                      <div class="flex justify-between items-center border-b border-gray-950 pb-1">
-                        <span class="text-gray-300 font-semibold text-xs">{{ getSkillName(id) }} ({{ id }})</span>
-                        <button @click="removeSkillFromNpc(id)" class="text-red-400 hover:text-red-500 text-xs font-bold">✕ Retirer</button>
-                      </div>
-                      <div class="grid grid-cols-2 gap-2 bg-gray-950 p-1.5 rounded border border-gray-800">
-                        <div class="flex items-center justify-between">
-                          <span class="text-[10px] text-gray-500 font-medium">Achat :</span>
-                          <div class="flex items-center gap-1">
-                            <input type="number" :value="costs.learnCost" @input="updateSkillCost(id, 'learnCost', $event.target.value)" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1 py-0.5 text-xs w-14 text-center focus:outline-none" />
-                            <span class="text-[10px] text-gray-500 font-medium">PO</span>
-                          </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                          <span class="text-[10px] text-gray-500 font-medium">Entraîner :</span>
-                          <div class="flex items-center gap-1">
-                            <input type="number" :value="costs.trainCost" @input="updateSkillCost(id, 'trainCost', $event.target.value)" class="bg-gray-900 border border-gray-700 text-amber-400 font-semibold rounded px-1 py-0.5 text-xs w-14 text-center focus:outline-none" />
-                            <span class="text-[10px] text-gray-500 font-medium">PO</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-if="Object.keys(activeNpc.teachesSkills).length === 0" class="text-center text-xs text-gray-500 py-6">
-                      Aucune compétence dans son répertoire.
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="availableSkills.length > 0" class="pt-3 border-t border-gray-900">
-                  <select @change="addSkillToNpc($event.target.value); $event.target.value = ''" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="">➕ Ajouter une compétence au répertoire...</option>
-                    <option v-for="sk in availableSkills" :key="sk.id" :value="sk.id">{{ sk.name }} ({{ sk.id }})</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- Cas : Simple dialogue (Bavard) -->
-              <div v-show="activeNpc.role === 'bavard'" class="flex-1 flex flex-col justify-center items-center text-center py-12">
-                <span class="text-4xl">🗣️</span>
-                <h4 class="text-sm font-bold text-gray-400 mt-3">Simple Bavard</h4>
-                <p class="text-xs text-gray-500 max-w-xs mt-1">Ce PNJ ne propose aucune boutique ni enseignement. Utilisez la section des dialogues ci-dessous pour le faire parler.</p>
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <!-- Section 5 : Dialogues à mots-clés -->
-        <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-4">
-          <div class="flex justify-between items-center border-b border-gray-900 pb-2">
-            <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🗣️ 5. Dialogues à mots-clés</h3>
-            <button @click="addDialogueBlock()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1 px-3 rounded text-[10px] transition">
-              + Ajouter un bloc de dialogue
+        <div class="flex-1 overflow-y-auto max-h-[70vh]">
+            <button v-for="n in liste" type="button" class="cs-item" :class="{ on: n.id === courant && !nouveau }" @click="ouvrir(n.id)">
+                <span class="cs-mod" :class="{ invisible: !(n.id === courant && sale && !nouveau) }" title="Modifié, non enregistré"></span>
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ n.name }}</span><span class="font-mono text-[11px] text-gray-500">{{ n.id }}</span></span>
+                <span class="cs-hint">{{ n.role }}</span>
             </button>
-          </div>
-          
-          <div class="space-y-4">
-            <div v-for="(dlg, index) in activeNpc.dialogues" :key="index" class="p-4 bg-gray-900 border border-gray-800 rounded-lg flex flex-col gap-3 relative">
-              <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-                <h5 class="text-xs text-amber-500 font-bold uppercase tracking-wider">Dialogue {{ index + 1 }}</h5>
-                <button @click="removeDialogueBlock(index)" class="text-red-400 hover:text-red-500 text-xs font-bold">Supprimer ✕</button>
-              </div>
-              
-              <!-- Keywords -->
-              <div class="grid grid-cols-3 gap-3">
-                <div class="col-span-2">
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Mots-clés (séparés par des virgules)</label>
-                  <input type="text" :value="(dlg.keywords || []).join(', ')" @change="onDialogueKeywordsChange(index, $event.target.value)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" />
-                </div>
-                <div class="flex items-end pb-1.5">
-                  <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-300">
-                    <input type="checkbox" v-model="dlg.repeatable" class="rounded text-amber-500 bg-gray-950 border-gray-800" />
-                    Récompenses répétables
-                  </label>
-                </div>
-              </div>
-              
-              <!-- Response -->
-              <div>
-                <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Réponse du PNJ</label>
-                <textarea v-model="dlg.reponse" class="w-full bg-gray-950 border border-gray-800 rounded p-2 h-16 text-xs text-white focus:outline-none leading-relaxed" placeholder="Entrez la phrase de réponse du PNJ..."></textarea>
-              </div>
-              
-              <!-- Conditions & Reactions (Flex row) -->
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Conditions JSON — ex: {"flag":"clef"}</label>
-                  <input type="text" :value="dlg.conditions ? JSON.stringify(dlg.conditions) : ''" @change="onDialogueJSONChange(index, 'conditions', $event.target.value, $event)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none" placeholder='ex: {"flag":"etape_1"}' />
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Réactions JSON — ex: [{"type":"gold","amount":50}]</label>
-                  <input type="text" :value="dlg.reactions ? JSON.stringify(dlg.reactions) : ''" @change="onDialogueJSONChange(index, 'reactions', $event.target.value, $event)" class="w-full bg-gray-950 border border-gray-800 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none" placeholder='ex: [{"type":"gold","amount":100}]' />
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-
-        <!-- Actions de pied de page (Supprimer PNJ) -->
-        <div class="flex justify-between items-center border-t border-gray-800 pt-4 pb-12">
-          <button @click="deleteCurrentNpc()" class="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-semibold py-1.5 px-4 rounded text-xs transition">
-            🗑️ Supprimer ce PNJ
-          </button>
-          <button @click="saveCurrentNpc()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-6 rounded text-xs transition shadow">
-            Enregistrer ce PNJ
-          </button>
-        </div>
-
-      </div>
     </section>
 
-  </main>
+    <!-- fiche -->
+    <section aria-label="Édition du PNJ" class="flex-[999_1_480px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
+        <div class="flex items-center gap-4 flex-wrap">
+            <canvas id="pnj-portrait" width="56" height="56" class="rounded-lg bg-[#1b1d22] border border-gray-800 flex-none"></canvas>
+            <div class="flex-1 min-w-[200px]">
+                <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
+                <div class="text-gray-500"><span class="font-mono">{{ nouveau ? nouvelId : courant }}</span> · {{ sousTitre }}</div>
+            </div>
+            <button type="button" class="cs-btn" @click="nouveauPnj(fiche)" :disabled="nouveau">Dupliquer</button>
+            <button type="button" class="cs-btn cs-danger" @click="supprimer()">{{ nouveau ? 'Abandonner' : 'Supprimer' }}</button>
+        </div>
+
+        <div class="cs-onglets" role="tablist">
+            <button type="button" role="tab" class="cs-onglet" :class="{ on: onglet === 'general' }" @click="onglet = 'general'; portrait()">Général</button>
+            <button type="button" role="tab" class="cs-onglet" :class="{ on: onglet === 'carac' }" @click="onglet = 'carac'">Caractéristiques</button>
+            <button type="button" role="tab" class="cs-onglet" :class="{ on: onglet === 'enseignement' }" @click="onglet = 'enseignement'">Enseignement <span class="cs-chip">{{ nbEnseignement }}</span></button>
+            <button type="button" role="tab" class="cs-onglet" :class="{ on: onglet === 'dialogues' }" @click="onglet = 'dialogues'">Dialogues <span class="cs-chip">{{ fiche.dialogues.length }}</span></button>
+            <button type="button" role="tab" class="cs-onglet" :class="{ on: onglet === 'ambiance' }" @click="onglet = 'ambiance'">Phrases d’ambiance <span class="cs-chip">{{ fiche.greetings.length }}</span></button>
+        </div>
+
+        <!-- Général -->
+        <div class="contents" v-if="onglet === 'general'">
+            <div class="cs-card">
+                <h3>Identité</h3>
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                    <div class="cs-field"><label class="cs-label" for="pnj-id">Identifiant</label>
+                        <input id="pnj-id" class="cs-input font-mono" v-if="nouveau" v-model="nouvelId" />
+                        <input id="pnj-id" class="cs-input font-mono" v-else :value="courant" readonly /></div>
+                    <div class="cs-field"><label class="cs-label" for="pnj-nom">Nom affiché</label><input id="pnj-nom" class="cs-input" v-model="fiche.name" /></div>
+                    <div class="cs-field"><label class="cs-label" for="pnj-role">Rôle</label>
+                        <select id="pnj-role" class="cs-input" v-model="fiche.role"><option v-for="r in ROLES" :value="r[0]">{{ r[1] }}</option></select></div>
+                </div>
+                <p class="text-xs text-gray-500" v-if="fiche.role === 'merchant'">Ouvre son étal au clic. Il vend les objets du palier de la zone, sauf si une liste est fixée ci-dessous.</p>
+                <p class="text-xs text-gray-500" v-if="fiche.role === 'teacher'">Au clic, propose seulement ce qu’il enseigne (onglet Enseignement).</p>
+                <p class="text-xs text-gray-500" v-if="fiche.role === 'bavard'">Ne tient pas boutique : il salue, puis réagit aux mots-clés.</p>
+            </div>
+            <div class="cs-card" v-if="fiche.role === 'merchant'">
+                <h3>Étal</h3>
+                <div class="flex flex-wrap gap-1.5 items-center">
+                    <span v-for="id in fiche.sells || []" class="cs-chip gap-1.5">{{ nomObjet(id) }}<button type="button" class="cs-x" :aria-label="'Retirer ' + nomObjet(id)" @click="retirerVente(id)">×</button></span>
+                    <span class="text-gray-500" v-if="!fiche.sells">Objets du palier de la zone (par défaut).</span>
+                    <select class="cs-input w-[220px]" @change="ajouterVente($event.target.value); $event.target.value = ''" aria-label="Ajouter un objet à l’étal">
+                        <option value="">Ajouter un objet…</option><option v-for="o in objets" :value="o.id">{{ o.name }}</option></select>
+                </div>
+            </div>
+            <div class="cs-card">
+                <h3>Apparence</h3>
+                <div class="flex gap-4 flex-wrap">
+                    <canvas id="pnj-apparence" width="140" height="170" class="rounded-lg bg-[#0b0c0f] border border-gray-800 flex-none"></canvas>
+                    <div class="flex-1 min-w-[240px] grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 content-start">
+                        <div class="cs-field"><label class="cs-label" for="pnj-sexe">Silhouette</label>
+                            <select id="pnj-sexe" class="cs-input" :value="fiche.look.sex || 'male'" @change="couche('sex', $event.target.value === 'female' ? 'female' : '')"><option value="male">Homme</option><option value="female">Femme</option></select></div>
+                        <div class="cs-field" v-for="c in COUCHES"><label class="cs-label" :for="'pnj-c-' + c[0]">{{ c[1] }}</label>
+                            <select :id="'pnj-c-' + c[0]" class="cs-input font-mono" :value="fiche.look[c[0]] || ''" @change="couche(c[0], $event.target.value)">
+                                <option value="">par défaut</option><option v-for="k in couchesDispo" :value="k">{{ k }}</option></select></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Caractéristiques -->
+        <div class="cs-card" v-if="onglet === 'carac'">
+            <h3>Caractéristiques</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pnj-niv">Niveau</label><input id="pnj-niv" class="cs-input font-mono" type="number" min="1" :value="fiche.level" @change="fiche.level = Math.max(1, +$event.target.value | 0)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pnj-pv">Points de vie</label><input id="pnj-pv" class="cs-input font-mono" type="number" min="1" :value="fiche.hp" @change="fiche.hp = Math.max(1, +$event.target.value | 0)" /></div>
+                <div class="cs-field" v-for="s in STATS"><label class="cs-label" :for="'pnj-' + s">{{ NOMS_STATS[s] }}</label>
+                    <input :id="'pnj-' + s" class="cs-input font-mono" type="number" min="0" :value="fiche.stats[s]" @change="fiche.stats[s] = Math.max(0, +$event.target.value | 0)" /></div>
+            </div>
+        </div>
+
+        <!-- Enseignement -->
+        <div class="contents" v-if="onglet === 'enseignement'">
+            <div class="cs-card">
+                <div class="flex items-center gap-2 flex-wrap"><h3 class="flex-1">Sorts enseignés</h3>
+                    <select class="cs-input w-[240px]" @change="ajouterSort($event.target.value); $event.target.value = ''" aria-label="Ajouter un sort">
+                        <option value="">Ajouter un sort…</option><option v-for="s in sortsDispo" :value="s.id">{{ s.name }} (niv. {{ s.level }})</option></select></div>
+                <table class="cs-table" v-if="Object.keys(fiche.teachesSpells).length">
+                    <thead><tr><th>Sort</th><th class="text-right">Prix (PO)</th><th></th></tr></thead>
+                    <tbody><tr v-for="id in Object.keys(fiche.teachesSpells)">
+                        <td>{{ nomSort(id) }} <span class="font-mono text-[11px] text-gray-500">{{ id }}</span></td>
+                        <td class="text-right"><input class="cs-ci" type="number" min="0" :value="fiche.teachesSpells[id]" @change="fiche.teachesSpells[id] = Math.max(0, +$event.target.value | 0)" :aria-label="'Prix ' + nomSort(id)" /></td>
+                        <td class="text-right"><button type="button" class="cs-btn cs-ghost cs-icon" :aria-label="'Retirer ' + nomSort(id)" @click="retirerSort(id)">×</button></td>
+                    </tr></tbody>
+                </table>
+                <p class="text-gray-500" v-else>Aucun sort.</p>
+            </div>
+            <div class="cs-card">
+                <div class="flex items-center gap-2 flex-wrap"><h3 class="flex-1">Compétences enseignées</h3>
+                    <select class="cs-input w-[240px]" @change="ajouterComp($event.target.value); $event.target.value = ''" aria-label="Ajouter une compétence">
+                        <option value="">Ajouter une compétence…</option><option v-for="s in compsDispo" :value="s.id">{{ s.name }}</option></select></div>
+                <table class="cs-table" v-if="Object.keys(fiche.teachesSkills).length">
+                    <thead><tr><th>Compétence</th><th class="text-right">Apprentissage (PO)</th><th class="text-right">Entraînement (PO)</th><th></th></tr></thead>
+                    <tbody><tr v-for="id in Object.keys(fiche.teachesSkills)">
+                        <td>{{ nomComp(id) }}</td>
+                        <td class="text-right"><input class="cs-ci" type="number" min="0" :value="fiche.teachesSkills[id].learnCost" @change="fiche.teachesSkills[id].learnCost = Math.max(0, +$event.target.value | 0)" :aria-label="'Apprentissage ' + nomComp(id)" /></td>
+                        <td class="text-right"><input class="cs-ci" type="number" min="0" :value="fiche.teachesSkills[id].trainCost" @change="fiche.teachesSkills[id].trainCost = Math.max(0, +$event.target.value | 0)" :aria-label="'Entraînement ' + nomComp(id)" /></td>
+                        <td class="text-right"><button type="button" class="cs-btn cs-ghost cs-icon" :aria-label="'Retirer ' + nomComp(id)" @click="retirerComp(id)">×</button></td>
+                    </tr></tbody>
+                </table>
+                <p class="text-gray-500" v-else>Aucune compétence.</p>
+            </div>
+        </div>
+
+        <!-- Dialogues -->
+        <div class="contents" v-if="onglet === 'dialogues'">
+            <p class="text-xs text-gray-500">Le joueur parle près du PNJ : le premier dialogue dont un mot-clé apparaît dans sa phrase et dont les conditions sont remplies répond. L’ordre compte.</p>
+            <div v-for="(d, i) in fiche.dialogues" class="contents">
+                <div class="cs-card" v-if="dlgOuvert === i">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono text-gray-500">{{ i + 1 }}</span>
+                        <h3 class="flex-1">Quand le joueur dit</h3>
+                        <label class="flex items-center gap-2 text-gray-300" title="Sinon l’or, l’expérience et les objets ne sont donnés qu’une fois par personnage"><input type="checkbox" :checked="!!d.repeatable" @change="$event.target.checked ? d.repeatable = true : delete d.repeatable" />Récompenses répétables</label>
+                        <button type="button" class="cs-btn cs-ghost cs-icon" aria-label="Monter ce dialogue" @click="deplacer(i, -1)" :disabled="i === 0">↑</button>
+                        <button type="button" class="cs-btn cs-ghost cs-icon" aria-label="Descendre ce dialogue" @click="deplacer(i, 1)" :disabled="i === fiche.dialogues.length - 1">↓</button>
+                        <button type="button" class="cs-btn cs-ghost cs-icon" aria-label="Supprimer ce dialogue" @click="supprimerDialogue(i)">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.6 8.5h4.8l.6-8.5"></path></svg></button>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 items-center">
+                        <span v-for="(k, j) in d.keywords" class="cs-chip gap-1.5">{{ k }}<button type="button" class="cs-x" :aria-label="'Retirer le mot-clé ' + k" @click="d.keywords.splice(j, 1)">×</button></span>
+                        <label :for="'pnj-kw-' + i" class="sr-only">Ajouter un mot-clé</label>
+                        <input :id="'pnj-kw-' + i" class="cs-input flex-1 min-w-[220px]" v-model="motCle" placeholder="Ajouter un mot-clé, Entrée pour valider" @keydown.enter.prevent="ajouterMotCle(d)" />
+                    </div>
+                    <p class="text-xs text-amber-400" v-if="masque(i)">Un dialogue plus haut, sans condition, répond déjà à l’un de ces mots-clés : celui-ci ne sera jamais atteint.</p>
+                    <div class="cs-field">
+                        <span class="cs-label">Seulement si</span>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <span v-for="c in conditionsDe(d)" class="cs-cond">
+                                <span>{{ c.nom }}</span>
+                                <input v-if="c.champ === 'texte'" class="cs-mini font-mono" :value="d.conditions[c.k]" @change="fixerCondition(d, c, $event.target.value)" :aria-label="c.nom" />
+                                <input v-if="c.champ === 'nombre'" class="cs-mini font-mono w-16" type="number" min="0" :value="d.conditions[c.k]" @change="fixerCondition(d, c, $event.target.value)" :aria-label="c.nom" />
+                                <select v-if="c.champ === 'objet'" class="cs-mini max-w-[180px]" :value="d.conditions[c.k]" @change="fixerCondition(d, c, $event.target.value)" :aria-label="c.nom"><option v-for="o in objets" :value="o.id">{{ o.name }}</option></select>
+                                <label v-if="c.option" class="flex items-center gap-1 text-gray-400"><input type="checkbox" :checked="!!d.conditions[c.option[0]]" @change="optionCondition(d, c, $event.target.checked)" />{{ c.option[1] }}</label>
+                                <button type="button" class="cs-x" :aria-label="'Retirer la condition ' + c.nom" @click="retirerCondition(d, c)">×</button>
+                            </span>
+                            <select class="cs-input cs-ghost w-[150px]" v-if="conditionsLibres(d).length" @change="ajouterCondition(d, $event.target.value); $event.target.value = ''" aria-label="Ajouter une condition">
+                                <option value="">+ Condition</option><option v-for="c in conditionsLibres(d)" :value="c.k">{{ c.nom }}</option></select>
+                        </div>
+                    </div>
+                    <div class="cs-field">
+                        <label class="cs-label" :for="'pnj-rep-' + i">Le PNJ répond</label>
+                        <textarea :id="'pnj-rep-' + i" class="cs-input min-h-[76px] py-2" rows="3" v-model="d.reponse"></textarea>
+                    </div>
+                    <div class="cs-field">
+                        <span class="cs-label">Puis</span>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <span v-for="(r, j) in d.reactions || []" class="cs-cond">
+                                <span>{{ reaction(r.type).nom }}</span>
+                                <span v-for="ch in reaction(r.type).champs" class="contents">
+                                    <span class="text-gray-500" v-if="ch[1]">{{ ch[1] }}</span>
+                                    <input v-if="ch[2] === 'texte'" class="cs-mini font-mono" :value="r[ch[0]]" @change="fixerChamp(r, ch, $event.target.value)" :aria-label="reaction(r.type).nom + ' ' + ch[1]" />
+                                    <input v-if="ch[2] === 'nombre'" class="cs-mini font-mono w-16" type="number" :value="r[ch[0]]" @change="fixerChamp(r, ch, $event.target.value)" :aria-label="reaction(r.type).nom + ' ' + ch[1]" />
+                                    <select v-if="ch[2] === 'objet'" class="cs-mini max-w-[180px]" :value="r[ch[0]]" @change="fixerChamp(r, ch, $event.target.value)" :aria-label="reaction(r.type).nom"><option v-for="o in objets" :value="o.id">{{ o.name }}</option></select>
+                                </span>
+                                <button type="button" class="cs-x" :aria-label="'Retirer ' + reaction(r.type).nom" @click="retirerReaction(d, j)">×</button>
+                            </span>
+                            <select class="cs-input cs-ghost w-[150px]" @change="ajouterReaction(d, $event.target.value); $event.target.value = ''" aria-label="Ajouter une réaction">
+                                <option value="">+ Réaction</option><option v-for="r in REACTIONS" :value="r.type">{{ r.nom }}</option></select>
+                        </div>
+                    </div>
+                    <div><button type="button" class="cs-lien" @click="voirJson = !voirJson">{{ voirJson ? 'Masquer' : 'Voir' }} le JSON</button></div>
+                    <pre v-if="voirJson" class="font-mono text-xs bg-[#0b0c0f] border border-gray-800 rounded p-3 overflow-x-auto">{{ JSON.stringify(d, null, 2) }}</pre>
+                </div>
+                <button type="button" class="cs-panel p-3.5 flex items-center gap-2 flex-wrap text-left hover:border-gray-600" v-else @click="dlgOuvert = i; voirJson = false">
+                    <span class="font-mono text-gray-500">{{ i + 1 }}</span>
+                    <span class="text-gray-400">Quand le joueur dit</span>
+                    <span v-for="k in d.keywords" class="cs-chip">{{ k }}</span>
+                    <span class="cs-chip bg-transparent border border-gray-700" v-if="d.conditions">si…</span>
+                    <span class="text-gray-500 basis-full truncate">{{ resume(d) }}</span>
+                </button>
+            </div>
+            <button type="button" class="cs-btn self-start" @click="ajouterDialogue()">Ajouter un dialogue</button>
+        </div>
+
+        <!-- Phrases d'ambiance -->
+        <div class="cs-card" v-if="onglet === 'ambiance'">
+            <div class="flex items-center gap-2"><h3 class="flex-1">Phrases d’ambiance</h3><button type="button" class="cs-btn" @click="ajouterPhrase()">Ajouter une phrase</button></div>
+            <p class="text-xs text-gray-500">Une phrase au hasard quand le joueur clique sur le PNJ.<span v-if="indice"> Le jeu y ajoute l’indice des mots-clés : <em class="text-gray-300">{{ indice }}</em></span></p>
+            <div v-for="(g, i) in fiche.greetings" class="flex gap-2 items-center">
+                <input class="cs-input flex-1" v-model="fiche.greetings[i]" :aria-label="'Phrase ' + (i + 1)" />
+                <button type="button" class="cs-btn cs-ghost cs-icon" :aria-label="'Retirer la phrase ' + (i + 1)" @click="retirerPhrase(i)">×</button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800 mt-auto">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn" @click="ouvrir(courant)" :disabled="!sale || nouveau">Annuler</button>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale && !nouveau">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- contexte -->
+    <aside aria-label="Contexte" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+        <div class="flex flex-col gap-2">
+            <span class="cs-sect p-0">Dans le monde</span>
+            <div class="cs-panel p-3 flex flex-col gap-2">
+                <div v-for="p in ouCa" class="flex justify-between gap-2"><span>{{ p.zone }}<span class="text-amber-400" v-if="p.retouche" title="Fiche retouchée dans cette zone (Zones et terrain)"> *</span></span><span class="font-mono text-gray-500">{{ p.x }}, {{ p.z }}</span></div>
+                <span class="text-gray-500" v-if="!ouCa.length">Placé nulle part pour l’instant.</span>
+                <a class="cs-btn self-start" href="#zones">Voir sur la carte</a>
+                <span class="text-xs text-gray-500">Le placement se fait dans Zones et terrain, la fiche ici.<span v-if="ouCa.some(p => p.retouche)"> * : une zone retouche des champs de cette fiche.</span></span>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2">
+            <span class="cs-sect p-0">Tester le dialogue</span>
+            <div class="cs-panel p-3 flex flex-col gap-3">
+                <div class="flex flex-wrap gap-x-3 gap-y-1.5 items-center text-gray-300">
+                    <span class="text-gray-500">État simulé :</span>
+                    <label v-for="f in drapeauxSim" class="flex items-center gap-1.5"><input type="checkbox" :checked="!!sim.flags[f]" @change="sim.flags = { ...sim.flags, [f]: $event.target.checked }" /><span class="font-mono">{{ f }}</span> posé</label>
+                    <label v-for="o in objetsSim" class="flex items-center gap-1.5"><input type="checkbox" :checked="!!sim.objets[o]" @change="sim.objets = { ...sim.objets, [o]: $event.target.checked }" />a {{ nomObjet(o) }}</label>
+                    <label class="flex items-center gap-1.5" v-if="maleficeSim"><input type="checkbox" v-model="sim.maudit" />maudit</label>
+                    <label class="flex items-center gap-1.5">niveau <input class="cs-mini font-mono w-12" type="number" min="1" v-model.number="sim.level" /></label>
+                    <label class="flex items-center gap-1.5">or <input class="cs-mini font-mono w-16" type="number" min="0" v-model.number="sim.gold" /></label>
+                </div>
+                <div class="flex flex-col gap-2 max-h-[320px] overflow-y-auto" v-if="journal.length">
+                    <div v-for="l in journal" :class="l.qui === 'joueur' ? 'cs-bulle moi' : l.qui === 'pnj' ? 'cs-bulle' : 'text-xs text-gray-500'">
+                        <span class="block text-amber-400 text-xs" v-if="l.qui === 'pnj'">{{ fiche.name }}</span>{{ l.texte }}</div>
+                </div>
+                <form class="flex gap-2" @submit.prevent="parler()">
+                    <label for="pnj-dire" class="sr-only">Parler au PNJ</label>
+                    <input id="pnj-dire" class="cs-input flex-1" v-model="phrase" placeholder="Parler comme un joueur" />
+                    <button type="submit" class="cs-btn">Envoyer</button>
+                </form>
+                <button type="button" class="cs-lien self-start" v-if="journal.length" @click="reinitSim()">Recommencer</button>
+            </div>
+        </div>
+    </aside>
 </div>
