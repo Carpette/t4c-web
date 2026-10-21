@@ -127,6 +127,7 @@ export async function handleAdmin(req, res, url, game) {
       ['/api/admin/check-session', '/api/admin/me', '/api/admin/logout'].includes(url) ? null
         : mC ? (lecture ? 'console' : [[CONTENU[mC[1]] || '__super__'], EDITION])
         : url === '/api/admin/content' ? [['sorts'], EDITION]
+        : /^\/api\/admin\/content\/[a-z]+\/reference$/.test(url) ? [['fichiers'], LECTURE]
         : /^\/api\/admin\/overrides\/\d+$/.test(url) ? (lecture ? [['zones', 'pnj_placement', 'zones_musicales', 'carte'], LECTURE] : [['zones', 'pnj_placement', 'zones_musicales'], EDITION])
         : url === '/api/admin/npcs/positions' ? [['pnj', 'pnj_placement'], LECTURE]
         : url === '/api/admin/objets/circulation' ? [['objets'], LECTURE]
@@ -244,6 +245,17 @@ export async function handleAdmin(req, res, url, game) {
         saveContentFile(name, data, auteur);
         return json(200, { ok: true, note: 'Appliqué à chaud.' });
       }
+    }
+
+    // ---- état d'un fichier de contenu à la dernière version marquée ----
+    // (Fichiers bruts, vue « Différences ») ; sans version, l'état d'avant
+    // la première modification consignée
+    const mRef = url.match(/^\/api\/admin\/content\/(zones|npcs|spells|skills|particles|creatures|objets)\/reference$/);
+    if (mRef && req.method === 'GET') {
+      const jusqua = db.jusquaDerniereVersion();
+      const v = db.listVersions()[0] || null;
+      const t = db.etatFichierA(mRef[1], jusqua);
+      return json(200, { version: v && { id: v.id, t: v.t, note: v.note }, inchange: t === undefined, contenu: t == null ? null : JSON.parse(t) });
     }
 
     // ---- contenu (zones / npcs / sorts / compétences / particules) ----
