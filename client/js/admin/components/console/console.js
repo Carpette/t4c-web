@@ -44,6 +44,11 @@ export function ConsoleController(api) {
       const depart = id && peutVoir(ecranParId(id)) ? id
         : peutVoir(ecranParId('zones')) ? 'zones' : (ECRANS.find(e => peutVoir(e) && !e.bientot)?.id || 'zones');
       allerA(depart, sous);
+      // adresse changée à la main ou lien vers un écran (#sorts/spells-table)
+      window.addEventListener('hashchange', () => {
+        const a = ecranDepuisAdresse();
+        if (a.id && peutVoir(ecranParId(a.id))) allerA(a.id, a.sous);
+      });
       document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.code === 'KeyK') {
           e.preventDefault();
