@@ -28,37 +28,38 @@ export const ICONES = {
 // Écrans. tab = id du conteneur #tab-<tab> monté par GuiManagerAdmin ;
 // sous = sous-écrans (onglets segmentés de l'en-tête de page) ; bientot =
 // écran prévu dont le serveur n'existe pas encore (en-tête + description) ;
-// perm = permission suffisante pour un animateur (sinon : super admin).
+// droits = droits de profil qui ouvrent l'écran (shared/acces.js) ; l'écran
+// est en lecture seule sans le niveau Édition. Sans droits : super admin.
 export const ECRANS = [
-  { id: 'carte', espace: 'monde', section: 'Monde en direct', nom: 'Carte du monde', icone: 'carte', bientot: true,
+  { id: 'carte', espace: 'monde', section: 'Monde en direct', nom: 'Carte du monde', icone: 'carte', droits: ['carte'], bientot: true,
     desc: 'Les joueurs et les créatures en direct sur la carte, avec les actions d’animation au clic.',
     prevu: ['Position des joueurs connectés, rafraîchie en continu', 'Sélection d’un joueur : aller à lui, l’amener à soi, message privé, expulsion', 'Journal des événements du serveur'] },
-  { id: 'joueurs', espace: 'monde', section: 'Monde en direct', nom: 'Joueurs', icone: 'joueurs', tab: 'chars', perm: 'players',
+  { id: 'joueurs', espace: 'monde', section: 'Monde en direct', nom: 'Joueurs', icone: 'joueurs', tab: 'chars', droits: ['joueurs'],
     desc: 'Les personnages du serveur. Une modification déconnecte le joueur pour qu’il recharge ses données.' },
-  { id: 'pantheon', espace: 'monde', section: 'Monde en direct', nom: 'Panthéon', icone: 'pantheon', tab: 'pantheon',
+  { id: 'pantheon', espace: 'monde', section: 'Monde en direct', nom: 'Panthéon', icone: 'pantheon', tab: 'pantheon', droits: ['pantheon'],
     desc: 'Le registre des personnages tombés, du plus récent au plus ancien.' },
-  { id: 'acces', espace: 'monde', section: 'Administration', nom: 'Accès et rôles', icone: 'acces', tab: 'access', perm: 'roles',
+  { id: 'acces', espace: 'monde', section: 'Administration', nom: 'Accès et rôles', icone: 'acces', tab: 'access', droits: ['acces'],
     desc: 'Qui administre le serveur, et avec quelles permissions. Appliqué à chaud si le compte est connecté.' },
 
-  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', tab: 'map', perm: 'map',
+  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', tab: 'map', droits: ['zones', 'pnj_placement', 'zones_musicales'],
     desc: 'Le terrain, les décors, les camps et les lumières de chaque zone.' },
-  { id: 'pnj', espace: 'forge', section: 'Habitants', nom: 'PNJ', icone: 'pnj', tab: 'npcs-editor', perm: 'quests',
+  { id: 'pnj', espace: 'forge', section: 'Habitants', nom: 'PNJ', icone: 'pnj', tab: 'npcs-editor', droits: ['pnj'],
     desc: 'Les personnages non joueurs, leurs mots-clés et leurs dialogues de quête.' },
-  { id: 'creatures', espace: 'forge', section: 'Habitants', nom: 'Créatures', icone: 'creatures', tab: 'creatures',
+  { id: 'creatures', espace: 'forge', section: 'Habitants', nom: 'Créatures', icone: 'creatures', tab: 'creatures', droits: ['creatures'],
     desc: 'Le bestiaire : statistiques, butin et apparence de chaque créature. Appliqué à chaud aux prochaines apparitions.' },
-  { id: 'sorts', espace: 'forge', section: 'Magie', nom: 'Sorts', icone: 'sorts',
+  { id: 'sorts', espace: 'forge', section: 'Magie', nom: 'Sorts', icone: 'sorts', droits: ['sorts'],
     desc: 'Les sortilèges : coût, formules, conditions et effets.',
     sous: [{ tab: 'spells-editor', nom: 'Fiche' }, { tab: 'spells-table', nom: 'Tableau' }] },
-  { id: 'effets', espace: 'forge', section: 'Magie', nom: 'Effets visuels', icone: 'effets', tab: 'particle-editor',
+  { id: 'effets', espace: 'forge', section: 'Magie', nom: 'Effets visuels', icone: 'effets', tab: 'particle-editor', droits: ['sorts'],
     desc: 'Les profils de particules joués par les sorts et les objets.' },
-  { id: 'objets', espace: 'forge', section: 'Objets', nom: 'Objets', icone: 'objets', tab: 'objets',
+  { id: 'objets', espace: 'forge', section: 'Objets', nom: 'Objets', icone: 'objets', tab: 'objets', droits: ['objets'],
     desc: 'Armes, armures, bijoux et potions : règles, économie et apparence. Appliqué à chaud aux prochains objets générés.' },
-  { id: 'bibliotheque', espace: 'forge', section: 'Ressources', nom: 'Bibliothèque', icone: 'bibliotheque',
+  { id: 'bibliotheque', espace: 'forge', section: 'Ressources', nom: 'Bibliothèque', icone: 'bibliotheque', droits: ['bibliotheque'],
     desc: 'Les ressources graphiques du jeu : sprites 2D, matériaux de construction et modèles 3D cuits en sprites.',
     sous: [{ tab: 'skins', nom: 'Atelier 2D' }, { tab: 'materials', nom: 'Matériaux' }, { tab: 'atelier3d', nom: 'Atelier 3D' }] },
-  { id: 'musiques', espace: 'forge', section: 'Ressources', nom: 'Musiques', icone: 'musiques', tab: 'music',
+  { id: 'musiques', espace: 'forge', section: 'Ressources', nom: 'Musiques', icone: 'musiques', tab: 'music', droits: ['musiques'],
     desc: 'Ce que joue chaque zone et chaque écran, et les groupes de pistes.' },
-  { id: 'fichiers', espace: 'forge', section: 'Avancé', nom: 'Fichiers bruts', icone: 'fichiers', tab: 'content',
+  { id: 'fichiers', espace: 'forge', section: 'Avancé', nom: 'Fichiers bruts', icone: 'fichiers', tab: 'content', droits: ['fichiers'],
     desc: 'Les fichiers de contenu en JSON. Préférez les écrans dédiés, sauf pour une correction précise.' },
   { id: 'publication', espace: 'forge', nom: 'Publication', icone: 'publication', bientot: true, pied: true,
     desc: 'Le brouillon de la Forge, comparé à ce qui tourne sur le serveur.',
@@ -80,11 +81,14 @@ export const consoleEtat = reactive({
   serveurOk: true,
 });
 
-export const peutVoir = (e) => {
+// meilleur niveau du compte sur les droits de l'écran : 0 aucun, 1 lecture, 2 édition
+export const niveauEcran = (e) => {
   const moi = consoleEtat.moi;
-  if (!moi || moi.isAdmin) return true;
-  return !!e.perm && moi.perms.includes(e.perm);
+  if (!moi || moi.isAdmin) return 2;
+  if (e?.id === 'publication') return moi.publier ? 2 : 0;
+  return Math.max(0, ...(e?.droits || []).map(d => moi.droits?.[d] | 0));
 };
+export const peutVoir = (e) => niveauEcran(e) > 0;
 
 // tab-content réellement affiché pour un écran (sous-écran éventuel)
 export const tabDe = (e) => e.sous ? (consoleEtat.sous[e.id] || e.sous[0].tab) : e.tab;
@@ -97,6 +101,8 @@ export function allerA(id, sous) {
   consoleEtat.ecran = e.id;
   const tab = tabDe(e);
   document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('visible', tc.id === `tab-${tab}`));
+  // lecture seule : les actions d'écriture sont masquées (le serveur refuse de toute façon)
+  document.body.classList.toggle('cs-lecture', niveauEcran(e) < 2);
   const h = '#' + e.id + (e.sous ? '/' + tab : '');
   if (location.hash !== h) history.replaceState(null, '', h);
 }

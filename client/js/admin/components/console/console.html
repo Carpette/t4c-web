@@ -20,7 +20,7 @@
     </span>
     <div class="flex items-center gap-2" v-if="etat.moi">
         <div class="w-[30px] h-[30px] rounded-full bg-[#2a2d34] text-t4c-gold flex items-center justify-center font-semibold">{{ etat.moi.name.charAt(0).toUpperCase() }}</div>
-        <div class="leading-tight"><div class="font-semibold">{{ etat.moi.name }}</div><div class="text-[11px] text-gray-500">{{ etat.moi.isAdmin ? 'Super admin' : 'Animateur' }}</div></div>
+        <div class="leading-tight"><div class="font-semibold">{{ etat.moi.name }}</div><div class="text-[11px] text-gray-500">{{ etat.moi.isAdmin ? 'Super admin' : (etat.moi.profil || 'Sans profil') }}</div></div>
         <button id="logout-button" type="button" class="cs-btn cs-ghost cs-icon" aria-label="Se déconnecter" title="Se déconnecter">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" v-html="icones.sortir"></svg>
         </button>

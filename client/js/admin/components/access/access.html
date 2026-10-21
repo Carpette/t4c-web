@@ -1,12 +1,78 @@
-<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <div id="roles-section" class="hidden">
-        <p id="roles-msg" class="text-green-400 min-h-[1.5em]"></p>
-        <table id="roles-table" class="w-full text-sm text-left text-gray-400"></table>
-        <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border mt-3">
-            Un <b>super admin</b> a toutes les permissions et gère les rôles. Compose les autres profils à la carte :
-            <b>players</b> commandes joueur en jeu · <b>spawn</b> invocation de créatures/objets ·
-            <b>map</b> édition de la carte en jeu · <b>quests</b> dialogues/quêtes des PNJ ·
-            <b>roles</b> consultation de cette liste. Appliqué à chaud si le compte est connecté en jeu.
-        </p>
+<div class="flex flex-col gap-4" @vue:mounted="init()">
+    <div role="tablist" aria-label="Accès et rôles" class="cs-segs self-start">
+        <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'profils' }" :aria-selected="onglet === 'profils'" @click="onglet = 'profils'">Profils</button>
+        <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'comptes' }" :aria-selected="onglet === 'comptes'" @click="onglet = 'comptes'">Comptes · {{ comptes.length }}</button>
+    </div>
+    <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message" role="status">{{ message }}</p>
+
+    <!-- profils -->
+    <div class="cs-panel flex flex-wrap min-h-[560px] overflow-hidden" v-if="onglet === 'profils'">
+        <section aria-label="Profils" data-col="acces-liste" data-bord="droite" class="flex-[1_1_240px] max-w-[300px] border-r border-gray-800 bg-gray-950 flex flex-col py-2">
+            <button v-for="p in liste" type="button" class="cs-item" :class="{ on: courant === p.id }" @click="ouvrir(p.id)">
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ p.nom }}</span><span class="text-xs text-gray-500">{{ p.desc }}</span></span>
+                <span class="cs-chip" :title="p.n + ' compte(s)'">{{ p.n }}</span>
+            </button>
+            <div class="px-3 pt-2" v-if="edition"><button type="button" class="cs-btn w-full justify-center" @click="nouveau()">Nouveau profil</button></div>
+        </section>
+
+        <section aria-label="Édition du profil" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4">
+            <div v-if="courant === 'super'" class="text-gray-300 flex flex-col gap-2">
+                <h2 class="font-serif font-semibold text-[26px] text-t4c-text-light">Super admin</h2>
+                <p>Tous les droits sur tous les écrans, y compris l’attribution des profils et la promotion d’autres super admins. Le compte fondateur le reste toujours.</p>
+            </div>
+            <div v-else-if="courant === 'joueur'" class="text-gray-300 flex flex-col gap-2">
+                <h2 class="font-serif font-semibold text-[26px] text-t4c-text-light">Joueur</h2>
+                <p>Aucun accès à la console ni aux commandes d’animation. C’est l’état de tout nouveau compte.</p>
+            </div>
+            <div v-else-if="fiche" class="contents">
+                <div class="flex items-end gap-3 flex-wrap">
+                    <div class="cs-field min-w-[220px] flex-1 max-w-[360px]"><label class="cs-label" for="ac-nom">Nom du profil</label>
+                        <input id="ac-nom" class="cs-input" v-model="fiche.nom" :readonly="edition ? null : true" maxlength="40" /></div>
+                    <div class="flex-1"></div>
+                    <button type="button" class="cs-btn" v-if="edition && fiche.id" @click="dupliquer()">Dupliquer</button>
+                    <button type="button" class="cs-btn cs-danger" v-if="edition" @click="supprimer()">{{ fiche.id ? 'Supprimer' : 'Abandonner' }}</button>
+                    <button type="button" class="cs-btn cs-primary" v-if="edition" :disabled="!sale" @click="enregistrer()">Enregistrer le profil</button>
+                </div>
+                <div v-for="s in sections" class="cs-card">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="flex-1">{{ s.nom }} <span class="text-gray-500 font-normal">· {{ s.note }}</span></h3>
+                        <button type="button" class="cs-btn h-7" v-if="edition" @click="tout(s, 1)">Tout en lecture</button>
+                        <button type="button" class="cs-btn h-7" v-if="edition" @click="tout(s, 2)">Tout en édition</button>
+                    </div>
+                    <div v-for="d in s.droits" class="flex items-center gap-3 py-2 border-t border-gray-800 flex-wrap">
+                        <div class="flex-1 min-w-[200px]"><div class="text-gray-200">{{ d.nom }}</div><div class="text-xs text-gray-500" v-if="d.desc">{{ d.desc }}</div></div>
+                        <div class="cs-segs" role="group" :aria-label="d.nom">
+                            <button v-for="n in NIVEAUX" type="button" class="cs-seg" :class="{ on: (fiche.droits[d.id] | 0) === n[0] }" :aria-pressed="(fiche.droits[d.id] | 0) === n[0]"
+                                :disabled="!edition || n[0] > plafond(d.id)" :title="n[0] > plafond(d.id) ? 'Au-delà de vos propres droits' : ''" @click="fixer(d.id, n[0])">{{ n[1] }}</button>
+                        </div>
+                    </div>
+                    <div v-for="o in s.options" class="flex items-center gap-3 py-2 border-t border-gray-800 flex-wrap">
+                        <div class="flex-1 min-w-[200px]"><div class="text-gray-200">{{ o.nom }}</div><div class="text-xs text-gray-500">{{ o.desc }}</div></div>
+                        <label class="flex items-center gap-2 text-gray-200"><input type="checkbox" v-model="fiche[o.id]" :disabled="!edition || !optionPermise(o.id)" />Autorisé</label>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- comptes -->
+    <div class="cs-panel p-0 overflow-x-auto" v-if="onglet === 'comptes'">
+        <div class="p-3.5 border-b border-gray-800"><label for="ac-q" class="sr-only">Filtrer les comptes</label>
+            <input id="ac-q" class="cs-input max-w-[320px]" v-model="q" placeholder="Filtrer les comptes" /></div>
+        <table class="w-full text-left">
+            <thead class="text-xs text-gray-500"><tr><th class="px-4 py-2 font-medium">Compte</th><th class="px-2 py-2 font-medium">Profil</th><th class="px-4 py-2 font-medium">Créé le</th></tr></thead>
+            <tbody>
+                <tr v-for="c in comptesFiltres" class="border-t border-gray-800">
+                    <td class="px-4 py-2">{{ c.name }}<span class="text-gray-500" v-if="c.id === moiId"> · vous</span><span class="text-gray-500" v-if="c.id === 1"> · fondateur</span></td>
+                    <td class="px-2 py-2">
+                        <select class="cs-input w-[240px]" :aria-label="'Profil de ' + c.name" :disabled="!peutChanger(c)" :value="c.isAdmin ? 'super' : (c.profilId ?? '')" @change="attribuer(c, $event.target.value)">
+                            <option value="">Joueur</option>
+                            <option v-for="p in profils" :value="p.id">{{ p.nom }}</option>
+                            <option value="super" :disabled="!superAdmin">Super admin</option>
+                        </select></td>
+                    <td class="px-4 py-2 text-gray-500">{{ date(c.createdAt) }}</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>

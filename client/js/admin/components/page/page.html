@@ -1,7 +1,7 @@
 <div class="flex flex-col gap-4" v-if="ecran">
     <div class="flex items-end gap-4 flex-wrap">
         <div class="flex-1 min-w-[240px]">
-            <h1 class="font-serif font-semibold text-[30px] leading-[1.1] text-t4c-text-light">{{ ecran.nom }}</h1>
+            <h1 class="font-serif font-semibold text-[30px] leading-[1.1] text-t4c-text-light">{{ ecran.nom }} <span class="cs-chip align-middle font-sans" v-if="lecture" title="Votre profil donne la lecture seule sur cet écran">Lecture seule</span></h1>
             <p class="text-gray-400 mt-1">{{ ecran.desc }}</p>
         </div>
         <div role="tablist" :aria-label="ecran.nom" class="cs-segs" v-if="ecran.sous">

@@ -1,7 +1,7 @@
 // API HTTP d'administration : contenu, cartes (overrides), personnages,
-// panthéon, comptes & rôles. Auth PAR PERMISSION : un super admin (is_admin)
-// accède à tout ; un compte à permissions n'accède qu'aux routes couvertes
-// par ses permissions (voir ADMIN_PERMS dans shared/constants.js).
+// panthéon, comptes et profils. Auth PAR PROFIL : un super admin (is_admin)
+// accède à tout ; un autre compte n'accède qu'aux routes que son profil
+// couvre, en lecture ou en édition (voir shared/acces.js).
 // Auth : compte avec is_admin = 1 → token de session.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -11,7 +11,8 @@ import * as db from './db.js';
 import { content, saveContentFile, validerSurcharges } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
-import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS, KIND } from '../shared/constants.js';
+import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
+import { DROITS, OPTIONS, LECTURE, EDITION, niveau, aConsole, inclus, permsDe, accesDe, nettoyerProfil } from '../shared/acces.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
@@ -90,7 +91,7 @@ export async function handleAdmin(req, res, url, game) {
       const { name, pass } = JSON.parse(await readBody(req));
       const r = db.login(name, pass);
       if (r.error) return json(401, { error: r.error });
-      if (!r.isAdmin && !(r.perms || []).length) return json(403, { error: 'Ce compte n\'a aucun rôle d\'administration' });
+      if (!aConsole(r.acces)) return json(403, { error: 'Ce compte n\'a aucun accès à la console' });
       const token = crypto.randomBytes(24).toString('hex');
       tokens.set(token, { accountId: r.accountId, expires: Date.now() + 24 * 3600e3 });
       return json(200, { token, name: r.name });
@@ -99,22 +100,40 @@ export async function handleAdmin(req, res, url, game) {
     const session = auth(req);
     if (!session) return json(401, { error: 'Non authentifié' });
 
-    // ---- contrôle d'accès : permission requise par famille de routes ----
-    // Défaut : super admin. Les familles ci-dessous sont ouvertes aux comptes
-    // porteurs de la permission correspondante (animateurs).
-    const grant = db.getPerms(session.accountId);
-    const can = (perm) => grant.isAdmin || grant.perms.includes(perm);
-    const need =
-      url === '/api/admin/check-session' || url === '/api/admin/me' || url === '/api/admin/logout' ? null
-        : /^\/api\/admin\/overrides\//.test(url) ? 'map'
-        : url === '/api/admin/content/npcs' || url === '/api/admin/npcs/positions' ? 'quests'
-        : url === '/api/admin/characters' || /^\/api\/admin\/character\//.test(url) ? 'players'
-        : url === '/api/admin/roles' && req.method === 'GET' ? 'roles'
-        : url === '/api/admin/tiles' || url === '/api/admin/src3d' ? 'map'
-        : 'super';
-    if (need === 'super' ? !grant.isAdmin : (need && !can(need))) {
-      return json(403, { error: 'Permission insuffisante pour cette action' });
-    }
+    // ---- contrôle d'accès : droit et niveau requis par route ----
+    // Lecture pour un GET, édition sinon. Le contenu du jeu (GET content/*,
+    // musiques, ressources) est lisible par tout compte de la console : les
+    // éditeurs se croisent (PNJ -> sorts, carte -> PNJ) et ce contenu est de
+    // toute façon servi aux joueurs. Route non listée : super admin.
+    const acces = db.getAcces(session.accountId);
+    if (!acces.superAdmin && !aConsole(acces)) return json(403, { error: 'Ce compte n\'a plus accès à la console' });
+    const lecture = req.method === 'GET';
+    const min = lecture ? LECTURE : EDITION;
+    const CONTENU = { zones: 'zones', npcs: 'pnj', spells: 'sorts', skills: 'sorts', particles: 'sorts', creatures: 'creatures', objets: 'objets' };
+    const mC = url.match(/^\/api\/admin\/content\/([a-z]+)$/);
+    // [droits acceptés (l'un suffit), niveau] ; 'console' = tout compte de la console ; null = libre
+    const requis =
+      ['/api/admin/check-session', '/api/admin/me', '/api/admin/logout'].includes(url) ? null
+        : mC ? (lecture ? 'console' : [[CONTENU[mC[1]] || '__super__'], EDITION])
+        : url === '/api/admin/content' ? [['sorts'], EDITION]
+        : /^\/api\/admin\/overrides\/\d+$/.test(url) ? (lecture ? [['zones', 'pnj_placement', 'zones_musicales', 'carte'], LECTURE] : [['zones', 'pnj_placement', 'zones_musicales'], EDITION])
+        : url === '/api/admin/npcs/positions' ? [['pnj', 'pnj_placement'], LECTURE]
+        : url === '/api/admin/objets/circulation' ? [['objets'], LECTURE]
+        : url === '/api/admin/characters' || /^\/api\/admin\/character\/\d+$/.test(url) ? [['joueurs'], min]
+        : url === '/api/admin/players' ? [['carte', 'joueurs'], LECTURE]
+        : url === '/api/admin/teleport' ? 'animer'
+        : url === '/api/admin/pantheon' ? [['pantheon'], LECTURE]
+        : url === '/api/admin/roles' || url === '/api/admin/profils' || /^\/api\/admin\/profils\/\d+$/.test(url) ? [['acces'], min]
+        : url === '/api/admin/music' || url === '/api/admin/music/upload' ? (lecture ? 'console' : [['musiques'], EDITION])
+        : url === '/api/admin/tiles' ? (lecture ? 'console' : [['bibliotheque', 'zones'], EDITION])
+        : url === '/api/admin/templates' ? (lecture ? 'console' : [['zones'], EDITION])
+        : ['/api/admin/skins', '/api/admin/skins/upload', '/api/admin/skins/enemy', '/api/admin/atelier', '/api/admin/src3d'].includes(url)
+          ? (lecture ? 'console' : [['bibliotheque'], EDITION])
+        : '__super__';
+    const autorise = acces.superAdmin || requis === null || requis === 'console'
+      || (requis === 'animer' && acces.animer)
+      || (Array.isArray(requis) && requis[0].some(d => niveau(acces, d) >= requis[1]));
+    if (!autorise) return json(403, { error: 'Permission insuffisante pour cette action' });
 
     if (url === '/api/admin/check-session') {
       const account = db.getAccountById(session.accountId);
@@ -129,47 +148,76 @@ export async function handleAdmin(req, res, url, game) {
       return json(200, { ok: true });
     }
 
-    // identité et permissions effectives de la session (l'admin web adapte son interface)
+    // identité et droits effectifs de la session (l'admin web adapte son interface)
     if (url === '/api/admin/me') {
       const account = db.getAccountById(session.accountId);
-      return json(200, { name: account.name, isAdmin: grant.isAdmin, perms: grant.isAdmin ? [...ADMIN_PERMS] : grant.perms });
+      const profil = account.is_admin ? null : db.getProfil(account.profil_id);
+      return json(200, { name: account.name, isAdmin: acces.superAdmin, profil: profil?.nom || null,
+        droits: acces.droits, animer: acces.animer, publier: acces.publier, perms: permsDe(acces) });
     }
 
-    // ---- comptes & rôles ----
+    // ---- comptes et profils ----
+    // Garde-fous : un compte qui n'est pas super admin ne touche ni aux super
+    // admins ni à son propre compte, et n'accorde jamais plus que ses droits.
+    const depasse = (profil) => !inclus(accesDe(false, profil), acces);
+    const appliquerProfil = (profilId) => {
+      for (const id of db.comptesDuProfil(profilId)) game.majAcces(id, db.getAcces(id), false);
+    };
     if (url === '/api/admin/roles' && req.method === 'GET') {
-      return json(200, { accounts: db.listAccounts(), perms: ADMIN_PERMS });
+      return json(200, { accounts: db.listAccounts(), profils: db.listProfils(), droits: DROITS, options: OPTIONS, moi: session.accountId });
     }
     if (url === '/api/admin/roles' && req.method === 'PUT') {
-      // l'ATTRIBUTION reste réservée aux super admins (need = 'super' ci-dessus)
-      const { accountId, perms, superAdmin } = JSON.parse(await readBody(req));
+      const { accountId, profilId, superAdmin } = JSON.parse(await readBody(req));
       const target = db.getAccountById(accountId | 0);
       if (!target) return json(404, { error: 'Compte inconnu' });
+      if (!acces.superAdmin) {
+        if (target.is_admin || typeof superAdmin === 'boolean') return json(403, { error: 'Réservé aux super admins' });
+        if (target.id === session.accountId) return json(403, { error: 'Vous ne pouvez pas changer votre propre profil' });
+      }
       // le compte fondateur (n°1) est intouchable : il y a TOUJOURS au moins
       // un super admin, personne ne peut verrouiller le serveur
       if (target.id === 1 && superAdmin === false) {
         return json(400, { error: 'Le compte fondateur reste super admin (anti-verrouillage)' });
       }
-      if (typeof superAdmin === 'boolean' && target.id !== 1) {
-        db.setAdmin(target.id, superAdmin ? 1 : 0);
-        target.is_admin = superAdmin ? 1 : 0;
+      if (typeof superAdmin === 'boolean' && target.id !== 1) db.setAdmin(target.id, superAdmin ? 1 : 0);
+      if (profilId !== undefined) {
+        const profil = profilId == null ? null : db.getProfil(profilId | 0);
+        if (profilId != null && !profil) return json(404, { error: 'Profil inconnu' });
+        if (profil && depasse(profil)) return json(403, { error: 'Ce profil dépasse vos propres droits' });
+        db.setProfil(target.id, profil?.id ?? null);
       }
-      if (target.is_admin && typeof superAdmin !== 'boolean') {
-        return json(400, { error: 'Un super admin a déjà toutes les permissions' });
+      const t = db.getAccountById(target.id);
+      game.majAcces(t.id, db.getAcces(t.id), !!t.is_admin);
+      return json(200, { ok: true, superAdmin: !!t.is_admin, profilId: t.is_admin ? null : t.profil_id ?? null });
+    }
+    if (url === '/api/admin/profils' && (req.method === 'POST' || req.method === 'PUT')) {
+      const p = JSON.parse(await readBody(req));
+      const propre = nettoyerProfil(p);
+      if (!propre.nom) return json(400, { error: 'Donnez un nom au profil' });
+      if (depasse(propre)) return json(403, { error: 'Ce profil dépasse vos propres droits' });
+      if (req.method === 'PUT') {
+        const ancien = db.getProfil(p.id | 0);
+        if (!ancien) return json(404, { error: 'Profil inconnu' });
+        if (depasse(ancien)) return json(403, { error: 'Ce profil dépasse vos propres droits : modification réservée' });
       }
-      const clean = (Array.isArray(perms) ? perms : []).filter(x => ADMIN_PERMS.includes(x));
-      if (!target.is_admin) db.setPerms(target.id, clean);
-      // appliqué à chaud si le joueur est connecté
-      for (const p of game.players.values()) {
-        if (p.accountId === target.id) {
-          p.isAdmin = !!target.is_admin;
-          p.perms = clean;
-          game.send(p, { t: 'perms', perms: game.permsOf(p) });
-          game.send(p, { t: 'info', text: p.isAdmin
-            ? '👑 Vous êtes désormais super admin.'
-            : 'Vos rôles d\u2019administration ont été mis à jour.' });
-        }
+      try {
+        const id = req.method === 'POST' ? db.creerProfil(propre) : (db.majProfil(p.id | 0, propre), p.id | 0);
+        appliquerProfil(id);
+        return json(200, { ok: true, id });
+      } catch (e) {
+        if (/UNIQUE/.test(e.message)) return json(409, { error: `Le profil « ${propre.nom} » existe déjà` });
+        throw e;
       }
-      return json(200, { ok: true, superAdmin: !!target.is_admin, perms: clean });
+    }
+    const mProfil = url.match(/^\/api\/admin\/profils\/(\d+)$/);
+    if (mProfil && req.method === 'DELETE') {
+      const id = mProfil[1] | 0, profil = db.getProfil(id);
+      if (!profil) return json(404, { error: 'Profil inconnu' });
+      if (depasse(profil)) return json(403, { error: 'Ce profil dépasse vos propres droits' });
+      const n = db.comptesDuProfil(id).length;
+      if (n) return json(409, { error: `Encore attribué à ${n} compte${n > 1 ? 's' : ''}` });
+      db.supprimerProfil(id);
+      return json(200, { ok: true });
     }
 
     // ---- contenu (générique, pour les anciens clients) ----
@@ -215,6 +263,17 @@ export async function handleAdmin(req, res, url, game) {
       if (req.method === 'GET') return json(200, loadOverrides(zoneId) || { tiles: [], props: { add: [], remove: [] } });
       if (req.method === 'PUT') {
         const ov = JSON.parse(await readBody(req));
+        // chaque partie modifiée exige l'édition de son droit : placement des
+        // PNJ, zones musicales, le reste relève de Zones et terrain
+        if (!acces.superAdmin) {
+          const avant = loadOverrides(zoneId) || {};
+          const DROIT_OV = { npcs: 'pnj_placement', music: 'zones_musicales' };
+          for (const k of new Set([...Object.keys(avant), ...Object.keys(ov || {})])) {
+            if (JSON.stringify(avant[k] ?? null) === JSON.stringify(ov?.[k] ?? null)) continue;
+            const d = DROIT_OV[k] || 'zones';
+            if (niveau(acces, d) < EDITION) return json(403, { error: `Permission insuffisante : ${DROITS.find(x => x.id === d).nom}` });
+          }
+        }
         fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
         // applique à chaud : monde reconstruit, camps rebranchés, PNJ respawnés
         game.applyZoneEdits(zoneId, ov);

@@ -9,7 +9,7 @@ const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 export function CharactersController(api) {
   return {
     NOMS_STATS, stats: STATS,
-    lignes: [], zonesConnues: [], perms: {},   // perms : accountId -> nb de permissions d'animateur
+    lignes: [], zonesConnues: [], perms: {},   // perms : accountId -> nom du profil d'accès
     q: '', statut: '', zone: '', profil: '',
     choisi: null, edit: null,
     message: '', erreur: false,
@@ -33,17 +33,17 @@ export function CharactersController(api) {
     async charger() {
       try {
         const { characters } = await api('/api/admin/characters');
-        this.lignes = characters.map(c => ({ ...c, profil: c.isAdmin ? 'Super admin' : (this.perms[c.accountId] ? 'Animateur' : 'Joueur') }));
+        this.lignes = characters.map(c => ({ ...c, profil: c.isAdmin ? 'Super admin' : (this.perms[c.accountId] || 'Joueur') }));
         if (this.fiche) this.ouvrir(this.fiche);
       } catch (e) { this.dire('✘ ' + e.message, true); }
     },
 
-    // facultatif : noms de zones (super admin) et profils d'animateur (permission « roles »)
+    // facultatif : noms de zones et profils d'accès (droit « Accès et rôles » en lecture)
     async contexte() {
       try { this.zonesConnues = (await api('/api/admin/content/zones')).zones.map(z => ({ id: z.id, name: z.name })); } catch { /* « zone N » */ }
       try {
-        const { accounts } = await api('/api/admin/roles');
-        this.perms = Object.fromEntries(accounts.map(a => [a.id, a.perms.length]));
+        const { accounts, profils } = await api('/api/admin/roles');
+        this.perms = Object.fromEntries(accounts.map(a => [a.id, profils.find(p => p.id === a.profilId)?.nom || '']));
       } catch { /* profils : super admin / joueur seulement */ }
     },
 
