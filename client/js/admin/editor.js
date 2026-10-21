@@ -1340,7 +1340,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     let cur = value;
     const sel = h('select', { innerHTML: opts('', cur), style: { width: width + 'px' } });
     sel.onchange = () => { cur = sel.value; onChange(cur); };
-    const search = h('input', { placeholder: '🔍 filtrer', style: { width: '110px' } });
+    const search = h('input', { placeholder: 'Filtrer', style: { width: '110px' } });
     search.oninput = () => { sel.innerHTML = opts(search.value.trim().toLowerCase(), cur); };
     return { wrap: h('div', { className: 'edit-row' }, search, sel), get: () => cur };
   }
@@ -1423,7 +1423,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     } else if (Array.isArray(def.teaches)) {
       for (const k of def.teaches) teachesSpells.set(k, 0);
     }
-    const teachSearch = h('input', { placeholder: '🔍 filtrer les sorts', style: { width: '100%' } });
+    const teachSearch = h('input', { placeholder: 'Filtrer les sorts', style: { width: '100%' } });
     const teachesBox = h('div', { className: 'edit-list' });
     const renderTeaches = () => {
       const q = teachSearch.value.trim().toLowerCase();
@@ -1465,7 +1465,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         teachesSkills.set(k, { learnCost: v.learnCost || 0, trainCost: v.trainCost || 0 });
       }
     }
-    const skillSearch = h('input', { placeholder: '🔍 filtrer les compétences', style: { width: '100%' } });
+    const skillSearch = h('input', { placeholder: 'Filtrer les compétences', style: { width: '100%' } });
     const teachesSkillsBox = h('div', { className: 'edit-list' });
     const renderTeachesSkills = () => {
       const q = skillSearch.value.trim().toLowerCase();
@@ -1513,7 +1513,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
 
     // objets vendus (rôle marchand) — vide : étal standard de la zone
     const sells = new Set(Array.isArray(def.sells) ? def.sells : []);
-    const sellSearch = h('input', { placeholder: '🔍 filtrer les objets', style: { width: '100%' } });
+    const sellSearch = h('input', { placeholder: 'Filtrer les objets', style: { width: '100%' } });
     const sellBox = h('div', { className: 'edit-list' });
     const itemDefs = Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy);
     const renderSells = () => {
@@ -1826,7 +1826,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     const renderRows = () => {
       rows.innerHTML = '';
       items.forEach((it, i) => {
-        const search = h('input', { placeholder: '🔍 filtrer', value: '', style: { width: '110px' } });
+        const search = h('input', { placeholder: 'Filtrer', value: '', style: { width: '110px' } });
         const sel = h('select', { innerHTML: itemOptions(it.defId), style: { width: '150px' } });
         sel.onchange = () => { it.defId = sel.value; };
         search.oninput = () => {
@@ -2578,6 +2578,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     markDirty();
   });
 
+  const OUTILS_CLAVIER = { KeyB: 'tool-paint', KeyG: 'tool-fill', KeyV: 'tool-select', KeyE: 'tool-erase', KeyD: 'tool-move', KeyW: 'tool-wall' };
   window.addEventListener('keydown', (e) => {
     const t = document.activeElement?.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
@@ -2592,10 +2593,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       e.preventDefault?.();
       if (clipboard) { pasting = true; msg('Collage : cliquez pour valider la position (Échap pour annuler).'); markDirty(); }
     }
+    // raccourcis à une lettre : seulement quand l'onglet Terrain est affiché
+    // (le gestionnaire est global, la console garde tous ses écrans en page)
+    else if (e.ctrlKey || e.metaKey || e.altKey || $('tab-map')?.offsetParent === null) { /* rien */ }
+    // outils, comme la maquette : B poser, G remplir, V sélection, E gomme, D déplacer, W mur
+    else if (OUTILS_CLAVIER[e.code]) { e.preventDefault?.(); $(OUTILS_CLAVIER[e.code])?.click?.(); }
     // M : bascule le miroir horizontal du décor à poser (murs, portes...)
     else if (e.code === 'KeyM') { e.preventDefault?.(); toggleMirror(); }
-    // B : bascule la solidité (bloque le passage) des décors posés
-    else if (e.code === 'KeyB') { e.preventDefault?.(); toggleCollide(); }
+    // C : bascule la solidité (collision) des décors posés
+    else if (e.code === 'KeyC') { e.preventDefault?.(); toggleCollide(); }
     // Échap : annule sélection et collage en cours
     else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; updateTplSaveBtn(); markDirty(); }
   });
@@ -2741,7 +2747,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // liste des quêtes existantes (remontées du scan) + création
   function renderQuestList() {
     questPanel.innerHTML = '';
-    questPanel.append(panelTitleEl('🗺 Éditeur de quêtes — zone ' + curZone, closeQuests));
+    questPanel.append(panelTitleEl('Éditeur de quêtes · zone ' + curZone, closeQuests));
     questPanel.append(h('div', { className: 'hint', textContent:
       'Une quête regroupe des étapes reliées par des drapeaux quete:<id>:<n>. Chaque étape : un PNJ (mot-clé) ou un coffre (verrou) → conditions → effets (drapeau, or/objet/xp, téléport). « Enregistrer la carte » applique au serveur.' }));
     const quests = scanQuests();
@@ -2796,7 +2802,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     // coffres qui référencent un drapeau de la quête
     for (const r of q.refs.filter(r => r.kind === 'chest')) {
       chain.append(h('span', { className: 'quest-arrow', textContent: '→' }));
-      chain.append(h('span', { className: 'quest-link', textContent: `🧰 coffre (${r.x},${r.z}) exige ${shortFlag(r.flag)}` }));
+      chain.append(h('span', { className: 'quest-link', textContent: `Coffre (${r.x},${r.z}) exige ${shortFlag(r.flag)}` }));
     }
     return chain;
   }
@@ -2834,7 +2840,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   function renderQuestForm() {
     const m2 = questModel;
     questPanel.innerHTML = '';
-    questPanel.append(panelTitleEl(`🗺 Quête « ${m2.id} »`, closeQuests));
+    questPanel.append(panelTitleEl(`Quête « ${m2.id} »`, closeQuests));
     questPanel.append(h('button', { textContent: '← Liste des quêtes', onclick: renderQuestList }));
     const descIn = h('textarea', { value: m2.desc || '', placeholder: 'description (mémo d\'édition)', style: { width: '100%', height: '36px' } });
     descIn.onchange = () => { m2.desc = descIn.value; };
@@ -3034,15 +3040,19 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // visibilité, lue par les fonctions de rendu) et son bouton `add-xxx` (arme la
   // pose) : les lignes de l'onglet ne font que piloter ces contrôles existants.
   // Cliquer une ligne la désigne comme calque « courant » (mis en évidence).
+  // icônes au trait de la console (16 px), à la place des emoji
+  const svg = (d) => `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const LAYER_DEFS = [
-    { key: 'camps',    icon: '⛺', name: 'Camps',           cb: 'layer-camps',    add: 'add-camp' },
-    { key: 'npcs',     icon: '👤', name: 'PNJ',             cb: 'layer-npcs',     add: 'add-npc' },
-    { key: 'chests',   icon: '🧰', name: 'Coffres',         cb: 'layer-chests',   add: 'add-chest' },
-    { key: 'markers',  icon: '📍', name: 'Points spéciaux', cb: 'layer-markers',  add: 'add-marker' },
-    { key: 'music',    icon: '🎵', name: 'Zones musicales', cb: 'layer-music',    add: 'add-music' },
-    { key: 'ambience', icon: '🌫', name: 'Ambiance',        cb: 'layer-ambience', add: 'add-ambience' },
-    { key: 'lights',   icon: '💡', name: 'Lumières',        cb: 'layer-lights',   add: 'add-light' },
+    { key: 'camps',    icon: svg('<path d="M2 13.5L8 3l6 10.5zM6.5 13.5L8 10.5l1.5 3"/>'), name: 'Camps', cb: 'layer-camps', add: 'add-camp' },
+    { key: 'npcs',     icon: svg('<circle cx="8" cy="5.5" r="2.5"/><path d="M3 14c.6-2.8 2.6-4.2 5-4.2s4.4 1.4 5 4.2"/>'), name: 'PNJ', cb: 'layer-npcs', add: 'add-npc' },
+    { key: 'chests',   icon: svg('<rect x="2" y="6" width="12" height="7.5" rx="1"/><path d="M2.5 6c0-2 1.5-3.5 5.5-3.5S13.5 4 13.5 6M7 8.5h2"/>'), name: 'Coffres', cb: 'layer-chests', add: 'add-chest' },
+    { key: 'markers',  icon: svg('<path d="M8 14.5s4.5-4.3 4.5-8A4.5 4.5 0 0 0 3.5 6.5c0 3.7 4.5 8 4.5 8z"/><circle cx="8" cy="6.5" r="1.6"/>'), name: 'Points spéciaux', cb: 'layer-markers', add: 'add-marker' },
+    { key: 'music',    icon: svg('<path d="M6 12V3.5l7-1.5V10.5"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="11.5" cy="10.5" r="1.8"/>'), name: 'Zones musicales', cb: 'layer-music', add: 'add-music' },
+    { key: 'ambience', icon: svg('<path d="M2 6h9a2 2 0 1 0-2-2M2 9.5h11.5a2 2 0 1 1-2 2M2 13h6"/>'), name: 'Ambiance', cb: 'layer-ambience', add: 'add-ambience' },
+    { key: 'lights',   icon: svg('<path d="M6 12.5h4M6.5 14.5h3M5.2 9.6A4 4 0 1 1 10.8 9.6c-.5.5-.8 1.1-.8 1.9H6c0-.8-.3-1.4-.8-1.9z"/>'), name: 'Lumières', cb: 'layer-lights', add: 'add-light' },
   ];
+  const OEIL = svg('<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>');
+  const OEIL_BARRE = svg('<path d="M2 2l12 12M6.6 4c.5-.3 1-.5 1.4-.5 4 0 6.5 4.5 6.5 4.5a12 12 0 0 1-1.9 2.4M4.1 5.3A12 12 0 0 0 1.5 8S4 12.5 8 12.5c1 0 1.9-.3 2.7-.7"/>');
   let currentLayer = null;          // calque mis en évidence (clic sur la ligne)
   const layerRows = {};             // key -> { row, eye }
   // bascule la visibilité d'un calque via sa case cachée (relaie l'événement
@@ -3064,7 +3074,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       const shown = !!$(def.cb).checked;
       r.row.classList.toggle('shown', shown);
       r.row.classList.toggle('current', currentLayer === def.key);
-      r.eye.textContent = shown ? '👁' : '🚫';
+      r.eye.innerHTML = shown ? OEIL : OEIL_BARRE;
+      r.eye.setAttribute?.('aria-label', `${shown ? 'Masquer' : 'Afficher'} le calque ${def.name}`);
       r.eye.title = shown ? 'Calque visible (cliquer pour masquer)' : 'Calque masqué (cliquer pour afficher)';
     }
   }
@@ -3080,7 +3091,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       eye.addEventListener('click', (e) => { e.stopPropagation(); toggleLayerVisible(def); });
       const label = document.createElement('span');
       label.className = 'layer-name';
-      label.textContent = `${def.icon} ${def.name}`;
+      label.innerHTML = def.icon;
+      label.append(document.createTextNode(def.name));
       const add = document.createElement('button');
       add.className = 'layer-add';
       add.textContent = '+';
