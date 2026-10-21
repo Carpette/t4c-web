@@ -4,7 +4,7 @@
 // Enregistre content/spells.json entier (même route que la vue Tableau) et
 // prévient l'autre vue par l'événement t4c:contenu.
 import { Particles, emitFromDef, emitTrail, emitImpact, emitGround, emitHeal, emitBuff } from '../../../render2d/particles.js';
-import { NOMS_TYPES, moyenneFormule } from '../spells-table/spells-table.js';
+import { NOMS_TYPES, moyenneFormule, recharge, NIVEAU_MAX } from '../spells-table/spells-table.js';
 import { copie, norm } from '../../forge.js';
 
 const TYPES = [['bolt', 'Projectile'], ['aoe', 'Zone'], ['buff', 'Amélioration'], ['heal', 'Soin'], ['', 'Non classé']];
@@ -22,15 +22,6 @@ const PARAMETRES = ['str', 'end', 'agi', 'int', 'wis', 'hit', 'dodge', 'parry', 
 // tableau, pas de Set : petite-vue ne sait pas rendre réactives les collections
 const AVEC_PARAMETRE = ['stats_boost', 'resist_boost', 'power_boost', 'skill_boost'];
 const INSERTIONS = ['self.level', 'self.wis', 'self.int', 'max()', 'min()'];
-const NIVEAU_MAX = 100;
-
-// recharge (ms) d'une formule à un niveau donné, comme castTimeMs côté serveur
-// (ou null si l'expression n'est pas évaluable ici)
-function recharge(sort, niveau) {
-  if (sort.cooldown) return moyenneFormule(String(sort.cooldown), { level: niveau, int: sort.int, wis: sort.wis });
-  const lent = (sort.cast ?? 1.5) * 1000, rapide = (sort.castMin ?? 1) * 1000, pas = (sort.castStep ?? 0.02) * 1000;
-  return Math.max(rapide, lent - Math.max(0, niveau - (sort.level || 1)) * pas);
-}
 
 export function SpellsEditorController(api) {
   let fichier = null;     // content/spells.json complet (_note, ordre)
@@ -267,6 +258,8 @@ export function SpellsEditorController(api) {
       for (const p of fx) (familles[p.id.includes('_') ? p.id.split('_')[0] : 'divers'] ||= []).push(p);
       this.fxParFamille = Object.keys(familles).sort().map(f => ({ famille: f, effets: familles[f] }));
       try { this.pnj = (await api('/api/admin/content/npcs')).npc || {}; } catch { /* facultatif */ }
+      // la vue Tableau ouvre un sort dans la fiche (clic sur son nom)
+      window.addEventListener('t4c:ouvrir', (e) => { if (e.detail?.nom === 'spells') this.ouvrir(e.detail.id); });
       // la vue Tableau a enregistré spells.json : recharger (sans perdre un brouillon)
       window.addEventListener('t4c:contenu', async (e) => {
         if (e.detail?.nom !== 'spells' || e.detail.source === 'fiche') return;
