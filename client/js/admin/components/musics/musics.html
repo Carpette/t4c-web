@@ -19,7 +19,11 @@
             </button>
             <div class="cs-sect">Pistes</div>
             <div class="px-4 flex flex-col gap-2">
-                <span class="text-gray-400">{{ fichiers.length }} fichier{{ fichiers.length > 1 ? 's' : '' }} audio</span>
+            </div>
+            <button type="button" class="cs-item" :class="{ on: vue === 'pistes' }" @click="voirPistes()">
+                <span class="flex-1 min-w-0 text-left"><span class="block">Toutes les pistes</span><span class="text-xs text-gray-500">{{ fichiers.length }} fichier{{ fichiers.length > 1 ? 's' : '' }} audio</span></span>
+            </button>
+            <div class="px-4 pt-2 flex flex-col gap-2">
                 <label class="cs-btn justify-center cursor-pointer" :class="{ 'opacity-50 pointer-events-none': envoi }">Importer des pistes
                     <input id="mu-import" type="file" accept=".mp3,.ogg,audio/mpeg,audio/ogg" multiple class="sr-only" @change="importer($event)" /></label>
                 <span class="text-xs text-gray-500" v-if="envoi">{{ envoi }}</span>
@@ -99,6 +103,28 @@
             <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
             <button type="button" class="cs-btn" v-if="sale" @click="annuler()">Annuler les modifications</button>
             <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- bibliothèque de pistes : tous les fichiers audio, écoutables -->
+    <section aria-label="Toutes les pistes" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="vue === 'pistes'">
+        <div class="flex items-end gap-3 flex-wrap">
+            <div class="flex-1 min-w-[240px]"><h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">Toutes les pistes</h2>
+                <p class="text-gray-500">Les fichiers de client/assets/music, utilisés ou non. Cliquez une piste pour l’écouter.</p></div>
+            <label for="mu-q" class="sr-only">Filtrer les pistes</label>
+            <input id="mu-q" class="cs-input w-[220px]" v-model="qPistes" placeholder="Filtrer" />
+            <label class="flex items-center gap-2 text-gray-300"><input type="checkbox" v-model="pistesInutilisees" />Non utilisées</label>
+        </div>
+        <div class="flex flex-col border border-gray-800 rounded-lg overflow-hidden">
+            <div v-for="f in pistesFiltrees" :key="f" class="flex items-center gap-3 px-3 min-h-10 py-1.5 border-b border-gray-800 last:border-b-0 cursor-pointer hover:bg-gray-800/30" :class="{ 'bg-gray-800/40': lecture.fichier === f }" @click="jouer(f)">
+                <button type="button" class="cs-btn cs-icon h-7 w-7 flex-none" :aria-label="(lecture.fichier === f && lecture.joue ? 'Pause ' : 'Écouter ') + f" @click.stop="jouer(f)">
+                    <svg v-if="lecture.fichier === f && lecture.joue" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3" height="10"></rect><rect x="7" y="1" width="3" height="10"></rect></svg>
+                    <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1l8 5-8 5z"></path></svg></button>
+                <span class="flex-1 min-w-0"><span class="block truncate">{{ f }}</span>
+                    <span class="block text-xs truncate" :class="usagesPiste(f).length ? 'text-gray-500' : 'text-amber-400'">{{ usagesPiste(f).length ? usagesPiste(f).join(' · ') : 'non utilisée' }}</span></span>
+                <span class="font-mono text-gray-500 w-12 text-right flex-none">{{ duree(f) }}</span>
+            </div>
+            <p class="px-3 py-2 text-gray-500" v-if="!pistesFiltrees.length">Aucune piste ne correspond.</p>
         </div>
     </section>
 

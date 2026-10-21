@@ -17,7 +17,7 @@ export function MusicsController(api) {
 
   return {
     fichiers: [], carte: { login: {}, trial: {}, zones: {}, groups: {} }, zones: [], sousZones: [],
-    vue: 'groupe', courant: null, ajout: '', durees: {}, message: '', erreur: false, envoi: '',
+    vue: 'groupe', courant: null, qPistes: '', pistesInutilisees: false, ajout: '', durees: {}, message: '', erreur: false, envoi: '',
     lecture: { fichier: '', joue: false, t: 0, d: 0, volume: 70 },
 
     // ---------- lectures ----------
@@ -57,6 +57,19 @@ export function MusicsController(api) {
       for (const s of this.sousZones) if (s.track?.group === id) out.push({ nom: `${s.zone}, zone « ${s.id} »`, court: 'zone musicale', ou: 'sur la carte' });
       return out;
     },
+    // où une piste est jouée : groupes, emplacements et zones musicales en piste seule
+    usagesPiste(f) {
+      const out = [];
+      for (const [id, g] of Object.entries(this.carte.groups || {})) if (g.new?.includes(f) || g.legacy === f) out.push(`groupe ${id}`);
+      for (const e of this.emplacements) { const s = this.slot(e.k); if (s && !s.group && (s.new === f || s.legacy === f)) out.push(e.nom); }
+      for (const s of this.sousZones) if (s.track && !s.track.group && (s.track.new === f || s.track.legacy === f)) out.push(`${s.zone}, zone « ${s.id} »`);
+      return out;
+    },
+    get pistesFiltrees() {
+      const q = this.qPistes.trim().toLowerCase();
+      return this.fichiers.filter(f => (!q || f.toLowerCase().includes(q)) && (!this.pistesInutilisees || !this.usagesPiste(f).length));
+    },
+    voirPistes() { this.vue = 'pistes'; this.mesurer(this.fichiers); },
     duree(f) { return duree(this.durees[f]); },
     temps(s) { return s ? duree(s) : ''; },
 
@@ -131,8 +144,8 @@ export function MusicsController(api) {
       try { localStorage.setItem(VOLUME, String(v)); } catch { /* réglage de session */ }
     },
     // durées des pistes affichées, lues dans les métadonnées (une fois par fichier)
-    mesurer() {
-      const liste = [...(this.groupe?.new || []), this.groupe?.legacy].filter(f => f && !(f in this.durees));
+    mesurer(pistes = null) {
+      const liste = (pistes || [...(this.groupe?.new || []), this.groupe?.legacy]).filter(f => f && !(f in this.durees));
       for (const f of liste) {
         this.durees[f] = NaN;
         const a = new Audio();
@@ -158,6 +171,7 @@ export function MusicsController(api) {
       this.envoi = '';
       if (faits.length) {
         this.fichiers = [...new Set([...this.fichiers, ...faits])].sort();
+        if (this.vue === 'pistes') this.mesurer(faits);
         if (this.groupe && this.vue === 'groupe') { this.groupe.new.push(...faits.filter(f => !this.groupe.new.includes(f))); this.mesurer(); }
       }
       const ok = faits.length ? `✔ ${faits.length} piste${faits.length > 1 ? 's' : ''} importée${faits.length > 1 ? 's' : ''}${this.groupe && this.vue === 'groupe' ? ` et ajoutée${faits.length > 1 ? 's' : ''} à « ${this.courant} »` : ''}.` : '';
