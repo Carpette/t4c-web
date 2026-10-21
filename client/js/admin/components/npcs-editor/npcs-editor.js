@@ -6,6 +6,8 @@ import { ITEMS } from '../../../../shared/defs.js';
 import { STATS } from '../../../../shared/constants.js';
 import { containsKeyword, conditionBloquante, rootKeywordsHint } from '../../../../shared/mots-cles.js';
 import { dessinerPersonnage, chargerRessources, copie, norm } from '../../forge.js';
+import { allerA, ecranParId, peutVoir } from '../../console.js';
+import { montrerPointSurCarte } from '../monde-carte/monde-carte.js';
 
 const ROLES = [['merchant', 'Marchand'], ['teacher', 'Entraîneur'], ['bavard', 'Bavard']];
 const NOMS_STATS = { str: 'Force', end: 'Endurance', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse' };
@@ -61,6 +63,8 @@ export function NpcsEditorController(api) {
     },
     get indice() { return this.fiche ? rootKeywordsHint(this.fiche) : null; },
     get nbEnseignement() { return Object.keys(this.fiche?.teachesSpells || {}).length + Object.keys(this.fiche?.teachesSkills || {}).length; },
+    get voitCarte() { return peutVoir(ecranParId('carte')); },
+    voirSurCarte(p) { allerA('carte'); montrerPointSurCarte(p.zoneId, p.x, p.z); },
     get ouCa() { return this.positions.filter(p => p.npcId === (this.nouveau ? null : this.courant)); },
 
     dire(t, err = false) { this.message = t; this.erreur = err; },
