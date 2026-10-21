@@ -141,6 +141,7 @@ export async function handleAdmin(req, res, url, game) {
         : url === '/api/admin/music' || url === '/api/admin/music/upload' ? (lecture ? 'console' : [['musiques'], EDITION])
         : url === '/api/admin/tiles' ? (lecture ? 'console' : [['bibliotheque', 'zones'], EDITION])
         : url === '/api/admin/templates' ? (lecture ? 'console' : [['zones'], EDITION])
+        : url === '/api/admin/bibliotheque/remplacer' || url === '/api/admin/bibliotheque/dupliquer' ? [['bibliotheque'], EDITION]
         : ['/api/admin/skins', '/api/admin/skins/upload', '/api/admin/skins/enemy', '/api/admin/atelier', '/api/admin/src3d'].includes(url)
           ? (lecture ? 'console' : [['bibliotheque'], EDITION])
         : url.startsWith('/api/admin/publication') ? 'publier'
@@ -466,6 +467,52 @@ export async function handleAdmin(req, res, url, game) {
         anims: Object.keys(entry.anims),
         note: 'Assignez ce sprite à une créature ci-dessous, puis rechargez le client (F5).',
       });
+    }
+
+    // ---- Bibliothèque : remplacer l'image d'une ressource, ou la dupliquer ----
+    // Une ressource = une entrée du manifeste et son image (aucune n'est
+    // partagée). Le remplaçant doit avoir les mêmes dimensions : les
+    // découpes (images d'animation, pièces) restent celles du manifeste.
+    if ((url === '/api/admin/bibliotheque/remplacer' || url === '/api/admin/bibliotheque/dupliquer') && req.method === 'POST') {
+      const { type, cle, data } = JSON.parse(await readBody(req, 16e6));
+      const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const [sexe, couche] = String(cle || '').split('/');
+      const table = type === 'creature' ? manifest.enemies : type === 'objet' ? manifest.loot
+        : type === 'personnage' ? manifest.avatar?.[sexe] : type === 'tuiles' || type === 'materiau' ? manifest.tilesets : null;
+      const nom = type === 'personnage' ? couche : cle;
+      const entree = table && Object.prototype.hasOwnProperty.call(table, nom) ? table[nom] : null;
+      if (!entree) return json(404, { error: `ressource inconnue : ${cle}` });
+      const images = entree.images || [entree.image];
+      const fichier = (rel) => {
+        const p = path.resolve(ASSETS_DIR, rel);
+        if (!p.startsWith(ASSETS_DIR + path.sep) || !/\.png$/i.test(p)) throw new Error(`chemin d'image invalide : ${rel}`);
+        return p;
+      };
+      if (url.endsWith('/remplacer')) {
+        const buf = Buffer.from(String(data || ''), 'base64');
+        const neuf = pngSize(buf), cible = fichier(images[0]);
+        const actuel = pngSize(fs.readFileSync(cible));
+        if (neuf.w !== actuel.w || neuf.h !== actuel.h) {
+          return json(400, { error: `dimensions différentes : ${neuf.w} × ${neuf.h} px au lieu de ${actuel.w} × ${actuel.h} px (les découpes du manifeste ne correspondraient plus)` });
+        }
+        fs.writeFileSync(cible, buf);
+        return json(200, { ok: true, fichier: images[0], note: 'Image remplacée. Les joueurs la verront après rechargement (F5).' });
+      }
+      // dupliquer : nouvelle clé « <clé>_copie[_n] », images copiées à côté
+      let n = 1, nouveau = `${nom}_copie`;
+      while (table[nouveau]) nouveau = `${nom}_copie_${++n}`;
+      const copie = structuredClone(entree);
+      const copier = (rel, i) => {
+        const dest = rel.replace(/[^/]+\.png$/i, `${nouveau}${i ? '_' + i : ''}.png`);
+        if (fs.existsSync(fichier(dest))) throw new Error(`${dest} existe déjà`);
+        fs.copyFileSync(fichier(rel), fichier(dest));
+        return dest;
+      };
+      if (copie.images) copie.images = copie.images.map(copier); else copie.image = copier(copie.image, 0);
+      table[nouveau] = copie;
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      return json(200, { ok: true, cle: type === 'personnage' ? `${sexe}/${nouveau}` : nouveau });
     }
 
     // ---- atelier 3D : modèles sources disponibles (servis sous /src3d/) ----

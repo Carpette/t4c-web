@@ -56,12 +56,25 @@
             <dt class="text-gray-500" v-if="fiche.anims">Animations</dt><dd v-if="fiche.anims">{{ fiche.anims }}</dd>
             <dt class="text-gray-500" v-if="fiche.pieces">Pièces</dt><dd v-if="fiche.pieces">{{ fiche.pieces }}</dd>
         </dl>
+        <div class="flex flex-col gap-1" v-if="jeu">
+            <span class="cs-sect p-0">Propriétés de jeu</span>
+            <span class="text-gray-300">{{ jeu }}</span>
+            <span class="text-xs text-gray-500">Fixé par la famille du matériau (mur, sol, toit).</span>
+        </div>
         <div class="flex flex-col gap-1.5">
             <span class="cs-sect p-0">Utilisée dans</span>
             <a v-for="u in fiche.usages || []" class="flex justify-between gap-2" :href="u.lien"><span>{{ u.nom }}</span><span class="text-gray-500">{{ u.ou }}</span></a>
             <span class="text-gray-500" v-if="fiche.usages && !fiche.usages.length">Nulle part pour l’instant.</span>
             <span class="text-gray-500" v-if="!fiche.usages">Non suivi pour ce type de ressource.</span>
         </div>
-        <button type="button" class="cs-btn justify-center" @click="atelier()">Ouvrir dans l’{{ typeFiche.nomAtelier === 'Matériaux' ? 'atelier Matériaux' : typeFiche.nomAtelier }}</button>
+        <div class="mt-auto flex flex-col gap-2">
+            <button type="button" class="cs-btn cs-primary justify-center" @click="atelier()">Ouvrir dans l’{{ typeFiche.nomAtelier === 'Matériaux' ? 'atelier Matériaux' : typeFiche.nomAtelier }}</button>
+            <div class="flex gap-2" v-if="modifiable">
+                <label class="cs-btn justify-center flex-1 cursor-pointer" title="Image PNG de mêmes dimensions : les découpes du manifeste sont gardées">Remplacer le fichier
+                    <input id="bib-remplacer" type="file" accept=".png,image/png" class="sr-only" @change="remplacer($event)" /></label>
+                <button type="button" class="cs-btn justify-center flex-1" @click="dupliquer()" title="Copie l’image et ses découpes sous une nouvelle clé">Dupliquer</button>
+            </div>
+            <p class="text-[13px]" :class="info.startsWith('✘') ? 'text-red-400' : 'text-green-400'" v-if="info" role="status">{{ info }}</p>
+        </div>
     </aside>
 </div>
