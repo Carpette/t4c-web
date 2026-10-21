@@ -1,0 +1,65 @@
+<div class="flex flex-col gap-3.5" @vue:mounted="init()">
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-gray-400">{{ sorts.length }} sorts<span v-if="nbModifies"> · <span class="text-[#f0d49a]">{{ nbModifies }} modifié{{ nbModifies > 1 ? 's' : '' }}</span></span></span>
+        <div class="flex-1"></div>
+        <button type="button" class="cs-btn" @click="exporter()">Exporter en CSV</button>
+        <button type="button" class="cs-btn" @click="charger()" :disabled="!nbModifies">Annuler les modifications</button>
+        <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!nbModifies">Enregistrer spells.json</button>
+    </div>
+
+    <div class="flex gap-2 flex-wrap items-center">
+        <div class="flex-[0_1_260px] min-w-[180px]"><label for="st-q" class="sr-only">Filtrer les sorts</label>
+            <input id="st-q" class="cs-input" v-model="q" placeholder="Filtrer les sorts" /></div>
+        <button v-for="t in filtresType" type="button" class="cs-fchip" :class="{ on: type === t.id, 'text-[#e7a55a]': t.id === '-' }"
+            :aria-pressed="type === t.id" @click="type = t.id">{{ t.nom }}<span v-if="t.n !== null"> · {{ t.n }}</span></button>
+    </div>
+
+    <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#1c1a15] border border-[#3a3424] flex-wrap" v-if="selection.length">
+        <span class="font-semibold text-[#f0d49a]">{{ selection.length }} sort{{ selection.length > 1 ? 's' : '' }} sélectionné{{ selection.length > 1 ? 's' : '' }}</span>
+        <span class="text-gray-400">Modifier en masse :</span>
+        <label for="bk-col" class="sr-only">Colonne</label>
+        <select id="bk-col" class="cs-input w-[150px] h-[30px]" v-model="masse.col">
+            <option v-for="c in colonnesNum" :value="c.id">{{ c.nom }}</option>
+        </select>
+        <label for="bk-op" class="sr-only">Opération</label>
+        <select id="bk-op" class="cs-input w-[130px] h-[30px]" v-model="masse.op">
+            <option value="mul">Multiplier par</option><option value="add">Ajouter</option><option value="set">Fixer à</option>
+        </select>
+        <label for="bk-v" class="sr-only">Valeur</label>
+        <input id="bk-v" class="cs-input font-mono w-20 h-[30px]" v-model="masse.v" />
+        <span class="text-gray-500 text-xs">{{ apercuMasse }}</span>
+        <div class="flex-1"></div>
+        <button type="button" class="cs-btn cs-ghost h-[30px]" @click="selection = []">Désélectionner</button>
+        <button type="button" class="cs-btn cs-primary h-[30px]" @click="appliquerMasse()" :disabled="!valeurMasse">Appliquer</button>
+    </div>
+
+    <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message">{{ message }}</p>
+
+    <div class="cs-panel overflow-x-auto">
+        <table class="cs-table cs-grille">
+            <thead><tr>
+                <th class="w-8"><input type="checkbox" aria-label="Tout sélectionner" :checked="toutCoche" @change="toutCocher($event.target.checked)" /></th>
+                <th>Sort</th><th>Type</th>
+                <th v-for="c in colonnesNum" class="text-right">{{ c.court }}</th>
+                <th>Recharge (formule)</th><th>Effet principal</th>
+                <th class="text-right" title="Moyenne des dés, lanceur au niveau et aux INT/SAG requis du sort">Dégâts moy. / mana</th>
+            </tr></thead>
+            <tbody>
+                <tr v-for="s in visibles" :class="{ sel: selection.includes(s.id) }">
+                    <td><input type="checkbox" :aria-label="'Sélectionner ' + s.name" :checked="selection.includes(s.id)" @change="cocher(s.id, $event.target.checked)" /></td>
+                    <td><div class="font-medium text-t4c-text-light">{{ s.name }}</div><div class="font-mono text-[11px] text-gray-500">{{ s.id }}</div></td>
+                    <td :class="s.type ? '' : 'text-[#e7a55a]'">{{ NOMS_TYPES[s.type || '-'] }}</td>
+                    <td v-for="c in colonnesNum"><input class="cs-ci" :class="{ mod: modifie(s, c.id) }" type="number" :value="s[c.id]"
+                        :aria-label="c.nom + ' ' + s.name" @change="fixer(s, c.id, +$event.target.value)" /></td>
+                    <td><input class="cs-ci cs-ci-w" :class="{ mod: modifie(s, 'cooldown') }" :value="s.cooldown"
+                        :aria-label="'Recharge ' + s.name" @change="fixer(s, 'cooldown', $event.target.value)" /></td>
+                    <td><input class="cs-ci cs-ci-w" v-if="s.effects && s.effects.length" :class="{ mod: modifieEffet(s) }" :value="s.effects[0].formula"
+                        :aria-label="'Effet ' + s.name" @change="fixerEffet(s, $event.target.value)" />
+                        <span class="text-gray-500 text-xs ml-1" v-if="s.effects && s.effects.length">{{ s.effects[0].type }}</span></td>
+                    <td class="font-mono text-right text-gray-400">{{ ratio(s) }}</td>
+                </tr>
+                <tr v-if="!visibles.length"><td :colspan="6 + colonnesNum.length" class="text-gray-500">Aucun sort ne correspond aux filtres.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

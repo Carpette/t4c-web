@@ -8,6 +8,7 @@ import { ConsoleController } from './admin/components/console/console.js';
 import { PageController } from './admin/components/page/page.js';
 import { ContentController } from './admin/components/content/content.js';
 import { SpellsEditorController } from './admin/components/spells-editor/spells-editor.js';
+import { SpellsTableController } from './admin/components/spells-table/spells-table.js';
 import { NpcsEditorController } from './admin/components/npcs-editor/npcs-editor.js';
 import { ParticleEditorController } from './admin/components/particle-editor/particle-editor.js';
 import { MusicsController } from './admin/components/musics/musics.js';
@@ -70,6 +71,7 @@ async function enter(name) {
   guiManagerAdmin.registerController('page', PageController);
   guiManagerAdmin.registerController('content', ContentController);
   guiManagerAdmin.registerController('spells-editor', SpellsEditorController);
+  guiManagerAdmin.registerController('spells-table', SpellsTableController);
   guiManagerAdmin.registerController('npcs-editor', NpcsEditorController);
   guiManagerAdmin.registerController('particle-editor', ParticleEditorController);
   guiManagerAdmin.registerController('musics', MusicsController);
@@ -88,6 +90,7 @@ async function enter(name) {
     { name: 'map-editor', selector: '#tab-map' },
     { name: 'content', selector: '#tab-content' },
     { name: 'spells-editor', selector: '#tab-spells-editor' },
+    { name: 'spells-table', selector: '#tab-spells-table' },
     { name: 'npcs-editor', selector: '#tab-npcs-editor' },
     { name: 'particle-editor', selector: '#tab-particle-editor' },
     { name: 'musics', selector: '#tab-music' },
