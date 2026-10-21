@@ -696,6 +696,7 @@ export async function handleAdmin(req, res, url, game) {
       const players = [];
       for (const p of game.players.values()) {
         players.push({
+          id: p.id, // id en jeu : actions en direct (/monde/joueur/:id)
           name: p.name,
           level: p.level,
           x: Math.round(p.x * 10) / 10,

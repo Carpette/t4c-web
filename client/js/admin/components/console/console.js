@@ -3,6 +3,7 @@
 // (Ctrl K). L'écran affiché vit dans consoleEtat (admin/console.js), partagé
 // avec l'en-tête de page.
 import { ECRANS, ESPACES, ICONES, consoleEtat, peutVoir, allerA, ecranParId, ecranDepuisAdresse } from '../../console.js';
+import { montrerJoueurSurCarte, montrerPointSurCarte } from '../monde-carte/monde-carte.js';
 
 const RAFRAICHISSEMENT = 15000; // joueurs connectés (ms)
 const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -15,12 +16,13 @@ function surligner(nom, q) {
 }
 
 export function ConsoleController(api) {
+  let minuteurAvis = 0;
   return {
     etat: consoleEtat,
     // espaces où le compte a au moins un écran (un animateur ne voit pas la Forge)
     get espaces() { return ESPACES.filter(s => ECRANS.some(e => e.espace === s.id && !e.bientot && peutVoir(e))); },
     icones: ICONES,
-    palette: false, requete: '', choix: 0,
+    palette: false, requete: '', choix: 0, avis: null,
 
     get ecranCourant() { return ecranParId(this.etat.ecran); },
     get espace() { return this.ecranCourant?.espace || 'forge'; },
@@ -56,8 +58,8 @@ export function ConsoleController(api) {
           this.palette ? this.fermerPalette() : this.ouvrirPalette();
         }
       });
-      // la liste des joueurs connectés est réservée aux super admins
-      if (this.etat.moi?.isAdmin) {
+      // joueurs connectés : pour qui voit la carte ou les joueurs (route du serveur)
+      if (peutVoir(ecranParId('carte')) || peutVoir(ecranParId('joueurs'))) {
         this.joueurs();
         setInterval(() => this.joueurs(), RAFRAICHISSEMENT);
       }
@@ -81,6 +83,15 @@ export function ConsoleController(api) {
       }
     },
 
+    // droit précis (actions sur un joueur : joueurs, sanctions)
+    peut(droit, n = 2) { const m = this.etat.moi; return !!m && (m.isAdmin || (m.droits?.[droit] | 0) >= n); },
+    // résultat d'une action lancée depuis la palette (qui s'est refermée)
+    aviser(texte, erreur = false) {
+      this.avis = { texte, erreur };
+      clearTimeout(minuteurAvis);
+      minuteurAvis = setTimeout(() => { this.avis = null; }, 5000);
+    },
+
     pluriel(n, mot) { return `${n} ${mot}${n > 1 ? 's' : ''}`; },
 
     aller(id, sous) { allerA(id, sous); },
@@ -102,17 +113,46 @@ export function ConsoleController(api) {
     // résultats groupés ; « rang » numérote les lignes pour le clavier
     get resultats() {
       let q = this.requete.trim();
-      const prefixe = /^[@#>]/.test(q) ? q[0] : '';
+      const prefixe = /^[@#>:]/.test(q) ? q[0] : '';
       q = norm(q.slice(prefixe ? 1 : 0).trim());
       const garde = (nom) => !q || norm(nom).includes(q);
       const groupes = [];
 
+      const carte = peutVoir(ecranParId('carte'));
+      // « :x, z » ou « :zone x z » : un point de la carte
+      if (prefixe === ':') {
+        const n = q.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
+        if (carte && (n.length === 2 || n.length === 3)) {
+          const [zoneId, x, z] = n.length === 3 ? n : [null, ...n];
+          groupes.push({ groupe: 'Coordonnées', items: [{
+            nom: `Aller en ${x}, ${z}`, icone: 'carte', detail: zoneId == null ? 'Zone affichée sur la carte' : `Zone ${zoneId}`,
+            indice: 'Carte du monde', faire: () => { allerA('carte'); montrerPointSurCarte(zoneId, x, z); },
+          }] });
+        }
+        q = '';
+      }
       if (!prefixe || prefixe === '@') {
-        const items = (this.etat.enLigne || []).filter(p => garde(p.name)).slice(0, 6).map(p => ({
-          joueur: true, nom: p.name, indice: 'Ouvrir Joueurs', faire: () => allerA('joueurs'),
+        const trouves = (this.etat.enLigne || []).filter(p => garde(p.name)).slice(0, 6);
+        const items = trouves.map(p => ({
+          joueur: true, nom: p.name, indice: carte ? 'Entrée : aller à lui' : 'Ouvrir Joueurs',
+          faire: carte ? () => { allerA('carte'); montrerJoueurSurCarte(p.id); } : () => allerA('joueurs'),
           detail: `En ligne · niveau ${p.level} · zone ${p.zoneId}, ${Math.round(p.x)}, ${Math.round(p.z)}`,
         }));
         if (items.length) groupes.push({ groupe: 'Joueurs en ligne', items });
+        // un seul joueur trouvé : ses actions directes
+        const p = q && trouves.length === 1 ? trouves[0] : null;
+        if (p) {
+          const actions = [
+            this.peut('joueurs') && { nom: 'L’amener à moi', icone: 'entrer', indice: 'Près de votre personnage en jeu',
+              faire: () => this.agir(p, 'amener', `${p.name} amené près de vous.`) },
+            this.peut('joueurs') && carte && { nom: 'Modifier niveau, vie ou or', icone: 'joueurs', indice: 'Carte du monde',
+              faire: () => { allerA('carte'); montrerJoueurSurCarte(p.id); } },
+            this.peut('sanctions') && { nom: 'Expulser du serveur', icone: 'sortir', indice: '',
+              faire: () => confirm(`Expulser ${p.name} ?`) && this.agir(p, 'expulser', `${p.name} expulsé.`) },
+          ].filter(Boolean);
+          // les libellés d'action ne contiennent pas la recherche : pas de surlignage
+          if (actions.length) groupes.push({ groupe: `Actions sur ${p.name}`, items: actions, brut: true });
+        }
       }
       if (!prefixe || prefixe === '#') {
         const items = ECRANS.filter(e => peutVoir(e) && garde(e.nom)).map(e => ({
@@ -139,8 +179,16 @@ export function ConsoleController(api) {
       }
 
       let rang = 0;
-      for (const g of groupes) for (const it of g.items) Object.assign(it, surligner(it.nom, q), { rang: rang++ });
+      for (const g of groupes) for (const it of g.items) Object.assign(it, surligner(it.nom, g.brut ? '' : q), { rang: rang++ });
       return groupes;
+    },
+
+    async agir(p, action, ok) {
+      try {
+        await api(`/api/admin/monde/joueur/${p.id}`, 'POST', { action });
+        this.aviser('✔ ' + ok);
+        this.joueurs();
+      } catch (e) { this.aviser('✘ ' + e.message, true); }
     },
 
     executer(r) {

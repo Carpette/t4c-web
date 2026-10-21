@@ -36,10 +36,12 @@ const visible = () => document.getElementById('tab-monde-carte')?.classList.cont
 const copie = (v) => JSON.parse(JSON.stringify(v));
 const idNeuf = (pre) => pre + Date.now().toString(36);
 
-// demande venue d'un autre écran (Joueurs, « Aller à lui ») : id en jeu du
-// joueur à choisir, traitée dès que la carte a fini de démarrer
+// demande venue d'un autre écran (Joueurs, palette Ctrl K) : un joueur à
+// choisir (id en jeu) ou un point à viser, traitée dès que la carte a fini
+// de démarrer
 let demande = null, recepteur = null;
-export function montrerJoueurSurCarte(id) { demande = id; recepteur?.(); }
+export function montrerJoueurSurCarte(id) { demande = { joueur: id }; recepteur?.(); }
+export function montrerPointSurCarte(zoneId, x, z) { demande = { zoneId, x, z }; recepteur?.(); }
 
 export function MondeCarteController(api) {
   // hors réactivité : moteur de rendu, entités, gros tableaux, canevas
@@ -553,11 +555,21 @@ export function MondeCarteController(api) {
       this.image();
       setInterval(() => { if (visible()) this.rafraichir(); }, RAFRAICHIR_MS);
       recepteur = async () => {
-        const id = demande; demande = null;
-        if (id == null) return;
+        const d = demande; demande = null;
+        if (!d) return;
+        if (d.joueur == null) {
+          // zone omise : celle affichée
+          if (d.zoneId != null && d.zoneId !== this.zoneId) {
+            if (!this.zones.some(z => z.id === d.zoneId)) { this.dire(`✘ Zone ${d.zoneId} inconnue.`, true); return; }
+            await this.changerZone(d.zoneId);
+          }
+          this.choix = null; this.point = { x: d.x, z: d.z };
+          this.viser(d.x, d.z);
+          return;
+        }
         // joueur connecté depuis le dernier rafraîchissement : la liste est relue
-        if (!this.joueurs.some(p => p.id === id)) await this.rafraichir();
-        if (this.joueurs.some(p => p.id === id)) await this.choisirJoueur(id);
+        if (!this.joueurs.some(p => p.id === d.joueur)) await this.rafraichir();
+        if (this.joueurs.some(p => p.id === d.joueur)) await this.choisirJoueur(d.joueur);
         else this.dire('Ce joueur n’est plus connecté.');
       };
       recepteur();
