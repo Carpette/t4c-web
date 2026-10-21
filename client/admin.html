@@ -60,10 +60,12 @@
       background: #131418; border: 1px solid #22252b; border-radius: 6px; cursor: pointer; }
     .layer-row:hover { border-color: #2e323b; }
     .layer-row.current { border-color: #c9a45c; background: #202328; }
-    .layer-row .layer-eye { width: 26px; height: 24px; padding: 0; font-size: 14px; flex: none;
+    .layer-row .layer-eye { width: 26px; height: 24px; padding: 0; flex: none; display: grid; place-items: center; color: #d3cec3;
       background: #1c1f24; line-height: 1; opacity: 0.45; }
     .layer-row.shown .layer-eye { opacity: 1; background: #2a2d34; }
-    .layer-row .layer-name { flex: 1; font-size: 12px; color: #d3cec3; user-select: none; }
+    .layer-row .layer-name { flex: 1; font-size: 12px; color: #d3cec3; user-select: none; display: flex; align-items: center; gap: 7px; }
+    .layer-row .layer-name svg { color: #8f8b82; flex: none; }
+    .layer-row.current .layer-name svg { color: #c9a45c; }
     .layer-row .layer-add { width: 26px; height: 24px; padding: 0; font-size: 15px; flex: none;
       font-weight: bold; line-height: 1; }
     /* onglet Templates : bouton d'enregistrement + liste des assemblages */

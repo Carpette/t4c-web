@@ -21,17 +21,17 @@
     <div class="cs-panel flex overflow-hidden min-h-[640px]">
         <!-- outils -->
         <div id="map-rail" role="toolbar" aria-label="Outils de dessin" aria-orientation="vertical" class="flex-none w-[52px] flex flex-col items-center gap-1 py-2 border-r border-gray-800 bg-gray-950">
-            <button id="tool-paint" type="button" class="cs-outil active" aria-label="Poser" title="Poser : la tuile ou le décor choisi dans la palette">
+            <button id="tool-paint" type="button" class="cs-outil active" aria-label="Poser" aria-keyshortcuts="B" title="Poser (B) : la tuile ou le décor choisi dans la palette">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12.5 2.5l3 3-7.5 7.5-3-3zM5 10l-2 5.5L8.5 13.5"/></svg></button>
-            <button id="tool-fill" type="button" class="cs-outil" aria-label="Remplir" title="Remplir : pot de peinture, par contiguïté">
+            <button id="tool-fill" type="button" class="cs-outil" aria-label="Remplir" aria-keyshortcuts="G" title="Remplir (G) : pot de peinture, par contiguïté">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 9l6-6 6 6-6 6zM15 12.5c0 1 .7 2 1.5 2"/></svg></button>
-            <button id="tool-select" type="button" class="cs-outil" aria-label="Sélection" title="Sélection : glisser pour choisir une région (Ctrl C / Ctrl V)">
+            <button id="tool-select" type="button" class="cs-outil" aria-label="Sélection" aria-keyshortcuts="V" title="Sélection (V) : glisser pour choisir une région (Ctrl C / Ctrl V)">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="1"/></svg></button>
-            <button id="tool-erase" type="button" class="cs-outil" aria-label="Gomme" title="Gomme : retire le décor cliqué">
+            <button id="tool-erase" type="button" class="cs-outil" aria-label="Gomme" aria-keyshortcuts="E" title="Gomme (E) : retire le décor cliqué">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 15h8M3.5 11.5l7-7 4 4-6.5 6.5H7z"/></svg></button>
-            <button id="tool-move" type="button" class="cs-outil" aria-label="Déplacer un décor" title="Déplacer : glisser un décor existant">
+            <button id="tool-move" type="button" class="cs-outil" aria-label="Déplacer un décor" aria-keyshortcuts="D" title="Déplacer (D) : glisser un décor existant">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 2v14M2 9h14M6.5 4.5L9 2l2.5 2.5M6.5 13.5L9 16l2.5-2.5M4.5 6.5L2 9l2.5 2.5M13.5 6.5L16 9l-2.5 2.5"/></svg></button>
-            <button id="tool-wall" type="button" class="cs-outil" aria-label="Tracer un mur" title="Mur : choisir un matériau de mur dans la palette, puis tracer">
+            <button id="tool-wall" type="button" class="cs-outil" aria-label="Tracer un mur" aria-keyshortcuts="W" title="Mur (W) : choisir un matériau de mur dans la palette, puis tracer">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 5h13v8h-13zM2.5 9h13M6.5 5v4M11.5 5v4M9 9v4"/></svg></button>
             <div class="w-7 border-t border-gray-800 my-1"></div>
             <button id="undo-map" type="button" class="cs-outil" aria-label="Annuler" title="Annuler (Ctrl Z)">
@@ -39,9 +39,9 @@
             <button id="redo-map" type="button" class="cs-outil" aria-label="Rétablir" title="Rétablir (Ctrl Maj Z)">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 4l3 3-3 3M15 7H7.5a4 4 0 000 8H10"/></svg></button>
             <div class="w-7 border-t border-gray-800 my-1"></div>
-            <button id="tool-mirror" type="button" class="cs-outil" aria-label="Miroir" title="Miroir (M) : retourne le décor à poser">
+            <button id="tool-mirror" type="button" class="cs-outil" aria-label="Miroir" aria-keyshortcuts="M" title="Miroir (M) : retourne le décor à poser">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 2v14M7 5L3 13h4zM11 5l4 8h-4z"/></svg></button>
-            <button id="tool-solid" type="button" class="cs-outil" aria-label="Décor solide" title="Solide (B) : le décor posé bloque le passage">
+            <button id="tool-solid" type="button" class="cs-outil" aria-label="Décor solide" aria-keyshortcuts="C" title="Solide (C) : le décor posé bloque le passage">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><path d="M4.5 13.5l9-9"/></svg></button>
             <div class="w-7 border-t border-gray-800 my-1"></div>
             <span class="text-[10px] tracking-wider text-gray-500" aria-hidden="true">TAILLE</span>
