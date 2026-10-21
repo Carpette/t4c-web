@@ -8,13 +8,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
-import { content, saveContentFile, validerSurcharges, validerZones } from './content.js';
+import { content, saveContentFile, validerSurcharges, validerZones, consignerEcriture, journaliserEcritures } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
 import { DROITS, OPTIONS, LECTURE, EDITION, niveau, aConsole, inclus, permsDe, accesDe, nettoyerProfil } from '../shared/acces.js';
+import { differences, annulerDifferences, decrire, resume } from '../shared/diff.js';
 
 const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
+// historique de la Forge : chaque écriture de contenu est consignée en base
+journaliserEcritures((fichier, avant, apres, auteur, note) => db.ajouterModification(fichier, avant, apres, auteur, note));
 const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
 const tokens = new Map(); // token -> { accountId, expires }
 
@@ -29,6 +32,13 @@ export function overridesPath(zoneId) {
 }
 export function loadOverrides(zoneId) {
   try { return JSON.parse(fs.readFileSync(overridesPath(zoneId), 'utf8')); } catch { return null; }
+}
+// écrit les retouches d'une zone en les consignant dans l'historique
+export function ecrireOverrides(zoneId, ov, auteur = 'serveur', note = null) {
+  let avant = null;
+  try { avant = fs.readFileSync(overridesPath(zoneId), 'utf8'); } catch { /* aucune retouche */ }
+  fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
+  consignerEcriture(`overrides_${zoneId}`, avant, ov, auteur, note);
 }
 
 function readBody(req, max = 5e6) {
@@ -106,6 +116,7 @@ export async function handleAdmin(req, res, url, game) {
     // éditeurs se croisent (PNJ -> sorts, carte -> PNJ) et ce contenu est de
     // toute façon servi aux joueurs. Route non listée : super admin.
     const acces = db.getAcces(session.accountId);
+    const auteur = db.getAccountById(session.accountId)?.name || '?';
     if (!acces.superAdmin && !aConsole(acces)) return json(403, { error: 'Ce compte n\'a plus accès à la console' });
     const lecture = req.method === 'GET';
     const min = lecture ? LECTURE : EDITION;
@@ -132,9 +143,10 @@ export async function handleAdmin(req, res, url, game) {
         : url === '/api/admin/templates' ? (lecture ? 'console' : [['zones'], EDITION])
         : ['/api/admin/skins', '/api/admin/skins/upload', '/api/admin/skins/enemy', '/api/admin/atelier', '/api/admin/src3d'].includes(url)
           ? (lecture ? 'console' : [['bibliotheque'], EDITION])
+        : url.startsWith('/api/admin/publication') ? 'publier'
         : '__super__';
     const autorise = acces.superAdmin || requis === null || requis === 'console'
-      || (requis === 'animer' && acces.animer)
+      || (requis === 'animer' && acces.animer) || (requis === 'publier' && acces.publier)
       || (Array.isArray(requis) && requis[0].some(d => niveau(acces, d) >= requis[1]));
     if (!autorise) return json(403, { error: 'Permission insuffisante pour cette action' });
 
@@ -227,7 +239,7 @@ export async function handleAdmin(req, res, url, game) {
     if (url === '/api/admin/content' && req.method === 'POST') {
       const { name, data } = JSON.parse(await readBody(req));
       if (name === 'spells') {
-        saveContentFile(name, data);
+        saveContentFile(name, data, auteur);
         return json(200, { ok: true, note: 'Appliqué à chaud.' });
       }
     }
@@ -243,7 +255,7 @@ export async function handleAdmin(req, res, url, game) {
           const data = JSON.parse(await readBody(req));
           const erreurs = validerSurcharges(name, data);
           if (erreurs.length) return json(400, { error: erreurs.slice(0, 8).join(' ; '), erreurs });
-          saveContentFile(name, data);
+          saveContentFile(name, data, auteur);
           return json(200, { ok: true, note: 'Appliqué à chaud : prochaines apparitions et prochains objets générés. Les joueurs rechargent (F5) pour voir noms et apparences.' });
         }
       }
@@ -256,7 +268,7 @@ export async function handleAdmin(req, res, url, game) {
           const erreurs = validerZones(data);
           if (erreurs.length) return json(400, { error: erreurs.slice(0, 8).join(' ; '), erreurs });
         }
-        saveContentFile(name, data);
+        saveContentFile(name, data, auteur);
         // PNJ en jeu : ils pointent sur l'ancienne définition, on les recrée
         if (name === 'npcs') game.refreshNpcs();
         return json(200, { ok: true, note: name === 'zones' ? 'Redémarrage du serveur requis pour les seeds/zones.' : 'Appliqué à chaud.' });
@@ -281,7 +293,7 @@ export async function handleAdmin(req, res, url, game) {
             if (niveau(acces, d) < EDITION) return json(403, { error: `Permission insuffisante : ${DROITS.find(x => x.id === d).nom}` });
           }
         }
-        fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
+        ecrireOverrides(zoneId, ov, auteur);
         // applique à chaud : monde reconstruit, camps rebranchés, PNJ respawnés
         game.applyZoneEdits(zoneId, ov);
         return json(200, { ok: true });
@@ -329,7 +341,7 @@ export async function handleAdmin(req, res, url, game) {
         };
         const clean = { login: slot(map.login), trial: slot(map.trial), zones: {}, groups };
         for (const [k, v] of Object.entries(map.zones || {})) clean.zones[k] = slot(v);
-        saveContentFile('music', clean);
+        saveContentFile('music', clean, auteur);
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
         return json(200, { ok: true });
       }
@@ -392,7 +404,7 @@ export async function handleAdmin(req, res, url, game) {
           if (!manifest.enemies[sprite]) return json(400, { error: `sprite inconnu : ${sprite}` });
           clean.mobs[defId] = sprite;
         }
-        saveContentFile('skins', clean);
+        saveContentFile('skins', clean, auteur);
         return json(200, { ok: true, note: 'Appliqué au prochain rechargement du client (F5).' });
       }
     }
@@ -407,7 +419,7 @@ export async function handleAdmin(req, res, url, game) {
         const txt = String(v || '').trim().slice(0, 1200);
         if (txt) clean[k] = txt;
       }
-      saveContentFile('atelier', { desc: clean });
+      saveContentFile('atelier', { desc: clean }, auteur);
       return json(200, { ok: true, count: Object.keys(clean).length });
     }
 
@@ -509,7 +521,7 @@ export async function handleAdmin(req, res, url, game) {
         const body = JSON.parse(await readBody(req)); // valide le JSON
         const list = Array.isArray(body?.templates) ? body.templates : [];
         const clean = list.map(cleanTemplate).filter(Boolean);
-        saveContentFile('templates', { templates: clean });
+        saveContentFile('templates', { templates: clean }, auteur);
         return json(200, { ok: true, count: clean.length });
       }
     }
@@ -763,6 +775,101 @@ export async function handleAdmin(req, res, url, game) {
       const r = game.teleportPlayerTo(player, zoneId | 0, +x, +z);
       if (r.error) return json(400, { error: r.error });
       return json(200, { ok: true });
+    }
+
+    // ---- Publication : historique des modifications de la Forge, versions ----
+    // Les modifications s'appliquent en direct ; une version marque un état
+    // auquel revenir. Une modification se défait seule (champ par champ, tant
+    // que la valeur n'a pas changé depuis), une version se restaure en bloc.
+    if (url.startsWith('/api/admin/publication')) {
+      const lireJson = (t) => (t == null ? undefined : JSON.parse(t));
+      const libelle = (f) => { const m = f.match(/^overrides_(\d+)$/); return m ? `Carte · ${content.zones[m[1]]?.name ?? 'zone ' + m[1]}` : f; };
+      const courant = (f) => {
+        const m = f.match(/^overrides_(\d+)$/);
+        return m ? (loadOverrides(+m[1]) || { tiles: [], props: { add: [], remove: [] } })
+          : JSON.parse(fs.readFileSync(path.join(CONTENT_DIR, `${f}.json`), 'utf8'));
+      };
+      // écrit un fichier et l'applique à chaud, comme le font les écrans
+      const appliquer = (f, data, note) => {
+        const m = f.match(/^overrides_(\d+)$/);
+        if (m) {
+          const ov = data || { tiles: [], props: { add: [], remove: [] } };
+          ecrireOverrides(+m[1], ov, auteur, note);
+          game.applyZoneEdits(+m[1], ov);
+          return;
+        }
+        if (data == null) return;
+        saveContentFile(f, data, auteur, note);
+        if (f === 'npcs') game.refreshNpcs();
+        if (f === 'music') game.refreshMusic();
+      };
+      if (url === '/api/admin/publication/compte' && req.method === 'GET') {
+        return json(200, { n: db.compterModificationsApres(db.jusquaDerniereVersion()) });
+      }
+      if (url === '/api/admin/publication' && req.method === 'GET') {
+        const depuis = db.jusquaDerniereVersion();
+        const modifications = db.modificationsApres(depuis).slice(-200).reverse().map(m => {
+          const a = lireJson(m.avant), b = lireJson(m.apres), diffs = differences(a, b, 60);
+          return {
+            id: m.id, t: m.t, auteur: m.auteur, fichier: m.fichier, libelle: libelle(m.fichier), note: m.note, nb: diffs.length,
+            lignes: diffs.slice(0, 30).map(d => ({ ...decrire(d, a, b), avant: resume(d.avant), apres: resume(d.apres) })),
+          };
+        });
+        return json(200, {
+          modifications, versions: db.listVersions(), enLigne: game.players.size,
+          production: process.env.NODE_ENV === 'production', arret: game.arretPrevu || null,
+        });
+      }
+      if (url === '/api/admin/publication/version' && req.method === 'POST') {
+        const { note } = JSON.parse(await readBody(req) || '{}');
+        const jusqua = db.derniereModification();
+        if (jusqua <= db.jusquaDerniereVersion()) return json(400, { error: 'Aucune modification depuis la dernière version' });
+        const id = db.creerVersion(auteur, String(note || '').trim().slice(0, 500), jusqua);
+        game.journaliser?.(`${auteur} marque la version v${id}`, 'mj');
+        return json(200, { ok: true, id });
+      }
+      const mAnn = url.match(/^\/api\/admin\/publication\/annuler\/(\d+)$/);
+      if (mAnn && req.method === 'POST') {
+        const m = db.getModification(mAnn[1] | 0);
+        if (!m) return json(404, { error: 'Modification inconnue' });
+        if (m.avant == null) return json(400, { error: 'Création de fichier : restaurez plutôt une version antérieure' });
+        const a = lireJson(m.avant), b = lireJson(m.apres), diffs = differences(a, b);
+        const etat = courant(m.fichier);
+        const conflits = annulerDifferences(etat, diffs);
+        if (conflits === diffs.length) return json(409, { error: 'Tout a déjà été modifié depuis : rien à annuler' });
+        appliquer(m.fichier, etat, `Annulation de la modification n° ${m.id}`);
+        return json(200, { ok: true, conflits, total: diffs.length });
+      }
+      const mRes = url.match(/^\/api\/admin\/publication\/restaurer\/(\d+)$/);
+      if (mRes && req.method === 'POST') {
+        const v = db.getVersion(mRes[1] | 0);
+        if (!v) return json(404, { error: 'Version inconnue' });
+        const fichiers = db.fichiersModifiesApres(v.jusqua);
+        let n = 0;
+        for (const f of fichiers) {
+          const t = db.etatFichierA(f, v.jusqua);
+          if (t === undefined) continue;
+          const cible = lireJson(t);
+          if (JSON.stringify(cible ?? null) === JSON.stringify(courant(f))) continue;
+          appliquer(f, cible ?? null, `Restauration de la version v${v.id}`);
+          n++;
+        }
+        game.journaliser?.(`${auteur} restaure la version v${v.id} (${n} fichier${n > 1 ? 's' : ''})`, 'mj');
+        return json(200, { ok: true, fichiers: n });
+      }
+      if (url === '/api/admin/publication/redemarrer' && req.method === 'POST') {
+        const { secondes } = JSON.parse(await readBody(req) || '{}');
+        const s = Math.max(10, Math.min(3600, secondes | 0 || 45));
+        if (game.shuttingDown) return json(409, { error: 'Un arrêt est déjà programmé' });
+        game.journaliser?.(`${auteur} programme le redémarrage du serveur dans ${Math.round(s / 60) || s + ' s'}${s >= 60 ? ' min' : ''}`, 'mj');
+        game.beginShutdown(s);
+        return json(200, { ok: true, arret: game.arretPrevu });
+      }
+      if (url === '/api/admin/publication/annuler-redemarrage' && req.method === 'POST') {
+        if (!game.cancelShutdown()) return json(409, { error: 'Aucun arrêt programmé' });
+        game.journaliser?.(`${auteur} annule le redémarrage du serveur`, 'mj');
+        return json(200, { ok: true });
+      }
     }
 
     return json(404, { error: 'Route inconnue' });

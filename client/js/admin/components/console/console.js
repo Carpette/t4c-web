@@ -61,6 +61,14 @@ export function ConsoleController(api) {
         this.joueurs();
         setInterval(() => this.joueurs(), RAFRAICHISSEMENT);
       }
+      // modifications depuis la dernière version (pied de la barre latérale)
+      if (this.etat.moi?.isAdmin || this.etat.moi?.publier) {
+        this.enAttente();
+        setInterval(() => this.enAttente(), RAFRAICHISSEMENT);
+      }
+    },
+    async enAttente() {
+      try { this.etat.enAttente = (await api('/api/admin/publication/compte')).n; } catch { /* serveur ancien */ }
     },
 
     async joueurs() {

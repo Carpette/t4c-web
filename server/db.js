@@ -50,6 +50,27 @@ try { db.exec('ALTER TABLE accounts ADD COLUMN profil_id INTEGER'); } catch { /*
 // sanctions : silence jusqu'à une date (ms), bannissement (connexion refusée)
 try { db.exec('ALTER TABLE accounts ADD COLUMN muet_jusqua INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
 try { db.exec('ALTER TABLE accounts ADD COLUMN banni INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
+
+// Historique de la Forge : chaque écriture d'un fichier de contenu ou de
+// retouches de carte (état avant / après, JSON compact), et les versions
+// marquées depuis l'écran Publication (une version couvre les modifications
+// jusqu'à `jusqua` inclus).
+db.exec(`CREATE TABLE IF NOT EXISTS modifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  t INTEGER NOT NULL,
+  auteur TEXT NOT NULL,
+  fichier TEXT NOT NULL,
+  avant TEXT,
+  apres TEXT,
+  note TEXT
+);
+CREATE TABLE IF NOT EXISTS versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  t INTEGER NOT NULL,
+  auteur TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  jusqua INTEGER NOT NULL
+);`);
 {
   // base neuve : profils proposés par défaut
   if (db.prepare('SELECT COUNT(*) AS n FROM profils').get().n === 0) {
@@ -175,6 +196,47 @@ export function listAccounts() {
 export function setMuet(accountId, jusqua) {
   db.prepare('UPDATE accounts SET muet_jusqua = ? WHERE id = ?').run(Math.max(0, Math.round(jusqua)), accountId);
 }
+// ---- historique de la Forge ----
+export function ajouterModification(fichier, avant, apres, auteur, note = null) {
+  return Number(db.prepare('INSERT INTO modifications (t, auteur, fichier, avant, apres, note) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(Date.now(), auteur, fichier, avant, apres, note).lastInsertRowid);
+}
+export function getModification(id) {
+  return db.prepare('SELECT * FROM modifications WHERE id = ?').get(id) || null;
+}
+export function modificationsApres(id) {
+  return db.prepare('SELECT * FROM modifications WHERE id > ? ORDER BY id').all(id);
+}
+export function compterModificationsApres(id) {
+  return db.prepare('SELECT COUNT(*) AS n FROM modifications WHERE id > ?').get(id).n;
+}
+export function derniereModification() {
+  return db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM modifications').get().n;
+}
+export function listVersions() {
+  return db.prepare(`SELECT v.*, (SELECT COUNT(*) FROM modifications m WHERE m.id <= v.jusqua
+      AND m.id > COALESCE((SELECT MAX(p.jusqua) FROM versions p WHERE p.id < v.id), 0)) AS n
+    FROM versions v ORDER BY v.id DESC`).all();
+}
+export function getVersion(id) {
+  return db.prepare('SELECT * FROM versions WHERE id = ?').get(id) || null;
+}
+export function creerVersion(auteur, note, jusqua) {
+  return Number(db.prepare('INSERT INTO versions (t, auteur, note, jusqua) VALUES (?, ?, ?, ?)').run(Date.now(), auteur, note, jusqua).lastInsertRowid);
+}
+export function jusquaDerniereVersion() {
+  return db.prepare('SELECT COALESCE(MAX(jusqua), 0) AS n FROM versions').get().n;
+}
+// état d'un fichier tel qu'à la fin de la modification `jusqua` : l'« avant »
+// de sa première modification ultérieure (undefined = jamais touché depuis)
+export function etatFichierA(fichier, jusqua) {
+  const r = db.prepare('SELECT avant FROM modifications WHERE fichier = ? AND id > ? ORDER BY id LIMIT 1').get(fichier, jusqua);
+  return r ? r.avant : undefined;
+}
+export function fichiersModifiesApres(jusqua) {
+  return db.prepare('SELECT DISTINCT fichier FROM modifications WHERE id > ?').all(jusqua).map(r => r.fichier);
+}
+
 export function setBanni(accountId, banni) {
   db.prepare('UPDATE accounts SET banni = ? WHERE id = ?').run(banni ? 1 : 0, accountId);
 }
