@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FormulaEngine } from '../shared/formula-engine.js';
+import { ORIGINE_MOBS, ORIGINE_ITEMS, SLOTS, appliquerSurcharges } from '../shared/defs.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
-export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {}, spells: {}, npcs: {} }, atelier: { desc: {} }, templates: [] };
+export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {}, spells: {}, npcs: {} }, atelier: { desc: {} }, templates: [], creatures: { mobs: {} }, objets: { items: {} } };
 
 const engine = new FormulaEngine();
 
@@ -114,11 +115,100 @@ export function loadContent() {
     const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'templates.json'), 'utf8'));
     content.templates = Array.isArray(raw.templates) ? raw.templates : [];
   } catch { content.templates = []; }
+  // créatures et objets modifiés dans la Forge : surcharges de shared/defs.js,
+  // appliquées en place sur MOBS / ITEMS (cf. appliquerSurcharges). Tolérant si absent.
+  const lireSurcharges = (fichier, cle) => {
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(DIR, fichier), 'utf8'));
+      return raw[cle] && typeof raw[cle] === 'object' ? raw : { [cle]: {} };
+    } catch { return { [cle]: {} }; }
+  };
+  content.creatures = lireSurcharges('creatures.json', 'mobs');
+  content.objets = lireSurcharges('objets.json', 'items');
+  appliquerSurcharges({ mobs: content.creatures.mobs, items: content.objets.items });
   return content;
 }
 
+// ---- validation des surcharges de la Forge (avant écriture) ----
+// On valide la fiche FUSIONNÉE (origine + surcharge) : c'est elle que le jeu lira.
+const nombre = (v) => typeof v === 'number' && Number.isFinite(v);
+const CHAMPS_MOB = ['level', 'hp', 'dmg', 'def', 'speed', 'aggro', 'leash', 'atkRange', 'atkSpeed'];
+const SLOTS_OBJET = [...SLOTS.filter(s => s !== 'ring2'), 'use', 'gold'];
+
+function erreursMob(id, m, items) {
+  const e = [];
+  if (typeof m.name !== 'string' || !m.name.trim()) e.push('nom manquant');
+  if (typeof m.sprite !== 'string' || !m.sprite) e.push('sprite manquant');
+  for (const k of CHAMPS_MOB) if (!nombre(m[k]) || m[k] < 0) e.push(`${k} doit être un nombre positif`);
+  if (nombre(m.level) && m.level < 1) e.push('niveau minimum : 1');
+  if (nombre(m.hp) && m.hp < 1) e.push('points de vie minimum : 1');
+  if (m.resist != null && (typeof m.resist !== 'object' || Object.values(m.resist).some(v => !nombre(v)))) e.push('résistances invalides');
+  if (!Array.isArray(m.drops)) e.push('butin invalide');
+  else for (const d of m.drops) {
+    if (!Array.isArray(d) || d.length !== 4) { e.push('ligne de butin invalide'); continue; }
+    const [obj, chance, min, max] = d;
+    if (!(obj in items)) e.push(`butin : objet inconnu « ${obj} »`);
+    if (!nombre(chance) || chance < 0 || chance > 1) e.push(`butin ${obj} : chance entre 0 et 1`);
+    if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < min) e.push(`butin ${obj} : quantité invalide`);
+  }
+  return e.map(x => `${id} : ${x}`);
+}
+
+function erreursObjet(id, o) {
+  const e = [];
+  if (typeof o.name !== 'string' || !o.name.trim()) e.push('nom manquant');
+  if (!SLOTS_OBJET.includes(o.slot)) e.push(`emplacement inconnu « ${o.slot} »`);
+  for (const k of ['price', 'weight']) if (!nombre(o[k]) || o[k] < 0) e.push(`${k} doit être un nombre positif`);
+  for (const k of ['dmgMin', 'dmgMax', 'speed', 'def', 'range', 'heal', 'mana', 'str', 'end', 'agi', 'int', 'wis', 'zone', 'chest', 'malus', 'att', 'dmg']) {
+    if (o[k] != null && !nombre(o[k])) e.push(`${k} doit être un nombre`);
+  }
+  if (nombre(o.dmgMin) && nombre(o.dmgMax) && o.dmgMax < o.dmgMin) e.push('dégâts max < dégâts min');
+  if (o.req != null && (typeof o.req !== 'object' || Object.values(o.req).some(v => !nombre(v)))) e.push('prérequis invalides');
+  return e.map(x => `${id} : ${x}`);
+}
+
+// Liste des erreurs (vide = valide) pour une nouvelle version de creatures.json
+// ou objets.json, compte tenu de l'AUTRE fichier tel qu'il est sur disque.
+export function validerSurcharges(nom, data) {
+  const cle = nom === 'creatures' ? 'mobs' : 'items';
+  const s = data?.[cle];
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return [`« ${cle} » doit être un objet`];
+  const mobsS = nom === 'creatures' ? s : content.creatures.mobs;
+  const itemsS = nom === 'objets' ? s : content.objets.items;
+  const fusion = (origine, surch) => {
+    const out = structuredClone(origine);
+    for (const [id, v] of Object.entries(surch)) {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) { out[id] = null; continue; }
+      out[id] = { ...(out[id] || {}), ...v };
+    }
+    return out;
+  };
+  const items = fusion(ORIGINE_ITEMS, itemsS);
+  const mobs = fusion(ORIGINE_MOBS, mobsS);
+  const err = [];
+  for (const id of Object.keys(s)) {
+    if (!/^[a-z0-9_]{1,40}$/.test(id)) { err.push(`identifiant invalide « ${id} » (minuscules, chiffres, _)`); continue; }
+    const def = (nom === 'creatures' ? mobs : items)[id];
+    if (!def) { err.push(`${id} : fiche invalide`); continue; }
+    err.push(...(nom === 'creatures' ? erreursMob(id, def, items) : erreursObjet(id, def)));
+  }
+  // une créature retirée ne doit plus être citée par une zone (spawn -> plantage)
+  if (nom === 'creatures') {
+    for (const z of content.zones) for (const id of z.mobs || []) {
+      if (!mobs[id]) err.push(`zone ${z.name} : créature inconnue « ${id} »`);
+    }
+  }
+  // un objet retiré ou renommé ne doit pas laisser de butin orphelin
+  if (nom === 'objets') {
+    for (const [mid, m] of Object.entries(mobs)) for (const d of m?.drops || []) {
+      if (!(d[0] in items)) err.push(`${mid} : butin vers un objet inconnu « ${d[0]} »`);
+    }
+  }
+  return err;
+}
+
 export function saveContentFile(name, data) {
-  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles', 'atelier'].includes(name)) throw new Error('fichier inconnu');
+  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles', 'atelier', 'creatures', 'objets'].includes(name)) throw new Error('fichier inconnu');
   fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
   loadContent();
 }

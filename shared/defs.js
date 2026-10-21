@@ -508,3 +508,32 @@ export const AFFIXES = [
   ['int', 1, 4, "d'intelligence"],
   ['wis', 1, 4, 'de sagesse'],
 ];
+
+// ================= Surcharges éditables (Forge de l'admin) =================
+// Les définitions ci-dessus restent la référence versionnée. La Forge écrit
+// ses modifications à part : content/creatures.json { mobs: { id: {...} } }
+// et content/objets.json { items: { id: {...} } }. Une surcharge est
+// fusionnée champ par champ sur l'origine (un champ objet ou tableau, comme
+// resist, req ou drops, est remplacé en entier) ; un id absent de l'origine
+// est une création, qui doit porter une fiche complète.
+// MOBS et ITEMS sont modifiés EN PLACE : tous les modules qui les importent
+// voient les surcharges, et une nouvelle application repart de l'origine
+// (rechargement à chaud). Chaque fiche est remplacée par un objet neuf : une
+// entité déjà en jeu garde l'ancienne jusqu'à sa réapparition.
+export const ORIGINE_MOBS = structuredClone(MOBS);
+export const ORIGINE_ITEMS = structuredClone(ITEMS);
+
+function appliquerSur(cible, origine, surcharges) {
+  for (const id of Object.keys(cible)) delete cible[id];
+  for (const [id, def] of Object.entries(origine)) cible[id] = structuredClone(def);
+  for (const [id, s] of Object.entries(surcharges || {})) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) continue;
+    if (!(id in origine) && typeof s.name !== 'string') continue; // création incomplète
+    cible[id] = { ...(cible[id] || {}), ...structuredClone(s) };
+  }
+}
+
+export function appliquerSurcharges({ mobs, items } = {}) {
+  appliquerSur(MOBS, ORIGINE_MOBS, mobs);
+  appliquerSur(ITEMS, ORIGINE_ITEMS, items);
+}

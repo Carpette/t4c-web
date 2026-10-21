@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
-import { content, saveContentFile } from './content.js';
+import { content, saveContentFile, validerSurcharges } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, ADMIN_PERMS } from '../shared/constants.js';
@@ -182,9 +182,20 @@ export async function handleAdmin(req, res, url, game) {
     }
 
     // ---- contenu (zones / npcs / sorts / compétences / particules) ----
-    const mContent = url.match(/^\/api\/admin\/content\/(zones|npcs|spells|skills|particles)$/);
+    const mContent = url.match(/^\/api\/admin\/content\/(zones|npcs|spells|skills|particles|creatures|objets)$/);
     if (mContent) {
       const name = mContent[1];
+      // créatures / objets : surcharges validées, puis appliquées à chaud (prochaines apparitions)
+      if (['creatures', 'objets'].includes(name)) {
+        if (req.method === 'GET') return json(200, name === 'creatures' ? content.creatures : content.objets);
+        if (req.method === 'PUT') {
+          const data = JSON.parse(await readBody(req));
+          const erreurs = validerSurcharges(name, data);
+          if (erreurs.length) return json(400, { error: erreurs.slice(0, 8).join(' ; '), erreurs });
+          saveContentFile(name, data);
+          return json(200, { ok: true, note: 'Appliqué à chaud : prochaines apparitions et prochains objets générés. Les joueurs rechargent (F5) pour voir noms et apparences.' });
+        }
+      }
       if (req.method === 'GET') {
         return json(200, JSON.parse(fs.readFileSync(path.join(CONTENT_DIR, `${name}.json`), 'utf8')));
       }
@@ -470,6 +481,20 @@ export async function handleAdmin(req, res, url, game) {
         const body = JSON.parse(await readBody(req));
         if (body.admin != null) { db.setAdmin(accountId, !!body.admin); return json(200, { ok: true }); }
       }
+    }
+
+    // ---- objets en circulation : exemplaires par defId dans les sauvegardes
+    //      (sacs, équipement compris, et coffres) ----
+    if (url === '/api/admin/objets/circulation' && req.method === 'GET') {
+      const compte = {};
+      for (const row of db.listCharacters()) {
+        if (!row.data) continue;
+        let d; try { d = JSON.parse(row.data); } catch { continue; }
+        for (const it of [...(d.inventory || []), ...(d.bank || [])]) {
+          if (it?.defId) compte[it.defId] = (compte[it.defId] || 0) + 1;
+        }
+      }
+      return json(200, { compte });
     }
 
     // ---- panthéon ----
