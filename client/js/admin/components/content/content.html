@@ -1,14 +1,33 @@
-<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4">
-    <div class="toolbar flex items-center gap-2 mb-4">
-        <select id="content-file" class="bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 text-t4c-text-light focus:outline-none focus:ring-2 focus:ring-t4c-button">
-            <option value="zones">zones.json (zones)</option>
-            <option value="npcs">npcs.json (PNJ)</option>
-            <option value="spells">spells.json (sorts)</option>
-            <option value="skills">skills.json (compétences)</option>
-        </select>
-        <button @click="loadContent" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover text-t4c-text-light font-bold rounded-md">Charger</button>
-        <button @click="saveContent" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
-    </div>
-    <p id="content-msg" class="text-green-400 min-h-[1.5em]"></p>
-    <textarea id="content-editor" spellcheck="false" class="w-full h-[60vh] bg-t4c-input-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light font-mono text-sm"></textarea>
+<div class="cs-panel flex flex-wrap min-h-[560px] overflow-hidden" @vue:mounted="init()">
+    <nav aria-label="Fichiers" class="flex-[1_1_200px] max-w-[240px] border-r border-gray-800 bg-gray-950 flex flex-col pt-2">
+        <div class="cs-sect px-3.5">Données du jeu</div>
+        <button v-for="f in fichiers" type="button" class="cs-file" :class="{ on: f.id === courant }"
+            :aria-current="f.id === courant ? 'true' : null" @click="ouvrir(f.id)">
+            {{ f.id }}.json<span class="cs-count">{{ f.nom }}</span></button>
+        <div class="mt-auto m-3.5 p-3 rounded-lg border border-[#4a3a20] bg-[#1c1810] text-xs text-gray-200">
+            Cet éditeur contourne les formulaires. Préférez les écrans dédiés, sauf pour une correction précise.
+        </div>
+    </nav>
+
+    <section aria-label="Éditeur JSON" class="flex-[999_1_480px] min-w-0 flex flex-col">
+        <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-800 flex-wrap">
+            <span class="font-mono font-medium">content/{{ courant }}.json</span>
+            <span class="cs-chip" :class="valide ? 'bg-[rgba(95,185,138,.14)] text-[#8fd1a8]' : 'bg-[rgba(224,113,95,.14)] text-[#f2917f]'">{{ valide ? 'JSON valide' : 'JSON invalide' }}</span>
+            <span class="cs-chip" v-if="modifie">Modifié</span>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn h-[30px]" @click="recharger()" :disabled="!modifie">Annuler les modifications</button>
+            <button type="button" class="cs-btn h-[30px]" @click="formater()" :disabled="!valide">Formater</button>
+            <button type="button" class="cs-btn cs-primary h-[30px]" @click="enregistrer()" :disabled="!valide || !modifie">Enregistrer</button>
+        </div>
+        <label for="content-editor" class="sr-only">Contenu de {{ courant }}.json</label>
+        <textarea id="content-editor" spellcheck="false" v-model="texte" @keyup="curseur($event)" @click="curseur($event)"
+            class="flex-1 min-h-[480px] w-full bg-[#111317] border-0 p-4 text-gray-100 font-mono text-[13px] leading-[22px] resize-none outline-none"></textarea>
+        <div class="flex gap-4 px-4 py-2 border-t border-gray-800 text-xs text-gray-500 flex-wrap">
+            <span>Ligne {{ ligne }}, colonne {{ colonne }}</span>
+            <span v-if="resume">{{ resume }}</span>
+            <span v-if="!valide" class="text-[#f2917f]">{{ erreurJson }}</span>
+            <span class="flex-1"></span>
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message">{{ message }}</span>
+        </div>
+    </section>
 </div>
