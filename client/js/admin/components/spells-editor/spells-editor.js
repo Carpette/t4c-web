@@ -30,6 +30,10 @@ const store = reactive({
     setTimeout(() => {
       this.loadSpells();
       this.initPreview();
+      // la vue tableau a enregistré spells.json : recharger la fiche
+      window.addEventListener('t4c:contenu', (e) => {
+        if (e.detail?.nom === 'spells' && e.detail.source !== 'fiche') this.loadSpells();
+      });
       
       // Manual event listeners for main actions
       this.$('new-spell-btn')?.addEventListener('click', () => this.createNewSpell());
@@ -499,6 +503,7 @@ const store = reactive({
       await this.api('/api/admin/content/spells', 'POST', this.rawData);
       alert('Sauvegarde réussie !');
       this.loadSpells();
+      window.dispatchEvent(new CustomEvent('t4c:contenu', { detail: { nom: 'spells', source: 'fiche' } }));
     } catch (err) {
       alert(`Erreur de connexion : ${err.message}`);
     }
