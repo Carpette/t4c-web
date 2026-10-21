@@ -18,6 +18,8 @@ const TYPES = [
 ];
 const MATERIAU = /^(wall|roof|floor)_/;
 const NOM_MATERIAU = { wall: 'Mur', roof: 'Toit', floor: 'Sol' };
+// couches d'avatar portées par défaut (cf. entities2d : BASE_LAYERS et repli de `look`)
+const COUCHES_DE_BASE = ['default_chest', 'default_hands', 'default_feet'];
 // comportement en jeu d'un matériau : fixé par sa famille (cf. isBlockingProp)
 const JEU_MATERIAU = { wall: 'Bloquant : arrête les déplacements', roof: 'Décor : ne bloque pas', floor: 'Marchable' };
 const lireB64 = (f) => new Promise((ok, ko) => {
@@ -151,7 +153,9 @@ export function BibliothequeController(api) {
       for (const [sexe, couches] of Object.entries(manifest.avatar || {})) {
         for (const [cle, e] of Object.entries(couches)) {
           const usages = pnjBrut.includes(`"${cle}"`) ? [{ nom: 'PNJ (apparence)', ou: 'PNJ', lien: '#pnj' }] : [];
-          ajouter({ type: 'personnage', cle: `${sexe}/${cle}`, nom: `${cle.replace(/_/g, ' ')} (${sexe === 'male' ? 'homme' : 'femme'})`, fichier: e.image, usages: cle.startsWith('default_') ? null : usages });
+          // couches de base : portées par tout personnage sans équipement à cet endroit
+          if (COUCHES_DE_BASE.includes(cle)) usages.unshift({ nom: 'Personnages (couche de base)', ou: 'jeu', lien: '#joueurs' });
+          ajouter({ type: 'personnage', cle: `${sexe}/${cle}`, nom: `${cle.replace(/_/g, ' ')} (${sexe === 'male' ? 'homme' : 'femme'})`, fichier: e.image, usages });
         }
       }
       for (const [cle, e] of Object.entries(manifest.loot || {})) {
@@ -160,11 +164,12 @@ export function BibliothequeController(api) {
       }
       for (const [cle, t] of Object.entries(manifest.tilesets || {})) {
         const m = cle.match(MATERIAU);
-        // décors « wall_<mat> », pièces « floor_<mat>:n » dans les retouches de zone
-        const cite = new RegExp(`"${cle}["':]`);
+        // décors « wall_<mat> », pièces « floor_<mat>:n », tuiles Flare posées
+        // en décor « flare_<jeu> » dans les retouches de zone
+        const cite = new RegExp(`"(flare_)?${cle}["':]`);
         const usages = Object.entries(retouches).filter(([, brut]) => cite.test(brut)).map(([zone]) => ({ nom: zone, ou: 'zone', lien: '#zones/map' }));
         ajouter({ type: m ? 'materiau' : 'tuiles', cle, nom: m ? `${NOM_MATERIAU[m[1]]} · ${cle.slice(m[0].length).replace(/_/g, ' ')}` : cle.replace(/_/g, ' '),
-          fichier: t.images?.[0], pieces: Object.keys(t.tiles || {}).length, usages: m ? usages : null });
+          fichier: t.images?.[0], pieces: Object.keys(t.tiles || {}).length, usages });
       }
       return out;
     },
