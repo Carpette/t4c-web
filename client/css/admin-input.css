@@ -225,3 +225,8 @@ body.cs-lecture #console-main .cs-danger { display: none; }
 .cs-outil:focus-visible { outline: 2px solid #c9a45c; outline-offset: 1px; }
 .cs-kbd { display: inline-block; padding: 0 5px; border: 1px solid #3a3f49; border-radius: 4px; font: 11px/16px var(--font-mono, monospace); color: var(--color-gray-200); }
 .cs-menu > summary::-webkit-details-marker { display: none; }
+
+/* Bibliothèque : vignette de ressource */
+.cs-res { display: block; padding: 8px; border-radius: 8px; border: 1px solid #23262d; background: #111317; cursor: pointer; text-align: left; }
+.cs-res:hover { border-color: #3a3f49; background: #15171c; }
+.cs-res.on { border-color: #c9a45c; background: #1b1810; }
