@@ -36,6 +36,11 @@ const visible = () => document.getElementById('tab-monde-carte')?.classList.cont
 const copie = (v) => JSON.parse(JSON.stringify(v));
 const idNeuf = (pre) => pre + Date.now().toString(36);
 
+// demande venue d'un autre écran (Joueurs, « Aller à lui ») : id en jeu du
+// joueur à choisir, traitée dès que la carte a fini de démarrer
+let demande = null, recepteur = null;
+export function montrerJoueurSurCarte(id) { demande = id; recepteur?.(); }
+
 export function MondeCarteController(api) {
   // hors réactivité : moteur de rendu, entités, gros tableaux, canevas
   let assets = null, renderer = null, em = null, monde = null, ov = null, fond = null;
@@ -547,6 +552,15 @@ export function MondeCarteController(api) {
       } catch (e) { this.dire('✘ ' + e.message, true); this.chargement = false; }
       this.image();
       setInterval(() => { if (visible()) this.rafraichir(); }, RAFRAICHIR_MS);
+      recepteur = async () => {
+        const id = demande; demande = null;
+        if (id == null) return;
+        // joueur connecté depuis le dernier rafraîchissement : la liste est relue
+        if (!this.joueurs.some(p => p.id === id)) await this.rafraichir();
+        if (this.joueurs.some(p => p.id === id)) await this.choisirJoueur(id);
+        else this.dire('Ce joueur n’est plus connecté.');
+      };
+      recepteur();
     },
   };
 }

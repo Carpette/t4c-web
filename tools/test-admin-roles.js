@@ -234,6 +234,20 @@ const relog = await (await fetch(`${BASE}/api/admin/login`, {
 })).json();
 H.Authorization = `Bearer ${relog.token}`;
 
+// ---- 10. écran Joueurs : id en jeu, drapeaux de quête édités ----
+const persos = (await api('/api/admin/characters')).characters;
+const pBoss = persos.find(c => c.account === boss.name);
+ok('personnages : id en jeu des joueurs connectés', pBoss?.online && pBoss.joueurId === boss.welcome.id);
+// compte dédié, déconnecté : l'animateur, entouré des rats de ses vagues,
+// peut être mort entre-temps (personnage effacé)
+const drap = await connect('Drap_' + Math.floor(Math.random() * 1e6));
+drap.ws.close();
+await new Promise(r => setTimeout(r, 300));
+const pDrap = (await api('/api/admin/characters')).characters.find(c => c.account === drap.name);
+const rFl = await api(`/api/admin/character/${pDrap.accountId}`, 'PUT', { flags: { mq1: true, 'mauvaise clé!': true } });
+const flDrap = (await api('/api/admin/characters')).characters.find(c => c.account === drap.name)?.char?.flags || {};
+ok('personnage : drapeaux enregistrés, clés invalides écartées', rFl.ok && flDrap.mq1 === true && !('mauvaise clé!' in flDrap));
+
 // ---- nettoyage : profil retiré, npcs.json restauré ----
 await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, profilId: null });
 ok('profil libéré : suppression acceptée', (await api('/api/admin/profils/' + pAnim.id, 'DELETE')).ok);

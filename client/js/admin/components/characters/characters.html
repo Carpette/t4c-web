@@ -22,18 +22,22 @@
             <label for="jr" class="sr-only">Profil</label>
             <select id="jr" class="cs-input w-[170px]" v-model="profil">
                 <option value="">Tous les profils</option>
-                <option>Super admin</option><option>Animateur</option><option>Joueur</option>
+                <option>Super admin</option><option v-for="p in profils">{{ p.nom }}</option><option>Joueur</option>
             </select>
         </div>
 
-        <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message">{{ message }}</p>
+        <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message" role="status">{{ message }}</p>
 
         <div class="cs-panel overflow-x-auto">
             <table class="cs-table" id="chars-table">
-                <thead><tr><th>Personnage</th><th>Statut</th><th class="text-right">Niveau</th><th class="text-right">Or</th>
+                <thead><tr>
+                    <th class="w-9"><input type="checkbox" aria-label="Tout sélectionner" :checked="toutCoche" @change="basculerTout()" /></th>
+                    <th>Personnage</th><th>Statut</th><th class="text-right">Niveau</th><th class="text-right">Or</th>
                     <th>Zone</th><th>Profil</th><th class="text-right">Actions</th></tr></thead>
                 <tbody>
                     <tr v-for="c in filtrees" class="cliquable" :class="{ sel: choisi === c.accountId }" @click="ouvrir(c)">
+                        <td @click.stop><input type="checkbox" :aria-label="'Sélectionner ' + (c.char ? c.char.name : c.account)"
+                            :disabled="!c.char" :checked="coches.includes(c.accountId)" @change="basculer(c)" /></td>
                         <td><div class="font-semibold">{{ c.char ? c.char.name : '—' }}</div>
                             <div class="text-gray-500 text-xs">compte {{ c.account }}</div></td>
                         <td :class="c.online ? '' : 'text-gray-400'"><span class="cs-dot" :class="c.online ? 'bg-[#5fb98a]' : 'bg-[#4a4e57]'"></span>{{ c.online ? 'En ligne' : 'Hors ligne' }}</td>
@@ -41,11 +45,28 @@
                         <td class="font-mono text-right">{{ c.char ? c.char.gold : '' }}</td>
                         <td>{{ c.char ? nomZone(c.char.zoneId) : '' }}</td>
                         <td><span class="cs-chip" :class="c.profil === 'Super admin' ? 'bg-[rgba(201,164,92,.14)] text-t4c-gold' : ''">{{ c.profil }}</span></td>
-                        <td class="text-right"><button type="button" class="cs-btn h-[30px]" @click.stop="ouvrir(c)">Modifier</button></td>
+                        <td class="text-right" @click.stop>
+                            <span class="inline-flex gap-1.5" v-if="c.online && c.joueurId != null">
+                                <button type="button" class="cs-btn h-[30px]" v-if="peut('carte', 1)" @click="allerVers(c)">Aller à lui</button>
+                                <button type="button" class="cs-btn cs-danger h-[30px]" v-if="peut('sanctions')" @click="expulser(c)">Expulser</button>
+                            </span>
+                            <button type="button" class="cs-btn h-[30px]" v-else @click="ouvrir(c)">Modifier</button>
+                        </td>
                     </tr>
-                    <tr v-if="!filtrees.length"><td colspan="7" class="text-gray-500">Aucun personnage ne correspond aux filtres.</td></tr>
+                    <tr v-if="!filtrees.length"><td colspan="8" class="text-gray-500">Aucun personnage ne correspond aux filtres.</td></tr>
                 </tbody>
             </table>
+        </div>
+
+        <div class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#1a1c21] border border-[#2a2e36] flex-wrap" v-if="selection.length">
+            <span class="font-semibold">{{ pluriel(selection.length, 'sélectionné') }}</span>
+            <span class="text-gray-500">Actions groupées :</span>
+            <button type="button" class="cs-btn" :disabled="occupe" v-if="peut('joueurs')" @click="donnerOr()">Donner de l’or</button>
+            <button type="button" class="cs-btn" :disabled="occupe" v-if="peut('joueurs')" @click="teleporter()" title="Amène les joueurs en ligne près de votre personnage en jeu">Téléporter</button>
+            <button type="button" class="cs-btn" :disabled="occupe" v-if="peut('joueurs')" @click="envoyerMessage()">Message</button>
+            <button type="button" class="cs-btn cs-danger" :disabled="occupe" v-if="peut('sanctions')" @click="expulserSelection()">Expulser</button>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn cs-ghost" @click="coches = []">Tout désélectionner</button>
         </div>
     </section>
 
@@ -60,32 +81,65 @@
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
             </button>
         </div>
-        <div class="p-4 flex flex-col gap-4" v-if="fiche.char">
-            <div class="grid grid-cols-2 gap-3">
-                <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-lvl">Niveau</label><input id="f-lvl" class="cs-input font-mono" type="number" min="1" v-model.number="edit.level" /></div>
-                <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-gold">Or</label><input id="f-gold" class="cs-input font-mono" type="number" min="0" v-model.number="edit.gold" /></div>
-            </div>
-            <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-zone">Zone</label>
-                <select id="f-zone" class="cs-input" v-model.number="edit.zoneId">
-                    <option v-for="z in zonesConnues" :value="z.id">{{ z.name }}</option>
-                </select></div>
-            <div class="flex flex-col gap-1.5">
-                <span class="cs-label">Caractéristiques</span>
-                <div class="grid grid-cols-5 gap-2">
-                    <label v-for="s in stats" class="flex flex-col gap-1 text-xs text-gray-500">{{ NOMS_STATS[s] }}
-                        <input class="cs-input font-mono px-1.5 text-center" type="number" min="1" v-model.number="edit.stats[s]" /></label>
+        <div class="p-4 flex flex-col gap-4">
+            <template v-if="edit.perso">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-lvl">Niveau</label><input id="f-lvl" class="cs-input font-mono" type="number" min="1" v-model.number="edit.perso.level" /></div>
+                    <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-gold">Or</label><input id="f-gold" class="cs-input font-mono" type="number" min="0" v-model.number="edit.perso.gold" /></div>
+                    <div class="flex flex-col gap-1.5"><label class="cs-label" for="f-zone">Zone</label>
+                        <select id="f-zone" class="cs-input" v-model.number="edit.perso.zoneId">
+                            <option v-for="z in zonesConnues" :value="z.id">{{ z.id }} · {{ z.name }}</option>
+                        </select></div>
+                    <fieldset class="flex flex-col gap-1.5 min-w-0"><legend class="cs-label mb-1.5">Position</legend>
+                        <div class="flex gap-1.5">
+                            <input class="cs-input font-mono px-1.5 text-center" type="number" aria-label="Position x" v-model.number="edit.perso.x" />
+                            <input class="cs-input font-mono px-1.5 text-center" type="number" aria-label="Position z" v-model.number="edit.perso.z" />
+                        </div></fieldset>
                 </div>
+                <div class="flex flex-col gap-1.5">
+                    <span class="cs-label">Caractéristiques</span>
+                    <div class="grid grid-cols-5 gap-2">
+                        <label v-for="s in stats" class="flex flex-col gap-1 text-xs text-gray-500">{{ NOMS_STATS[s] }}
+                            <input class="cs-input font-mono px-1.5 text-center" type="number" min="1" v-model.number="edit.perso.stats[s]" /></label>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <span class="cs-label">Drapeaux de quête</span>
+                    <div class="flex gap-1.5 flex-wrap items-center">
+                        <span class="cs-chip font-mono gap-1" v-for="f in drapeaux">{{ f }}
+                            <button type="button" class="text-gray-500 hover:text-gray-200" :aria-label="'Retirer le drapeau ' + f" @click="retirerDrapeau(f)">×</button></span>
+                        <span class="text-gray-500 text-xs" v-if="!drapeaux.length">Aucun.</span>
+                    </div>
+                    <form class="flex gap-1.5" @submit.prevent="ajouterDrapeau()">
+                        <label for="f-drapeau" class="sr-only">Nouveau drapeau</label>
+                        <input id="f-drapeau" class="cs-input font-mono" v-model="drapeauNeuf" placeholder="mq3" />
+                        <button type="submit" class="cs-btn" :disabled="!drapeauNeuf.trim()">Ajouter</button>
+                    </form>
+                </div>
+            </template>
+            <p class="text-gray-400" v-else>Ce compte n’a pas encore créé de personnage.</p>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="cs-label" for="f-profil">Profil du compte</label>
+                <select id="f-profil" class="cs-input" v-model="edit.profil" :disabled="!profilModifiable">
+                    <option value="super" :disabled="!superAdmin">Super admin</option>
+                    <option v-for="p in profils" :value="String(p.id)">{{ p.nom }}</option>
+                    <option value="">Joueur</option>
+                </select>
+                <a href="#acces" class="text-xs" v-if="peut('acces', 1)">Voir ce que permet ce profil</a>
             </div>
-            <div class="flex flex-col gap-1.5" v-if="drapeaux.length">
-                <span class="cs-label">Drapeaux de quête</span>
-                <div class="flex gap-1.5 flex-wrap"><span class="cs-chip font-mono" v-for="f in drapeaux">{{ f }}</span></div>
-            </div>
-            <div class="text-xs text-[#e7a55a]" v-if="fiche.online">Appliquer déconnecte le joueur pour qu’il recharge ses données.</div>
-            <div class="flex gap-2 flex-wrap">
-                <button type="button" class="cs-btn cs-primary flex-1" @click="appliquer()">Appliquer</button>
+
+            <div class="p-3 border border-[#4d2d28] rounded-lg flex flex-col gap-2 bg-[#1a1312]" v-if="fiche.char && peut('joueurs')">
+                <div class="font-semibold text-[#f2917f]">Zone sensible</div>
+                <div class="text-gray-400 text-xs">Supprimer efface le personnage. Le compte est conservé.</div>
                 <button type="button" class="cs-btn cs-danger" @click="supprimer()">Supprimer le personnage</button>
             </div>
         </div>
-        <p class="p-4 text-gray-400" v-else>Ce compte n’a pas encore créé de personnage.</p>
+        <div class="px-4 py-3 border-t border-gray-800 flex items-center gap-2 mt-auto">
+            <span class="flex-1 text-xs" :class="fiche.online && persoModifie ? 'text-[#e7a55a]' : 'text-gray-500'">{{ fiche.online
+                ? (persoModifie ? 'Appliquer déconnecte le joueur pour qu’il recharge ses données.' : 'Le profil s’applique à chaud.')
+                : 'Hors ligne : appliqué à la prochaine connexion.' }}</span>
+            <button type="button" class="cs-btn cs-primary" :disabled="!persoModifie && !profilModifie" @click="appliquer()">Appliquer</button>
+        </div>
     </aside>
 </div>

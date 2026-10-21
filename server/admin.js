@@ -589,12 +589,14 @@ export async function handleAdmin(req, res, url, game) {
 
     // ---- personnages ----
     if (url === '/api/admin/characters' && req.method === 'GET') {
+      const enJeu = new Map([...game.players.values()].map(p => [p.accountId, p.id]));
       const rows = db.listCharacters().map(r => {
         let d = null;
         try { d = r.data ? JSON.parse(r.data) : null; } catch {}
         return {
           accountId: r.id, account: r.name, isAdmin: !!r.is_admin,
-          online: [...game.players.values()].some(p => p.accountId === r.id),
+          online: enJeu.has(r.id),
+          joueurId: enJeu.get(r.id) ?? null, // id en jeu : actions en direct (/monde/joueur/:id)
           char: d && {
             name: d.name, level: d.level, gold: d.gold, zoneId: d.zoneId,
             hp: d.hp, stats: d.stats, x: d.x, z: d.z,
@@ -640,6 +642,10 @@ export async function handleAdmin(req, res, url, game) {
           data.manaAcc = maxMana(data.stats, data.level);
         }
         if (Array.isArray(patch.unlocked)) data.unlocked = patch.unlocked.map(Number);
+        // drapeaux de quête : mêmes clés admises que l'action « drapeaux » en direct
+        if (patch.flags && typeof patch.flags === 'object' && !Array.isArray(patch.flags)) {
+          data.flags = Object.fromEntries(Object.entries(patch.flags).filter(([k]) => /^[\w:.-]{1,60}$/.test(k)));
+        }
         data.hp = null; data.mana = null; // recalculés au chargement
         db.saveCharacter(accountId, data);
         kickIfOnline(game, accountId); // le joueur recharge avec les nouvelles données
