@@ -3,7 +3,6 @@
 // porte le nom de sa définition (MOBS), sinon c'est un joueur.
 import { MOBS } from '../../../../shared/defs.js';
 
-const NOMS_CREATURES = new Set(Object.values(MOBS).map(m => m.name));
 const SEMAINE = 7 * 24 * 3600e3;
 const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -51,7 +50,9 @@ export function PantheonController(api) {
     async charger() {
       try {
         const { deaths } = await api('/api/admin/pantheon');
-        this.morts = deaths.map(d => ({ ...d, joueur: !NOMS_CREATURES.has(d.killer) }));
+        // noms lus ici, après application des surcharges de la Forge
+        const creatures = new Set(Object.values(MOBS).map(m => m.name));
+        this.morts = deaths.map(d => ({ ...d, joueur: !creatures.has(d.killer) }));
         this.erreur = '';
       } catch (e) {
         this.erreur = e.message;

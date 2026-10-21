@@ -1,0 +1,4 @@
+{
+  "_note": "Créatures modifiées ou créées dans la Forge de l'admin. Surcharges de MOBS (shared/defs.js), qui reste la référence : chaque entrée est fusionnée champ par champ sur la créature d'origine (resist et drops sont remplacés en entier) ; un identifiant absent de defs.js est une création et porte une fiche complète. Supprimer une entrée rétablit la créature d'origine.",
+  "mobs": {}
+}

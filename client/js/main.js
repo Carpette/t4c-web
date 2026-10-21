@@ -5,6 +5,7 @@ import { applyOverrides } from '../../shared/overrides.js';
 import { KIND, DAY_LENGTH } from '../../shared/constants.js';
 import { ITEMS } from '../../shared/defs.js';
 import { loadAssets } from './render2d/assets.js';
+import { chargerSurcharges } from './surcharges.js';
 import { buildDecor } from './render2d/decor.js';
 import { Renderer } from './render2d/renderer.js';
 import { EntityManager2D, setPartyIds } from './render2d/entities2d.js';
@@ -34,6 +35,7 @@ let targetId = null;
 // --- Chargement des assets + contenu, puis connexion ---
 let assets;
 try {
+  await chargerSurcharges(); // créatures / objets modifiés dans la Forge
   assets = await loadAssets();
   const spellsJson = await (await fetch('/content/spells.json')).json();
   uiStore.spellDefs = spellsJson.spells;

@@ -1,0 +1,4 @@
+{
+  "_note": "Objets modifiés ou créés dans la Forge de l'admin. Surcharges d'ITEMS (shared/defs.js), qui reste la référence : chaque entrée est fusionnée champ par champ sur l'objet d'origine (req est remplacé en entier) ; un identifiant absent de defs.js est une création et porte une fiche complète. Supprimer une entrée rétablit l'objet d'origine.",
+  "items": {}
+}
