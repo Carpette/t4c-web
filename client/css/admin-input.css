@@ -119,6 +119,17 @@
   color: var(--color-gray-200); font-size: 13px; line-height: 1.45; }
 .cs-bulle.moi { align-self: flex-end; border-radius: 10px 10px 2px 10px; background: #3a3220; color: var(--color-t4c-text-light); }
 
+/* colonnes redimensionnables (client/js/admin/colonnes.js) */
+[data-col] { position: relative; }
+.cs-poignee { position: absolute; top: 0; bottom: 0; width: 9px; z-index: 6; cursor: col-resize; touch-action: none; }
+[data-bord="droite"] > .cs-poignee { right: -5px; }
+[data-bord="gauche"] > .cs-poignee { left: -5px; }
+.cs-poignee::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; transition: background .15s; }
+.cs-poignee:hover::after, .cs-poignee:focus-visible::after, body.cs-redim .cs-poignee::after { background: var(--color-amber-500); width: 2px; }
+.cs-poignee:focus-visible { outline: none; }
+body.cs-redim { cursor: col-resize; user-select: none; }
+@media (max-width: 760px) { .cs-poignee { display: none; } }
+
 .cs-panel { background: var(--color-gray-900); border: 1px solid var(--color-t4c-border); border-radius: 10px; }
 .cs-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; background: #23262c;
   color: var(--color-gray-200); font-size: 12px; white-space: nowrap; }
