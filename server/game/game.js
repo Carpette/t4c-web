@@ -10,9 +10,8 @@ import { makeItem, rollDrops, itemStats, itemLabel, itemPrice, itemWeight, inven
 import { findPath } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
-import { loadOverrides, overridesPath } from '../admin.js';
+import { loadOverrides, ecrireOverrides } from '../admin.js';
 import { accesDe, niveau, permsDe, EDITION } from '../../shared/acces.js';
-import fs from 'node:fs';
 import { TILE } from '../../shared/worldgen.js';
 import { saveContentFile } from '../content.js';
 import * as db from '../db.js';
@@ -1622,7 +1621,7 @@ export class Game {
         const ov = loadOverrides(p.zi.zoneId) || { tiles: [], props: { add: [], remove: [] } };
         ov.tiles = (ov.tiles || []).filter(([tx, tz]) => tx !== x || tz !== z);
         ov.tiles.push([x, z, t]);
-        this.saveAndApplyOverrides(p.zi.zoneId, ov);
+        this.saveAndApplyOverrides(p.zi.zoneId, ov, p.name);
         break;
       }
       case 'prop': {
@@ -1645,7 +1644,7 @@ export class Game {
           ov.props.add = ov.props.add || [];
           ov.props.add.push(prop);
         }
-        this.saveAndApplyOverrides(p.zi.zoneId, ov);
+        this.saveAndApplyOverrides(p.zi.zoneId, ov, p.name);
         break;
       }
 
@@ -1656,7 +1655,7 @@ export class Game {
         const clean = this.sanitizeDialogues(msg.dialogues);
         if (!clean) { this.send(p, { t: 'info', text: 'Dialogues invalides (voir le format).' }); return; }
         content.npc[npcId].dialogues = clean;
-        saveContentFile('npcs', { npc: content.npc });
+        saveContentFile('npcs', { npc: content.npc }, p.name);
         this.refreshNpcs(); // les PNJ vivants pointent sur les nouvelles définitions
         this.send(p, { t: 'info', text: `Dialogues de « ${npcId} » enregistrés (${clean.length} entrée(s)).` });
         break;
@@ -1749,8 +1748,8 @@ export class Game {
 
   // réécrit le fichier d'overrides d'une zone et l'applique à chaud —
   // chemin identique au PUT /api/admin/overrides de l'éditeur web
-  saveAndApplyOverrides(zoneId, ov) {
-    fs.writeFileSync(overridesPath(zoneId), JSON.stringify(ov));
+  saveAndApplyOverrides(zoneId, ov, auteur = 'serveur') {
+    ecrireOverrides(zoneId, ov, auteur);
     this.applyZoneEdits(zoneId, ov);
   }
 
@@ -2589,17 +2588,21 @@ export class Game {
   }
 
   // ---------- Arrêt gracieux : décompte diffusé, sauvegarde, extinction ----------
+  // Arrêt programmé (Ctrl-C, ou redémarrage depuis l'écran Publication) :
+  // décompte diffusé aux joueurs, annulable tant qu'il n'a pas abouti
   beginShutdown(seconds = 45) {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
+    this.arretPrevu = Date.now() + seconds * 1000;
+    this._arret = [];
+    const dans = (s) => s >= 60 ? `${Math.round(s / 60)} minute${s >= 120 ? 's' : ''}` : `${s} seconde${s > 1 ? 's' : ''}`;
     console.log(`Arrêt du serveur dans ${seconds}s (Ctrl-C à nouveau pour forcer)`);
-    this.broadcastChat('sys', `⚠ ARRÊT DU SERVEUR DANS ${seconds} SECONDES — mettez-vous à l'abri !`);
-    const marks = [30, 15, 10, 5, 4, 3, 2, 1].filter(m => m < seconds);
+    this.broadcastChat('sys', `⚠ ARRÊT DU SERVEUR DANS ${dans(seconds).toUpperCase()} — mettez-vous à l'abri !`);
+    const marks = [600, 300, 120, 60, 30, 15, 10, 5, 4, 3, 2, 1].filter(m => m < seconds);
     for (const m of marks) {
-      setTimeout(() => this.broadcastChat('sys', `⚠ Arrêt du serveur dans ${m} seconde${m > 1 ? 's' : ''}…`),
-        (seconds - m) * 1000);
+      this._arret.push(setTimeout(() => this.broadcastChat('sys', `⚠ Arrêt du serveur dans ${dans(m)}…`), (seconds - m) * 1000));
     }
-    setTimeout(() => {
+    this._arret.push(setTimeout(() => {
       this.broadcastChat('sys', '⚠ Arrêt du serveur. À bientôt dans les Royaumes !');
       this.saveAll();
       console.log(`${this.players.size} personnage(s) sauvegardé(s). Extinction.`);
@@ -2607,7 +2610,14 @@ export class Game {
         try { p.ws.close(1001, 'Arrêt du serveur'); } catch {}
       }
       setTimeout(() => process.exit(0), 300);
-    }, seconds * 1000);
+    }, seconds * 1000));
+  }
+  cancelShutdown() {
+    if (!this.shuttingDown || !this._arret) return false;
+    for (const t of this._arret) clearTimeout(t);
+    this.shuttingDown = false; this.arretPrevu = null; this._arret = null;
+    this.broadcastChat('sys', 'L’arrêt du serveur est annulé.');
+    return true;
   }
 
   metaFor(e) {

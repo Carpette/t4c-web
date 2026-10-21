@@ -1,0 +1,75 @@
+<div class="flex flex-wrap gap-4 items-start" @vue:mounted="init()">
+    <!-- modifications depuis la dernière version -->
+    <section aria-label="Modifications" class="flex-[999_1_480px] min-w-0 flex flex-col gap-4">
+        <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message" role="status">{{ message }}</p>
+        <p class="text-gray-400" v-if="chargement">Chargement de l’historique…</p>
+        <div class="cs-panel p-6 text-gray-400" v-if="!chargement && !modifications.length">
+            Aucune modification depuis {{ versions.length ? 'la version v' + versions[0].id : 'le début de l’historique' }}.
+        </div>
+        <div v-for="d in domaines" class="cs-panel overflow-hidden">
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-800">
+                <h3 class="text-[15px] font-semibold flex-1">{{ d.nom }}</h3><span class="cs-count">{{ d.mods.length }}</span>
+            </div>
+            <div v-for="m in d.mods" class="px-4 py-3 border-b border-gray-800 last:border-b-0 flex flex-col gap-1.5">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-medium text-gray-100">{{ nomFichier(m) }}</span>
+                    <span class="text-xs text-gray-500">{{ m.nb }} changement{{ m.nb > 1 ? 's' : '' }}</span>
+                    <span class="cs-chip text-amber-300" v-if="m.note">{{ m.note }}</span>
+                    <div class="flex-1"></div>
+                    <span class="text-xs text-gray-500">{{ m.auteur }} · {{ ilya(m.t) }}</span>
+                    <button type="button" class="cs-btn h-7" @click="annuler(m)" :title="'Défaire cette modification (n° ' + m.id + ')'">Annuler</button>
+                </div>
+                <div v-for="l in lignes(m)" class="grid grid-cols-[minmax(0,220px)_1fr] gap-3 text-[13px]">
+                    <span class="truncate text-gray-300" :title="l.objet + (l.champ ? ' · ' + l.champ : '')">{{ l.objet }}<span class="text-gray-500" v-if="l.champ"> · {{ l.champ }}</span></span>
+                    <span class="font-mono min-w-0 break-all">
+                        <span class="text-red-300/80 line-through" v-if="l.avant !== null">{{ l.avant }}</span>
+                        <span class="text-gray-500" v-if="l.avant !== null && l.apres !== null"> → </span>
+                        <span class="text-green-300" v-if="l.apres !== null">{{ l.apres }}</span>
+                        <span class="text-gray-500 not-italic" v-if="l.apres === null"> (supprimé)</span>
+                        <span class="text-gray-500" v-if="l.avant === null"> (ajouté)</span></span>
+                </div>
+                <button type="button" class="cs-lien self-start text-[13px]" v-if="m.lignes.length > 4" @click="basculer(m)">
+                    {{ ouvertes.includes(m.id) ? 'Réduire' : 'Voir les ' + m.lignes.length + ' lignes' }}{{ m.nb > m.lignes.length ? ' (sur ' + m.nb + ')' : '' }}</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- version, redémarrage, historique -->
+    <aside aria-label="Versions" class="flex-[1_1_300px] max-w-[380px] flex flex-col gap-4">
+        <div class="cs-card">
+            <h3>Marquer une version</h3>
+            <p class="text-gray-400"><span class="text-gray-100 font-semibold">{{ modifications.length }}</span> modification{{ modifications.length > 1 ? 's' : '' }} depuis {{ versions.length ? 'v' + versions[0].id : 'le début' }}, déjà en jeu.
+                Une version est un point de retour : vous pourrez restaurer tout le contenu tel qu’il est maintenant.</p>
+            <div class="cs-field"><label class="cs-label" for="pub-note">Note de version</label>
+                <textarea id="pub-note" class="cs-input min-h-[72px] py-2" v-model="note" maxlength="500" placeholder="Ce qui change pour les joueurs"></textarea></div>
+            <button type="button" class="cs-btn cs-primary justify-center" :disabled="!modifications.length" @click="marquer()">Marquer la version v{{ prochaine }}</button>
+        </div>
+
+        <div class="cs-card">
+            <h3>Redémarrer le serveur</h3>
+            <p class="text-gray-400">Le changement de zones (graines, cartes) ne prend effet qu’au redémarrage. {{ enLigne }} joueur{{ enLigne > 1 ? 's' : '' }} en ligne, prévenu{{ enLigne > 1 ? 's' : '' }} par un décompte.</p>
+            <p class="text-xs text-gray-500">{{ production ? 'En production, le serveur redémarre aussitôt après l’arrêt.' : 'Serveur local : il s’arrête et ne redémarre pas seul, relancez-le.' }}</p>
+            <div v-if="arret" class="flex items-center gap-2 flex-wrap">
+                <span class="text-amber-300 flex-1">Arrêt prévu à {{ heure(arret) }}.</span>
+                <button type="button" class="cs-btn" @click="annulerRedemarrage()">Annuler</button>
+            </div>
+            <div v-else class="flex gap-2 flex-wrap">
+                <label for="pub-delai" class="sr-only">Délai d’avertissement</label>
+                <select id="pub-delai" class="cs-input flex-1 min-w-[160px]" v-model.number="delai"><option v-for="d in DELAIS" :value="d[0]">{{ d[1] }}</option></select>
+                <button type="button" class="cs-btn cs-danger" @click="redemarrer()">Programmer</button>
+            </div>
+        </div>
+
+        <div class="cs-card p-0 overflow-hidden">
+            <h3 class="px-4 pt-4">Historique</h3>
+            <div v-for="v in versions" class="flex items-start gap-3 px-4 py-2.5 border-t border-gray-800">
+                <div class="flex-1 min-w-0">
+                    <div><span class="font-semibold">v{{ v.id }}</span> <span class="text-gray-500 text-[13px]">{{ date(v.t) }} · {{ v.n }} modification{{ v.n > 1 ? 's' : '' }} · {{ v.auteur }}</span></div>
+                    <div class="text-[13px] text-gray-400 break-words" v-if="v.note">{{ v.note }}</div>
+                </div>
+                <button type="button" class="cs-btn h-7" @click="restaurer(v)">Restaurer</button>
+            </div>
+            <p class="px-4 pb-4 text-gray-500" v-if="!versions.length">Aucune version marquée.</p>
+        </div>
+    </aside>
+</div>

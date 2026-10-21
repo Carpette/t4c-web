@@ -63,9 +63,8 @@ export const ECRANS = [
     desc: 'Ce que joue chaque zone et chaque écran, et les groupes de pistes.' },
   { id: 'fichiers', espace: 'forge', section: 'Avancé', nom: 'Fichiers bruts', icone: 'fichiers', tab: 'content', droits: ['fichiers'],
     desc: 'Les fichiers de contenu en JSON. Préférez les écrans dédiés, sauf pour une correction précise.' },
-  { id: 'publication', espace: 'forge', nom: 'Publication', icone: 'publication', bientot: true, pied: true,
-    desc: 'Le brouillon de la Forge, comparé à ce qui tourne sur le serveur.',
-    prevu: ['Liste des modifications en attente, par écran', 'Choix du moment : prochain redémarrage, heure précise ou immédiat', 'Avertissement des joueurs connectés', 'Historique des versions publiées, avec restauration'] },
+  { id: 'publication', espace: 'forge', nom: 'Publication', icone: 'publication', pied: true, tab: 'publication',
+    desc: 'Les modifications de la Forge depuis la dernière version, déjà en jeu. Marquez une version pour pouvoir y revenir.' },
 ];
 
 export const ESPACES = [
@@ -79,6 +78,7 @@ export const consoleEtat = reactive({
   ecran: 'zones',
   sous: {},             // sous-écran choisi, par écran (ex. bibliotheque -> 'materials')
   moi: null,            // { name, isAdmin, perms } (/api/admin/me)
+  enAttente: null,      // modifications depuis la dernière version (Publication)
   enLigne: null,        // joueurs connectés (/api/admin/players), null = inconnu
   serveurOk: true,
 });

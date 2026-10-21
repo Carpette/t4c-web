@@ -48,7 +48,7 @@
     <button v-for="e in pied" type="button" class="cs-nav cs-nav-pub" :class="{ on: etat.ecran === e.id }"
         :aria-current="etat.ecran === e.id ? 'page' : null" @click="aller(e.id)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" v-html="icones[e.icone]"></svg>
-        {{ e.nom }}<span class="cs-count">bientôt</span>
+        {{ e.nom }}<span class="cs-count" v-if="etat.enAttente" :title="etat.enAttente + ' modification(s) depuis la dernière version'">{{ etat.enAttente }}</span>
     </button>
 </aside>
 

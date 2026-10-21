@@ -238,9 +238,25 @@ export function validerSurcharges(nom, data) {
   return err;
 }
 
-export function saveContentFile(name, data) {
-  if (!['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles', 'atelier', 'creatures', 'objets'].includes(name)) throw new Error('fichier inconnu');
-  fs.writeFileSync(path.join(DIR, `${name}.json`), JSON.stringify(data, null, 2));
+// Historique : chaque écriture est signalée (fichier, avant, après, auteur)
+// au journal branché par l'administration (server/admin.js -> base).
+let journal = null;
+export function journaliserEcritures(fn) { journal = fn; }
+// état JSON compact (l'historique ignore les changements de mise en forme)
+const compact = (txt) => { try { return JSON.stringify(JSON.parse(txt)); } catch { return txt; } };
+export function consignerEcriture(fichier, avantTexte, apres, auteur = 'serveur', note = null) {
+  const a = avantTexte == null ? null : compact(avantTexte), b = JSON.stringify(apres);
+  if (a !== b) journal?.(fichier, a, b, auteur, note);
+}
+
+export const FICHIERS_CONTENU = ['zones', 'npcs', 'spells', 'skills', 'music', 'skins', 'templates', 'particles', 'atelier', 'creatures', 'objets'];
+export function saveContentFile(name, data, auteur = 'serveur', note = null) {
+  if (!FICHIERS_CONTENU.includes(name)) throw new Error('fichier inconnu');
+  const f = path.join(DIR, `${name}.json`);
+  let avant = null;
+  try { avant = fs.readFileSync(f, 'utf8'); } catch { /* fichier neuf */ }
+  fs.writeFileSync(f, JSON.stringify(data, null, 2));
+  consignerEcriture(name, avant, data, auteur, note);
   loadContent();
 }
 
