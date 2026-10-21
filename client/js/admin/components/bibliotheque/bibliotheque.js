@@ -6,6 +6,7 @@
 import { MOBS, ITEMS } from '../../../../shared/defs.js';
 import { chargerRessources, dessinerCreature, image, spriteDe, norm } from '../../forge.js';
 import { allerA } from '../../console.js';
+import { ouvrirDansAtelier3D } from '../atelier3d/atelier3d.js';
 
 const TYPES = [
   { id: 'creature', nom: 'Sprites de créatures', atelier: 'skins', nomAtelier: 'Atelier 2D' },
@@ -17,6 +18,7 @@ const TYPES = [
 ];
 const MATERIAU = /^(wall|roof|floor)_/;
 const NOM_MATERIAU = { wall: 'Mur', roof: 'Toit', floor: 'Sol' };
+const PAGE = 200; // cartes affichées à la fois (les sources 3D se comptent par milliers)
 
 // ---------- vignettes des modèles 3D ----------
 // Rendues par le moteur de l'Atelier 3D (même caméra, même lumière que les
@@ -76,7 +78,7 @@ export function BibliothequeController(api) {
 
   return {
     TYPES,
-    ressources: [], type: null, q: '', inutilisees: false, courant: null, chargement: true, message: '',
+    ressources: [], type: null, q: '', inutilisees: false, limite: PAGE, courant: null, chargement: true, message: '',
 
     get filtres() {
       return [{ id: null, nom: 'Toutes', n: this.ressources.length },
@@ -88,12 +90,19 @@ export function BibliothequeController(api) {
         && (!q || norm(r.nom).includes(q) || norm(r.cle).includes(q))
         && (!this.inutilisees || (r.usages && !r.usages.length)));
     },
+    get visibles() { return this.liste.slice(0, this.limite); },
+    plus() { this.limite += PAGE; this.peindre(); },
+    // nouveau filtre : on repart de la première page
+    refiltrer() { this.limite = PAGE; this.peindre(); },
     get fiche() { return this.ressources.find(r => r.id === this.courant) || null; },
     get typeFiche() { return TYPES.find(t => t.id === this.fiche?.type) || TYPES[0]; },
     nomType(id) { return TYPES.find(t => t.id === id)?.nom || id; },
 
     ouvrir(id) { this.courant = id; this.apercu(); },
-    atelier() { allerA('bibliotheque', this.typeFiche.atelier); },
+    atelier() {
+      if (this.fiche?.type === 'modele') ouvrirDansAtelier3D(this.fiche.cle);
+      allerA('bibliotheque', this.typeFiche.atelier);
+    },
 
     // ---------- recensement ----------
     recenser() {
@@ -204,7 +213,7 @@ export function BibliothequeController(api) {
         const res = this.recenser();
         try {
           const m = await api('/api/admin/src3d');
-          for (const f of (m.modeles || []).slice(0, 400)) {
+          for (const f of m.modeles || []) {
             res.push({ id: `modele:${f}`, type: 'modele', cle: f, nom: f.split('/').pop().replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), fichier: f, format: f.split('.').pop().toUpperCase(), usages: null });
           }
         } catch { /* sources 3D indisponibles */ }

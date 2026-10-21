@@ -17,6 +17,7 @@
                 <option v-for="e in g.entrees" :value="e.cle">{{ e.nom }}</option>
             </optgroup>
         </select>
+        <span class="text-sm text-t4c-text-light" v-if="fichierSource">Bibliothèque : <span class="font-mono text-gray-300">{{ fichierSource }}</span></span>
         <span class="text-gray-400 text-sm">ou</span>
         <input type="file" id="a3d-fichiers" multiple accept=".glb,.gltf,.bin,.fbx,.png,.jpg,.jpeg" @change="chargerFichiers"
             :disabled="occupe" class="text-sm text-gray-300" />
