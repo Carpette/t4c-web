@@ -3,7 +3,8 @@
         <label for="zp-zone" class="text-gray-400">Zone</label>
         <select id="zp-zone" class="cs-input w-[300px]" :value="courant" @change="ouvrir($event.target.value)">
             <option v-for="z in zones" :value="z.id" :selected="z.id === courant">{{ etiquette(z) }}</option></select>
-        <span class="text-gray-500">Appliqué au redémarrage du serveur.</span>
+        <span class="text-gray-500 flex-1">Appliqué au redémarrage du serveur.</span>
+        <button type="button" class="cs-btn" @click="nouvelle()" :disabled="brouillon !== null">Nouvelle zone</button>
     </div>
 
     <div class="cs-panel flex flex-wrap overflow-hidden" v-if="fiche">
@@ -27,7 +28,7 @@
                 <h3>Génération et ambiance</h3>
                 <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
                     <div class="cs-field"><label class="cs-label" for="zp-map">Carte</label>
-                        <select id="zp-map" class="cs-input" :value="fiche.map || ''" @change="fiche.map = $event.target.value || undefined">
+                        <select id="zp-map" class="cs-input" :value="fiche.map || ''" @change="carte($event.target.value)">
                             <option value="">Générée (graine)</option><option value="arakas">arakas (dessinée)</option></select></div>
                     <div class="cs-field"><label class="cs-label" for="zp-seed">Graine</label>
                         <div class="flex gap-2"><input id="zp-seed" class="cs-input font-mono" type="number" :value="fiche.seed" @change="graine($event.target.value)" :disabled="!!fiche.map" />
@@ -73,12 +74,13 @@
             <div class="cs-card">
                 <div class="flex items-center gap-2"><h3 class="flex-1">Boss de zone</h3>
                     <label class="flex items-center gap-2 text-gray-200"><input type="checkbox" :checked="!!fiche.boss" @change="activerBoss($event.target.checked)" />Un boss hante la zone</label></div>
-                <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3" v-if="fiche.boss">
-                    <div class="cs-field"><label class="cs-label" for="zp-bn">Nom</label><input id="zp-bn" class="cs-input" v-model="fiche.boss.name" /></div>
+                <!-- v-for sur une liste de 0 ou 1 boss : un v-if réévaluerait ses champs une fois le boss retiré -->
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3" v-for="b in fiche.boss ? [fiche.boss] : []">
+                    <div class="cs-field"><label class="cs-label" for="zp-bn">Nom</label><input id="zp-bn" class="cs-input" v-model="b.name" /></div>
                     <div class="cs-field"><label class="cs-label" for="zp-bd">Créature de base</label>
-                        <select id="zp-bd" class="cs-input" v-model="fiche.boss.defId"><option v-for="m in bossDispo" :value="m.id">{{ m.name }} (niv. {{ m.level }})</option></select></div>
+                        <select id="zp-bd" class="cs-input" v-model="b.defId"><option v-for="m in bossDispo" :value="m.id">{{ m.name }} (niv. {{ m.level }})</option></select></div>
                     <div class="cs-field"><label class="cs-label" for="zp-br">Retour après (min)</label>
-                        <input id="zp-br" class="cs-input font-mono" type="number" min="1" :value="Math.round(fiche.boss.respawnMs / 60000)" @change="bossMinutes($event.target.value)" /></div>
+                        <input id="zp-br" class="cs-input font-mono" type="number" min="1" :value="Math.round(b.respawnMs / 60000)" @change="bossMinutes($event.target.value)" /></div>
                 </div>
             </div>
 
@@ -90,7 +92,10 @@
         </section>
 
         <aside aria-label="Résumé de la zone" data-col="zones-resume" data-bord="gauche" class="flex-[1_1_260px] max-w-[300px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-4">
-            <a class="cs-btn justify-center" href="#zones/map">Éditer le terrain</a>
+            <canvas id="zp-mini" width="268" height="268" class="w-full aspect-square rounded-md border border-gray-800 bg-gray-900 [image-rendering:pixelated]"
+                role="img" :aria-label="'Aperçu de ' + (fiche.name || 'la zone') + ' : terrain, PNJ en jaune, joueurs en vert'"></canvas>
+            <p class="text-xs text-gray-500 -mt-2" v-if="fiche.id === brouillon">Aperçu de la graine : la zone n’existe sur le serveur qu’après redémarrage.</p>
+            <a class="cs-btn justify-center" href="#zones/map" v-if="fiche.id !== brouillon">Éditer le terrain</a>
             <div class="flex flex-col gap-1.5">
                 <span class="cs-sect p-0">En ce moment sur le serveur</span>
                 <div class="flex justify-between"><span>Joueurs présents</span><span class="font-mono">{{ presents }}</span></div>
