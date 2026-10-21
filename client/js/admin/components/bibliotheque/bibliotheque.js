@@ -209,7 +209,11 @@ export function BibliothequeController(api) {
         const k = Math.min((cv.width - 8) / w, (cv.height - 8) / h, r.type === 'objet' ? 3 : r.type === 'modele' ? 4 : 1.5);
         g.imageSmoothingEnabled = k < 1;
         g.drawImage(src, x, y, w, h, (cv.width - w * k) / 2, (cv.height - h * k) / 2, w * k, h * k);
-      } catch { /* image absente : vignette vide */ }
+      } catch (e) {
+        // vignette vide, mais signalée : sans trace, une image absente ou
+        // un manifeste périmé en cache passent inaperçus
+        console.warn(`Bibliothèque : aperçu de ${r.id} impossible`, e);
+      }
     },
     // dessine les vignettes (après rendu de la grille) ; celles des modèles
     // 3D, coûteuses, seulement quand la carte entre dans la vue
