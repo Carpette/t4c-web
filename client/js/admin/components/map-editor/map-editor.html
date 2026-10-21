@@ -1,74 +1,89 @@
-<div class="bg-t4c-box-bg rounded-lg border border-t4c-border p-4" @vue:mounted="init()">
-    <div class="toolbar flex flex-wrap items-center gap-2 mb-4">
-        <div class="tb-group flex items-center gap-2 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-            <span class="tb-label text-sm font-semibold text-gray-400">Zone</span>
-            <select id="map-zone" class="bg-t4c-input-bg border border-t4c-input-border rounded-md px-2 py-1 text-t4c-text-light focus:outline-none focus:ring-2 focus:ring-t4c-button"></select>
-        </div>
-        <div class="tb-group flex items-center gap-1 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-            <button id="undo-map" title="Annuler (Ctrl+Z)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">↶</button>
-            <button id="redo-map" title="Rétablir (Ctrl+Maj+Z)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">↷</button>
-        </div>
-        <button id="save-map" title="Enregistre et applique les overrides de la zone au serveur" class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer</button>
-        <div class="tb-group flex items-center gap-1 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-            <span class="tb-label text-sm font-semibold text-gray-400">Fichier</span>
-            <button id="export-map" title="Télécharger les overrides de la zone en JSON" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">⬇ Exporter</button>
-            <button id="import-map" title="Charger un fichier d'overrides JSON" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">⬆ Importer</button>
-            <input type="file" id="import-file" accept=".json,application/json" class="hidden">
-            <button id="reset-map" class="px-3 py-1 bg-t4c-danger hover:bg-red-700 text-white rounded-md" title="Efface toutes les modifications de cette zone">Réinitialiser</button>
-        </div>
-        <button id="open-quests" title="Éditeur de quêtes : voir et construire les quêtes de la zone comme des chaînes d'étapes" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🗺 Quêtes</button>
-        <div class="tb-group flex flex-wrap items-center gap-2 p-2 bg-t4c-input-bg rounded-md border border-t4c-input-border">
-            <span class="tb-label text-sm font-semibold text-gray-400">Vue</span>
-            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="iso-view" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🧭 Vue jeu (iso)</span></label>
-            <button id="preview-daynight" title="Bascule l'aperçu de la carte entre jour et nuit (applique lumières et obscurité)" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🌓 Jour/Nuit</button>
-            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="show-players" checked class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>🟢 Joueurs</span></label>
-            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="show-player-names" class="bg-t4c-input-bg border-t4c-input-border rounded-sm focus:ring-t4c-button"> <span>Noms</span></label>
-            <span id="players-info" class="text-blue-400 text-sm"></span>
-            <button id="tp-here" title="Téléporte votre personnage connecté en jeu sur la case cliquée" class="px-3 py-1 bg-t4c-button hover:bg-t4c-button-hover rounded-md text-t4c-text-light">🧍 Tester ici</button>
-        </div>
+<!-- Terrain : d'après la maquette. editor.js pilote ce gabarit par les id :
+     ne pas les renommer sans le mettre à jour. -->
+<div class="flex flex-col gap-3" @vue:mounted="init()">
+    <div class="cs-panel flex items-center gap-3 flex-wrap px-4 py-2.5">
+        <label for="map-zone" class="text-gray-400">Zone</label>
+        <select id="map-zone" class="cs-input w-[260px]"></select>
+        <p id="map-msg" class="flex-1 min-w-[200px] text-green-400 truncate" role="status"></p>
+        <button id="open-quests" type="button" class="cs-btn" title="Voir et construire les quêtes de la zone comme des chaînes d’étapes">Quêtes</button>
+        <details class="relative cs-menu">
+            <summary class="cs-btn list-none cursor-pointer">Fichier</summary>
+            <div class="absolute right-0 top-full mt-1 z-30 w-60 cs-panel p-1.5 flex flex-col gap-1 shadow-xl">
+                <button id="export-map" type="button" class="cs-lien text-left px-2 py-1.5" title="Télécharger les retouches de la zone en JSON">Exporter les retouches</button>
+                <button id="import-map" type="button" class="cs-lien text-left px-2 py-1.5" title="Charger un fichier de retouches JSON">Importer des retouches</button>
+                <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+                <button id="reset-map" type="button" class="cs-lien text-left px-2 py-1.5 text-red-400" title="Efface toutes les retouches de cette zone">Réinitialiser la zone</button>
+            </div>
+        </details>
+        <button id="save-map" type="button" class="cs-btn cs-primary" title="Enregistre les retouches et les applique à chaud au serveur">Enregistrer</button>
     </div>
-    <p class="hint text-sm text-gray-400 bg-t4c-input-bg p-3 rounded-md border border-t4c-input-border">Molette : zoom centré sur le curseur — clic milieu, clic droit ou Espace+glisser : déplacer la vue —
-    mini-carte cliquable — Maj+glisser : rectangle de tuiles — Alt+clic : pipette (reprend la tuile ou le décor visé) —
-    Ctrl+Z / Ctrl+Maj+Z : annuler/rétablir. Outils de dessin dans le rail de gauche, palette et calques à droite.
-    En zoom rapproché, la carte est dessinée avec les vrais sprites du jeu.
-    Les modifications s'appliquent à chaud sur le serveur et au prochain chargement de zone pour les joueurs.</p>
-    <p id="map-msg" class="text-green-400 mt-2 min-h-[1.5em]"></p>
-    <div class="map-layout flex gap-4 mt-4">
-        <div id="map-rail" class="flex-none flex flex-col gap-1 p-2 bg-t4c-box-bg border border-t4c-border rounded-lg">
-            <button id="tool-paint" class="active w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Poser : pose la tuile ou le décor choisi dans la palette">🖌</button>
-            <button id="tool-fill" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Remplir : pot de peinture, remplit par contiguïté les tuiles du même type (Maj+clic : toute la zone)">🪣</button>
-            <button id="tool-select" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Sélection : sélectionner une région (glisser), Ctrl+C copier, Ctrl+V coller, Échap annuler">⧉</button>
-            <button id="tool-erase" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Gomme : supprime le décor cliqué">⌫</button>
-            <button id="tool-move" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Déplacer : glisser un décor existant vers une autre case">✥</button>
-            <button id="tool-wall" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Mur (tracé) : choisir un matériau de mur dans la palette, puis glisser sur la carte pour tracer un mur sur les arêtes des cases (poteaux automatiques aux angles)">▦</button>
-            <div class="rail-sep border-b border-t4c-input-border my-2"></div>
-            <button id="tool-mirror" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Miroir horizontal (touche M) : retourne le décor à poser — utile pour les murs/portes">⇄</button>
-            <button id="tool-solid" class="w-10 h-10 flex items-center justify-center text-xl bg-t4c-button hover:bg-t4c-button-hover rounded-md" title="Solide (touche B) : si activé, tout décor posé bloque le passage ; sinon il est franchissable">🧱</button>
-            <div class="rail-sep border-b border-t4c-input-border my-2"></div>
-            <div class="rail-title text-xs text-center uppercase text-gray-400" title="Pipette : Alt/Option+clic reprend la tuile ou le décor visé">⛏ Alt</div>
-            <div class="rail-sep border-b border-t4c-input-border my-2"></div>
-            <div class="rail-title text-xs text-center uppercase text-gray-400">Pinceau</div>
-            <select id="brush-size" title="Taille du pinceau (Poser / Remplir)" class="w-10 bg-t4c-input-bg border border-t4c-input-border rounded-md p-1 text-center focus:outline-none focus:ring-2 focus:ring-t4c-button">
+
+    <div class="cs-panel flex overflow-hidden min-h-[640px]">
+        <!-- outils -->
+        <div id="map-rail" role="toolbar" aria-label="Outils de dessin" aria-orientation="vertical" class="flex-none w-[52px] flex flex-col items-center gap-1 py-2 border-r border-gray-800 bg-gray-950">
+            <button id="tool-paint" type="button" class="cs-outil active" aria-label="Poser" title="Poser : la tuile ou le décor choisi dans la palette">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12.5 2.5l3 3-7.5 7.5-3-3zM5 10l-2 5.5L8.5 13.5"/></svg></button>
+            <button id="tool-fill" type="button" class="cs-outil" aria-label="Remplir" title="Remplir : pot de peinture, par contiguïté">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 9l6-6 6 6-6 6zM15 12.5c0 1 .7 2 1.5 2"/></svg></button>
+            <button id="tool-select" type="button" class="cs-outil" aria-label="Sélection" title="Sélection : glisser pour choisir une région (Ctrl C / Ctrl V)">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="1"/></svg></button>
+            <button id="tool-erase" type="button" class="cs-outil" aria-label="Gomme" title="Gomme : retire le décor cliqué">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 15h8M3.5 11.5l7-7 4 4-6.5 6.5H7z"/></svg></button>
+            <button id="tool-move" type="button" class="cs-outil" aria-label="Déplacer un décor" title="Déplacer : glisser un décor existant">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 2v14M2 9h14M6.5 4.5L9 2l2.5 2.5M6.5 13.5L9 16l2.5-2.5M4.5 6.5L2 9l2.5 2.5M13.5 6.5L16 9l-2.5 2.5"/></svg></button>
+            <button id="tool-wall" type="button" class="cs-outil" aria-label="Tracer un mur" title="Mur : choisir un matériau de mur dans la palette, puis tracer">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 5h13v8h-13zM2.5 9h13M6.5 5v4M11.5 5v4M9 9v4"/></svg></button>
+            <div class="w-7 border-t border-gray-800 my-1"></div>
+            <button id="undo-map" type="button" class="cs-outil" aria-label="Annuler" title="Annuler (Ctrl Z)">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4L3 7l3 3M3 7h7.5a4 4 0 010 8H8"/></svg></button>
+            <button id="redo-map" type="button" class="cs-outil" aria-label="Rétablir" title="Rétablir (Ctrl Maj Z)">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 4l3 3-3 3M15 7H7.5a4 4 0 000 8H10"/></svg></button>
+            <div class="w-7 border-t border-gray-800 my-1"></div>
+            <button id="tool-mirror" type="button" class="cs-outil" aria-label="Miroir" title="Miroir (M) : retourne le décor à poser">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 2v14M7 5L3 13h4zM11 5l4 8h-4z"/></svg></button>
+            <button id="tool-solid" type="button" class="cs-outil" aria-label="Décor solide" title="Solide (B) : le décor posé bloque le passage">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><path d="M4.5 13.5l9-9"/></svg></button>
+            <div class="w-7 border-t border-gray-800 my-1"></div>
+            <span class="text-[10px] tracking-wider text-gray-500" aria-hidden="true">TAILLE</span>
+            <label for="brush-size" class="sr-only">Taille du pinceau</label>
+            <select id="brush-size" class="cs-input w-[42px] px-1 text-center" title="Taille du pinceau (Poser, Remplir)">
                 <option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="9">9</option>
             </select>
         </div>
-        <div id="map-wrap" class="relative flex-1 min-w-[400px]">
-            <canvas id="map-canvas" width="1000" height="704" class="w-full border border-t4c-input-border cursor-crosshair block"></canvas>
-            <canvas id="map-mini" width="168" height="168" class="absolute right-2 bottom-2 border border-t4c-border bg-black cursor-pointer opacity-90" style="image-rendering: pixelated;"></canvas>
-            <div id="map-coords" class="absolute left-2 bottom-2 bg-t4c-input-bg/80 border border-t4c-input-border rounded-md px-2 py-1 text-sm text-t4c-text-light pointer-events-none">—</div>
-            <div id="edit-panel" class="hidden absolute right-2 top-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto bg-t4c-box-bg/90 border border-t4c-border rounded-lg p-3 text-sm"></div>
-            <div id="quest-panel" class="hidden absolute inset-2 overflow-y-auto bg-t4c-box-bg/95 border border-t4c-border rounded-lg p-4 text-sm z-20"></div>
-        </div>
-        <div id="map-side" data-col="carte-outils" data-bord="gauche" class="w-80 flex-none bg-t4c-box-bg border border-t4c-border rounded-lg flex flex-col max-h-[706px]">
-            <div id="map-side-tabs" class="flex gap-1 p-1">
-                <button data-side="palette" class="active flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🎨 Palette</button>
-                <button data-side="layers" class="flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🗂 Calques</button>
-                <button data-side="templates" class="flex-1 py-2 px-4 text-sm font-semibold rounded-md bg-t4c-input-bg hover:bg-t4c-button-hover text-t4c-text-light">🧩 Templates</button>
+
+        <!-- carte -->
+        <div id="map-wrap" class="relative flex-1 min-w-[400px] bg-[#0b0c0f]">
+            <canvas id="map-canvas" width="1000" height="704" class="w-full cursor-crosshair block"></canvas>
+            <div class="absolute left-2 top-2 flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-950/85 border border-gray-800 rounded-lg px-3 py-1.5 text-[13px] text-gray-200 max-w-[calc(100%-1rem)]">
+                <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="iso-view" checked>Vue jeu (iso)</label>
+                <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="show-players" checked>Joueurs</label>
+                <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="show-player-names">Noms</label>
+                <span id="players-info" class="text-sky-400"></span>
+                <button id="preview-daynight" type="button" class="cs-btn h-7" title="Aperçu de l’éclairage de jour ou de nuit">Jour / nuit</button>
+                <button id="tp-here" type="button" class="cs-btn h-7" title="Téléporte votre personnage connecté en jeu sur la case cliquée">M’y téléporter</button>
             </div>
-            <div id="map-pane-palette" class="map-side-pane visible overflow-y-auto p-2">
+            <canvas id="map-mini" width="168" height="168" class="absolute right-2 bottom-2 border border-gray-700 rounded bg-black cursor-pointer opacity-90" style="image-rendering: pixelated;" aria-label="Minicarte : cliquer pour s’y rendre"></canvas>
+            <div class="absolute left-2 bottom-2 flex flex-col gap-1 items-start pointer-events-none">
+                <div class="hidden md:flex gap-3 text-[12px] text-gray-400 bg-gray-950/85 border border-gray-800 rounded-md px-2 py-1">
+                    <span><kbd class="cs-kbd">Alt</kbd> clic pipette</span><span><kbd class="cs-kbd">Maj</kbd> glisser rectangle</span><span><kbd class="cs-kbd">Espace</kbd> glisser déplacer</span><span><kbd class="cs-kbd">Molette</kbd> zoom</span>
+                </div>
+                <div id="map-coords" class="bg-gray-950/85 border border-gray-800 rounded-md px-2 py-1 text-[13px] font-mono text-gray-200">—</div>
+            </div>
+            <div id="edit-panel" class="hidden absolute right-2 top-2 w-72 max-h-[calc(100%-1rem)] overflow-y-auto bg-gray-950/95 border border-gray-700 rounded-lg p-3 text-sm"></div>
+            <div id="quest-panel" class="hidden absolute inset-2 overflow-y-auto bg-gray-950/95 border border-gray-700 rounded-lg p-4 text-sm z-20"></div>
+        </div>
+
+        <!-- palette, calques, modèles -->
+        <aside id="map-side" aria-label="Palette et calques" data-col="carte-outils" data-bord="gauche" class="w-80 flex-none border-l border-gray-800 bg-gray-950 flex flex-col max-h-[760px]">
+            <div id="map-side-tabs" role="tablist" class="cs-segs m-2">
+                <button type="button" data-side="palette" class="cs-seg flex-1 active">Palette</button>
+                <button type="button" data-side="layers" class="cs-seg flex-1">Calques</button>
+                <button type="button" data-side="templates" class="cs-seg flex-1">Modèles</button>
+            </div>
+            <div id="map-pane-palette" class="map-side-pane overflow-y-auto px-2 pb-2">
                 <div id="map-palette"></div>
             </div>
-            <div id="map-pane-layers" class="map-side-pane hidden overflow-y-auto p-2">
+            <div id="map-pane-layers" class="map-side-pane hidden overflow-y-auto px-2 pb-2">
                 <div id="map-layers"></div>
                 <div class="hidden">
                     <input type="checkbox" id="layer-camps">
@@ -87,16 +102,15 @@
                     <button id="add-light"></button>
                 </div>
             </div>
-            <div id="map-pane-templates" class="map-side-pane hidden overflow-y-auto p-2">
-                <button id="tpl-save" class="w-full mb-2 py-2 px-4 bg-t4c-success text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed" disabled>💾 Enregistrer la sélection</button>
-                <p class="hint text-xs text-gray-400 bg-t4c-input-bg p-2 rounded-md border border-t4c-input-border">Sélectionnez une région (outil ⧉, glisser) ou copiez-la (Ctrl+C),
-                puis enregistrez-la sous un nom : c'est un <b>template</b> réutilisable (tuiles + décors).
-                <br>« Coller » l'arme comme Ctrl+V (aperçu fantôme, clic pour valider, annulable).
-                <br><b>Modifier ensuite&nbsp;:</b> collez un template, retouchez-le sur la carte,
-                re-sélectionnez la région et ré-enregistrez sous le <b>même nom</b> pour l'écraser.</p>
-                <p id="tpl-msg" class="text-green-400 mt-2 min-h-[1.5em]"></p>
-                <div id="tpl-list" class="mt-2"></div>
+            <div id="map-pane-templates" class="map-side-pane hidden overflow-y-auto px-2 pb-2 space-y-2">
+                <button id="tpl-save" type="button" class="cs-btn cs-primary w-full justify-center" disabled>Enregistrer la sélection</button>
+                <p class="text-xs text-gray-400">Sélectionnez une région (outil Sélection) ou copiez-la (Ctrl C), puis
+                enregistrez-la sous un nom : c’est un modèle réutilisable (tuiles et décors). « Coller » agit comme Ctrl V :
+                aperçu, clic pour valider, annulable. Pour modifier un modèle, collez-le, retouchez-le, puis ré-enregistrez
+                la région sous le même nom.</p>
+                <p id="tpl-msg" class="text-green-400 min-h-[1.5em]"></p>
+                <div id="tpl-list"></div>
             </div>
-        </div>
+        </aside>
     </div>
 </div>

@@ -69,7 +69,7 @@
 .cs-seg { display: inline-flex; align-items: center; height: 28px; padding: 0 14px; border-radius: 6px; border: 0;
   background: transparent; color: #a19c90; font-weight: 600; font-size: 13px; cursor: pointer; }
 .cs-seg:hover { background: transparent; color: var(--color-gray-100); }
-.cs-seg.on { background: #2a2d34; color: var(--color-t4c-text-light); }
+.cs-seg.on, #map-side-tabs .cs-seg.active { background: #2a2d34; color: var(--color-t4c-text-light); }
 
 .cs-search { display: flex; align-items: center; gap: 10px; flex: 0 1 400px; min-width: 200px; height: 34px; padding: 0 10px;
   border: 1px solid #2a2e36; border-radius: 8px; background: var(--color-gray-900); color: var(--color-gray-500); font-size: 13px; cursor: pointer; }
@@ -216,3 +216,12 @@ body.cs-redim { cursor: col-resize; user-select: none; }
    d'écriture disparaissent ; le serveur les refuse de toute façon */
 body.cs-lecture #console-main .cs-primary,
 body.cs-lecture #console-main .cs-danger { display: none; }
+
+/* Terrain : rail d'outils (editor.js bascule .active) */
+.cs-outil { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
+  border-radius: 8px; border: 1px solid transparent; background: transparent; color: #a19c90; cursor: pointer; }
+.cs-outil:hover { background: #1c1f24; color: var(--color-gray-100); }
+.cs-outil.active { background: #2a2416; border-color: #6b5322; color: #e8c37a; }
+.cs-outil:focus-visible { outline: 2px solid #c9a45c; outline-offset: 1px; }
+.cs-kbd { display: inline-block; padding: 0 5px; border: 1px solid #3a3f49; border-radius: 4px; font: 11px/16px var(--font-mono, monospace); color: var(--color-gray-200); }
+.cs-menu > summary::-webkit-details-marker { display: none; }

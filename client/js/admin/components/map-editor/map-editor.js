@@ -3,6 +3,12 @@ import { initMapEditor } from '../../editor.js';
 export function MapEditorController(api) {
   return {
     init() {
+      // menu Fichier : se referme au clic ailleurs ou après un choix
+      document.addEventListener('click', (e) => {
+        for (const d of document.querySelectorAll('#tab-map details.cs-menu[open]')) {
+          if (!d.contains(e.target) || e.target.closest('button')) d.open = false;
+        }
+      });
       // Use setTimeout to ensure the DOM is fully rendered before initializing the map editor
       setTimeout(async () => {
         try {
