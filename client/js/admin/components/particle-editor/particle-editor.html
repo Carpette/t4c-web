@@ -1,180 +1,117 @@
-<div @vue:mounted="init()" class="flex flex-col h-full">
-  <!-- Barre de navigation -->
-  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center rounded-t-lg">
-    <span class="font-mono text-xs text-gray-400">content/particles.json</span>
-    <div class="flex items-center gap-4">
-      <button id="particle-save-file-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
-        💾 Sauvegarder particles.json
-      </button>
-    </div>
-  </header>
-
-  <!-- Contenu principal -->
-  <main class="flex-1 flex overflow-hidden">
-    <!-- Liste des profils Particules (Sidebar) -->
-    <aside data-col="effets-liste" data-bord="droite" class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">
-      <div class="p-3 border-b border-gray-800 space-y-2">
-        <div class="text-[10px] text-amber-500 font-mono text-center py-1 bg-gray-900 border border-gray-800 rounded">
-          📁 particles.json
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- liste par famille -->
+    <section aria-label="Liste des effets" data-col="effets-liste" data-bord="droite" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
+        <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <span class="text-[15px] font-semibold">Effets visuels</span>
+                <span class="text-gray-500">{{ effets.length }}</span>
+                <div class="flex-1"></div>
+                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouvel effet" title="Nouvel effet (copie de l’effet ouvert)" @click="dupliquer()" :disabled="!fiche || nouveau">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg></button>
+            </div>
+            <label for="pe-q" class="sr-only">Filtrer les effets</label>
+            <input id="pe-q" class="cs-input" v-model="q" placeholder="Filtrer les effets" />
         </div>
-        <button id="particle-new-btn" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-1.5 px-3 rounded text-xs transition">
-          + Nouveau Profil
-        </button>
-      </div>
-      <ul id="particle-list" class="flex-1 divide-y divide-gray-900">
-        <!-- Rempli par JS -->
-      </ul>
-    </aside>
-
-    <!-- Zone d'édition -->
-    <section id="particle-editor-pane" class="flex-1 p-5 overflow-y-auto bg-gray-900 hidden">
-      <div class="max-w-5xl mx-auto space-y-4">
-        <div class="flex justify-between items-center pb-2">
-          <h2 id="particle-title" class="text-xl font-bold text-white">Édition de l'effet</h2>
-          <button id="particle-save-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-4 rounded text-xs transition shadow flex items-center gap-1.5">
-            Enregistrer les modifications
-          </button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <!-- Column 1: Config Parameters -->
-          <div class="space-y-4">
-            <!-- Card 1: Identifiants -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🪪 1. Identification</h3>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">ID Unique</label>
-                  <input type="text" id="particle-id" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: ma_flamme">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Nom Description</label>
-                  <input type="text" id="particle-name" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="ex: Flamme (Impact)">
-                </div>
-              </div>
-            </div>
-
-            <!-- Card 2: Paramètres Géométriques -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">📐 2. Géométrie d'émission</h3>
-              <div class="grid grid-cols-2 gap-3 pb-3 border-b border-gray-900">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Forme d'apparition (Spawn)</label>
-                  <select id="particle-spawn" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="point">Point (Exact center)</option>
-                    <option value="ring">Ring (Bordure d'un anneau)</option>
-                    <option value="circle">Circle (Surface d'un disque)</option>
-                    <option value="sphere">Sphere (Enveloppe d'une sphère)</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Mouvement (Vélocité)</label>
-                  <select id="particle-movement" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                    <option value="outward">Outward (Dispersion vers l'extérieur)</option>
-                    <option value="upward">Upward (Poussée verticale pure)</option>
-                    <option value="orbit">Orbit (Rotation orbitale / Vortex)</option>
-                    <option value="random">Random (Vélocités 3D aléatoires)</option>
-                  </select>
-                </div>
-                <div class="col-span-2">
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Rayon d'apparition (Radius)</label>
-                  <input type="number" step="0.1" id="particle-radius" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.1">
-                </div>
-              </div>
-
-              <!-- 3D Offsets Sub-section -->
-              <div class="grid grid-cols-3 gap-3 pt-1">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage X (tuile)</label>
-                  <input type="number" step="0.1" id="particle-offset-x" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage Z (tuile)</label>
-                  <input type="number" step="0.1" id="particle-offset-z" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Décalage H (pixel)</label>
-                  <input type="number" id="particle-offset-h" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500" value="0" placeholder="ex: 18 = torse">
-                </div>
-              </div>
-            </div>
-
-            <!-- Card 3: Paramètres Physiques & Temporels -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">⚙️ 3. Physique temporelle</h3>
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Taille</label>
-                  <input type="number" step="0.1" id="particle-size" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="2.0">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Gravité (Rise)</label>
-                  <input type="number" id="particle-gravity" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0" placeholder="ex: -50 = monte">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Vitesse (Force)</label>
-                  <input type="number" step="0.1" id="particle-speed" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="1.0">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Densité</label>
-                  <input type="number" id="particle-density" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="10">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Vie (Sec)</label>
-                  <input type="number" step="0.05" id="particle-life" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.5">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Frottement (Drag)</label>
-                  <input type="number" step="0.01" id="particle-drag" class="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none" value="0.98">
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Column 2: Color Palette & Live Preview -->
-          <div class="space-y-4">
-            
-            <!-- Card 4: Palette de Couleurs -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">🎨 4. Palette de couleurs</h3>
-              <div class="space-y-2">
-                <label class="block text-[10px] font-semibold uppercase text-gray-400">Couleurs actives (Palette)</label>
-                <ul id="particle-colors-list" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
-                  <!-- Rempli par JS -->
-                </ul>
-              </div>
-              <div class="flex gap-2 border-t border-gray-900 pt-3 items-end">
-                <div class="flex-1">
-                  <label class="block text-[10px] font-semibold uppercase text-gray-400 mb-1">Ajouter une couleur</label>
-                  <input type="color" id="particle-color-picker" class="w-full h-8 bg-gray-900 border border-gray-700 rounded px-1 py-1 cursor-pointer" value="#ff9040">
-                </div>
-                <button type="button" id="particle-add-color-btn" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-bold text-white px-4 h-8 rounded transition flex-shrink-0">
-                  + Ajouter
+        <div class="flex-1 overflow-y-auto max-h-[70vh] pb-2">
+            <div v-for="g in groupes" class="contents">
+                <div class="cs-sect">{{ g.nom }}</div>
+                <button v-for="e in g.effets" type="button" class="cs-item min-h-[38px]" :class="{ on: e.id === courant && !nouveau }" @click="ouvrir(e.id)">
+                    <span class="cs-mod" :class="{ invisible: !(e.id === courant && sale && !nouveau) }" title="Modifié, non enregistré"></span>
+                    <span class="flex gap-0.5 flex-none"><span v-for="c in (e.colors || []).slice(0, 3)" class="w-2 h-2 rounded-full" :style="{ background: c }"></span></span>
+                    <span class="flex-1 min-w-0 text-left truncate">{{ e.name }}</span>
                 </button>
-              </div>
             </div>
-
-            <!-- Card 5: Live Mathematical Preview -->
-            <div class="bg-gray-950 p-4 rounded-lg border border-gray-800 space-y-3">
-              <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">👁️ 5. Prévisualisation mathématique</h3>
-              <div class="flex flex-col">
-                <!-- Resizable Preview Container with Handle -->
-                <div id="particle-preview-container" class="flex-1 bg-black rounded-lg border border-gray-950 p-3 flex items-center justify-center h-[180px] min-h-[140px] max-h-[450px] relative overflow-hidden resize-y select-none">
-                  <canvas id="particle-preview-canvas" class="bg-black rounded w-full h-full"></canvas>
-                  <button type="button" id="particle-stop-preview-btn" class="absolute top-3 right-3 text-[10px] bg-gray-900/95 hover:bg-gray-800 text-gray-400 hover:text-white px-2 py-0.5 rounded border border-gray-800 z-10">
-                    Arrêter
-                  </button>
-                </div>
-                <button type="button" id="particle-run-preview-btn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded text-xs transition mt-3 shadow flex items-center justify-center gap-1.5">
-                  ▶️ Déclencher l'émetteur d'effet
-                </button>
-              </div>
-            </div>
-
-          </div>
         </div>
-
-      </div>
     </section>
-  </main>
+
+    <!-- fiche -->
+    <section aria-label="Édition de l’effet" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex-1 min-w-[200px]">
+                <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
+                <div class="text-gray-500"><span class="font-mono">{{ fiche.id }}</span> · {{ famille(fiche.id) }}</div>
+            </div>
+            <button type="button" class="cs-btn" v-if="sale" @click="annuler()">Annuler les modifications</button>
+            <button type="button" class="cs-btn" @click="dupliquer()" :disabled="nouveau">Dupliquer</button>
+            <button type="button" class="cs-btn cs-danger" @click="supprimer()">{{ nouveau ? 'Abandonner' : 'Supprimer' }}</button>
+        </div>
+
+        <div class="cs-card">
+            <h3>Identité</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-id">Identifiant</label>
+                    <input id="pe-id" class="cs-input font-mono" v-model="fiche.id" :readonly="nouveau ? null : true" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-nom">Nom affiché</label><input id="pe-nom" class="cs-input" v-model="fiche.name" /></div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Émission</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-sp">Forme d’apparition</label>
+                    <select id="pe-sp" class="cs-input" v-model="fiche.spawn"><option v-for="s in SPAWNS" :value="s[0]">{{ s[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-mv">Mouvement</label>
+                    <select id="pe-mv" class="cs-input" v-model="fiche.movement"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-r">Rayon (cases)</label>
+                    <input id="pe-r" class="cs-input font-mono" type="number" min="0" step="0.05" :value="fiche.radius" @change="nombre('radius', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-ox">Décalage X (cases)</label>
+                    <input id="pe-ox" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="fiche.offsetX" @change="nombre('offsetX', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-oz">Décalage Z (cases)</label>
+                    <input id="pe-oz" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="fiche.offsetZ" @change="nombre('offsetZ', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-oh">Décalage hauteur (px)</label>
+                    <input id="pe-oh" class="cs-input font-mono" type="number" step="1" placeholder="0" :value="fiche.offsetH" @change="nombre('offsetH', $event.target.value)" /></div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Physique</h3>
+            <div class="flex flex-col gap-2.5">
+                <div v-for="p in PHYSIQUE" class="grid grid-cols-[150px_minmax(0,1fr)_76px] gap-3 items-center">
+                    <label class="text-gray-300" :for="'pe-' + p[0]">{{ p[1] }}</label>
+                    <input :id="'pe-' + p[0]" type="range" :min="p[2]" :max="p[3]" :step="p[4]" :value="fiche[p[0]] ?? 0" @input="nombre(p[0], $event.target.value)" />
+                    <input class="cs-input font-mono h-7" type="number" :step="p[4]" :value="fiche[p[0]]" @change="nombre(p[0], $event.target.value)" :aria-label="p[1]" />
+                </div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Couleurs</h3>
+            <p class="text-xs text-gray-500">Chaque particule prend une de ces couleurs au hasard.</p>
+            <div class="flex flex-wrap gap-2 items-center">
+                <span v-for="(c, i) in fiche.colors" class="cs-cond font-mono">
+                    <input type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="c" @input="couleur(i, $event.target.value)" :aria-label="'Couleur ' + (i + 1)" />{{ c.toUpperCase() }}
+                    <button type="button" class="cs-x" :aria-label="'Retirer ' + c" @click="retirerCouleur(i)" :disabled="fiche.colors.length < 2">×</button>
+                </span>
+                <button type="button" class="cs-btn" @click="ajouterCouleur()">Couleur</button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800 mt-auto">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- aperçu et usages -->
+    <aside aria-label="Aperçu et usages" data-col="effets-contexte" data-bord="gauche" class="flex-[1_1_300px] max-w-[340px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+        <div class="flex flex-col gap-2">
+            <span class="cs-sect p-0">Aperçu en direct</span>
+            <canvas id="pe-apercu" width="300" height="220" class="rounded-lg border border-gray-800 w-full"></canvas>
+            <div class="flex gap-2 items-center flex-wrap">
+                <button type="button" class="cs-btn" @click="declencher()">Déclencher</button>
+                <div class="cs-segs" role="group" aria-label="Mode d’émission">
+                    <button type="button" class="cs-seg" :class="{ on: boucle }" @click="boucle = true" title="Émission continue, comme une traînée ou une zone">Continu</button>
+                    <button type="button" class="cs-seg" :class="{ on: !boucle }" @click="boucle = false" title="Une gerbe répétée, comme un impact">Gerbe</button>
+                </div>
+            </div>
+            <label class="cs-label" for="pe-fond">Fond de l’aperçu</label>
+            <select id="pe-fond" class="cs-input" v-model="fond"><option v-for="f in FONDS" :value="f[0]">{{ f[1] }}</option></select>
+        </div>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Utilisé par</span>
+            <a v-for="s in utilisePar" class="flex justify-between gap-2" href="#sorts"><span>{{ s.name }}</span><span class="text-gray-500">{{ s.role }}</span></a>
+            <span class="flex justify-between gap-2" v-if="usageJeu"><span>{{ usageJeu }}</span><span class="text-gray-500">jeu</span></span>
+            <span class="text-gray-500" v-if="!utilisePar.length && !usageJeu">Aucun sort ne l’utilise.</span>
+        </div>
+    </aside>
 </div>

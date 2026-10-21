@@ -210,4 +210,4 @@ body.cs-redim { cursor: col-resize; user-select: none; }
 .cs-ci:focus { outline: none; border-color: var(--color-amber-500); background: var(--color-t4c-input-bg); }
 .cs-ci-w { width: 260px; text-align: left; font-size: 12px; }
 .cs-ci.mod { color: #f0d49a; background: rgba(201, 164, 92, .1); }
-#console-main input[type=checkbox], #console-main input[type=radio] { accent-color: var(--color-amber-500); }
+#console-main input[type=checkbox], #console-main input[type=radio], #console-main input[type=range] { accent-color: var(--color-amber-500); }
