@@ -4,7 +4,7 @@
 // dimensions et usages ; la création et l'import restent dans les ateliers
 // (Atelier 2D, Matériaux, Atelier 3D), ouverts d'un clic.
 import { MOBS, ITEMS } from '../../../../shared/defs.js';
-import { chargerRessources, dessinerCreature, image, spriteDe, norm } from '../../forge.js';
+import { chargerRessources, oublierRessources, dessinerCreature, image, spriteDe, norm } from '../../forge.js';
 import { allerA } from '../../console.js';
 import { ouvrirDansAtelier3D } from '../atelier3d/atelier3d.js';
 
@@ -18,6 +18,14 @@ const TYPES = [
 ];
 const MATERIAU = /^(wall|roof|floor)_/;
 const NOM_MATERIAU = { wall: 'Mur', roof: 'Toit', floor: 'Sol' };
+// comportement en jeu d'un matériau : fixé par sa famille (cf. isBlockingProp)
+const JEU_MATERIAU = { wall: 'Bloquant : arrête les déplacements', roof: 'Décor : ne bloque pas', floor: 'Marchable' };
+const lireB64 = (f) => new Promise((ok, ko) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1] || '');
+  r.onerror = () => ko(new Error(`lecture de ${f.name} impossible`));
+  r.readAsDataURL(f);
+});
 const PAGE = 200; // cartes affichées à la fois (les sources 3D se comptent par milliers)
 
 // ---------- vignettes des modèles 3D ----------
@@ -78,7 +86,7 @@ export function BibliothequeController(api) {
 
   return {
     TYPES,
-    ressources: [], type: null, q: '', inutilisees: false, limite: PAGE, courant: null, chargement: true, message: '',
+    ressources: [], type: null, q: '', inutilisees: false, limite: PAGE, courant: null, chargement: true, message: '', info: '',
 
     get filtres() {
       return [{ id: null, nom: 'Toutes', n: this.ressources.length },
@@ -97,8 +105,36 @@ export function BibliothequeController(api) {
     get fiche() { return this.ressources.find(r => r.id === this.courant) || null; },
     get typeFiche() { return TYPES.find(t => t.id === this.fiche?.type) || TYPES[0]; },
     nomType(id) { return TYPES.find(t => t.id === id)?.nom || id; },
+    get jeu() { return this.fiche?.type === 'materiau' ? JEU_MATERIAU[this.fiche.cle.match(MATERIAU)?.[1]] || '' : ''; },
+    get modifiable() { return !!this.fiche && this.fiche.type !== 'modele'; },
 
-    ouvrir(id) { this.courant = id; this.apercu(); },
+    ouvrir(id) { this.courant = id; this.info = ''; this.apercu(); },
+    // remplace l'image (mêmes dimensions, vérifiées par le serveur)
+    async remplacer(e) {
+      const f = e.target.files?.[0]; e.target.value = '';
+      if (!f || !this.fiche) return;
+      try {
+        const r = await api('/api/admin/bibliotheque/remplacer', 'POST', { type: this.fiche.type, cle: this.fiche.cle, data: await lireB64(f) });
+        this.info = '✔ ' + r.note; this.message = '';
+        await this.recharger(this.courant);
+      } catch (err) { this.info = '✘ ' + err.message; }
+    },
+    async dupliquer() {
+      try {
+        const r = await api('/api/admin/bibliotheque/dupliquer', 'POST', { type: this.fiche.type, cle: this.fiche.cle });
+        await this.recharger(`${this.fiche.type}:${r.cle}`);
+        this.info = `✔ Copie créée : ${r.cle}. Retouchez-la dans l’atelier.`;
+      } catch (err) { this.info = '✘ ' + err.message; }
+    },
+    async recharger(id) {
+      oublierRessources();
+      for (const cv of document.querySelectorAll('#tab-bibliotheque canvas')) delete cv.dataset.fait;
+      const modeles = this.ressources.filter(r => r.type === 'modele');
+      manifest = (await chargerRessources()).manifest;
+      this.ressources = [...this.recenser(), ...modeles];
+      this.courant = this.ressources.some(r => r.id === id) ? id : this.courant;
+      this.peindre(); this.apercu();
+    },
     atelier() {
       if (this.fiche?.type === 'modele') ouvrirDansAtelier3D(this.fiche.cle);
       allerA('bibliotheque', this.typeFiche.atelier);

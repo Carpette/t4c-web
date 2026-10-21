@@ -4,6 +4,10 @@
 import { tintedSheet } from '../render2d/entities2d.js';
 
 let ressources = null; // { manifest, skins, images: Map }
+let fraicheur = '';    // après un remplacement d'image : contourne le cache du navigateur
+
+// oublie le manifeste et les images chargés (après un import, un remplacement)
+export function oublierRessources() { ressources = null; fraicheur = `?v=${Date.now()}`; }
 
 export async function chargerRessources() {
   if (!ressources) {
@@ -20,7 +24,7 @@ export async function chargerRessources() {
 export function image(chemin) {
   let p = ressources.images.get(chemin);
   if (!p) {
-    p = new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = '/assets/' + chemin; });
+    p = new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = '/assets/' + chemin + fraicheur; });
     ressources.images.set(chemin, p);
   }
   return p;
