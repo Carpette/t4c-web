@@ -341,6 +341,20 @@ export async function handleAdmin(req, res, url, game) {
         };
         const clean = { login: slot(map.login), trial: slot(map.trial), zones: {}, groups };
         for (const [k, v] of Object.entries(map.zones || {})) clean.zones[k] = slot(v);
+        // groupes renommés : les zones musicales de la carte qui les jouaient suivent
+        const renommes = (Array.isArray(map.renommages) ? map.renommages : [])
+          .filter(r => typeof r?.de === 'string' && typeof r?.vers === 'string' && groups[r.vers]);
+        if (renommes.length) {
+          for (const z of content.zones || []) {
+            const ov = loadOverrides(z.id);
+            let n = 0;
+            for (const m of ov?.music || []) for (const r of renommes) if (m.track?.group === r.de) { m.track.group = r.vers; n++; break; }
+            if (!n) continue;
+            ecrireOverrides(z.id, ov, auteur, renommes.map(r => `Groupe « ${r.de} » renommé « ${r.vers} »`).join(', '));
+            const zi = game.island(z.id);
+            if (zi) zi.musicZones = game.buildMusicZones(ov);
+          }
+        }
         saveContentFile('music', clean, auteur);
         game.refreshMusic(); // appliqué à chaud aux joueurs connectés
         return json(200, { ok: true });

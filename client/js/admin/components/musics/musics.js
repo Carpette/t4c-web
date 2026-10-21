@@ -13,10 +13,11 @@ const lireB64 = (f) => new Promise((ok, ko) => {
 });
 
 export function MusicsController(api) {
-  let reference = '', audio = null;
+  let reference = '', refSousZones = '[]', audio = null;
 
   return {
     fichiers: [], carte: { login: {}, trial: {}, zones: {}, groups: {} }, zones: [], sousZones: [],
+    renommages: [], glisse: null, // renommages en attente (zones musicales de la carte) ; piste déplacée
     vue: 'groupe', courant: null, qPistes: '', pistesInutilisees: false, ajout: '', durees: {}, message: '', erreur: false, envoi: '',
     lecture: { fichier: '', joue: false, t: 0, d: 0, volume: 70 },
 
@@ -32,7 +33,7 @@ export function MusicsController(api) {
       return [['login', 'Écran de connexion'], ['trial', 'L’Épreuve'],
         ...this.zones.map(z => [String(z.id), z.name])].map(([k, nom]) => ({ k, nom }));
     },
-    get sale() { return JSON.stringify(this.carte) !== reference; },
+    get sale() { return JSON.stringify(this.carte) !== reference || this.renommages.length > 0; },
     get ajouts() { // pistes ajoutées au groupe ouvert depuis le dernier enregistrement
       if (!this.groupe) return [];
       const avant = JSON.parse(reference || '{}').groups?.[this.courant]?.new || [];
@@ -87,9 +88,11 @@ export function MusicsController(api) {
       const ancien = this.courant, id = (prompt('Nouveau nom du groupe', ancien) || '').trim();
       if (!id || id === ancien) return;
       if (this.carte.groups[id]) { this.dire(`✘ Le groupe « ${id} » existe déjà.`, true); return; }
-      // les sous-zones de la carte pointent le groupe par son nom : on ne les réécrit pas d'ici
+      // les zones musicales de la carte pointent le groupe par son nom : le
+      // serveur les réécrit à l'enregistrement
       const carte = this.sousZones.filter(s => s.track?.group === ancien);
-      if (carte.length) { this.dire(`✘ Utilisé par ${carte.length} zone(s) musicale(s) de la carte : renommez-les d’abord dans Zones et terrain.`, true); return; }
+      for (const s of carte) s.track.group = id;
+      if (carte.length) this.renommages.push({ de: ancien, vers: id });
       const g = this.carte.groups[ancien];
       delete this.carte.groups[ancien];
       this.carte.groups[id] = g;
@@ -106,6 +109,26 @@ export function MusicsController(api) {
     },
     ajouter() { if (this.ajout) { this.groupe.new.push(this.ajout); this.ajout = ''; this.mesurer(); } },
     retirer(i) { this.groupe.new.splice(i, 1); },
+    dupliquer() {
+      let n = 2, id = `${this.courant} (copie)`;
+      while (this.carte.groups[id]) id = `${this.courant} (copie ${n++})`;
+      this.carte.groups[id] = copie(this.groupe);
+      this.ouvrir(id);
+    },
+    // ordre du pack : glisser par la poignée, ou Alt+flèches au clavier
+    deplacer(de, vers) {
+      const l = this.groupe.new;
+      if (vers < 0 || vers >= l.length || de === vers) return;
+      l.splice(vers, 0, l.splice(de, 1)[0]);
+    },
+    deposer(i) { if (this.glisse !== null) this.deplacer(this.glisse, i); this.glisse = null; },
+    clavier(e, i) {
+      if (!e.altKey || !['ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      e.preventDefault();
+      const vers = i + (e.key === 'ArrowUp' ? -1 : 1);
+      this.deplacer(i, vers);
+      requestAnimationFrame(() => document.querySelectorAll('#tab-music [data-poignee]')[vers]?.focus());
+    },
 
     // ---------- emplacements ----------
     // un emplacement joue un groupe, ou une piste seule (nouvelle + legacy)
@@ -183,13 +206,14 @@ export function MusicsController(api) {
       const vides = Object.entries(this.carte.groups).filter(([, g]) => !g.new.length && !g.legacy).map(([id]) => id);
       if (vides.length) { this.dire(`✘ Groupe vide (le serveur l’ignorerait) : ${vides.join(', ')}. Ajoutez une piste ou supprimez-le.`, true); return; }
       try {
-        await api('/api/admin/music', 'PUT', this.carte);
-        reference = JSON.stringify(this.carte);
+        await api('/api/admin/music', 'PUT', { ...this.carte, renommages: this.renommages });
+        reference = JSON.stringify(this.carte); refSousZones = JSON.stringify(this.sousZones); this.renommages = [];
         this.dire('✔ Musiques enregistrées, appliquées aux joueurs connectés.');
       } catch (err) { this.dire('✘ ' + err.message, true); }
     },
     annuler() {
       this.carte = JSON.parse(reference);
+      this.sousZones = JSON.parse(refSousZones); this.renommages = [];
       if (!this.carte.groups[this.courant]) this.courant = this.groupes[0]?.id || null;
       this.dire('');
     },
@@ -198,7 +222,7 @@ export function MusicsController(api) {
       try { this.lecture.volume = +(localStorage.getItem(VOLUME) ?? 70) || 0; } catch { /* défaut */ }
       try {
         const [m, z] = await Promise.all([api('/api/admin/music'), api('/api/admin/content/zones')]);
-        this.fichiers = m.files || []; this.sousZones = m.sousZones || [];
+        this.fichiers = m.files || []; this.sousZones = m.sousZones || []; refSousZones = JSON.stringify(this.sousZones);
         this.zones = z.zones || [];
         const c = copie(m.map || {});
         c.groups ||= {}; c.zones ||= {};
