@@ -4,6 +4,7 @@
 import { initMapEditor } from './admin/editor.js';
 import { ITEMS, MOBS } from '../shared/defs.js';
 import { GuiManagerAdmin } from './admin/gui-manager-admin.js';
+import { chargerSurcharges } from './surcharges.js';
 import { ConsoleController } from './admin/components/console/console.js';
 import { PageController } from './admin/components/page/page.js';
 import { ContentController } from './admin/components/content/content.js';
@@ -17,6 +18,8 @@ import { MaterialsController } from './admin/components/materials/materials.js';
 import { Atelier3DController } from './admin/components/atelier3d/atelier3d.js';
 import { CharactersController } from './admin/components/characters/characters.js';
 import { AccessController } from './admin/components/access/access.js';
+import { CreaturesController } from './admin/components/creatures/creatures.js';
+import { ObjetsController } from './admin/components/objets/objets.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
 
@@ -63,6 +66,7 @@ let zonesDef = [];
 
 async function enter(name) {
   console.log("admin.js: enter() triggered for user:", name);
+  await chargerSurcharges(); // créatures / objets de la Forge, avant les écrans qui les listent
   $('login-box').style.display = 'none';
   $('panel').style.display = 'grid';
 
@@ -81,6 +85,8 @@ async function enter(name) {
   guiManagerAdmin.registerController('characters', CharactersController);
   guiManagerAdmin.registerController('access', AccessController);
   guiManagerAdmin.registerController('pantheon', PantheonController);
+  guiManagerAdmin.registerController('creatures', CreaturesController);
+  guiManagerAdmin.registerController('objets', ObjetsController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
 
   console.log("admin.js: Initializing components...");
@@ -99,7 +105,9 @@ async function enter(name) {
     { name: 'atelier3d', selector: '#tab-atelier3d' },
     { name: 'characters', selector: '#tab-chars' },
     { name: 'access', selector: '#tab-access' },
-    { name: 'pantheon', selector: '#tab-pantheon' }
+    { name: 'pantheon', selector: '#tab-pantheon' },
+    { name: 'creatures', selector: '#tab-creatures' },
+    { name: 'objets', selector: '#tab-objets' }
   ]);
   console.log("admin.js: Components initialization complete.");
 }

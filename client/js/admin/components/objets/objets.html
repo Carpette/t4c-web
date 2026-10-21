@@ -1,0 +1,180 @@
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- liste -->
+    <section aria-label="Liste des objets" class="flex flex-col bg-gray-950" :class="vue === 'tableau' ? 'flex-[1_1_100%]' : 'flex-[1_1_260px] max-w-[300px] border-r border-gray-800'">
+        <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <span class="text-[15px] font-semibold">Objets</span>
+                <span class="text-gray-500">{{ visibles.length }}</span>
+                <div class="flex-1"></div>
+                <div class="cs-segs" role="group" aria-label="Vue">
+                    <button type="button" class="cs-seg" :class="{ on: vue === 'fiche' }" @click="vue = 'fiche'">Fiche</button>
+                    <button type="button" class="cs-seg" :class="{ on: vue === 'tableau' }" @click="vue = 'tableau'">Tableau</button>
+                </div>
+                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouvel objet" title="Nouvel objet (copie de la fiche ouverte)" @click="vue = 'fiche'; dupliquer()" :disabled="!fiche">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+                </button>
+            </div>
+            <label for="ob-q" class="sr-only">Filtrer les objets</label>
+            <input id="ob-q" class="cs-input" v-model="q" placeholder="Filtrer les objets" />
+            <div class="flex flex-wrap gap-1.5">
+                <button type="button" class="cs-fchip" :class="{ on: !cat }" @click="cat = ''">Tous</button>
+                <button v-for="c in CATEGORIES" type="button" class="cs-fchip" :class="{ on: cat === c[0] }" @click="cat = c[0]">{{ c[1] }}</button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto max-h-[70vh]" v-if="vue === 'fiche'">
+            <button v-for="o in visibles" type="button" class="cs-item" :class="{ on: o.id === courant }" @click="ouvrir(o.id)">
+                <span class="cs-mod" :class="{ invisible: !o.etat }" :title="o.etat"></span>
+                <img :src="icone(o.id)" alt="" v-if="icone(o.id)" /><span class="w-6 flex-none" v-else></span>
+                <span class="flex-1 min-w-0 text-left truncate" :class="{ 'text-gray-500': o.legacy }">{{ o.name }}</span>
+                <span class="cs-hint">{{ o.type }}</span>
+            </button>
+        </div>
+        <div class="overflow-auto max-h-[75vh]" v-else>
+            <table class="cs-table">
+                <thead><tr>
+                    <th></th>
+                    <th v-for="c in [['name','Nom'],['type','Emplacement'],['zone','Palier'],['dmg','Dégâts'],['speed','Vitesse'],['def','Armure'],['weight','Poids'],['price','Prix (PO)']]"
+                        class="cursor-pointer select-none" :class="{ 'text-right': c[0] !== 'name' && c[0] !== 'type' }" @click="trier(c[0])">{{ c[1] }}{{ tri === c[0] ? (sens > 0 ? ' ▲' : ' ▼') : '' }}</th>
+                </tr></thead>
+                <tbody>
+                    <tr v-for="o in visibles" class="cliquable" @click="ouvrir(o.id)">
+                        <td class="w-8"><img :src="icone(o.id)" alt="" class="w-6 h-6" v-if="icone(o.id)" /></td>
+                        <td :class="{ 'text-gray-500': o.legacy }">{{ o.name }} <span class="cs-mod inline-block" v-if="o.etat" :title="o.etat"></span></td>
+                        <td>{{ o.type }}</td>
+                        <td class="text-right font-mono">{{ o.zone ?? '—' }}</td>
+                        <td class="text-right font-mono">{{ o.dmgTxt || '—' }}</td>
+                        <td class="text-right font-mono">{{ o.speed ?? '—' }}</td>
+                        <td class="text-right font-mono">{{ o.def ?? '—' }}</td>
+                        <td class="text-right font-mono">{{ o.weight }}</td>
+                        <td class="text-right font-mono">{{ o.price }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- fiche -->
+    <section aria-label="Édition de l’objet" class="flex-[999_1_480px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche && vue === 'fiche'">
+        <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
+            <span class="cs-chip" v-if="etatCourant">{{ etatCourant }}</span>
+            <span class="cs-chip" v-if="fiche.legacy">Retiré de la vente</span>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn" @click="dupliquer()">Dupliquer</button>
+            <button type="button" class="cs-btn" v-if="etatCourant === 'Modifié'" @click="retablir()">Rétablir l’origine</button>
+            <button type="button" class="cs-btn cs-danger" v-if="etatCourant === 'Créé' || nouveau" @click="supprimer()">Supprimer</button>
+        </div>
+
+        <div class="cs-card">
+            <h3>Identité</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-id">Identifiant</label>
+                    <input id="ob-id" class="cs-input font-mono" v-if="nouveau" v-model="nouvelId" />
+                    <input id="ob-id" class="cs-input font-mono" v-else :value="courant" readonly /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-n">Nom affiché</label><input id="ob-n" class="cs-input" v-model="fiche.name" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-s">Emplacement</label>
+                    <select id="ob-s" class="cs-input" v-model="fiche.slot"><option v-for="s in EMPLACEMENTS" :value="s">{{ NOM_EMPLACEMENT[s] || s }}</option></select></div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Règles et économie</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-p">Prix de base (PO)</label><input id="ob-p" class="cs-input font-mono" type="number" min="0" :value="fiche.price" @change="nombre('price', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-w">Poids</label><input id="ob-w" class="cs-input font-mono" type="number" min="0" step="0.5" :value="fiche.weight" @change="nombre('weight', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-z" title="Vendu par les marchands à partir de cette zone ; vide = jamais vendu">Vendu dès la zone</label><input id="ob-z" class="cs-input font-mono" type="number" min="0" placeholder="jamais" :value="fiche.zone" @change="nombre('zone', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-c" title="Peut sortir des coffres de ce palier (0, 1 ou 2)">Coffres du palier</label><input id="ob-c" class="cs-input font-mono" type="number" min="0" max="2" placeholder="aucun" :value="fiche.chest" @change="nombre('chest', $event.target.value)" /></div>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-2 text-gray-200">
+                <label class="flex items-center gap-2" title="Statistiques et prix identiques dans toutes les zones (sinon multipliés par le palier)"><input type="checkbox" :checked="!!fiche.fixed" @change="drapeau('fixed', $event.target.checked)" />Valeurs fixes (pas de bonus de zone)</label>
+                <label class="flex items-center gap-2" title="Gardé pour les inventaires existants, plus vendu ni proposé dans les éditeurs"><input type="checkbox" :checked="!!fiche.legacy" @change="drapeau('legacy', $event.target.checked)" />Retiré de la vente</label>
+            </div>
+            <div class="flex flex-col gap-1.5" v-if="equipable">
+                <span class="cs-label">Prérequis pour l’équiper</span>
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
+                    <label v-for="s in STATS" class="flex flex-col gap-1 text-xs text-gray-500">{{ s[1] }}
+                        <input class="cs-input font-mono" type="number" min="0" placeholder="—" :value="req(s[0])" @change="fixerReq(s[0], $event.target.value)" /></label>
+                </div>
+            </div>
+        </div>
+
+        <div class="cs-card" v-if="famille === 'armes'">
+            <h3>Combat</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-d1">Dégâts min</label><input id="ob-d1" class="cs-input font-mono" type="number" min="0" :value="fiche.dmgMin" @change="nombre('dmgMin', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-d2">Dégâts max</label><input id="ob-d2" class="cs-input font-mono" type="number" min="0" :value="fiche.dmgMax" @change="nombre('dmgMax', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-sp">Délai d’attaque (s)</label><input id="ob-sp" class="cs-input font-mono" type="number" min="0" step="0.1" :value="fiche.speed" @change="nombre('speed', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-r">Portée (cases)</label><input id="ob-r" class="cs-input font-mono" type="number" min="0" placeholder="corps à corps" :value="fiche.range" @change="nombre('range', $event.target.value); drapeau('ranged', !!fiche.range)" /></div>
+            </div>
+        </div>
+
+        <div class="cs-card" v-if="famille === 'armures' || famille === 'bijoux'">
+            <h3>Protection</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-ca">Classe d’armure</label><input id="ob-ca" class="cs-input font-mono" type="number" step="0.05" :value="fiche.def" @change="nombre('def', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-m" title="Négatif : bonus d'esquive">Malus d’esquive</label><input id="ob-m" class="cs-input font-mono" type="number" :value="fiche.malus" @change="nombre('malus', $event.target.value)" /></div>
+            </div>
+        </div>
+
+        <div class="cs-card" v-if="equipable">
+            <h3>Bonus quand il est équipé</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
+                <label v-for="s in STATS" class="flex flex-col gap-1 text-xs text-gray-500">{{ s[1] }}
+                    <input class="cs-input font-mono" type="number" placeholder="—" :value="fiche[s[0]]" @change="nombre(s[0], $event.target.value)" /></label>
+                <label class="flex flex-col gap-1 text-xs text-gray-500">Attaque
+                    <input class="cs-input font-mono" type="number" placeholder="—" :value="fiche.att" @change="nombre('att', $event.target.value)" /></label>
+            </div>
+        </div>
+
+        <div class="cs-card" v-if="famille === 'consommables'">
+            <h3>À l’utilisation</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-h">Soin (PV)</label><input id="ob-h" class="cs-input font-mono" type="number" min="0" placeholder="—" :value="fiche.heal" @change="nombre('heal', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="ob-mn">Mana rendu</label><input id="ob-mn" class="cs-input font-mono" type="number" min="0" placeholder="—" :value="fiche.mana" @change="nombre('mana', $event.target.value)" /></div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Apparence</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="ob-l">Icône (sprite au sol)</label>
+                    <select id="ob-l" class="cs-input font-mono" :value="fiche.loot" @change="changerIcone($event.target.value)"><option v-for="k in lootCles" :value="k">{{ k }}</option></select></div>
+                <div class="cs-field" v-if="equipable"><label class="cs-label" for="ob-ly" title="Calque porté par le personnage (poupée Flare)">Calque sur le personnage</label>
+                    <input id="ob-ly" class="cs-input font-mono" placeholder="aucun" :value="fiche.layer || ''" @change="fiche.layer = $event.target.value.trim() || null" /></div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn" @click="ouvrir(courant)" :disabled="!sale || nouveau">Annuler</button>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale && !nouveau">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- contexte -->
+    <aside aria-label="Contexte" class="flex-[1_1_260px] max-w-[300px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && vue === 'fiche'">
+        <div class="flex flex-col gap-2 items-start">
+            <span class="cs-sect p-0">Icône</span>
+            <div class="w-24 h-24 rounded-lg bg-[#0b0c0f] border border-gray-800 grid place-items-center">
+                <img :src="iconeFiche" alt="" class="w-16 h-16" style="image-rendering: pixelated" v-if="iconeFiche" />
+            </div>
+            <a class="cs-btn" href="#bibliotheque/skins">Changer dans la Bibliothèque</a>
+        </div>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Vendu par</span>
+            <a v-for="m in vendeurs" class="flex justify-between gap-2" href="#pnj"><span>{{ m.name }}</span><span class="text-gray-500">dès la zone {{ m.des }}</span></a>
+            <span class="text-gray-500" v-if="!vendeurs.length">Aucun marchand.</span>
+        </div>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Obtenu sur</span>
+            <a v-for="s in sources" class="flex justify-between gap-2" href="#creatures"><span>{{ s.name }}</span><span class="font-mono text-gray-500">{{ s.chance }} %</span></a>
+            <span class="text-gray-500" v-if="fiche.chest != null">Coffres du palier {{ fiche.chest }}</span>
+            <span class="text-gray-500" v-if="!sources.length && fiche.chest == null">Aucune créature ne le lâche.</span>
+        </div>
+        <div class="cs-panel p-3 flex flex-col gap-1.5" v-if="circulation">
+            <span class="cs-sect p-0">En circulation</span>
+            <div class="flex justify-between"><span>Sacs et coffres des joueurs</span><span class="font-mono">{{ circulation[courant] || 0 }}</span></div>
+            <span class="text-xs text-gray-500">D’après les dernières sauvegardes.</span>
+        </div>
+    </aside>
+</div>
