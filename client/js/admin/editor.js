@@ -2994,7 +2994,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // aperçu jour/nuit : bascule l'éclairage de l'éditeur sans lancer le jeu
   $('preview-daynight')?.addEventListener('click', () => {
     dayPreview = dayPreview === 'night' ? null : (dayPreview === 'day' ? 'night' : 'day');
-    const label = dayPreview === 'day' ? '☀ Aperçu : jour' : dayPreview === 'night' ? '🌙 Aperçu : nuit' : '🌓 Aperçu jour/nuit';
+    const label = dayPreview === 'day' ? 'Aperçu : jour' : dayPreview === 'night' ? 'Aperçu : nuit' : 'Jour / nuit';
     const btn = $('preview-daynight');
     if (btn) btn.textContent = label;
     markDirty();
