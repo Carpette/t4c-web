@@ -1,280 +1,202 @@
+// Forge, Musiques : d'après la maquette. Groupes de pistes (pack « nouvelles »
+// tiré au sort + piste legacy), emplacements (connexion, Épreuve, zones),
+// import de fichiers et lecteur de pré-écoute commun.
+import { copie } from '../../forge.js';
+
+const VOLUME = 't4c-admin-volume';
+const duree = (s) => Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '';
+const lireB64 = (f) => new Promise((ok, ko) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1] || '');
+  r.onerror = () => ko(new Error(`lecture de ${f.name} impossible`));
+  r.readAsDataURL(f);
+});
+
 export function MusicsController(api) {
-  const $ = (id) => document.getElementById(id);
-  let musicMap = { login: null, trial: null, zones: {}, groups: {} };
-  const openGroups = new Set(); // groupes dépliés (conservé entre les rendus)
-  let zonesDef = [];
-  let files = [];
-
-  const preview = (file) => {
-    if (!file) return;
-    const a = $('music-preview');
-    if (a) { a.src = `/assets/music/${encodeURIComponent(file)}`; a.play?.(); }
-  };
-
-  // bouton de pré-écoute ▶ d'un fichier donné (callback fournissant le nom courant)
-  const playBtn = (getFile) => {
-    const b = document.createElement('button');
-    b.textContent = '▶';
-    b.title = 'Pré-écouter';
-    b.className = 'ml-1 px-2 bg-t4c-button hover:bg-t4c-button-hover rounded';
-    b.onclick = () => preview(getFile());
-    return b;
-  };
-
-  // <select> de fichiers (avec option silence). value '' = aucun.
-  const fileSelect = (current) => {
-    const sel = document.createElement('select');
-    sel.className = 'bg-t4c-input-bg border border-t4c-input-border rounded px-1 py-0.5 text-t4c-text-light';
-    sel.innerHTML = '<option value="">— silence —</option>' +
-      files.map(f => `<option value="${f}"${current === f ? ' selected' : ''}>${f}</option>`).join('');
-    return sel;
-  };
-
-  // ---------- Groupes de musique ----------
-  // Rend la liste éditable des groupes : pistes du pack « new » (liste) + piste
-  // « legacy » unique, avec pré-écoute, ajout/retrait, et suppression gardée.
-  function renderGroups() {
-    const box = $('groups-list');
-    if (!box) return;
-    box.innerHTML = '';
-    const ids = Object.keys(musicMap.groups || {});
-    if (!ids.length) {
-      box.innerHTML = '<p class="text-gray-500 italic">Aucun groupe. Créez-en un ci-dessus.</p>';
-      return;
-    }
-    for (const id of ids) {
-      const g = musicMap.groups[id];
-      g.new = Array.isArray(g.new) ? g.new : [];
-      const card = document.createElement('div');
-      card.className = 'bg-t4c-input-bg border border-t4c-input-border rounded-md p-3';
-
-      const open = openGroups.has(id);
-      const head = document.createElement('div');
-      head.className = 'flex items-center justify-between mb-2';
-      // en-tête cliquable (chevron + nom) qui replie/déplie le corps du groupe
-      const toggle = document.createElement('button');
-      toggle.className = 'flex items-center gap-2 font-bold text-t4c-gold';
-      const chevron = document.createElement('span');
-      chevron.textContent = open ? '▾' : '▸';
-      const nbNew = (g.new.length) + (g.legacy ? 1 : 0);
-      toggle.append(chevron, document.createTextNode(`🎵 ${id}`));
-      const count = document.createElement('span');
-      count.className = 'text-xs text-gray-400 font-normal';
-      count.textContent = `(${g.new.length} piste${g.new.length > 1 ? 's' : ''}${g.legacy ? ' + legacy' : ''})`;
-      toggle.append(count);
-      const del = document.createElement('button');
-      del.textContent = '🗑 Supprimer';
-      del.className = 'px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-xs';
-      del.onclick = () => removeGroup(id);
-      head.append(toggle, del);
-      card.appendChild(head);
-
-      // corps repliable : pistes new + ajout + legacy
-      const body = document.createElement('div');
-      if (!open) body.classList.add('hidden');
-      toggle.onclick = () => {
-        const nowOpen = body.classList.toggle('hidden') === false;
-        chevron.textContent = nowOpen ? '▾' : '▸';
-        if (nowOpen) openGroups.add(id); else openGroups.delete(id);
-      };
-      card.appendChild(body);
-
-      // pack « new » : liste de pistes (chaque ligne : nom + ▶ + retrait)
-      const newWrap = document.createElement('div');
-      newWrap.innerHTML = '<p class="text-xs text-gray-400 mb-1">Pack « nouvelles » (liste, tirée au sort + enchaînée) :</p>';
-      for (let i = 0; i < g.new.length; i++) {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-1 mb-1';
-        const name = document.createElement('span');
-        name.className = 'text-t4c-text-light';
-        name.textContent = g.new[i];
-        const rm = document.createElement('button');
-        rm.textContent = '✕';
-        rm.title = 'Retirer';
-        rm.className = 'px-2 bg-t4c-button hover:bg-t4c-button-hover rounded';
-        rm.onclick = () => { g.new.splice(i, 1); renderGroups(); };
-        row.append(name, playBtn(() => g.new[i]), rm);
-        newWrap.appendChild(row);
-      }
-      // ajout d'une piste au pack « new »
-      const addRow = document.createElement('div');
-      addRow.className = 'flex items-center gap-1 mt-1';
-      const addSel = fileSelect('');
-      const addBtn = document.createElement('button');
-      addBtn.textContent = '+ Ajouter';
-      addBtn.className = 'px-2 py-0.5 bg-t4c-button hover:bg-t4c-button-hover rounded';
-      addBtn.onclick = () => { if (addSel.value) { g.new.push(addSel.value); renderGroups(); } };
-      addRow.append(addSel, playBtn(() => addSel.value), addBtn);
-      newWrap.appendChild(addRow);
-      body.appendChild(newWrap);
-
-      // pack « legacy » : une seule piste
-      const legacyRow = document.createElement('div');
-      legacyRow.className = 'flex items-center gap-1 mt-2';
-      legacyRow.innerHTML = '<span class="text-xs text-gray-400">Pack « legacy » (une piste) :</span>';
-      const legSel = fileSelect(g.legacy || '');
-      legSel.onchange = () => { g.legacy = legSel.value || null; };
-      legacyRow.append(legSel, playBtn(() => legSel.value));
-      body.appendChild(legacyRow);
-
-      box.appendChild(card);
-    }
-  }
-
-  function addGroup() {
-    const inp = $('group-new-name');
-    const id = (inp?.value || '').trim();
-    const msgEl = $('music-msg');
-    if (!id) { if (msgEl) msgEl.textContent = 'Donnez un nom au groupe.'; return; }
-    if (musicMap.groups[id]) { if (msgEl) msgEl.textContent = `Le groupe « ${id} » existe déjà.`; return; }
-    musicMap.groups[id] = { new: [], legacy: null };
-    openGroups.add(id); // le groupe neuf s'ouvre pour qu'on le remplisse aussitôt
-    if (inp) inp.value = '';
-    renderGroups();
-    renderTable(); // le nouveau groupe devient sélectionnable dans les emplacements
-  }
-
-  // tous les emplacements qui référencent ce groupe (zones + login + trial)
-  function groupReferences(id) {
-    const refs = [];
-    if (musicMap.login?.group === id) refs.push('Écran de connexion');
-    if (musicMap.trial?.group === id) refs.push("L'Épreuve");
-    for (const [k, v] of Object.entries(musicMap.zones || {})) {
-      if (v?.group === id) refs.push(`zone ${k}`);
-    }
-    return refs;
-  }
-
-  function removeGroup(id) {
-    const refs = groupReferences(id);
-    const msgEl = $('music-msg');
-    if (refs.length) {
-      if (msgEl) msgEl.textContent = `Impossible : le groupe « ${id} » est référencé par ${refs.join(', ')}. Détachez-le d'abord.`;
-      return;
-    }
-    delete musicMap.groups[id];
-    renderGroups();
-    renderTable();
-  }
-
-  // ---------- Tableau des emplacements ----------
-  // Une ligne par emplacement : un sélecteur de GROUPE (ou « piste seule ») ; si
-  // aucun groupe, deux cellules pour les variantes new/legacy d'une piste unique.
-  function normSlot(s) {
-    if (s == null || typeof s === 'string') return { legacy: s || null, new: null };
-    if (typeof s.group === 'string') return { group: s.group };
-    return { legacy: s.legacy || null, new: s.new || null };
-  }
-
-  function renderTable() {
-    const table = $('music-table');
-    if (!table) return;
-    table.innerHTML = '<tr><th>Emplacement</th><th>Groupe</th><th>Piste seule — nouvelle (défaut)</th><th>Piste seule — ancienne (legacy)</th></tr>';
-
-    // grise une cellule « piste seule » et coupe ses contrôles quand un groupe
-    // est actif — repère visuel clair que le champ est inactif (+ infobulle).
-    const setCellDisabled = (td, off) => {
-      td.classList.toggle('opacity-40', off);
-      td.classList.toggle('pointer-events-none', off); // boutons ▶ inactifs aussi
-      td.title = off ? 'Désactivé : un groupe est sélectionné pour cet emplacement' : '';
-      td.querySelectorAll('select, button').forEach(el => { el.disabled = off; });
-    };
-
-    const mkVariantCell = (slot, variant) => {
-      const td = document.createElement('td');
-      td.style.whiteSpace = 'nowrap';
-      const sel = fileSelect(slot[variant]);
-      sel.onchange = () => { slot[variant] = sel.value || null; };
-      td.append(sel, playBtn(() => sel.value));
-      setCellDisabled(td, !!slot.group); // une référence de groupe désactive les pistes seules
-      return td;
-    };
-
-    const mkRow = (label, getSlot, setSlot) => {
-      const slot = normSlot(getSlot());
-      setSlot(slot);
-      const tr = document.createElement('tr');
-      const tdName = document.createElement('td');
-      tdName.textContent = label;
-
-      // sélecteur de groupe (— aucun (piste seule) — + tous les groupes)
-      const tdGroup = document.createElement('td');
-      const gsel = document.createElement('select');
-      gsel.className = 'bg-t4c-input-bg border border-t4c-input-border rounded px-1 py-0.5 text-t4c-text-light';
-      const ids = Object.keys(musicMap.groups || {});
-      // aucun groupe défini : on l'indique et on dirige vers l'onglet « Groupes »
-      const emptyOpt = ids.length
-        ? '<option value="">— aucun (piste seule) —</option>'
-        : '<option value="">— aucun groupe (à créer dans l\'onglet « Groupes ») —</option>';
-      gsel.innerHTML = emptyOpt +
-        ids.map(id => `<option value="${id}"${slot.group === id ? ' selected' : ''}>${id}</option>`).join('');
-
-      const vNew = mkVariantCell(slot, 'new');
-      const vLegacy = mkVariantCell(slot, 'legacy');
-      gsel.onchange = () => {
-        if (gsel.value) { slot.group = gsel.value; delete slot.legacy; delete slot.new; }
-        else { delete slot.group; slot.legacy = slot.legacy || null; slot.new = slot.new || null; }
-        // refléter l'état (grisé + contrôles coupés) des cellules de pistes seules
-        for (const td of [vNew, vLegacy]) setCellDisabled(td, !!slot.group);
-      };
-      tdGroup.appendChild(gsel);
-      tr.append(tdName, tdGroup, vNew, vLegacy);
-      table.appendChild(tr);
-    };
-
-    mkRow('Écran de connexion', () => musicMap.login, s => { musicMap.login = s; });
-    mkRow("L'Épreuve", () => musicMap.trial, s => { musicMap.trial = s; });
-    for (const z of zonesDef) {
-      mkRow(`${z.id} — ${z.name} (${z.levels[0]}-${z.levels[1]})`,
-        () => musicMap.zones[String(z.id)],
-        s => { musicMap.zones[String(z.id)] = s; });
-    }
-  }
+  let reference = '', audio = null;
 
   return {
-    async loadMusic() {
+    fichiers: [], carte: { login: {}, trial: {}, zones: {}, groups: {} }, zones: [], sousZones: [],
+    vue: 'groupe', courant: null, ajout: '', durees: {}, message: '', erreur: false, envoi: '',
+    lecture: { fichier: '', joue: false, t: 0, d: 0, volume: 70 },
+
+    // ---------- lectures ----------
+    get groupes() {
+      return Object.keys(this.carte.groups || {}).sort((a, b) => a.localeCompare(b, 'fr')).map(id => {
+        const g = this.carte.groups[id], u = this.usages(id);
+        return { id, n: g.new?.length || 0, resume: u.length ? u[0].court + (u.length > 1 ? ` +${u.length - 1}` : '') : 'non utilisé' };
+      });
+    },
+    get groupe() { return this.carte.groups?.[this.courant] || null; },
+    get emplacements() {
+      return [['login', 'Écran de connexion'], ['trial', 'L’Épreuve'],
+        ...this.zones.map(z => [String(z.id), z.name])].map(([k, nom]) => ({ k, nom }));
+    },
+    get sale() { return JSON.stringify(this.carte) !== reference; },
+    get ajouts() { // pistes ajoutées au groupe ouvert depuis le dernier enregistrement
+      if (!this.groupe) return [];
+      const avant = JSON.parse(reference || '{}').groups?.[this.courant]?.new || [];
+      return this.groupe.new.filter(f => !avant.includes(f));
+    },
+    get etat() {
+      if (!this.groupe) return '';
+      if (!JSON.parse(reference || '{}').groups?.[this.courant]) return 'Brouillon · nouveau groupe';
+      const n = this.ajouts.length;
+      return this.sale ? `Brouillon${n ? ` · ${n} piste${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''}` : ''}` : 'Enregistré';
+    },
+    get disponibles() { return this.fichiers.filter(f => !this.groupe?.new.includes(f)); },
+    get progression() { return this.lecture.d ? Math.min(100, (this.lecture.t / this.lecture.d) * 100) : 0; },
+
+    slot(k) { return k === 'login' || k === 'trial' ? this.carte[k] : this.carte.zones[k]; },
+    // où un groupe est joué : emplacements de music.json et sous-zones de la carte
+    usages(id) {
+      const out = [];
+      for (const e of this.emplacements) if (this.slot(e.k)?.group === id) {
+        out.push({ nom: /^\d+$/.test(e.k) ? `${e.nom}, toute la zone` : e.nom, court: /^\d+$/.test(e.k) ? `défaut d’${e.nom}` : e.nom, ou: 'emplacement' });
+      }
+      for (const s of this.sousZones) if (s.track?.group === id) out.push({ nom: `${s.zone}, zone « ${s.id} »`, court: 'zone musicale', ou: 'sur la carte' });
+      return out;
+    },
+    duree(f) { return duree(this.durees[f]); },
+    temps(s) { return s ? duree(s) : ''; },
+
+    dire(t, err = false) { this.message = t; this.erreur = err; },
+
+    // ---------- groupes ----------
+    ouvrir(id) { this.vue = 'groupe'; this.courant = id; this.ajout = ''; this.mesurer(); },
+    nouveau() {
+      let n = 1, id = 'Nouveau groupe';
+      while (this.carte.groups[id]) id = `Nouveau groupe ${++n}`;
+      this.carte.groups[id] = { new: [], legacy: null };
+      this.ouvrir(id);
+    },
+    renommer() {
+      const ancien = this.courant, id = (prompt('Nouveau nom du groupe', ancien) || '').trim();
+      if (!id || id === ancien) return;
+      if (this.carte.groups[id]) { this.dire(`✘ Le groupe « ${id} » existe déjà.`, true); return; }
+      // les sous-zones de la carte pointent le groupe par son nom : on ne les réécrit pas d'ici
+      const carte = this.sousZones.filter(s => s.track?.group === ancien);
+      if (carte.length) { this.dire(`✘ Utilisé par ${carte.length} zone(s) musicale(s) de la carte : renommez-les d’abord dans Zones et terrain.`, true); return; }
+      const g = this.carte.groups[ancien];
+      delete this.carte.groups[ancien];
+      this.carte.groups[id] = g;
+      for (const e of this.emplacements) if (this.slot(e.k)?.group === ancien) this.slot(e.k).group = id;
+      this.courant = id;
+    },
+    supprimer() {
+      const u = this.usages(this.courant);
+      if (u.length) { this.dire(`✘ Encore joué dans : ${u.map(x => x.nom).join(', ')}.`, true); return; }
+      if (!confirm(`Supprimer le groupe « ${this.courant} » ?`)) return;
+      delete this.carte.groups[this.courant];
+      this.courant = this.groupes[0]?.id || null;
+      if (!this.courant) this.vue = 'emplacements';
+    },
+    ajouter() { if (this.ajout) { this.groupe.new.push(this.ajout); this.ajout = ''; this.mesurer(); } },
+    retirer(i) { this.groupe.new.splice(i, 1); },
+
+    // ---------- emplacements ----------
+    // un emplacement joue un groupe, ou une piste seule (nouvelle + legacy)
+    choisirGroupe(k, id) {
+      const s = this.slot(k);
+      if (id) { s.group = id; delete s.new; delete s.legacy; } else { delete s.group; s.new ??= null; s.legacy ??= null; }
+    },
+    piste(k, variante, f) { this.slot(k)[variante] = f || null; },
+
+    // ---------- lecteur ----------
+    jouer(f) {
+      if (!f) return;
+      if (!audio) {
+        audio = new Audio();
+        audio.addEventListener('timeupdate', () => { this.lecture.t = audio.currentTime; });
+        audio.addEventListener('loadedmetadata', () => { this.lecture.d = audio.duration; });
+        audio.addEventListener('play', () => { this.lecture.joue = true; });
+        audio.addEventListener('pause', () => { this.lecture.joue = false; });
+        audio.addEventListener('ended', () => { this.lecture.joue = false; });
+      }
+      audio.volume = this.lecture.volume / 100;
+      if (this.lecture.fichier === f) { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); return; }
+      this.lecture.fichier = f; this.lecture.t = 0; this.lecture.d = this.durees[f] || 0;
+      audio.src = `/assets/music/${encodeURIComponent(f)}`;
+      audio.play().catch(() => {});
+    },
+    basculer() { if (this.lecture.fichier) this.jouer(this.lecture.fichier); },
+    chercher(e) {
+      if (!audio || !this.lecture.d) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * this.lecture.d;
+    },
+    volume(v) {
+      this.lecture.volume = +v;
+      if (audio) audio.volume = v / 100;
+      try { localStorage.setItem(VOLUME, String(v)); } catch { /* réglage de session */ }
+    },
+    // durées des pistes affichées, lues dans les métadonnées (une fois par fichier)
+    mesurer() {
+      const liste = [...(this.groupe?.new || []), this.groupe?.legacy].filter(f => f && !(f in this.durees));
+      for (const f of liste) {
+        this.durees[f] = NaN;
+        const a = new Audio();
+        a.preload = 'metadata';
+        a.addEventListener('loadedmetadata', () => { this.durees[f] = a.duration; a.src = ''; }, { once: true });
+        a.src = `/assets/music/${encodeURIComponent(f)}`;
+      }
+    },
+
+    // ---------- import ----------
+    async importer(e) {
+      const liste = [...(e.target.files || [])];
+      e.target.value = '';
+      const faits = [], echecs = [];
+      for (const [i, f] of liste.entries()) {
+        this.envoi = `Import ${i + 1}/${liste.length} : ${f.name}`;
+        try {
+          if (f.size > 28e6) throw new Error('plus de 28 Mo');
+          const r = await api('/api/admin/music/upload', 'POST', { name: f.name, data: await lireB64(f) });
+          faits.push(r.file);
+        } catch (err) { echecs.push(`${f.name} (${err.message})`); }
+      }
+      this.envoi = '';
+      if (faits.length) {
+        this.fichiers = [...new Set([...this.fichiers, ...faits])].sort();
+        if (this.groupe && this.vue === 'groupe') { this.groupe.new.push(...faits.filter(f => !this.groupe.new.includes(f))); this.mesurer(); }
+      }
+      const ok = faits.length ? `✔ ${faits.length} piste${faits.length > 1 ? 's' : ''} importée${faits.length > 1 ? 's' : ''}${this.groupe && this.vue === 'groupe' ? ` et ajoutée${faits.length > 1 ? 's' : ''} à « ${this.courant} »` : ''}.` : '';
+      this.dire([ok, echecs.length ? `✘ Refusé : ${echecs.join(', ')}.` : ''].filter(Boolean).join(' '), !!echecs.length);
+    },
+
+    // ---------- enregistrement ----------
+    async enregistrer() {
+      const vides = Object.entries(this.carte.groups).filter(([, g]) => !g.new.length && !g.legacy).map(([id]) => id);
+      if (vides.length) { this.dire(`✘ Groupe vide (le serveur l’ignorerait) : ${vides.join(', ')}. Ajoutez une piste ou supprimez-le.`, true); return; }
       try {
-        const r = await api('/api/admin/music');
-        files = r.files || [];
-        musicMap = r.map || musicMap;
-        if (!musicMap.zones) musicMap.zones = {};
-        if (!musicMap.groups) musicMap.groups = {};
-        const zonesContent = await api('/api/admin/content/zones');
-        zonesDef = zonesContent.zones;
-      } catch (e) {
-        const msgEl = $('music-msg');
-        if (msgEl) msgEl.textContent = e.message;
-        return;
-      }
-      renderGroups();
-      renderTable();
+        await api('/api/admin/music', 'PUT', this.carte);
+        reference = JSON.stringify(this.carte);
+        this.dire('✔ Musiques enregistrées, appliquées aux joueurs connectés.');
+      } catch (err) { this.dire('✘ ' + err.message, true); }
     },
-    addGroup,
-    // bascule entre les sous-onglets « Emplacements » et « Groupes »
-    showSubtab(name) {
-      const panes = { empl: $('music-pane-empl'), grp: $('music-pane-grp') };
-      const tabs = { empl: $('music-subtab-empl'), grp: $('music-subtab-grp') };
-      for (const k of ['empl', 'grp']) {
-        panes[k]?.classList.toggle('hidden', k !== name);
-        // onglet actif : surligné ; inactif : grisé
-        tabs[k]?.classList.toggle('bg-t4c-button', k === name);
-        tabs[k]?.classList.toggle('text-t4c-text-light', k === name);
-        tabs[k]?.classList.toggle('bg-t4c-input-bg', k !== name);
-        tabs[k]?.classList.toggle('text-gray-400', k !== name);
-      }
+    annuler() {
+      this.carte = JSON.parse(reference);
+      if (!this.carte.groups[this.courant]) this.courant = this.groupes[0]?.id || null;
+      this.dire('');
     },
-    async saveMusic() {
+
+    async init() {
+      try { this.lecture.volume = +(localStorage.getItem(VOLUME) ?? 70) || 0; } catch { /* défaut */ }
       try {
-        await api('/api/admin/music', 'PUT', musicMap);
-        const msgEl = $('music-msg');
-        if (msgEl) msgEl.textContent = 'Enregistré — appliqué à chaud aux joueurs connectés.';
-      } catch (e) {
-        const msgEl = $('music-msg');
-        if (msgEl) msgEl.textContent = 'Erreur : ' + e.message;
-      }
-    },
-    init() {
-      setTimeout(() => { this.loadMusic(); }, 0);
+        const [m, z] = await Promise.all([api('/api/admin/music'), api('/api/admin/content/zones')]);
+        this.fichiers = m.files || []; this.sousZones = m.sousZones || [];
+        this.zones = z.zones || [];
+        const c = copie(m.map || {});
+        c.groups ||= {}; c.zones ||= {};
+        for (const g of Object.values(c.groups)) g.new = Array.isArray(g.new) ? g.new : [];
+        // forme normalisée (comme l'enregistre le serveur) : le premier état n'est pas « modifié »
+        const norme = (s) => typeof s?.group === 'string' ? { group: s.group } : { legacy: s?.legacy || null, new: s?.new || null };
+        c.login = norme(c.login); c.trial = norme(c.trial);
+        for (const zn of this.zones) c.zones[zn.id] = norme(c.zones[zn.id]);
+        this.carte = c; reference = JSON.stringify(c);
+        if (this.groupes[0]) this.ouvrir(this.groupes[0].id); else this.vue = 'emplacements';
+      } catch (err) { this.dire('✘ ' + err.message, true); }
+      window.addEventListener('beforeunload', (e) => { if (this.sale) e.preventDefault(); });
     },
   };
 }
