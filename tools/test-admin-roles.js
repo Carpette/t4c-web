@@ -1,6 +1,6 @@
-// Test d'intégration des rôles d'administration : permissions par compte,
-// attribution à chaud depuis l'admin web, commandes en jeu (invocation,
-// carte, dialogues) acceptées/refusées selon les permissions.
+// Test d'intégration des accès : profils (niveau par écran), attribution à
+// chaud depuis l'admin web, commandes en jeu (invocation, carte, dialogues)
+// acceptées/refusées selon le profil, garde-fous contre l'escalade.
 // À lancer sur une base FRAÎCHE (1er compte = super admin), serveur lancé à
 // part avec T4C_OVERRIDES_DIR pointant sur un dossier jetable.
 // Usage : node tools/test-admin-roles.js [urlHttp=http://localhost:8090]
@@ -77,8 +77,14 @@ const api = (url, method = 'GET', body = null) =>
 
 const roles = await api('/api/admin/roles');
 const animAcc = roles.accounts.find(a => a.name === anim.name);
-ok('liste des comptes et permissions', !!animAcc && Array.isArray(roles.perms));
-await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: ['spawn', 'quests', 'map'] });
+ok('liste des comptes, profils et droits', !!animAcc && Array.isArray(roles.profils) && roles.droits.some(d => d.id === 'invocation'));
+ok('profils proposés sur une base neuve', ['Administrateur', 'Animateur'].every(n => roles.profils.some(p => p.nom === n)));
+const pAnim = await api('/api/admin/profils', 'POST', {
+  nom: 'Anim test ' + Date.now(), animer: true,
+  droits: { invocation: 2, pnj: 2, zones: 2, creatures: 1 },
+});
+ok('profil créé', !!pAnim.id);
+await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, profilId: pAnim.id });
 const hot = await waitMsg(anim, m => m.t === 'perms');
 ok('rôles appliqués à chaud au joueur connecté',
   hot && ['spawn', 'quests', 'map'].every(p => hot.perms.includes(p)));
@@ -138,14 +144,46 @@ const H2 = { Authorization: `Bearer ${login2.token}`, 'Content-Type': 'applicati
 const api2 = (url, method = 'GET', body = null) =>
   fetch(BASE + url, { method, headers: H2, body: body ? JSON.stringify(body) : null });
 ok('login admin web accepté avec un rôle', !!login2.token);
-ok('animateur : dialogues PNJ accessibles (quests)', (await api2('/api/admin/content/npcs')).status === 200);
-ok('animateur : personnages refusés (players manquant)', (await api2('/api/admin/characters')).status === 403);
-ok('animateur : attribution des rôles refusée (réservée aux super admins)',
-  (await api2('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [] })).status === 403);
+ok('animateur : contenu lisible (PNJ)', (await api2('/api/admin/content/npcs')).status === 200);
+ok('animateur : personnages refusés (droit Joueurs absent)', (await api2('/api/admin/characters')).status === 403);
+ok('animateur : créatures en lecture, écriture refusée',
+  (await api2('/api/admin/content/creatures', 'PUT', { mobs: {} })).status === 403);
+ok('animateur : accès et rôles refusés (droit Accès absent)',
+  (await api2('/api/admin/roles')).status === 403 && (await api2('/api/admin/roles', 'PUT', { accountId: animAcc.id, profilId: null })).status === 403);
+const me2 = await (await api2('/api/admin/me')).json();
+ok('/me : droits du profil', me2.droits.invocation === 2 && me2.droits.creatures === 1 && !me2.isAdmin && me2.animer);
+// overrides : chaque partie exige son droit (pas de placement PNJ ici)
+ok('overrides : retouche des PNJ refusée sans « Placement des PNJ »',
+  (await api2('/api/admin/overrides/0', 'PUT', { npcs: { merchant: { x: 10, z: 10 } } })).status === 403);
+
+// ---- 7bis. pas d'escalade : un gestionnaire d'accès n'accorde que ses droits ----
+const pGest = await api('/api/admin/profils', 'POST', { nom: 'Gestion ' + Date.now(), droits: { acces: 2, invocation: 2 } });
+const gest = await connect('Gest_' + Math.floor(Math.random() * 1e6));
+const gestAcc = (await api('/api/admin/roles')).accounts.find(a => a.name === gest.name);
+await api('/api/admin/roles', 'PUT', { accountId: gestAcc.id, profilId: pGest.id });
+const lg = await (await fetch(`${BASE}/api/admin/login`, { method: 'POST', body: JSON.stringify({ name: gest.name, pass: 'test1234' }) })).json();
+const api3 = (url, method = 'GET', body = null) =>
+  fetch(BASE + url, { method, headers: { Authorization: `Bearer ${lg.token}` }, body: body ? JSON.stringify(body) : null });
+ok('gestionnaire : liste des comptes lisible', (await api3('/api/admin/roles')).status === 200);
+ok('gestionnaire : profil au-delà de ses droits refusé',
+  (await api3('/api/admin/profils', 'POST', { nom: 'Trop ' + Date.now(), droits: { zones: 2 } })).status === 403);
+ok('gestionnaire : attribuer un profil plus large refusé',
+  (await api3('/api/admin/roles', 'PUT', { accountId: animAcc.id, profilId: pAnim.id })).status === 403);
+ok('gestionnaire : modifier son propre compte refusé',
+  (await api3('/api/admin/roles', 'PUT', { accountId: gestAcc.id, profilId: null })).status === 403);
+ok('gestionnaire : promouvoir super admin refusé',
+  (await api3('/api/admin/roles', 'PUT', { accountId: animAcc.id, superAdmin: true })).status === 403);
+ok('gestionnaire : toucher au super admin refusé',
+  (await api3('/api/admin/roles', 'PUT', { accountId: 1, profilId: null })).status === 403);
+const pPetit = await (await api3('/api/admin/profils', 'POST', { nom: 'Petit ' + Date.now(), droits: { invocation: 1 } })).json();
+ok('gestionnaire : profil dans ses droits accepté', !!pPetit.id);
+ok('gestionnaire : profil encore attribué non supprimable',
+  (await api('/api/admin/profils/' + pAnim.id, 'DELETE')).error?.includes('attribué'));
+gest.ws.close();
 
 // ---- 8. super admin : promotion à chaud, garde-fous ----
 anim.inbox.length = 0;
-await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [], superAdmin: true });
+await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, superAdmin: true });
 const crowned = await waitMsg(anim, m => m.t === 'perms');
 ok('promotion 👑 : TOUTES les permissions à chaud',
   crowned && ADMIN_PERMS.every(p => crowned.perms.includes(p)));
@@ -158,10 +196,10 @@ const login3 = await (await fetch(`${BASE}/api/admin/login`, {
 })).json();
 const r8 = await fetch(`${BASE}/api/admin/roles`, {
   method: 'PUT', headers: { Authorization: `Bearer ${login3.token}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ accountId: animAcc.id, perms: [], superAdmin: false }),
+  body: JSON.stringify({ accountId: animAcc.id, superAdmin: false }),
 });
 ok('un super admin peut gérer les rôles (auto-rétrogradation acceptée)', r8.status === 200);
-const r9 = await api('/api/admin/roles', 'PUT', { accountId: 1, perms: [], superAdmin: false });
+const r9 = await api('/api/admin/roles', 'PUT', { accountId: 1, superAdmin: false });
 ok('le compte fondateur est intouchable (anti-verrouillage)', !!r9.error);
 
 // ---- 9. déconnexion admin : le jeton est invalidé côté serveur ----
@@ -176,8 +214,9 @@ const relog = await (await fetch(`${BASE}/api/admin/login`, {
 })).json();
 H.Authorization = `Bearer ${relog.token}`;
 
-// ---- nettoyage : rôles retirés, npcs.json restauré ----
-await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, perms: [] });
+// ---- nettoyage : profil retiré, npcs.json restauré ----
+await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, profilId: null });
+ok('profil libéré : suppression acceptée', (await api('/api/admin/profils/' + pAnim.id, 'DELETE')).ok);
 fs.writeFileSync(NPCS_PATH, npcsBackup);
 boss.ws.close(); anim.ws.close();
 

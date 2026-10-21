@@ -11,6 +11,7 @@ import { findPath } from './pathfind.js';
 import { content } from '../content.js';
 import { applyOverrides } from '../../shared/overrides.js';
 import { loadOverrides, overridesPath } from '../admin.js';
+import { accesDe, niveau, permsDe, EDITION } from '../../shared/acces.js';
 import fs from 'node:fs';
 import { TILE } from '../../shared/worldgen.js';
 import { saveContentFile } from '../content.js';
@@ -397,7 +398,7 @@ export class Game {
   }
 
   // ---------- Joueurs ----------
-  addPlayer(ws, accountId, name, isAdmin, perms = []) {
+  addPlayer(ws, accountId, name, isAdmin, acces = null) {
     if (this.shuttingDown) return { error: 'Le serveur est en cours d\'arrêt, réessayez dans un instant.' };
     if (this.players.size >= C.MAX_PLAYERS) return { error: 'Serveur plein (256 joueurs max)' };
     for (const p of this.players.values()) {
@@ -409,7 +410,7 @@ export class Game {
       db.saveCharacter(accountId, data);
     }
     const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
-    p.perms = Array.isArray(perms) ? perms : [];
+    p.acces = acces || accesDe(isAdmin, null); // profil d'accès (shared/acces.js)
     p.sessionXp0 = p.xp || 0;      // pour .xpstat : XP au début de la session
     p.sessionT0 = Date.now();      // (.xpreset repart d'ici)
     for (const it of p.inventory) setNextIid(it.iid + 1);
@@ -1240,7 +1241,7 @@ export class Game {
         break;
       }
       case 'admin': {
-        if (!p.isAdmin && !(p.perms || []).length) return;
+        if (!p.isAdmin && !p.acces?.animer) return;
         this.adminCommand(p, msg);
         break;
       }
@@ -1440,17 +1441,28 @@ export class Game {
   // ---------- Commandes d'administration (en jeu) ----------
   // Un super admin (is_admin) a toutes les permissions ; sinon chaque commande
   // exige la permission correspondante (attribuée dans l'admin, onglet Comptes).
-  hasPerm(p, perm) { return !!p.isAdmin || (p.perms || []).includes(perm); }
-  permsOf(p) { return p.isAdmin ? [...C.ADMIN_PERMS] : (p.perms || []).filter(x => C.ADMIN_PERMS.includes(x)); }
+  // en jeu : « Entrer en jeu comme animateur » + l'édition du droit concerné
+  peutEnJeu(p, droit) { return !!p.isAdmin || (!!p.acces?.animer && niveau(p.acces, droit) >= EDITION); }
+  // permissions du panneau d'admin en jeu, dérivées du profil
+  permsOf(p) { return permsDe(p.isAdmin ? accesDe(true) : p.acces); }
+  // profil changé depuis la console : appliqué à chaud
+  majAcces(accountId, acces, isAdmin) {
+    for (const p of this.players.values()) {
+      if (p.accountId !== accountId) continue;
+      p.isAdmin = !!isAdmin; p.acces = acces;
+      this.send(p, { t: 'perms', perms: this.permsOf(p) });
+      this.send(p, { t: 'info', text: p.isAdmin ? '👑 Vous êtes désormais super admin.' : 'Vos droits d\u2019administration ont été mis à jour.' });
+    }
+  }
 
   adminCommand(p, msg) {
-    const PERM_BY_CMD = {
-      set: 'players', stats: 'players', goto: 'players', zone: 'players', learn: 'players',
-      spawn: 'spawn', give: 'spawn', announce: 'spawn', wave: 'spawn', smite: 'players',
-      tile: 'map', prop: 'map',
-      dialogues: 'quests',
+    const DROIT_PAR_CMD = {
+      set: 'joueurs', stats: 'joueurs', goto: 'joueurs', zone: 'joueurs', learn: 'joueurs',
+      spawn: 'invocation', give: 'invocation', announce: 'invocation', wave: 'invocation', smite: 'sanctions',
+      tile: 'zones', prop: 'zones',
+      dialogues: 'pnj',
     };
-    if (!this.hasPerm(p, PERM_BY_CMD[msg.cmd] || '__inconnu__')) return;
+    if (!this.peutEnJeu(p, DROIT_PAR_CMD[msg.cmd] || '__inconnu__')) return;
     switch (msg.cmd) {
       case 'set': {
         if (Number.isFinite(+msg.level)) {

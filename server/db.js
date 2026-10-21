@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_STATS } from '../shared/constants.js';
+import { accesDe, nettoyerProfil, profilDepuisPerms, PROFILS_INITIAUX } from '../shared/acces.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.T4C_DB || path.join(__dirname, '..', 'game.db');
@@ -38,6 +39,31 @@ CREATE TABLE IF NOT EXISTS deaths (
 `);
 try { db.exec('ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
 try { db.exec("ALTER TABLE accounts ADD COLUMN perms TEXT NOT NULL DEFAULT '[]'"); } catch { /* déjà présente */ }
+// Profils d'accès à la console (cf. shared/acces.js) : un compte non super
+// admin a au plus un profil ; sans profil, c'est un simple joueur.
+db.exec(`CREATE TABLE IF NOT EXISTS profils (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT UNIQUE NOT NULL COLLATE NOCASE,
+  data TEXT NOT NULL
+);`);
+try { db.exec('ALTER TABLE accounts ADD COLUMN profil_id INTEGER'); } catch { /* déjà présente */ }
+{
+  // base neuve : profils proposés par défaut
+  if (db.prepare('SELECT COUNT(*) AS n FROM profils').get().n === 0) {
+    for (const p of PROFILS_INITIAUX) creerProfil(p);
+  }
+  // migration : les anciennes permissions par compte deviennent un profil
+  // équivalent (un profil par combinaison), puis sont vidées
+  const anciens = db.prepare("SELECT id, perms FROM accounts WHERE profil_id IS NULL AND perms <> '[]'").all();
+  const parCombinaison = new Map();
+  for (const a of anciens) {
+    const perms = parsePerms(a.perms).sort();
+    if (!perms.length) continue;
+    const cle = perms.join(', ');
+    if (!parCombinaison.has(cle)) parCombinaison.set(cle, creerProfil({ nom: `Animateur (${cle})`, ...profilDepuisPerms(perms) }));
+    db.prepare("UPDATE accounts SET profil_id = ?, perms = '[]' WHERE id = ?").run(parCombinaison.get(cle), a.id);
+  }
+}
 // Auto-réparation : s'il existe des comptes mais aucun administrateur
 // (base créée avant la fonctionnalité admin), promeut le plus ancien.
 {
@@ -62,7 +88,7 @@ export function register(name, pass) {
   const isFirst = db.prepare('SELECT COUNT(*) AS n FROM accounts').get().n === 0;
   const info = db.prepare('INSERT INTO accounts (name, hash, salt, created_at, is_admin) VALUES (?, ?, ?, ?, ?)')
     .run(name, hashPassword(pass, salt), salt, Date.now(), isFirst ? 1 : 0);
-  return { accountId: info.lastInsertRowid, name, isAdmin: isFirst, perms: [] };
+  return { accountId: info.lastInsertRowid, name, isAdmin: isFirst, acces: accesDe(isFirst, null) };
 }
 
 export function login(name, pass) {
@@ -70,7 +96,7 @@ export function login(name, pass) {
   if (!acc) return { error: 'Compte inconnu' };
   const h = hashPassword(pass, acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(h), Buffer.from(acc.hash))) return { error: 'Mot de passe incorrect' };
-  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin, perms: parsePerms(acc.perms) };
+  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin, acces: getAcces(acc.id) };
 }
 
 export function deleteCharacter(accountId) {
@@ -96,20 +122,48 @@ function parsePerms(raw) {
   catch { return []; }
 }
 
-// permissions d'un compte (voir shared/constants.js ADMIN_PERMS)
-export function getPerms(accountId) {
-  const acc = db.prepare('SELECT is_admin, perms FROM accounts WHERE id = ?').get(accountId);
-  if (!acc) return { isAdmin: false, perms: [] };
-  return { isAdmin: !!acc.is_admin, perms: parsePerms(acc.perms) };
+// ---- profils d'accès ----
+function lireProfil(row) {
+  if (!row) return null;
+  let data = {};
+  try { data = JSON.parse(row.data) || {}; } catch { /* profil illisible : aucun droit */ }
+  return { id: row.id, ...nettoyerProfil({ ...data, nom: row.nom }) };
+}
+export function listProfils() {
+  return db.prepare('SELECT * FROM profils ORDER BY id').all().map(lireProfil);
+}
+export function getProfil(id) {
+  return lireProfil(db.prepare('SELECT * FROM profils WHERE id = ?').get(id));
+}
+// renvoie l'id ; nom déjà pris -> exception (contrainte UNIQUE)
+export function creerProfil(p) {
+  const { nom, ...data } = nettoyerProfil(p);
+  return Number(db.prepare('INSERT INTO profils (nom, data) VALUES (?, ?)').run(nom, JSON.stringify(data)).lastInsertRowid);
+}
+export function majProfil(id, p) {
+  const { nom, ...data } = nettoyerProfil(p);
+  db.prepare('UPDATE profils SET nom = ?, data = ? WHERE id = ?').run(nom, JSON.stringify(data), id);
+}
+export function supprimerProfil(id) {
+  db.prepare('DELETE FROM profils WHERE id = ?').run(id);
+}
+export function setProfil(accountId, profilId) {
+  db.prepare('UPDATE accounts SET profil_id = ? WHERE id = ?').run(profilId ?? null, accountId);
+}
+export function comptesDuProfil(profilId) {
+  return db.prepare('SELECT id FROM accounts WHERE profil_id = ? AND is_admin = 0').all(profilId).map(r => r.id);
 }
 
-export function setPerms(accountId, perms) {
-  db.prepare('UPDATE accounts SET perms = ? WHERE id = ?').run(JSON.stringify(perms), accountId);
+// accès effectif d'un compte (voir shared/acces.js)
+export function getAcces(accountId) {
+  const acc = db.prepare('SELECT is_admin, profil_id FROM accounts WHERE id = ?').get(accountId);
+  if (!acc) return accesDe(false, null);
+  return accesDe(!!acc.is_admin, acc.is_admin ? null : getProfil(acc.profil_id));
 }
 
 export function listAccounts() {
-  return db.prepare('SELECT id, name, is_admin, perms, created_at FROM accounts ORDER BY id').all()
-    .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, perms: parsePerms(a.perms), createdAt: a.created_at }));
+  return db.prepare('SELECT id, name, is_admin, profil_id, created_at FROM accounts ORDER BY id').all()
+    .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, profilId: a.is_admin ? null : a.profil_id ?? null, createdAt: a.created_at }));
 }
 
 // état du monde persistant (ex. prochaine venue d'un boss de zone)

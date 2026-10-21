@@ -211,3 +211,8 @@ body.cs-redim { cursor: col-resize; user-select: none; }
 .cs-ci-w { width: 260px; text-align: left; font-size: 12px; }
 .cs-ci.mod { color: #f0d49a; background: rgba(201, 164, 92, .1); }
 #console-main input[type=checkbox], #console-main input[type=radio], #console-main input[type=range] { accent-color: var(--color-amber-500); }
+
+/* écran en lecture seule (profil sans le niveau Édition) : les actions
+   d'écriture disparaissent ; le serveur les refuse de toute façon */
+body.cs-lecture #console-main .cs-primary,
+body.cs-lecture #console-main .cs-danger { display: none; }
