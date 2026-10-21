@@ -1,8 +1,8 @@
 <div class="flex flex-col h-full relative" @vue:mounted="init()">
   
   <!-- Barre de navigation du haut (Header) -->
-  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center absolute top-0 left-64 right-0 z-10">
-    <h1 class="text-lg font-bold tracking-wide text-amber-500 flex items-center gap-2">🧙 T4C Web - Éditeur de PNJ</h1>
+  <header class="bg-gray-900 border-b border-gray-800 px-6 py-3.5 flex justify-between items-center rounded-t-lg">
+    <span class="font-mono text-xs text-gray-400">content/npcs.json</span>
     <div class="flex items-center gap-4">
       <div class="text-xs text-green-400 font-semibold" v-if="message">{{ message }}</div>
       <button @click="saveFileToServer()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-3 rounded text-xs transition shadow flex items-center gap-1.5">
@@ -12,7 +12,7 @@
   </header>
 
   <!-- Contenu principal -->
-  <main class="flex-1 flex overflow-hidden pt-14">
+  <main class="flex-1 flex overflow-hidden">
     
     <!-- Liste des PNJ (Sidebar gauche) -->
     <aside class="w-72 bg-gray-950 border-r border-gray-800 flex flex-col overflow-y-auto">

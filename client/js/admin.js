@@ -4,7 +4,8 @@
 import { initMapEditor } from './admin/editor.js';
 import { ITEMS, MOBS } from '../shared/defs.js';
 import { GuiManagerAdmin } from './admin/gui-manager-admin.js';
-import { SidebarController } from './admin/components/sidebar/sidebar.js';
+import { ConsoleController } from './admin/components/console/console.js';
+import { PageController } from './admin/components/page/page.js';
 import { ContentController } from './admin/components/content/content.js';
 import { SpellsEditorController } from './admin/components/spells-editor/spells-editor.js';
 import { NpcsEditorController } from './admin/components/npcs-editor/npcs-editor.js';
@@ -14,6 +15,7 @@ import { SkinsController } from './admin/components/skins/skins.js';
 import { MaterialsController } from './admin/components/materials/materials.js';
 import { Atelier3DController } from './admin/components/atelier3d/atelier3d.js';
 import { CharactersController } from './admin/components/characters/characters.js';
+import { AccessController } from './admin/components/access/access.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
 
@@ -61,10 +63,11 @@ let zonesDef = [];
 async function enter(name) {
   console.log("admin.js: enter() triggered for user:", name);
   $('login-box').style.display = 'none';
-  $('panel').style.display = 'flex';
+  $('panel').style.display = 'grid';
 
   console.log("admin.js: Registering controllers...");
-  guiManagerAdmin.registerController('sidebar', SidebarController);
+  guiManagerAdmin.registerController('console', ConsoleController);
+  guiManagerAdmin.registerController('page', PageController);
   guiManagerAdmin.registerController('content', ContentController);
   guiManagerAdmin.registerController('spells-editor', SpellsEditorController);
   guiManagerAdmin.registerController('npcs-editor', NpcsEditorController);
@@ -74,12 +77,14 @@ async function enter(name) {
   guiManagerAdmin.registerController('materials', MaterialsController);
   guiManagerAdmin.registerController('atelier3d', Atelier3DController);
   guiManagerAdmin.registerController('characters', CharactersController);
+  guiManagerAdmin.registerController('access', AccessController);
   guiManagerAdmin.registerController('pantheon', PantheonController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
 
   console.log("admin.js: Initializing components...");
   await guiManagerAdmin.init([
-    { name: 'sidebar', selector: '#sidebar' },
+    { name: 'console', selector: '#console-shell' },
+    { name: 'page', selector: '#page' },
     { name: 'map-editor', selector: '#tab-map' },
     { name: 'content', selector: '#tab-content' },
     { name: 'spells-editor', selector: '#tab-spells-editor' },
@@ -90,14 +95,10 @@ async function enter(name) {
     { name: 'materials', selector: '#tab-materials' },
     { name: 'atelier3d', selector: '#tab-atelier3d' },
     { name: 'characters', selector: '#tab-chars' },
+    { name: 'access', selector: '#tab-access' },
     { name: 'pantheon', selector: '#tab-pantheon' }
   ]);
   console.log("admin.js: Components initialization complete.");
-
-  const whoElement = document.querySelector('#who');
-  if (whoElement) {
-    whoElement.textContent = name ? `connecté : ${name}` : '';
-  }
 }
 
 
@@ -105,7 +106,7 @@ async function enter(name) {
 
 
 // ---------- Déconnexion ----------
-// Le bouton vit dans le composant sidebar, monté après coup : délégation au
+// Le bouton vit dans la coque (composant console), monté après coup : délégation au
 // document. Invalidation serveur en meilleur effort, purge locale TOUJOURS,
 // puis rechargement -> retour à l'écran de connexion.
 document.addEventListener('click', async (e) => {

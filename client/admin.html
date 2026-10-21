@@ -10,9 +10,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
   <style>
-    .menu-item.active {
-      background-color: #5a4a2a; /* t4c-button-active */
-    }
     /* onglet actif du panneau droit de l'editeur de cartes */
     #map-side-tabs button.active {
       background-color: #5a4a2a; /* t4c-button-active */
@@ -23,6 +20,7 @@
     }
     .tab-content.visible {
         display: block;
+        flex: 1 0 auto;
     }
     #music-table th, #music-table td, #chars-table th, #chars-table td, #pantheon-table th, #pantheon-table td, #skin-items-table th, #skin-items-table td, #skin-mobs-table th, #skin-mobs-table td {
         padding: 0.75rem;
@@ -112,11 +110,11 @@
     <p id="adm-error" class="text-red-400 mt-4 text-center min-h-[1.5em]"></p>
   </div>
 
-  <div id="panel" style="display:none" class="h-screen flex">
-    <aside id="sidebar" class="w-64 bg-t4c-box-bg p-4 border-r-2 border-t4c-border flex flex-col justify-between">
-        <!-- sidebar component will be loaded here -->
-    </aside>
-    <main class="flex-1 p-6 overflow-y-auto">
+  <div id="panel" style="display:none" class="console">
+    <!-- coque : en-tête + navigation + palette Ctrl K (display: contents) -->
+    <div id="console-shell" style="display: contents"></div>
+    <main id="console-main">
+      <div id="page"></div>
       <div id="tab-map" class="tab-content"></div>
       <div id="tab-content" class="tab-content"></div>
       <div id="tab-spells-editor" class="tab-content"></div>
@@ -127,6 +125,7 @@
       <div id="tab-materials" class="tab-content"></div>
       <div id="tab-atelier3d" class="tab-content"></div>
       <div id="tab-chars" class="tab-content"></div>
+      <div id="tab-access" class="tab-content"></div>
       <div id="tab-pantheon" class="tab-content"></div>
     </main>
   </div>
