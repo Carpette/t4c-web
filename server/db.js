@@ -47,6 +47,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS profils (
   data TEXT NOT NULL
 );`);
 try { db.exec('ALTER TABLE accounts ADD COLUMN profil_id INTEGER'); } catch { /* déjà présente */ }
+// sanctions : silence jusqu'à une date (ms), bannissement (connexion refusée)
+try { db.exec('ALTER TABLE accounts ADD COLUMN muet_jusqua INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
+try { db.exec('ALTER TABLE accounts ADD COLUMN banni INTEGER NOT NULL DEFAULT 0'); } catch { /* déjà présente */ }
 {
   // base neuve : profils proposés par défaut
   if (db.prepare('SELECT COUNT(*) AS n FROM profils').get().n === 0) {
@@ -96,7 +99,8 @@ export function login(name, pass) {
   if (!acc) return { error: 'Compte inconnu' };
   const h = hashPassword(pass, acc.salt);
   if (!crypto.timingSafeEqual(Buffer.from(h), Buffer.from(acc.hash))) return { error: 'Mot de passe incorrect' };
-  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin, acces: getAcces(acc.id) };
+  if (acc.banni) return { error: 'Ce compte est banni.' };
+  return { accountId: acc.id, name: acc.name, isAdmin: !!acc.is_admin, acces: getAcces(acc.id), muetJusqua: acc.muet_jusqua || 0 };
 }
 
 export function deleteCharacter(accountId) {
@@ -162,8 +166,17 @@ export function getAcces(accountId) {
 }
 
 export function listAccounts() {
-  return db.prepare('SELECT id, name, is_admin, profil_id, created_at FROM accounts ORDER BY id').all()
-    .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, profilId: a.is_admin ? null : a.profil_id ?? null, createdAt: a.created_at }));
+  return db.prepare('SELECT id, name, is_admin, profil_id, created_at, banni, muet_jusqua FROM accounts ORDER BY id').all()
+    .map(a => ({ id: a.id, name: a.name, isAdmin: !!a.is_admin, profilId: a.is_admin ? null : a.profil_id ?? null, createdAt: a.created_at,
+      banni: !!a.banni, muetJusqua: a.muet_jusqua || 0 }));
+}
+
+// ---- sanctions ----
+export function setMuet(accountId, jusqua) {
+  db.prepare('UPDATE accounts SET muet_jusqua = ? WHERE id = ?').run(Math.max(0, Math.round(jusqua)), accountId);
+}
+export function setBanni(accountId, banni) {
+  db.prepare('UPDATE accounts SET banni = ? WHERE id = ?').run(banni ? 1 : 0, accountId);
 }
 
 // état du monde persistant (ex. prochaine venue d'un boss de zone)

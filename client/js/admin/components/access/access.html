@@ -1,7 +1,7 @@
 <div class="flex flex-col gap-4" @vue:mounted="init()">
     <div role="tablist" aria-label="Accès et rôles" class="cs-segs self-start">
         <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'profils' }" :aria-selected="onglet === 'profils'" @click="onglet = 'profils'">Profils</button>
-        <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'comptes' }" :aria-selected="onglet === 'comptes'" @click="onglet = 'comptes'">Comptes · {{ comptes.length }}</button>
+        <button type="button" role="tab" class="cs-seg" :class="{ on: onglet === 'comptes' }" :aria-selected="onglet === 'comptes'" @click="voirComptes()">Comptes · {{ comptes.length }}</button>
     </div>
     <p :class="erreur ? 'text-red-400' : 'text-green-400'" v-if="message" role="status">{{ message }}</p>
 
@@ -60,7 +60,7 @@
         <div class="p-3.5 border-b border-gray-800"><label for="ac-q" class="sr-only">Filtrer les comptes</label>
             <input id="ac-q" class="cs-input max-w-[320px]" v-model="q" placeholder="Filtrer les comptes" /></div>
         <table class="w-full text-left">
-            <thead class="text-xs text-gray-500"><tr><th class="px-4 py-2 font-medium">Compte</th><th class="px-2 py-2 font-medium">Profil</th><th class="px-4 py-2 font-medium">Créé le</th></tr></thead>
+            <thead class="text-xs text-gray-500"><tr><th class="px-4 py-2 font-medium">Compte</th><th class="px-2 py-2 font-medium">Profil</th><th class="px-2 py-2 font-medium">Sanctions</th><th class="px-4 py-2 font-medium">Créé le</th></tr></thead>
             <tbody>
                 <tr v-for="c in comptesFiltres" class="border-t border-gray-800">
                     <td class="px-4 py-2">{{ c.name }}<span class="text-gray-500" v-if="c.id === moiId"> · vous</span><span class="text-gray-500" v-if="c.id === 1"> · fondateur</span></td>
@@ -70,6 +70,11 @@
                             <option v-for="p in profils" :value="p.id">{{ p.nom }}</option>
                             <option value="super" :disabled="!superAdmin">Super admin</option>
                         </select></td>
+                    <td class="px-2 py-2"><div class="flex gap-2 items-center">
+                        <span class="cs-chip text-red-400" v-if="c.banni">banni</span>
+                        <button type="button" class="cs-lien text-[13px]" v-if="c.banni && peutSanctionner" @click="debannir(c)">Lever</button>
+                        <span class="cs-chip text-amber-400" v-if="c.muetJusqua > Date.now()" :title="'Jusqu’à ' + new Date(c.muetJusqua).toLocaleString('fr-FR')">muet</span>
+                        <span class="text-gray-600" v-if="!c.banni && !(c.muetJusqua > Date.now())">—</span></div></td>
                     <td class="px-4 py-2 text-gray-500">{{ date(c.createdAt) }}</td>
                 </tr>
             </tbody>

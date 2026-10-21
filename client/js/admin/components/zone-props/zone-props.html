@@ -2,7 +2,7 @@
     <div class="cs-panel flex items-center gap-3 flex-wrap px-4 py-2.5">
         <label for="zp-zone" class="text-gray-400">Zone</label>
         <select id="zp-zone" class="cs-input w-[300px]" :value="courant" @change="ouvrir($event.target.value)">
-            <option v-for="z in zones" :value="z.id">{{ etiquette(z) }}</option></select>
+            <option v-for="z in zones" :value="z.id" :selected="z.id === courant">{{ etiquette(z) }}</option></select>
         <span class="text-gray-500">Appliqué au redémarrage du serveur.</span>
     </div>
 

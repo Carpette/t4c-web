@@ -45,6 +45,7 @@ const NPC_EDITABLE_FIELDS = ['name', 'look', 'role', 'greetings', 'sells', 'teac
 
 export class Game {
   constructor() {
+    this.journal = []; // cf. journaliser
     this.zones = new Map();      // key -> ZoneInstance
     this.players = new Map();    // id -> joueur
     this.nextId = 1;
@@ -398,7 +399,7 @@ export class Game {
   }
 
   // ---------- Joueurs ----------
-  addPlayer(ws, accountId, name, isAdmin, acces = null) {
+  addPlayer(ws, accountId, name, isAdmin, acces = null, muetJusqua = 0) {
     if (this.shuttingDown) return { error: 'Le serveur est en cours d\'arrêt, réessayez dans un instant.' };
     if (this.players.size >= C.MAX_PLAYERS) return { error: 'Serveur plein (256 joueurs max)' };
     for (const p of this.players.values()) {
@@ -411,6 +412,7 @@ export class Game {
     }
     const p = new Player(this.nextId++, ws, accountId, isAdmin, data);
     p.acces = acces || accesDe(isAdmin, null); // profil d'accès (shared/acces.js)
+    p.muetJusqua = muetJusqua || 0;             // sanction : silence jusqu'à cette date
     p.sessionXp0 = p.xp || 0;      // pour .xpstat : XP au début de la session
     p.sessionT0 = Date.now();      // (.xpreset repart d'ici)
     for (const it of p.inventory) setNextIid(it.iid + 1);
@@ -931,7 +933,14 @@ export class Game {
   }
 
   send(p, obj) { if (p.ws.readyState === 1) p.ws.send(JSON.stringify(obj)); }
+  // journal des événements du serveur (console, Carte du monde) : les
+  // annonces système diffusées + les actions des MJ ; en mémoire, borné
+  journaliser(texte, type = 'sys') {
+    this.journal.push({ t: Date.now(), type, texte });
+    if (this.journal.length > 300) this.journal.splice(0, this.journal.length - 300);
+  }
   broadcastChat(from, text) {
+    if (from === 'sys') this.journaliser(text);
     const msg = JSON.stringify({ t: 'chat', from, text });
     for (const p of this.players.values()) if (p.ws.readyState === 1) p.ws.send(msg);
   }
@@ -1151,6 +1160,11 @@ export class Game {
           return;
         }
         p.lastChat = now;
+        if (p.muetJusqua > now) {
+          const min = Math.ceil((p.muetJusqua - now) / 60000);
+          this.send(p, { t: 'info', text: `Vous êtes réduit au silence encore ${min} min.` });
+          return;
+        }
 
         // Vérifier si c'est un message de canal public (ex: /general message)
         const channelMatch = rawText.match(/^\/(\w+)\s+(.+)$/);
