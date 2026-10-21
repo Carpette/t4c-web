@@ -23,6 +23,7 @@ import { CreaturesController } from './admin/components/creatures/creatures.js';
 import { ObjetsController } from './admin/components/objets/objets.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
+import { ZonePropsController } from './admin/components/zone-props/zone-props.js';
 
 const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem('t4c_admin_token') || null;
@@ -89,12 +90,14 @@ async function enter(name) {
   guiManagerAdmin.registerController('creatures', CreaturesController);
   guiManagerAdmin.registerController('objets', ObjetsController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
+  guiManagerAdmin.registerController('zone-props', ZonePropsController);
 
   console.log("admin.js: Initializing components...");
   await guiManagerAdmin.init([
     { name: 'console', selector: '#console-shell' },
     { name: 'page', selector: '#page' },
     { name: 'map-editor', selector: '#tab-map' },
+    { name: 'zone-props', selector: '#tab-zone-props' },
     { name: 'content', selector: '#tab-content' },
     { name: 'spells-editor', selector: '#tab-spells-editor' },
     { name: 'spells-table', selector: '#tab-spells-table' },

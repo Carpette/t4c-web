@@ -41,7 +41,8 @@ export const ECRANS = [
   { id: 'acces', espace: 'monde', section: 'Administration', nom: 'Accès et rôles', icone: 'acces', tab: 'access', droits: ['acces'],
     desc: 'Qui administre le serveur, et avec quelles permissions. Appliqué à chaud si le compte est connecté.' },
 
-  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', tab: 'map', droits: ['zones', 'pnj_placement', 'zones_musicales'],
+  { id: 'zones', espace: 'forge', section: 'Monde', nom: 'Zones et terrain', icone: 'zones', droits: ['zones', 'pnj_placement', 'zones_musicales'],
+    sous: [{ tab: 'map', nom: 'Terrain' }, { tab: 'zone-props', nom: 'Propriétés et créatures' }],
     desc: 'Le terrain, les décors, les camps et les lumières de chaque zone.' },
   { id: 'pnj', espace: 'forge', section: 'Habitants', nom: 'PNJ', icone: 'pnj', tab: 'npcs-editor', droits: ['pnj'],
     desc: 'Les personnages non joueurs, leurs mots-clés et leurs dialogues de quête.' },
