@@ -1,6 +1,6 @@
 <div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
     <!-- liste -->
-    <section aria-label="Liste des objets" class="flex flex-col bg-gray-950" :class="vue === 'tableau' ? 'flex-[1_1_100%]' : 'flex-[1_1_260px] max-w-[300px] border-r border-gray-800'">
+    <section aria-label="Liste des objets" :data-col="vue === 'fiche' ? 'objets-liste' : null" data-bord="droite" class="flex flex-col bg-gray-950" :class="vue === 'tableau' ? 'flex-[1_1_100%]' : 'flex-[1_1_260px] max-w-[300px] border-r border-gray-800'">
         <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
             <div class="flex items-center gap-2">
                 <span class="text-[15px] font-semibold">Objets</span>
@@ -54,7 +54,7 @@
     </section>
 
     <!-- fiche -->
-    <section aria-label="Édition de l’objet" class="flex-[999_1_480px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche && vue === 'fiche'">
+    <section aria-label="Édition de l’objet" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche && vue === 'fiche'">
         <div class="flex items-center gap-3 flex-wrap">
             <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
             <span class="cs-chip" v-if="etatCourant">{{ etatCourant }}</span>
@@ -152,7 +152,7 @@
     </section>
 
     <!-- contexte -->
-    <aside aria-label="Contexte" class="flex-[1_1_260px] max-w-[300px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && vue === 'fiche'">
+    <aside aria-label="Contexte" data-col="objets-contexte" data-bord="gauche" class="flex-[1_1_260px] max-w-[300px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && vue === 'fiche'">
         <div class="flex flex-col gap-2 items-start">
             <span class="cs-sect p-0">Icône</span>
             <div class="w-24 h-24 rounded-lg bg-[#0b0c0f] border border-gray-800 grid place-items-center">

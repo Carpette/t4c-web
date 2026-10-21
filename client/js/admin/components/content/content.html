@@ -1,5 +1,5 @@
 <div class="cs-panel flex flex-wrap min-h-[560px] overflow-hidden" @vue:mounted="init()">
-    <nav aria-label="Fichiers" class="flex-[1_1_200px] max-w-[240px] border-r border-gray-800 bg-gray-950 flex flex-col pt-2">
+    <nav aria-label="Fichiers" data-col="fichiers-liste" data-bord="droite" class="flex-[1_1_200px] max-w-[240px] border-r border-gray-800 bg-gray-950 flex flex-col pt-2">
         <div class="cs-sect px-3.5">Données du jeu</div>
         <button v-for="f in fichiers" type="button" class="cs-file" :class="{ on: f.id === courant }"
             :aria-current="f.id === courant ? 'true' : null" @click="ouvrir(f.id)">

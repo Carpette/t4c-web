@@ -5,6 +5,7 @@ import { initMapEditor } from './admin/editor.js';
 import { ITEMS, MOBS } from '../shared/defs.js';
 import { GuiManagerAdmin } from './admin/gui-manager-admin.js';
 import { chargerSurcharges } from './surcharges.js';
+import { activerColonnes } from './admin/colonnes.js';
 import { ConsoleController } from './admin/components/console/console.js';
 import { PageController } from './admin/components/page/page.js';
 import { ContentController } from './admin/components/content/content.js';
@@ -109,6 +110,7 @@ async function enter(name) {
     { name: 'creatures', selector: '#tab-creatures' },
     { name: 'objets', selector: '#tab-objets' }
   ]);
+  activerColonnes(); // colonnes redimensionnables, largeurs mémorisées dans le navigateur
   console.log("admin.js: Components initialization complete.");
 }
 

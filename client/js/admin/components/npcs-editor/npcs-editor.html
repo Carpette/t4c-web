@@ -1,6 +1,6 @@
 <div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
     <!-- liste -->
-    <section aria-label="Liste des PNJ" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
+    <section aria-label="Liste des PNJ" data-col="pnj-liste" data-bord="droite" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
         <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
             <div class="flex items-center gap-2">
                 <span class="text-[15px] font-semibold">PNJ</span>
@@ -21,7 +21,7 @@
     </section>
 
     <!-- fiche -->
-    <section aria-label="Édition du PNJ" class="flex-[999_1_480px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
+    <section aria-label="Édition du PNJ" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
         <div class="flex items-center gap-4 flex-wrap">
             <canvas id="pnj-portrait" width="56" height="56" class="rounded-lg bg-[#1b1d22] border border-gray-800 flex-none"></canvas>
             <div class="flex-1 min-w-[200px]">
@@ -212,7 +212,7 @@
     </section>
 
     <!-- contexte -->
-    <aside aria-label="Contexte" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+    <aside aria-label="Contexte" data-col="pnj-contexte" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
         <div class="flex flex-col gap-2">
             <span class="cs-sect p-0">Dans le monde</span>
             <div class="cs-panel p-3 flex flex-col gap-2">
