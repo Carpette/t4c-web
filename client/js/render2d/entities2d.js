@@ -14,7 +14,7 @@ const BUBBLE_FONT = '13px "Trebuchet MS", sans-serif';
 // luminosité, masque alpha d'origine), puis on met le résultat en cache —
 // aucun filtre par frame au rendu.
 const TINT_CACHE = new Map(); // `${sprite}|${tint}` -> canvas
-function tintedSheet(image, sprite, tint) {
+export function tintedSheet(image, sprite, tint) {
   if (!tint) return image;
   const key = `${sprite}|${tint}`;
   let sheet = TINT_CACHE.get(key);

@@ -87,6 +87,19 @@
 .cs-nav-pub.on { border-color: #5a4a2a; color: #f0d49a; }
 .cs-count { margin-left: auto; font-size: 12px; color: var(--color-gray-500); font-weight: 400; }
 
+/* Forge : liste à gauche, fiche en cartes (Créatures, Objets) */
+.cs-sect.p-0 { padding: 0; }
+.cs-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 14px; border: 0;
+  border-left: 2px solid transparent; background: transparent; color: var(--color-gray-200); font-size: 13px; cursor: pointer; }
+.cs-item:hover { background: var(--color-t4c-button); }
+.cs-item.on { background: #1d2025; border-left-color: var(--color-amber-500); color: var(--color-t4c-text-light); }
+.cs-item img { width: 24px; height: 24px; flex: none; image-rendering: pixelated; }
+.cs-mod { width: 6px; height: 6px; border-radius: 3px; background: var(--color-amber-500); flex: none; }
+.cs-card { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border: 1px solid var(--color-t4c-border);
+  border-radius: 10px; background: var(--color-gray-900); }
+.cs-card h3 { font-size: 13px; font-weight: 600; color: var(--color-t4c-text-light); }
+.cs-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
 .cs-panel { background: var(--color-gray-900); border: 1px solid var(--color-t4c-border); border-radius: 10px; }
 .cs-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; background: #23262c;
   color: var(--color-gray-200); font-size: 12px; white-space: nowrap; }

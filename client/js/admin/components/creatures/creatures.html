@@ -1,0 +1,155 @@
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+    <!-- liste -->
+    <section aria-label="Liste des créatures" class="bg-gray-950 flex flex-col" :class="vue === 'tableau' ? 'flex-[1_1_100%]' : 'flex-[1_1_260px] max-w-[300px] border-r border-gray-800'">
+        <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+                <span class="text-[15px] font-semibold">Créatures</span>
+                <span class="text-gray-500">{{ liste.length }}</span>
+                <div class="flex-1"></div>
+                <div class="cs-segs" role="group" aria-label="Vue">
+                    <button type="button" class="cs-seg" :class="{ on: vue === 'fiche' }" @click="vue = 'fiche'; apercu()">Fiche</button>
+                    <button type="button" class="cs-seg" :class="{ on: vue === 'tableau' }" @click="vue = 'tableau'">Tableau</button>
+                </div>
+                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouvelle créature" title="Nouvelle créature (copie de la fiche ouverte)" @click="vue = 'fiche'; dupliquer(); apercu()" :disabled="!fiche">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg>
+                </button>
+            </div>
+            <label for="cr-q" class="sr-only">Filtrer les créatures</label>
+            <input id="cr-q" class="cs-input" v-model="q" placeholder="Filtrer les créatures" />
+        </div>
+        <div class="overflow-auto max-h-[75vh]" v-if="vue === 'tableau'">
+            <table class="cs-table">
+                <thead><tr>
+                    <th v-for="c in [['name','Nom'],['level','Niveau'],['hp','PV'],['dmg','Dégâts'],['def','Défense'],['speed','Course'],['atkSpeed','Délai att.'],['aggro','Détection'],['xp','XP'],['butin','Butin']]"
+                        class="cursor-pointer select-none" :class="{ 'text-right': c[0] !== 'name' }" @click="trier(c[0])">{{ c[1] }}{{ tri === c[0] ? (sens > 0 ? ' ▲' : ' ▼') : '' }}</th>
+                </tr></thead>
+                <tbody>
+                    <tr v-for="c in visibles" class="cliquable" @click="ouvrir(c.id)">
+                        <td>{{ c.name }} <span class="font-mono text-[11px] text-gray-500">{{ c.id }}</span> <span class="cs-mod inline-block" v-if="c.etat" :title="c.etat"></span></td>
+                        <td class="text-right font-mono" v-for="k in ['level','hp','dmg','def','speed','atkSpeed','aggro','xp','butin']">{{ c[k] }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex-1 overflow-y-auto max-h-[70vh]" v-else>
+            <button v-for="c in visibles" type="button" class="cs-item" :class="{ on: c.id === courant }" @click="ouvrir(c.id)">
+                <span class="cs-mod" :class="{ invisible: !c.etat }" :title="c.etat"></span>
+                <span class="flex-1 min-w-0 text-left"><span class="block truncate">{{ c.name }}</span><span class="font-mono text-[11px] text-gray-500">{{ c.id }}</span></span>
+                <span class="cs-hint">niv. {{ c.level }}</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- fiche -->
+    <section aria-label="Édition de la créature" class="flex-[999_1_480px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche && vue === 'fiche'">
+        <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
+            <span class="font-mono text-gray-500" v-if="!nouveau">{{ courant }}</span>
+            <span class="cs-chip" v-if="etatCourant">{{ etatCourant }}</span>
+            <div class="flex-1"></div>
+            <button type="button" class="cs-btn" @click="dupliquer()">Dupliquer</button>
+            <button type="button" class="cs-btn" v-if="etatCourant === 'Modifiée'" @click="retablir()">Rétablir l’origine</button>
+            <button type="button" class="cs-btn cs-danger" v-if="etatCourant === 'Créée' || nouveau" @click="supprimer()">Supprimer</button>
+        </div>
+
+        <div class="cs-card">
+            <h3>Identité et caractéristiques</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-3">
+                <div class="cs-field" v-if="nouveau"><label class="cs-label" for="cr-id">Identifiant</label><input id="cr-id" class="cs-input font-mono" v-model="nouvelId" /></div>
+                <div class="cs-field col-span-2"><label class="cs-label" for="cr-name">Nom affiché</label><input id="cr-name" class="cs-input" v-model="fiche.name" /></div>
+                <div class="cs-field" v-for="c in CHAMPS.carac"><label class="cs-label" :for="'cr-' + c[0]">{{ c[1] }}</label>
+                    <input :id="'cr-' + c[0]" class="cs-input font-mono" type="number" :step="c[2]" :value="fiche[c[0]]" @change="nombre(c[0], $event.target.value)" /></div>
+                <div class="cs-field"><span class="cs-label">Expérience donnée</span><span class="font-mono h-8 flex items-center text-gray-300" title="Calculée depuis le niveau (mobXpReward), pour un joueur du même niveau">{{ xp }}</span></div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <h3>Comportement</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                <div class="cs-field" v-for="c in CHAMPS.comportement"><label class="cs-label" :for="'cr-' + c[0]">{{ c[1] }}</label>
+                    <input :id="'cr-' + c[0]" class="cs-input font-mono" type="number" :step="c[2]" :value="fiche[c[0]]" @change="nombre(c[0], $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="cr-el">Élément de l’attaque</label>
+                    <select id="cr-el" class="cs-input" :value="fiche.element || ''" @change="fiche.element = $event.target.value || null">
+                        <option value="">Aucun (physique)</option>
+                        <option v-for="e in ELEMENTS" :value="e[0]">{{ e[1] }}</option>
+                    </select></div>
+                <label class="flex items-center gap-2 text-gray-200 self-end h-8"><input type="checkbox" :checked="!!fiche.undead" @change="fiche.undead = $event.target.checked || null" />Mort-vivant</label>
+            </div>
+            <div class="flex flex-col gap-1.5">
+                <span class="cs-label">Résistances (%) : positif = résiste, négatif = vulnérable</span>
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2">
+                    <label v-for="e in ELEMENTS" class="flex flex-col gap-1 text-xs text-gray-500">{{ e[1] }}
+                        <input class="cs-input font-mono" type="number" step="5" :value="resist(e[0])" @change="fixerResist(e[0], $event.target.value)" /></label>
+                </div>
+            </div>
+        </div>
+
+        <div class="cs-card">
+            <div class="flex items-center gap-2"><h3 class="flex-1">Butin</h3>
+                <button type="button" class="cs-btn" @click="fiche.drops.push(['or', 0.5, 1, 1])">Ajouter un objet</button></div>
+            <table class="cs-table" v-if="fiche.drops.length">
+                <thead><tr><th>Objet</th><th class="text-right">Chance (%)</th><th class="text-right">Quantité min</th><th class="text-right">max</th><th></th></tr></thead>
+                <tbody>
+                    <tr v-for="(d, i) in fiche.drops">
+                        <td><select class="cs-input max-w-[280px]" :value="d[0]" @change="d[0] = $event.target.value" :aria-label="'Objet ' + (i + 1)">
+                            <option v-for="o in objets" :value="o.id">{{ o.name }}</option></select></td>
+                        <td class="text-right"><input class="cs-ci" type="number" step="0.5" min="0" max="100" :value="+(d[1] * 100).toFixed(2)" @change="d[1] = Math.min(1, Math.max(0, +$event.target.value / 100))" :aria-label="'Chance ' + (i + 1)" /></td>
+                        <td class="text-right"><input class="cs-ci" type="number" min="1" :value="d[2]" @change="d[2] = Math.max(1, +$event.target.value | 0)" :aria-label="'Minimum ' + (i + 1)" /></td>
+                        <td class="text-right"><input class="cs-ci" type="number" min="1" :value="d[3]" @change="d[3] = Math.max(1, +$event.target.value | 0)" :aria-label="'Maximum ' + (i + 1)" /></td>
+                        <td class="text-right"><button type="button" class="cs-btn cs-ghost cs-icon" :aria-label="'Retirer la ligne ' + (i + 1)" @click="fiche.drops.splice(i, 1)">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"></path></svg></button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="text-gray-500" v-else>Aucun butin.</p>
+        </div>
+
+        <div class="cs-card">
+            <h3>Apparence</h3>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="cr-spr">Planche</label>
+                    <select id="cr-spr" class="cs-input font-mono" v-model="fiche.sprite" @change="apercu()">
+                        <option v-for="s in sprites" :value="s">{{ s }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="cr-sc">Échelle</label>
+                    <input id="cr-sc" class="cs-input font-mono" type="number" step="0.05" min="0.2" :value="fiche.spriteScale" placeholder="1" @change="nombre('spriteScale', $event.target.value); apercu()" /></div>
+                <div class="cs-field"><label class="cs-label" for="cr-tint">Teinte</label>
+                    <div class="flex gap-2 items-center">
+                        <input id="cr-tint" type="color" class="h-8 w-12 bg-transparent border border-gray-700 rounded" :value="fiche.tint || '#808080'" @change="fiche.tint = $event.target.value; apercu()" />
+                        <button type="button" class="cs-btn h-8" @click="fiche.tint = null; apercu()" :disabled="!fiche.tint">Aucune</button>
+                    </div></div>
+            </div>
+            <p class="text-xs text-gray-500" v-if="skin">Une planche de l’Atelier est assignée à cette créature (« {{ skin }} ») : elle remplace la planche, l’échelle et la teinte ci-dessus.</p>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap sticky bottom-0 bg-gray-900 py-3 border-t border-gray-800">
+            <span :class="erreur ? 'text-red-400' : 'text-green-400'" class="flex-1 min-w-[200px]">{{ message }}</span>
+            <button type="button" class="cs-btn" @click="ouvrir(courant)" :disabled="!sale || nouveau">Annuler</button>
+            <button type="button" class="cs-btn cs-primary" @click="enregistrer()" :disabled="!sale && !nouveau">Enregistrer</button>
+        </div>
+    </section>
+
+    <!-- aperçu et contexte -->
+    <aside aria-label="Aperçu et contexte" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && vue === 'fiche'">
+        <div class="flex flex-col gap-2">
+            <span class="cs-sect p-0">Aperçu</span>
+            <canvas id="cr-apercu" width="280" height="240" class="rounded-lg bg-[#0b0c0f] border border-gray-800 w-full"></canvas>
+        </div>
+        <div class="flex flex-col gap-2" v-if="comparaison.n">
+            <span class="cs-sect p-0">Face aux créatures de niveau {{ comparaison.de }} à {{ comparaison.a }}</span>
+            <div class="cs-panel p-3 flex flex-col gap-2.5">
+                <div v-for="l in comparaison.lignes" class="flex items-center gap-2.5">
+                    <span class="w-[86px] text-gray-300">{{ l.nom }}</span>
+                    <div class="flex-1 h-1.5 rounded bg-gray-800 relative"><div class="absolute top-0 h-1.5 rounded" :class="l.ecart >= 0 ? 'bg-amber-500 left-1/2' : 'bg-[#7fa8d6] right-1/2'" :style="{ width: Math.min(50, Math.abs(l.ecart) / 2) + '%' }"></div></div>
+                    <span class="font-mono w-14 text-right">{{ l.ecart > 0 ? '+' : '' }}{{ l.ecart }} %</span>
+                </div>
+                <span class="text-xs text-gray-500">Moyenne de {{ comparaison.n }} créature{{ comparaison.n > 1 ? 's' : '' }}.</span>
+            </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Dans le monde</span>
+            <a v-for="z in zonesDe" class="flex justify-between" :href="'#zones'"><span>{{ z.name }}</span><span class="text-gray-500">zone {{ z.id }}</span></a>
+            <span class="text-gray-500" v-if="!zonesDe.length">Dans aucune liste de zone (camps posés sur la carte non comptés).</span>
+            <a class="flex justify-between" href="#pantheon" v-if="victimes !== null"><span>Panthéon</span><span class="text-gray-500">{{ victimes }} joueur{{ victimes > 1 ? 's' : '' }} tué{{ victimes > 1 ? 's' : '' }}</span></a>
+        </div>
+    </aside>
+</div>
