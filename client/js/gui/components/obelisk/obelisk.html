@@ -1,17 +1,17 @@
-<²div v-if="obelisk">
+<div v-if="obelisk">
   <h2>Obélisque des voyages</h2>
   <div id="obelisk-list">
     <!-- Voyages locaux -->
-    <template v-if="obelisk.local && obelisk.local.length">
+    <div v-if="obelisk.local && obelisk.local.length">
       <h3 class="bank-section">Voyages locaux ({{ obelisk.cost }} or)</h3>
       <button v-for="o in obelisk.local"
               :disabled="broke"
-              :title="broke ? 'Il vous faut ' + obelisk.cost + ' pièces d'or.' : ''"
+              :title="broke ? 'Il vous faut ' + obelisk.cost + ' pièces d’or.' : ''"
               @click="teleportLocal(o.i)">
         {{ o.name }} — {{ obelisk.cost }} or
       </button>
       <h3 class="bank-section">Autres zones</h3>
-    </template>
+    </div>
     
     <!-- Autres zones -->
     <button v-for="z in obelisk.zones"

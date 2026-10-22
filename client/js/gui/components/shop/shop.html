@@ -9,7 +9,7 @@
   </div>
   <div id="shop-list">
     <!-- Onglet Objets -->
-    <template v-if="state.shopTab === 'items'">
+    <div v-if="state.shopTab === 'items'">
       <div v-for="it in shop.items" class="shop-row">
         <span>
           <span v-html="getItemIconHtml(it.defId, it.slot)"></span>
@@ -21,10 +21,10 @@
           {{ it.price }} 🟡
         </button>
       </div>
-    </template>
+    </div>
 
     <!-- Onglet Sorts -->
-    <template v-if="state.shopTab === 'spells'">
+    <div v-if="state.shopTab === 'spells'">
       <div v-for="sp in shop.spells" class="shop-row" :style="{ opacity: (!sp.known && !sp.reqMet) ? 0.55 : 1 }">
         <span>
           <span v-html="getSpellIconHtml(sp)"></span> {{ sp.name }}
@@ -36,10 +36,10 @@
           {{ sp.price }} 🟡
         </button>
       </div>
-    </template>
+    </div>
 
     <!-- Onglet Compétences -->
-    <template v-if="state.shopTab === 'skills'">
+    <div v-if="state.shopTab === 'skills'">
       <div v-for="sk in shop.skills" class="shop-row" :style="{ opacity: (!sk.known && !sk.reqMet) ? 0.55 : 1 }">
         <span>
           🎖 {{ sk.name }} <b style="color:#ffd24a">{{ sk.pts }}</b>/{{ sk.max >= 9999 ? '∞' : sk.max }}
@@ -56,10 +56,10 @@
           <button v-else disabled>Maximum</button>
         </span>
       </div>
-    </template>
+    </div>
 
     <!-- Onglet Vendre -->
-    <template v-if="state.shopTab === 'sell'">
+    <div v-if="state.shopTab === 'sell'">
       <p v-if="!inventory.length" class="hint">Votre inventaire est vide.</p>
       <div v-for="it in inventory" class="shop-row">
         <span>
@@ -71,6 +71,6 @@
           Vendre {{ it.price }} 🟡
         </button>
       </div>
-    </template>
+    </div>
   </div>
 </div>
