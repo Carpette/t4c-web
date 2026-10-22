@@ -1,5 +1,5 @@
 import { createApp } from '/js/vendor/petite-vue.js';
-import { uiStore } from './ui-store.js';
+import { uiStore, repondre } from './ui-store.js';
 import { globalBus } from '../event-bus.js';
 import { CharacterController } from './components/character/character.js';
 import { InventoryController } from './components/inventory/inventory.js';
@@ -15,10 +15,31 @@ import { SpellsController } from './components/spells/spells.js';
 import { SettingsController } from './components/settings/settings.js';
 import { CreationController } from './components/creation/creation.js';
 import { AdminController } from './components/admin/admin.js';
+import { SpellbarController } from './components/spellbar/spellbar.js';
+import { QuickbarController } from './components/quickbar/quickbar.js';
+import { BuffsController } from './components/buffs/buffs.js';
 
+// Application racine (montée sur <body>) : écrans et fenêtres déclarés en dur
+// dans index.html (menu Échap, Épreuve, cible, mort), liés au store.
 function RootController() {
+  const send = (packet) => globalBus.emit('ui:send-packet', packet);
   return {
-    store: uiStore
+    store: uiStore,
+    entrerEpreuve() { uiStore.trial = null; send({ t: 'trial_enter' }); },
+    peutInviterCible() {
+      const id = uiStore.target?.playerId;
+      return id != null && !uiStore.party?.members.some(m => m.id === id);
+    },
+    inviterCible() {
+      if (uiStore.target?.playerId != null) send({ t: 'party_invite', id: uiStore.target.playerId });
+    },
+    renaitre() {
+      uiStore.death = null;
+      uiStore.phase = 'creation';
+      send({ t: 'newchar' });
+    },
+    quitter() { globalBus.emit('ui:quit'); },
+    repondre,
   };
 }
 
@@ -37,19 +58,23 @@ const COMPONENT_MAP = {
   hudbars: '#hud-bars',
   admin: '#admin-panel',
   obelisk: '#obelisk-panel',
-  // le toast d'invitation vit dans le composant party (plus de party-invite)
+  spellbar: '#spellbar',
+  quickbar: '#quickbar',
+  buffs: '#buffs-display',
 };
 
-// panneaux latéraux exclusifs (un seul ouvert à la fois) : nom -> id du conteneur
-const PANELS = {
-  inventory: 'inventory', character: 'character', help: 'help', spells: 'spells',
-  shop: 'shop', bank: 'bank', obelisk: 'obelisk-panel',
+// panneaux latéraux exclusifs : un seul ouvert à la fois (clé de uiStore.panels)
+const PANELS = ['inventory', 'character', 'help', 'spells', 'shop', 'bank', 'obelisk'];
+
+const PANEL_TITLES = {
+  inventory: 'Inventaire (I)', character: 'Personnage (C)', help: 'Aide (H)', spells: 'Sorts (S)',
+  shop: 'Marchand', bank: 'Coffre', obelisk: 'Obélisque',
 };
 
 const PHASE_COMPONENTS = {
   login: ['login'],
   creation: ['creation'],
-  'in-game': ['chat', 'hudbars', 'help', 'settings', 'admin', 'party'],
+  'in-game': ['chat', 'hudbars', 'help', 'settings', 'admin', 'party', 'spellbar', 'quickbar', 'buffs'],
   death: []
 };
 
@@ -71,6 +96,9 @@ class GuiManager {
       settings: SettingsController,
       creation: CreationController,
       admin: AdminController,
+      spellbar: SpellbarController,
+      quickbar: QuickbarController,
+      buffs: BuffsController,
     };
     this.ui = null;
     this.loaded = new Set();
@@ -80,39 +108,30 @@ class GuiManager {
     this.ui = ui;
   }
 
+  async init() {
+    createApp(RootController()).mount(document.body);
 
-    async init() {
-      createApp(RootController()).mount(document.body);
+    this.loadPhaseComponents(this.store.phase);
 
-      this.loadPhaseComponents(this.store.phase);
+    // Raccorder les événements globaux du jeu pour synchroniser le store réactif
+    window.addEventListener('game:update-player', (e) => {
+      this.updatePlayer(e.detail);
+    });
 
-      // Raccorder les événements globaux du jeu pour synchroniser le store réactif
-      window.addEventListener('game:update-player', (e) => {
-        this.updatePlayer(e.detail);
-      });
+    // ouverture déclenchée par le serveur (marchand, coffre, obélisque)
+    globalBus.on('gui:open-panel', (name) => this.openPanel(name));
+    globalBus.on('gui:close-panels', () => this.showOnly(null));
+    globalBus.on('gui:menu-back', () => { this.store.menu = 'buttons'; });
 
-      // ouverture déclenchée par le serveur (marchand, coffre, obélisque)
-      globalBus.on('gui:open-panel', (name) => this.openPanel(name));
-
-      this.setupHotbuttons();
-      this.setupGameMenu();
-    }
+    this.setupHotbuttons();
+  }
 
   async loadPhaseComponents(phase) {
     const componentsToLoad = PHASE_COMPONENTS[phase];
     if (!componentsToLoad) return;
 
-    for (const name of componentsToLoad) {
-      if (!this.loaded.has(name)) {
-        const selector = COMPONENT_MAP[name];
-        if (selector) {
-          await this.loadComponent(name, selector);
-          this.loaded.add(name);
-        }
-      }
-    }
+    for (const name of componentsToLoad) await this.ensureLoaded(name);
   }
-
 
   async loadComponent(name, selector) {
     const container = document.querySelector(selector);
@@ -127,9 +146,22 @@ class GuiManager {
 
       // Instancier Petite-Vue sur ce composant avec son contrôleur dédié
       createApp(this.controllers[name]()).mount(container);
+      if (PANELS.includes(name)) this.addCloseButton(container, name);
     } catch (err) {
       console.error(`Erreur d'initialisation du composant GUI [${name}] :`, err);
     }
+  }
+
+  // bouton ✕ commun à tous les panneaux (hors gabarit : petite-vue n'y touche pas)
+  addCloseButton(container, name) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'panel-close';
+    btn.textContent = '✕';
+    btn.title = 'Fermer (Échap)';
+    btn.setAttribute('aria-label', `Fermer — ${PANEL_TITLES[name] || name}`);
+    btn.onclick = () => this.showOnly(null);
+    container.prepend(btn);
   }
 
   updatePlayer(playerData) {
@@ -142,20 +174,23 @@ class GuiManager {
     if (!name || this.loaded.has(name)) return;
     const selector = COMPONENT_MAP[name];
     if (!selector) return;
+    this.loaded.add(name); // avant l'await : deux ouvertures rapprochées ne montent qu'une fois
     await this.loadComponent(name, selector);
-    this.loaded.add(name);
   }
 
   // affiche `name` (null : aucun) et masque les autres panneaux
   showOnly(name) {
-    for (const [p, id] of Object.entries(PANELS)) {
-      const el = document.getElementById(id);
-      if (!el) continue;
+    for (const p of PANELS) {
       const shouldShow = p === name;
-      el.classList.toggle('hidden', !shouldShow);
-      if (this.store.panels[id] !== undefined) this.store.panels[id] = shouldShow;
-      document.querySelector(`#hotbuttons button[data-panel="${p}"]`)?.classList.toggle('active', shouldShow);
+      this.store.panels[p] = shouldShow;
+      const btn = document.querySelector(`#hotbuttons button[data-panel="${p}"]`);
+      btn?.classList.toggle('active', shouldShow);
+      btn?.setAttribute('aria-pressed', String(shouldShow));
     }
+  }
+
+  anyPanelOpen() {
+    return PANELS.some(p => this.store.panels[p]);
   }
 
   async openPanel(name) {
@@ -165,21 +200,7 @@ class GuiManager {
 
   async togglePanel(name) {
     await this.ensureLoaded(name);
-    const el = name && document.getElementById(PANELS[name]);
-    this.showOnly(el && el.classList.contains('hidden') ? name : null);
-  }
-
-  setupGameMenu() {
-    const $ = (id) => document.getElementById(id);
-    $('menu-settings').onclick = () => {
-      $('menu-buttons').classList.add('hidden');
-      $('menu-settings-panel').classList.remove('hidden');
-    };
-
-    globalBus.on('gui:menu-back', () => {
-      $('menu-settings-panel').classList.add('hidden');
-      $('menu-buttons').classList.remove('hidden');
-    });
+    this.showOnly(name && !this.store.panels[name] ? name : null);
   }
 
   setupHotbuttons() {

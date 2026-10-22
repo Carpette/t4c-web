@@ -1,8 +1,9 @@
-import { uiStore, rawUiContainer } from '../../ui-store.js';
+import { uiStore, rawUiContainer, demander } from '../../ui-store.js';
 import { SLOT_NAMES } from '../../../../../shared/defs.js';
 import { LAYER_ORDER } from '../../../render2d/anim.js';
 import { Item } from '../../../Item.js';
 import { globalBus } from '../../../event-bus.js';
+import { SLOT_ICONS, icone } from '../../icones.js';
 
 const SLOTS_LIST = ['helmet', 'amulet', 'weapon', 'shield', 'gloves', 'legs', 'armor', 'belt', 'boots', 'ring', 'ring2'];
 
@@ -99,6 +100,8 @@ export function InventoryController() {
       return Object.values(this.s.equip).includes(iid);
     },
 
+    slotIcone(slot) { return icone(SLOT_ICONS[slot], { taille: 22 }); },
+
     getSlotTitle(slot) {
       return SLOT_NAMES[slot] || slot;
     },
@@ -125,16 +128,21 @@ export function InventoryController() {
       }
     },
 
-    dropItem(item) {
+    // poser au sol = l'objet peut être ramassé par n'importe qui : on confirme
+    async dropItem(item) {
       this.hideTooltip();
+      const nom = item.label || item.name || 'cet objet';
+      if (!await demander({
+        titre: 'Poser au sol', ok: 'Poser', danger: true,
+        texte: `Poser ${nom} au sol ? N'importe quel joueur pourra le ramasser.`,
+      })) return;
       globalBus.emit('ui:send-packet', { t: 'drop', iid: item.iid });
     },
 
-    showItemTooltip(e, rawItem) {
+    showItemTooltip(e, rawItem, vide = '') {
       const ui = rawUiContainer.instance;
-      if (!rawItem || !ui) return;
-      const item = new Item(rawItem);
-      ui.showTooltip(item.getTooltip());
+      if (!ui || (!rawItem && !vide)) return;
+      ui.showTooltip(rawItem ? new Item(rawItem).getTooltip() : `${vide} — vide`);
       ui.moveTooltip(e.clientX, e.clientY);
     },
 
@@ -143,11 +151,15 @@ export function InventoryController() {
       if (ui) ui.hideTooltip();
     },
 
-    dropGold() {
-      const amount = +prompt('Quantité à poser au sol :', this.s?.gold || 0);
-      if (Number.isFinite(amount) && amount > 0) {
-        globalBus.emit('ui:send-packet', { t: 'drop', defId: 'gold', amount });
-      }
+    async dropGold() {
+      const gold = this.s?.gold || 0;
+      if (!gold) return;
+      const amount = await demander({
+        titre: 'Poser de l’or au sol', ok: 'Poser',
+        texte: 'Pour donner de l’or à un joueur : posez-le, il le ramasse.',
+        nombre: { valeur: Math.min(gold, 10), max: gold },
+      });
+      if (amount) globalBus.emit('ui:send-packet', { t: 'drop', defId: 'gold', amount });
     }
   };
 }

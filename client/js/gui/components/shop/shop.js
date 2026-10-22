@@ -1,18 +1,24 @@
-import { uiStore, rawUiContainer } from '../../ui-store.js';
+import { uiStore, rawUiContainer, demander } from '../../ui-store.js';
+import { SLOT_ICONS, SPELL_ICONS, ELEMENT_ICONS as ELEMS, icone } from '../../icones.js';
 import { globalBus } from '../../../event-bus.js';
-
-const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
-const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
-const ELEMS = { feu: '🔥', eau: '❄', air: '🌪', terre: '⛰', lumiere: '☀', arcane: '🌑' };
 
 export function ShopController() {
   return {
     state: uiStore,
+    or: icone('piece', { taille: 12, classe: 'ico-or' }),
+    etoile: icone('etoile', { taille: 18 }),
     tabNames: {
       items: 'Objets',
       spells: 'Sorts',
       skills: 'Compétences',
       sell: 'Vendre'
+    },
+    // onglets non vides seulement (un maître sans étal n'affiche que ses sorts)
+    get onglets() {
+      const sh = this.shop;
+      if (!sh) return [];
+      return ['items', 'spells', 'skills', 'sell'].filter(t =>
+        t === 'sell' ? sh.items.length > 0 : (sh[t] || []).length > 0);
     },
     get shop() {
       return this.state.shop;
@@ -28,13 +34,11 @@ export function ShopController() {
       return Object.values(this.s.equip).includes(iid);
     },
     getItemIconHtml(defId, slot) {
-      const fallback = SLOT_ICONS[slot] || '❓';
-      const ui = rawUiContainer.instance;
-      return ui ? ui.itemIconHtml(defId, fallback) : '';
+      return rawUiContainer.instance?.itemIconHtml(defId, slot) || icone(SLOT_ICONS[slot] || 'sac');
     },
     getSpellIconHtml(sp) {
       const ui = rawUiContainer.instance;
-      return ui ? ui.spellIconHtml(sp) : (SPELL_ICONS[sp.type] || '✨');
+      return ui ? ui.spellIconHtml(sp) : icone(SPELL_ICONS[sp.type] || 'etincelle');
     },
     getItemMeta(it) {
       return [
@@ -46,12 +50,11 @@ export function ShopController() {
         it.reqText && `requis : ${it.reqText}`,
       ].filter(Boolean).join(' — ') || '';
     },
-    getSpellMeta(sp) {
-      const elEmoji = ELEMS[sp.element] || '';
-      return `${elEmoji} ${sp.element || ''} — ${sp.mana} mana — requis : ${sp.reqText || '—'}`;
+    elementHtml(el) {
+      return icone(ELEMS[el] || 'etincelle', { taille: 11 }) + ' ' + el + ' — ';
     },
-    getSkillMeta(sk) {
-      return `${sk.desc}<br>Requis : ${sk.reqText}`;
+    getSpellMeta(sp) {
+      return `${sp.mana} mana — requis : ${sp.reqText || '—'}`;
     },
     buyItem(defId) {
       globalBus.emit('ui:send-packet', { t: 'buy', kind: 'item', id: defId });
@@ -65,8 +68,12 @@ export function ShopController() {
     trainSkill(id) {
       globalBus.emit('ui:send-packet', { t: 'buy', kind: 'train', id });
     },
-    sellItem(iid) {
-      globalBus.emit('ui:send-packet', { t: 'sell', iid });
+    // vendre un objet équipé se confirme (perte de l'équipement porté)
+    async sellItem(it) {
+      if (this.isEquipped(it.iid) && !await demander({
+        titre: 'Vendre un objet équipé', texte: `${it.label} est actuellement porté. Le vendre quand même ?`, ok: 'Vendre',
+      })) return;
+      globalBus.emit('ui:send-packet', { t: 'sell', iid: it.iid });
     }
   };
 }

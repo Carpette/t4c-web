@@ -39,15 +39,49 @@ export const uiStore = reactive({
     messages: [],
     input: ''
   },
+  // panneaux latéraux (un seul ouvert à la fois, cf. GuiManager.showOnly) :
+  // SEULE source de vérité, les conteneurs d'index.html s'y lient par v-show
   panels: {
-    character: false,
     inventory: false,
-    bank: false,
+    character: false,
+    spells: false,
+    help: false,
     shop: false,
-    'obelisk-panel': false,
-    spells: false
-  }
+    bank: false,
+    obelisk: false,
+  },
+  menu: null,        // menu Échap : null | 'buttons' | 'settings' | 'about'
+  target: null,      // cadre de cible : { name, hpPct, playerId }
+  trial: null,       // confirmation d'entrée dans l'Épreuve : { text }
+  death: null,       // écran de mort : message `died` du serveur
+  version: null,     // { label, about } (login + À propos)
+  cds: {},           // spellId -> fin de recharge (s, horloge performance)
+  now: 0,            // horloge rafraîchie par la boucle de rendu (recharges, buffs)
+  dialogue: null,    // boîte modale : { titre, texte, ok, danger?, nombre?: { max } }
+  dialogueValeur: '', // quantité saisie dans la boîte (hors de `dialogue` : v-model survit à sa fermeture)
+  selfAt: 0,         // instant (s) du dernier message `self` : décompte local des buffs
 });
+
+// Boîte de dialogue de l'interface (remplace confirm/prompt natifs).
+// Résout true/false, ou le nombre saisi (null si annulé) quand `nombre` est fourni.
+let resoudre = null;
+export function demander({ titre, texte = '', ok = 'Confirmer', danger = false, nombre = null }) {
+  resoudre?.(nombre ? null : false); // une seule boîte à la fois
+  return new Promise((resolve) => {
+    resoudre = resolve;
+    uiStore.dialogueValeur = nombre ? String(nombre.valeur ?? '') : '';
+    uiStore.dialogue = { titre, texte, ok, danger, nombre: nombre ? { max: nombre.max } : null };
+  });
+}
+export function repondre(valide) {
+  const d = uiStore.dialogue;
+  uiStore.dialogue = null;
+  const r = resoudre; resoudre = null;
+  if (!r || !d) return;
+  if (!d.nombre) { r(!!valide); return; }
+  const n = Math.floor(+uiStore.dialogueValeur);
+  r(valide && Number.isFinite(n) && n > 0 ? Math.min(n, d.nombre.max ?? n) : null);
+}
 
 try {
   uiStore.hotkeys = JSON.parse(localStorage.getItem('t4c_hotkeys') || '{}');
@@ -56,6 +90,7 @@ try {
 globalBus.on('net:self-update', (playerData) => {
   if (playerData) {
     Object.assign(uiStore.player, playerData);
+    uiStore.selfAt = performance.now() / 1000;
   }
 });
 
@@ -102,11 +137,9 @@ globalBus.on('net:obelisk', (msg) => {
 
 globalBus.on('net:shop', (msg) => {
   uiStore.shop = msg;
-  if (!msg.items.length && msg.spells.length && uiStore.shopTab !== 'spells') {
-    uiStore.shopTab = 'spells';
-  } else {
-    uiStore.shopTab = 'items';
-  }
+  // premier onglet non vide : objets, sinon sorts (maître), sinon compétences
+  uiStore.shopTab = msg.items.length ? 'items'
+    : msg.spells.length ? 'spells' : (msg.skills || []).length ? 'skills' : 'items';
   globalBus.emit('gui:open-panel', 'shop');
 });
 

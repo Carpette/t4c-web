@@ -318,13 +318,15 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   color: #ff6a5a; font-weight: bold; font-size: 14px; letter-spacing: 2px;
   text-shadow: 0 1px 4px #000; z-index: 12; pointer-events: none;
 }
-#spellbar {
+/* barre d'action : potions | sorts, centrée en bas */
+#barre-action {
   position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 6px; z-index: 11;
+  display: flex; gap: 14px; align-items: flex-end; z-index: 11;
 }
+.barre-sorts, .barre-potions { display: flex; gap: 6px; }
 /* barre d'incantation, juste au-dessus de la barre de sorts */
 #castbar {
-  position: fixed; bottom: 66px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
   width: 220px; height: 14px; background: rgba(16, 22, 33, 0.9);
   border: 1px solid var(--border); border-radius: 4px; z-index: 11; overflow: hidden;
 }
@@ -338,23 +340,21 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   pointer-events: none;
 }
 .spell-slot {
-  width: 46px; height: 46px; background: rgba(16, 22, 33, 0.9);
+  width: 46px; height: 46px; padding: 0; background: rgba(16, 22, 33, 0.9); color: var(--text);
   border: 1px solid var(--border); border-radius: 7px; position: relative;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; flex-direction: column; overflow: hidden;
 }
 .spell-slot.active { border-color: var(--gold); box-shadow: 0 0 8px rgba(216, 176, 106, 0.5); }
-.spell-slot .icon { font-size: 17px; }
+.spell-slot:hover { background: rgba(28, 39, 56, 0.95); border-color: var(--accent); }
+.spell-slot .icon { display: flex; }
+.spell-slot .icon .ico { width: 24px; height: 24px; }
 .spell-slot .key {
   position: absolute; top: 1px; right: 3px; font-size: 9px; color: var(--gold);
 }
 .spell-slot .cd {
   position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex;
   align-items: center; justify-content: center; color: #fff; font-size: 13px;
-}
-#quickbar {
-  position: fixed; bottom: 66px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 6px; z-index: 11;
 }
 .potion-slot .count {
   position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: bold;
@@ -429,7 +429,23 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 #pantheon { font-size: 11px; color: var(--text-muted); margin: 12px 0; text-align: left; max-height: 180px; overflow-y: auto; }
 #pantheon .dead-row { padding: 3px 0; border-bottom: 1px solid rgba(95,111,134,0.3); }
-#buffs-display { position: fixed; top: 84px; left: 12px; z-index: 10; font-size: 11px; color: #8ae88a; text-shadow: 0 1px 2px #000; }
+/* ---- Effets actifs (buffs / malédictions) ---- */
+#buffs-display { position: fixed; top: 74px; right: 12px; z-index: 10; }
+.buffs { list-style: none; display: flex; flex-direction: column; gap: 4px; width: 180px; }
+.buff {
+  display: flex; align-items: center; gap: 6px; padding: 3px 6px;
+  background: rgba(10, 14, 22, 0.72); border: 1px solid rgba(95, 111, 134, 0.5); border-radius: 5px;
+  font-size: calc(11px * var(--hud-scale, 1)); color: var(--text);
+}
+.buff-icone { display: flex; color: #8fd88f; }
+.buff.nefaste { border-color: rgba(181, 70, 47, 0.7); }
+.buff.nefaste .buff-icone { color: var(--danger-hover); }
+.buff-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.buff-nom { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.buff-jauge { height: 3px; background: rgba(0, 0, 0, 0.6); border-radius: 2px; overflow: hidden; }
+.buff-jauge span { display: block; height: 100%; background: #8fd88f; transition: width 0.3s linear; }
+.buff.nefaste .buff-jauge span { background: var(--danger-hover); }
+.buff-reste { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 #tooltip {
   position: fixed; pointer-events: none; background: rgba(10, 14, 22, 0.92);
@@ -479,3 +495,55 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 @media (prefers-reduced-motion: reduce) {
   .torch-glows i { animation: none; opacity: .82; }
 }
+
+/* =========================================================================
+   Icônes SVG de l'interface (client/js/gui/icones.js) : trait, currentColor
+   ========================================================================= */
+.ico { display: inline-block; vertical-align: -0.15em; flex-shrink: 0; }
+.ico-or { color: var(--gold); vertical-align: -0.1em; }
+
+/* ---- Panneaux : bouton de fermeture commun ---- */
+.panel-close {
+  position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text-muted); font-size: 14px; line-height: 1;
+}
+.panel-close:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--border); color: var(--text); }
+.panel h2 { padding-right: 30px; }
+.panel :focus-visible, #hud button:focus-visible, .login-box :focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.bouton-plein { display: block; width: 100%; margin-top: 6px; }
+button:disabled, button:disabled:hover {
+  opacity: 0.45; cursor: default; background: var(--panel-solid); border-color: var(--border); color: var(--text-muted);
+}
+
+/* ---- Fenêtres modales en jeu (Épreuve, mort, dialogue) ---- */
+.modal-box { max-width: 480px; }
+.modal-texte { text-align: left; line-height: 1.6; margin: 14px 0; }
+#dialogue { z-index: 90; background: rgba(8, 12, 20, 0.45); }
+#dialogue .modal-box { min-width: 340px; padding: 26px 32px; }
+#dialogue h1 { font-size: 20px; }
+.dialogue-nombre { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: var(--text-muted); }
+.dialogue-nombre input { width: 120px; margin: 0; text-align: right; }
+#game-menu .login-box { min-width: 300px; }
+#game-menu .login-box.large { min-width: 520px; }
+.menu-titre { color: var(--gold); font-size: 14px; margin: 12px 0 8px; }
+.menu-texte { font-size: 14px; margin-bottom: 6px; }
+.menu-version { font-size: 13px; color: var(--gold); margin-bottom: 10px; }
+.menu-credits { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+.menu-credits a { color: #8ac8ff; }
+#pantheon b { color: var(--gold); display: block; margin-bottom: 4px; }
+
+/* ---- Boutique ---- */
+.shop-libelle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.shop-libelle .meta { display: block; }
+.shop-icone { display: flex; width: 22px; justify-content: center; color: var(--text-muted); }
+.shop-row.inaccessible { opacity: 0.55; }
+.shop-row .points { color: var(--gold); }
+.shop-row button { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---- Inventaire ---- */
+.doll-slot { padding: 0; }
+.doll-slot .slot-vide { display: flex; color: rgba(95, 111, 134, 0.7); }
+.inv-item.vide { opacity: 0.35; cursor: default; }

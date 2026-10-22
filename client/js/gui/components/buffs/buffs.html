@@ -1,0 +1,10 @@
+<ul class="buffs" aria-label="Effets actifs">
+  <li v-for="b in buffs" :key="b.stat" class="buff" :class="{ nefaste: b.nefaste }" :title="b.nom + ' — ' + b.reste + ' s'">
+    <span class="buff-icone" aria-hidden="true">{{ b.icone }}</span>
+    <span class="buff-corps">
+      <span class="buff-nom">{{ b.nom }}</span>
+      <span class="buff-jauge"><span :style="{ width: b.pct + '%' }"></span></span>
+    </span>
+    <span class="buff-reste">{{ b.reste }} s</span>
+  </li>
+</ul>

@@ -54,83 +54,95 @@
     <div id="compass" title="Le nord du monde part vers le haut-droite de l'écran">N&nbsp;↗</div>
     <!-- barre d'incantation : se remplit pendant le temps de lancement du sort -->
     <div id="castbar" class="hidden"><div id="castbar-fill"></div><span id="castbar-label"></span></div>
-    <div id="spellbar"></div>
-    <div id="quickbar"></div>
+    <!-- barre d'action : potions (P / M) puis sorts à raccourci -->
+    <div id="barre-action"><div id="quickbar"></div><div id="spellbar"></div></div>
     <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
 
     <!-- Inventaire T4C : poupée d'équipement + grille -->
-    <div id="inventory" class="panel hidden"></div>
+    <div id="inventory" class="panel" v-show="store.panels.inventory" role="dialog"></div>
 
     <!-- Fiche personnage -->
-    <div id="character" class="panel hidden"></div>
+    <div id="character" class="panel" v-show="store.panels.character" role="dialog"></div>
 
     <!-- Sorts et raccourcis -->
-    <div id="spells" class="panel hidden"></div>
+    <div id="spells" class="panel" v-show="store.panels.spells" role="dialog"></div>
 
     <!-- Boutique -->
-    <div id="shop" class="panel hidden"></div>
+    <div id="shop" class="panel" v-show="store.panels.shop" role="dialog"></div>
 
     <!-- Banque : coffre personnel -->
-    <div id="bank" class="panel hidden"></div>
+    <div id="bank" class="panel" v-show="store.panels.bank" role="dialog"></div>
 
     <!-- Obélisque -->
-    <div id="obelisk-panel" class="panel hidden"></div>
+    <div id="obelisk-panel" class="panel" v-show="store.panels.obelisk" role="dialog"></div>
 
     <!-- Confirmation d'Épreuve -->
-    <div id="trial-modal" class="overlay hidden">
-      <div class="login-box" style="max-width: 460px">
-        <h1>⚠ L'Épreuve</h1>
-        <p id="trial-text" style="text-align: left; line-height: 1.6; margin: 14px 0"></p>
+    <div id="trial-modal" class="overlay" v-show="store.trial" role="dialog" aria-labelledby="trial-titre">
+      <div class="login-box modal-box">
+        <h1 id="trial-titre">⚠ L'Épreuve</h1>
+        <p class="modal-texte">{{ store.trial?.text }}</p>
         <div class="login-buttons">
-          <button id="btn-trial-go" class="danger-btn">Entrer dans l'Épreuve</button>
-          <button id="btn-trial-no" class="secondary">Renoncer</button>
+          <button class="danger-btn" @click="entrerEpreuve()">Entrer dans l'Épreuve</button>
+          <button class="secondary" @click="store.trial = null">Renoncer</button>
         </div>
       </div>
     </div>
 
     <!-- Aide -->
-    <div id="help" class="panel hidden"></div>
+    <div id="help" class="panel" v-show="store.panels.help" role="dialog"></div>
 
-    <div id="target-frame" class="hidden">
-      <span id="target-name"></span>
-      <div class="bar hp small"><div id="target-hp"></div></div>
-      <button id="target-invite" class="secondary hidden">Inviter dans le groupe</button>
+    <div id="target-frame" v-show="store.target" aria-live="polite">
+      <span id="target-name">{{ store.target?.name }}</span>
+      <div class="bar hp small"><div :style="{ width: (store.target?.hpPct ?? 0) + '%' }"></div></div>
+      <button class="secondary" v-show="peutInviterCible()" @click="inviterCible()">Inviter dans le groupe</button>
     </div>
 
     <!-- Groupe : membres et barres de PV -->
     <div id="party-panel"></div>
 
-    <!-- Invitation de groupe reçue -->
-    <div id="party-invite" class="hidden"></div>
-
     <!-- Menu de jeu (Échap) -->
-    <div id="game-menu" class="overlay hidden">
-      <div class="login-box" style="min-width: 300px">
+    <div id="game-menu" class="overlay" v-show="store.menu" role="dialog" aria-label="Menu">
+      <div class="login-box" :class="{ large: store.menu === 'settings' }">
         <h1>Menu</h1>
-        <div id="menu-buttons">
-          <button id="menu-resume">Reprendre</button>
-          <button id="menu-settings" class="secondary">Paramètres</button>
-          <button id="menu-about" class="secondary">À propos</button>
-          <button id="menu-quit" class="danger-btn">Quitter la partie</button>
+        <div id="menu-buttons" v-show="store.menu === 'buttons'">
+          <button @click="store.menu = null">Reprendre</button>
+          <button class="secondary" @click="store.menu = 'settings'">Paramètres</button>
+          <button class="secondary" @click="store.menu = 'about'">À propos</button>
+          <button class="danger-btn" @click="quitter()">Quitter la partie</button>
         </div>
-        <div id="menu-settings-panel" class="hidden">
-        </div>
-        <div id="menu-about-panel" class="hidden">
-          <h2 style="color:var(--gold);font-size:14px;margin:12px 0 8px">À propos</h2>
-          <p style="font-size:14px;margin-bottom:6px">La Quatrième Prophétie — Hommage web</p>
-          <p id="about-version" style="font-size:13px;color:var(--gold);margin-bottom:10px"></p>
-          <p class="hint" style="font-size:11px;color:var(--text-muted);line-height:1.6">
+        <div id="menu-settings-panel" v-show="store.menu === 'settings'"></div>
+        <div id="menu-about-panel" v-show="store.menu === 'about'">
+          <h2 class="menu-titre">À propos</h2>
+          <p class="menu-texte">La Quatrième Prophétie — Hommage web</p>
+          <p class="menu-version">{{ store.version?.about }}</p>
+          <p class="hint menu-credits">
             Hommage non officiel à <i>The 4th Coming</i> (Vircom / Dialsoft).<br>
             Graphismes : projet <a href="https://flarerpg.org" target="_blank" style="color:#8ac8ff">Flare</a>
             (CC-BY-SA) et contributions originales.<br>
             La version s'incrémente automatiquement à chaque commit.
           </p>
-          <button id="about-back" class="secondary" style="margin-top:10px">Retour</button>
+          <button class="secondary" @click="store.menu = 'buttons'">Retour</button>
         </div>
       </div>
     </div>
 
     <div id="buffs-display"></div>
+    <!-- Boîte de dialogue de l'interface (confirmation ou quantité), cf. demander() -->
+    <div id="dialogue" class="overlay" v-if="store.dialogue" role="alertdialog" aria-labelledby="dialogue-titre"
+      @keydown.escape.stop="repondre(false)">
+      <form class="login-box modal-box" @submit.prevent="repondre(true)"
+        @vue:mounted="$el.querySelector('input, button').focus()">
+        <h1 id="dialogue-titre">{{ store.dialogue?.titre }}</h1>
+        <p class="modal-texte" v-if="store.dialogue?.texte">{{ store.dialogue?.texte }}</p>
+        <label class="dialogue-nombre" v-if="store.dialogue?.nombre">Quantité
+          <input type="number" min="1" :max="store.dialogue?.nombre?.max" v-model="store.dialogueValeur">
+        </label>
+        <div class="login-buttons">
+          <button type="submit" :class="{ 'danger-btn': store.dialogue?.danger }">{{ store.dialogue?.ok }}</button>
+          <button type="button" class="secondary" @click="repondre(false)">Annuler</button>
+        </div>
+      </form>
+    </div>
     <div id="floaters"></div>
     <div id="tooltip" class="hidden"></div>
     <!-- overlay discret ping / FPS (coin haut-droit), activé dans les paramètres -->
@@ -139,12 +151,17 @@
 
   <!-- Écrans hors-jeu : DOIVENT rester hors de #hud (caché tant qu'on n'est
        pas en jeu), sinon ils sont invisibles à la connexion. -->
-  <div id="death-screen" class="overlay" v-show="store.phase === 'death'">
-    <div class="login-box" style="max-width: 480px">
-      <h1>☠ Mort définitive</h1>
-      <p id="death-by" style="margin: 10px 0"></p>
-      <div id="pantheon"></div>
-      <button id="btn-respawn">Créer un nouveau personnage</button>
+  <div id="death-screen" class="overlay" v-show="store.phase === 'death'" role="dialog" aria-labelledby="death-titre">
+    <div class="login-box modal-box">
+      <h1 id="death-titre">☠ Mort définitive</h1>
+      <p class="modal-texte" v-if="store.death">Niveau {{ store.death.level }} — tué par {{ store.death.by }}
+        dans {{ store.death.zone }}. Ce personnage est perdu à jamais.</p>
+      <div id="pantheon" v-if="store.death">
+        <b>Panthéon des morts</b>
+        <div class="dead-row" v-for="d in store.death.pantheon || []">☠ {{ d.name }} — niveau {{ d.level }},
+          tué par {{ d.killer }} ({{ d.zone }})</div>
+      </div>
+      <button @click="renaitre()">Créer un nouveau personnage</button>
     </div>
   </div>
 
