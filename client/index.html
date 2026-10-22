@@ -5,19 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>La Quatrième Prophétie — Web</title>
   <link rel="stylesheet" href="/css/style.css">
-  <!-- L'UI en jeu a ete migree vers des classes Tailwind (refactor EventBus),
-       mais index.html ne chargeait aucune feuille Tailwind -> panneaux nus
-       (feuille de perso, inventaire, PNJ...). On charge une feuille Tailwind
-       compilee en local (npm run build:css), SANS preflight pour ne PAS
-       ecraser le style.css existant (HUD, login, boutons, .panel...). -->
-  <link rel="stylesheet" href="/css/game-tailwind.css">
-  <style>
-    /* Tailwind charge sans preflight : on retablit uniquement la base que les
-       utilitaires border-* attendent (sinon les bordures Tailwind ne s'affichent
-       pas). Les bordures definies dans style.css ont une specificite superieure
-       et ne sont donc pas affectees. */
-    *, ::before, ::after { border-width: 0; border-style: solid; border-color: currentColor; }
-  </style>
 </head>
 <body v-scope>
   <!-- Filtre de réfraction « verre liquide » : déforme légèrement le fond vu
