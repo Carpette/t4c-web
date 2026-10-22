@@ -212,7 +212,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   padding: 14px; color: var(--text); z-index: 20;
 }
 .panel h2 { font-size: 16px; color: var(--gold); margin-bottom: 10px; }
-.panel .hint { font-size: 10px; color: var(--text-muted); margin-top: 8px; }
+.panel .hint { font-size: 11.5px; line-height: 1.45; color: var(--text-muted); margin-top: 8px; }
 
 #paperdoll {
   position: relative; width: 100%; height: 256px; margin-bottom: 8px;
@@ -381,7 +381,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   background: linear-gradient(90deg, var(--accent-deep), var(--accent-hover));
 }
 #castbar span {
-  position: absolute; inset: 0; text-align: center; font-size: 10px;
+  position: absolute; inset: 0; text-align: center; font-size: 11px;
   color: var(--text); line-height: 14px; text-shadow: 0 1px 2px #000;
   pointer-events: none;
 }
@@ -468,7 +468,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   display: flex; justify-content: space-between; align-items: center;
   padding: 5px 2px; border-bottom: 1px solid rgba(95,111,134,0.3); font-size: 12px; gap: 6px;
 }
-.shop-row .meta { color: var(--text-muted); font-size: 10px; }
+.shop-row .meta { color: var(--text-muted); font-size: 11px; }
 .shop-row button { padding: 2px 9px; font-size: 11px; background: #3a6a3a; border-color: #5a8a5a; white-space: nowrap; }
 .shop-row button:disabled { background: #333; border-color: #444; color: #777; cursor: default; }
 #bank .bank-section { font-size: 12px; color: var(--gold); margin: 10px 0 4px; }
@@ -573,8 +573,10 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 .panel-close:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--border); color: var(--text); }
 .panel h2 { padding-right: 30px; }
-/* mini-carte affichée : les panneaux s'arrêtent sous elle (colonne de droite) */
-#hud.avec-carte .panel { max-height: calc(100vh - 300px); }
+/* mini-carte affichée : les panneaux s'arrêtent sous elle (colonne de droite),
+   mais gardent au moins 640 px (l'inventaire entier) quand la fenêtre est
+   basse, quitte à couvrir la carte le temps d'être ouverts */
+#hud.avec-carte .panel { max-height: max(calc(100vh - 300px), min(640px, calc(100vh - 76px))); }
 .panel :focus-visible, #hud button:focus-visible, .login-box :focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
@@ -659,7 +661,7 @@ button.petit { padding: 2px 9px; font-size: 11px; }
   background: rgba(0, 0, 0, 0.15); border: 1px solid rgba(95, 111, 134, 0.35); border-top: 2px solid rgba(216, 176, 106, 0.4);
 }
 .fiche-table th {
-  padding: 4px 8px; text-align: right; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;
+  padding: 4px 8px; text-align: right; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--gold); background: rgba(255, 255, 255, 0.04);
 }
 .fiche-table th:first-child { text-align: left; }
@@ -667,7 +669,7 @@ button.petit { padding: 2px 9px; font-size: 11px; }
 .fiche-table td:first-child { text-align: left; color: var(--text); }
 .fiche-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
 .fiche-table td.hint { text-align: left; font-size: 11px; }
-.fiche-actuel { color: var(--text-muted); font-size: 10px; margin-left: 4px; }
+.fiche-actuel { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
 .fiche-max { color: var(--text-muted); }
 .fiche-stat { display: inline-flex; align-items: center; gap: 6px; }
 .fiche-plus {
@@ -688,8 +690,8 @@ button.petit { padding: 2px 9px; font-size: 11px; }
 }
 .journal-tete:hover { background: none; color: #fff; }
 .journal-nom { font-weight: bold; color: var(--gold); }
-.journal-zone { flex: 1; font-size: 10px; color: var(--text-muted); }
-.journal-nb { font-size: 10px; color: var(--text-muted); }
+.journal-zone { flex: 1; font-size: 11px; color: var(--text-muted); }
+.journal-nb { font-size: 11px; color: var(--text-muted); }
 .journal-mots { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .journal-derniere { font-size: 11px; color: var(--text-muted); font-style: italic; line-height: 1.45; }
 .journal-repliques { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; max-height: 240px; overflow-y: auto; }
