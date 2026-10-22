@@ -298,6 +298,7 @@ function triggerFloater(pos, text, cls = '') {
 
 // ---------- Contrôles ----------
 let combatMode = false;       // Ctrl maintenu
+let altTenu = false;          // Alt maintenu : noms des objets au sol
 let held = false;             // clic maintenu = déplacement continu
 let heldTimer = null;
 let lastPointer = { x: 0, y: 0 };
@@ -616,6 +617,8 @@ canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Control' && !combatMode) { combatMode = true; ui.setCombatMode(true); }
+  // Alt : sans preventDefault, Firefox ouvre sa barre de menus au relâchement
+  if (ev.key === 'Alt') { ev.preventDefault(); altTenu = true; }
   // boîte de dialogue ouverte : elle a la main (Échap = annuler)
   if (uiStore.dialogue) {
     if (ev.key === 'Escape') { ev.preventDefault(); repondre(false); }
@@ -667,6 +670,7 @@ window.addEventListener('keydown', (ev) => {
 
 window.addEventListener('keyup', (ev) => {
   if (ev.key === 'Control') { combatMode = false; ui.setCombatMode(false); }
+  if (ev.key === 'Alt') { ev.preventDefault(); altTenu = false; }
   if (ev.key?.startsWith('Arrow')) {
     arrows.delete(ev.key);
     sendMoveDirFromArrows();
@@ -674,6 +678,7 @@ window.addEventListener('keyup', (ev) => {
 });
 window.addEventListener('blur', () => {
   arrows.clear();
+  altTenu = false;
   combatMode = false;
   ui.setCombatMode(false);
   if (selfId != null) net.send({ t: 'movedir', x: 0, z: 0 });
@@ -723,6 +728,7 @@ function frame() {
       : curTargetView?.kind === KIND.PLAYER ? '#8ac8ff' : '#ff5040',
     hoverId: hover.id !== curTargetId ? hover.id : null,
     hoverColor: hover.color,
+    butin: altTenu, // Alt maintenu : noms des objets au sol
     // sort Lumière actif -> le rendu perce l'obscurité autour de soi
     selfLight: !!(ui.self?.buffs || []).some(b => b.stat === 'light'),
   };

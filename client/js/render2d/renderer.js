@@ -535,7 +535,7 @@ export class Renderer {
       for (const v of vues) {
         if (prio(v) !== passe) continue;
         const p = this.w2s(v.x, v.z);
-        v.drawOverlay(ctx, p.x, p.y, s, selfId, sansNom.has(v.id));
+        v.drawOverlay(ctx, p.x, p.y, s, selfId, sansNom.has(v.id), hl.butin ? occupes : null);
       }
     }
 
