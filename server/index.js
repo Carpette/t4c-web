@@ -10,6 +10,7 @@ import { handleAdmin } from './admin.js';
 import { VERSION } from './version.js';
 import * as db from './db.js';
 import { fichierSrc3d } from './src3d.js';
+import { CONTENT_DIR, cheminAsset } from './donnees.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -53,13 +54,21 @@ const server = http.createServer((req, res) => {
     // modèles 3D sources de l'atelier (hors dépôt, voir server/src3d.js)
     file = fichierSrc3d(url.slice('/src3d/'.length));
     if (!file) { res.writeHead(404); res.end('404'); return; }
-  } else if (url.startsWith('/shared/') || url.startsWith('/content/')) {
+  } else if (url.startsWith('/content/')) {
+    // contenu de CETTE instance (cf. server/donnees.js)
+    file = path.join(CONTENT_DIR, url.slice('/content/'.length));
+    if (!file.startsWith(CONTENT_DIR + path.sep)) { res.writeHead(403); res.end(); return; }
+  } else if (url.startsWith('/assets/')) {
+    // ressources : version de l'instance si la Forge en a ajouté/remplacé, sinon base
+    file = cheminAsset(url.slice('/assets/'.length));
+    if (!file) { res.writeHead(403); res.end(); return; }
+  } else if (url.startsWith('/shared/')) {
     file = path.join(ROOT, url);
   } else {
     file = path.join(ROOT, 'client', url);
   }
-  // anti-traversée (les modèles /src3d/ sont déjà confinés à leur dossier)
-  if (!url.startsWith('/src3d/') && !file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
+  // anti-traversée (les modèles /src3d/, le contenu et les assets sont déjà confinés)
+  if (!/^\/(src3d|content|assets)\//.test(url) && !file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
 
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('404'); return; }

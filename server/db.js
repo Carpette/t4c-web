@@ -253,6 +253,11 @@ export function etatFichierA(fichier, jusqua) {
   const r = db.prepare('SELECT avant FROM modifications WHERE fichier = ? AND id > ? ORDER BY id LIMIT 1').get(fichier, jusqua);
   return r ? r.avant : undefined;
 }
+// dernier état écrit d'un fichier (texte JSON), null s'il a été supprimé
+export function dernierEtatFichier(fichier) {
+  const r = db.prepare('SELECT apres FROM modifications WHERE fichier = ? ORDER BY id DESC LIMIT 1').get(fichier);
+  return r ? r.apres : null;
+}
 export function fichiersModifiesApres(jusqua) {
   return db.prepare('SELECT DISTINCT fichier FROM modifications WHERE id > ?').all(jusqua).map(r => r.fichier);
 }

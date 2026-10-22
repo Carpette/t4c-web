@@ -43,6 +43,9 @@ USER node
 # Expose port and configure environment
 ENV PORT=8080
 ENV T4C_DB=/data/game.db
+# données vivantes de l'instance (contenu, cartes, ressources de la Forge) sur
+# le volume : l'image ne livre que la BASE, cf. docs/donnees-instance.md
+ENV T4C_DATA_DIR=/data
 ENV NODE_ENV=production
 
 EXPOSE 8080

@@ -66,7 +66,7 @@ const cfg = {
 };
 const imp = await api('/api/admin/skins/enemy', 'POST', { cfg, data: fixture.toString('base64') });
 ok('planche importée (4 animations)', imp.ok && imp.anims?.length === 4);
-const m2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'client/assets/manifest.json'), 'utf8'));
+const m2 = await (await fetch(BASE + '/assets/manifest.json', { cache: 'no-store' })).json(); // manifeste servi (effectif)
 ok('sprite présent dans le manifest', !!m2.enemies.test_skin_creature
   && m2.enemies.test_skin_creature.anims.stance.fr['7'].length === 2);
 
