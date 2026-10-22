@@ -537,6 +537,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   // déplacement : clic simple = aller au point ; maintenu = suivre le curseur
   if (w.x >= 0 && w.z >= 0 && w.x < world.size && w.z < world.size) {
     net.send({ t: 'move', x: w.x, z: w.z });
+    renderer.marquerDestination(w.x, w.z);
   }
   held = true;
   clearInterval(heldTimer);

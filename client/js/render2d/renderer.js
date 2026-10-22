@@ -269,6 +269,27 @@ export class Renderer {
     ctx.restore();
   }
 
+  // clic de déplacement : un anneau se resserre sur le point visé (0,6 s)
+  marquerDestination(x, z) { this._destination = { x, z, t0: performance.now() / 1000 }; }
+  _dessinerDestination(ctx, now) {
+    const d = this._destination;
+    if (!d) return;
+    const t = (now - d.t0) / 0.6;
+    if (t >= 1 || t < 0) { this._destination = null; return; }
+    const p = this.w2s(d.x, d.z), s = this.scale;
+    const r = (30 - 18 * t) * s;
+    ctx.save();
+    ctx.globalAlpha = 1 - t * t;
+    for (const [lw, c] of [[4 * s, 'rgba(0,0,0,0.45)'], [2 * s, '#f0cf7a']]) {
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = c;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, r, r / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   render(em, worldTime, now, selfId, hl = {}) {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
@@ -285,6 +306,7 @@ export class Renderer {
 
     // --- Sols : blocs en cache ---
     this._dessinerSol(ctx, W, H);
+    this._dessinerDestination(ctx, now);
 
     // --- Objets + entités triés en profondeur ---
     const camSx = (this.cam.x - this.cam.z) * HW, camSy = (this.cam.x + this.cam.z) * HH;
