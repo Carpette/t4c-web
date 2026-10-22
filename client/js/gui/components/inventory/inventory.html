@@ -24,7 +24,7 @@
   <div id="inv-grid">
     <div v-for="item in gridItems"
          class="inv-item"
-         :class="{ ['q' + item.q]: item.q, equipped: isEquippedItem(item.iid), vide: !item.iid }"
+         :class="{ ['q' + item.q]: item.q, equipped: isEquippedItem(item.iid), vide: !item.iid, inutilisable: item.iid && !portable(item) }"
          @click="item.iid && useOrEquip(item)"
          @contextmenu.prevent="item.iid && dropItem(item)"
          @mouseenter="item.iid && showItemTooltip($event, item)"

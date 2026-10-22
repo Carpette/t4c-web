@@ -352,10 +352,20 @@ export class UI {
     t.textContent = text;
     t.classList.remove('hidden');
   }
+  showTooltipHtml(html) {
+    const t = $('tooltip');
+    t.innerHTML = html;
+    t.classList.remove('hidden');
+  }
+  // à droite et sous le curseur, sauf si l'infobulle sortirait de l'écran
+  // (panneaux à droite) : elle passe alors à gauche, ou au-dessus
   moveTooltip(x, y) {
     const t = $('tooltip');
-    t.style.left = `${Math.min(x + 14, window.innerWidth - 220)}px`;
-    t.style.top = `${y + 14}px`;
+    const w = t.offsetWidth || 200, h = t.offsetHeight || 20;
+    const gx = x + 14 + w > window.innerWidth - 4 ? x - 14 - w : x + 14;
+    const gy = y + 14 + h > window.innerHeight - 4 ? y - 10 - h : y + 14;
+    t.style.left = `${Math.max(4, gx)}px`;
+    t.style.top = `${Math.max(4, gy)}px`;
   }
   hideTooltip() { $('tooltip').classList.add('hidden'); }
 
