@@ -93,7 +93,7 @@ ok('le privé fonctionne après reconnexion',
 pass2.inbox.length = 0;
 await chat(pass2, '.canal liste');
 ok('.canal liste : publics et privés accessibles',
-  !!(await waitText(pass2, /\/taverne.*🔒\/conclave|🔒\/conclave.*\/taverne/)));
+  !!(await waitText(pass2, /\/taverne.*\/conclave \(privé|\/conclave \(privé.*\/taverne/)));
 
 fond.ws.close(); pass2.ws.close();
 const failed = checks.filter(([, c]) => !c);

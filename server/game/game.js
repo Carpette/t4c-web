@@ -630,7 +630,7 @@ export class Game {
     const target = zi.trialTarget;
     if (!p.unlocked.includes(target)) p.unlocked.push(target);
     const dest = this.island(target);
-    this.broadcastChat('sys', `⚔ ${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
+    this.broadcastChat('sys', `${p.name} a triomphé de l'Épreuve et atteint ${this.zoneDef(target).name} !`);
     this.movePlayerToZone(p, dest, dest.world.spawnPoint.x, dest.world.spawnPoint.z);
     p.save();
   }
@@ -1311,18 +1311,18 @@ export class Game {
         const zd = !p.zi.isTrial && !p.zi.isCave && this.zoneDef(p.zi.zoneId);
         const b = zd?.boss;
         if (!b) { say('Aucun boss ne hante ce lieu.'); break; }
-        if (p.zi.bossId != null) { say(`⚔ ${b.name} se dresse quelque part dans ${zd.name}...`); break; }
+        if (p.zi.bossId != null) { say(`${b.name} se dresse quelque part dans ${zd.name}...`); break; }
         const next = +db.getKV(`boss:next:${p.zi.zoneId}`) || 0;
         const ms = next - Date.now();
         say(ms > 0
-          ? `☠ ${b.name} est tombé. Il reviendra dans environ ${this.fmtMins(ms / 60e3)}.`
-          : `⚔ ${b.name} ne devrait plus tarder...`);
+          ? `${b.name} est tombé. Il reviendra dans environ ${this.fmtMins(ms / 60e3)}.`
+          : `${b.name} ne devrait plus tarder...`);
         break;
       }
       case 'groupe': case 'party': {
         if (!p.party) { say('Vous n\u2019avez pas de groupe. /inviter Nom pour en fonder un.'); break; }
         const rows = p.party.members.map(m =>
-          `${m === p.party.leader ? '👑 ' : ''}${m.name} (niv ${m.level}, ${Math.round(m.hp)}/${m.eff.maxHp} PV)`);
+          `${m.name}${m === p.party.leader ? ' (chef)' : ''} (niv ${m.level}, ${Math.round(m.hp)}/${m.eff.maxHp} PV)`);
         say(`Groupe ${p.party.members.length}/${C.GROUP_MAX_SIZE} : ${rows.join(' · ')} — canal /g.`);
         break;
       }
@@ -1346,7 +1346,7 @@ export class Game {
   saveChannels() { db.setKV('channels', JSON.stringify(this.customChannels)); }
 
   // l'état des canaux du joueur : les fixes, les publics, et ses privés —
-  // le panneau ⚙ du chat s'en nourrit (couleurs et filtre restent locaux)
+  // le panneau des canaux du chat s'en nourrit (couleurs et filtre restent locaux)
   sendChannels(p) {
     const FIXES = ['general', 'aide', 'ventes', 'roleplay'];
     const list = FIXES.map(name => ({ name, joined: p.channels.includes(name) }));
@@ -1434,15 +1434,15 @@ export class Game {
         if (cc.private && !cc.members.includes(p.accountId)) { say(`/${name} est privé.`); return; }
         if (!cc.private) { say(`/${name} est public — pas de liste de membres, tout le monde y est bienvenu.`); return; }
         const names = cc.members.map(id => db.getAccountById(id)?.name || '?');
-        say(`🔒 /${name} (${cc.ownerName}) : ${names.join(', ')}.`);
+        say(`/${name} (privé, ${cc.ownerName}) : ${names.join(', ')}.`);
         break;
       }
       case 'liste': default: {
         const FIXES = ['general', 'aide', 'ventes', 'roleplay'];
-        const rows = FIXES.map(n => `${p.channels.includes(n) ? '✓' : '·'} /${n}`);
+        const rows = FIXES.map(n => `/${n}${p.channels.includes(n) ? ' (abonné)' : ''}`);
         for (const [n, c] of Object.entries(this.customChannels)) {
           if (c.private && !c.members.includes(p.accountId)) continue;
-          rows.push(`${p.channels.includes(n) ? '✓' : '·'} ${c.private ? '🔒' : ''}/${n} (${c.ownerName})`);
+          rows.push(`/${n} (${c.private ? 'privé, ' : ''}${c.ownerName}${p.channels.includes(n) ? ', abonné' : ''})`);
         }
         say(`Canaux : ${rows.join(' · ')} — .canal creer|rejoindre|quitter|inviter|supprimer|membres`);
         break;
@@ -1475,7 +1475,7 @@ export class Game {
       if (p.accountId !== accountId) continue;
       p.isAdmin = !!isAdmin; p.acces = acces;
       this.send(p, { t: 'perms', perms: this.permsOf(p) });
-      this.send(p, { t: 'info', text: p.isAdmin ? '👑 Vous êtes désormais super admin.' : 'Vos droits d\u2019administration ont été mis à jour.' });
+      this.send(p, { t: 'info', text: p.isAdmin ? 'Vous êtes désormais super admin.' : 'Vos droits d\u2019administration ont été mis à jour.' });
     }
   }
 
@@ -1589,7 +1589,7 @@ export class Game {
         }
         if (best) {
           this.killMob(best, p);
-          this.send(p, { t: 'info', text: `⚡ ${best.isBoss ? best.bossName : best.def.name} foudroyé.` });
+          this.send(p, { t: 'info', text: `${best.isBoss ? best.bossName : best.def.name} foudroyé.` });
         }
         break;
       }
@@ -1681,7 +1681,7 @@ export class Game {
   // PERSISTÉE en base (world_kv) : elle survit aux redémarrages.
   announceAll(text) {
     for (const other of this.players.values()) this.send(other, { t: 'announce', text });
-    this.broadcastChat('sys', '📣 ' + text);
+    this.broadcastChat('sys', 'Annonce : ' + text);
   }
 
   bossRespawnMs(b) { return +process.env.T4C_BOSS_RESPAWN_MS || b.respawnMs || 2 * 3600e3; }
@@ -1732,7 +1732,7 @@ export class Game {
     m.wanderAt = Infinity; // il tient son rendez-vous, il ne vagabonde pas
     zi.bossId = m.id;
     console.log(`[boss] ${m.bossName} en zone ${zi.zoneId} à (${bx.toFixed(1)}, ${bz.toFixed(1)})`);
-    if (loud) this.announceAll(`⚔ ${m.bossName} s'éveille dans ${zdef.name} !`);
+    if (loud) this.announceAll(`${m.bossName} s'éveille dans ${zdef.name} !`);
   }
 
   bossSlain(m, killer) {
@@ -1754,7 +1754,7 @@ export class Game {
     const h = respawn / 3600e3;
     const delai = h >= 1 ? `${Math.round(h * 10) / 10} h` : `${Math.round(respawn / 60e3)} min`;
     const who = killer?.kind === C.KIND.PLAYER ? killer.name : 'les forces d\u2019Arakas';
-    this.announceAll(`☠ ${m.bossName} a été terrassé par ${who} ! Il reviendra dans environ ${delai} (${zdef.name}).`);
+    this.announceAll(`${m.bossName} a été terrassé par ${who} ! Il reviendra dans environ ${delai} (${zdef.name}).`);
   }
 
   // réécrit le fichier d'overrides d'une zone et l'applique à chaud —
@@ -2307,7 +2307,7 @@ export class Game {
       lieu: p.zi.isTrial ? null : { zoneId: avant.zoneId, x: avant.x, z: avant.z },
     });
     db.deleteCharacter(p.accountId);
-    this.broadcastChat('sys', `☠ ${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
+    this.broadcastChat('sys', `${p.name} (niveau ${p.level}) a péri dans ${zoneName}, tué par ${who}. Son âme est perdue à jamais.`);
     this.send(p, { t: 'died', by: who, level: p.level, zone: zoneName, permadeath: true, pantheon: db.pantheon(8) });
   }
 
@@ -2616,13 +2616,13 @@ export class Game {
     this._arret = [];
     const dans = (s) => s >= 60 ? `${Math.round(s / 60)} minute${s >= 120 ? 's' : ''}` : `${s} seconde${s > 1 ? 's' : ''}`;
     console.log(`Arrêt du serveur dans ${seconds}s (Ctrl-C à nouveau pour forcer)`);
-    this.broadcastChat('sys', `⚠ ARRÊT DU SERVEUR DANS ${dans(seconds).toUpperCase()} — mettez-vous à l'abri !`);
+    this.broadcastChat('sys', `ARRÊT DU SERVEUR DANS ${dans(seconds).toUpperCase()} — mettez-vous à l'abri !`);
     const marks = [600, 300, 120, 60, 30, 15, 10, 5, 4, 3, 2, 1].filter(m => m < seconds);
     for (const m of marks) {
-      this._arret.push(setTimeout(() => this.broadcastChat('sys', `⚠ Arrêt du serveur dans ${dans(m)}…`), (seconds - m) * 1000));
+      this._arret.push(setTimeout(() => this.broadcastChat('sys', `Arrêt du serveur dans ${dans(m)}…`), (seconds - m) * 1000));
     }
     this._arret.push(setTimeout(() => {
-      this.broadcastChat('sys', '⚠ Arrêt du serveur. À bientôt dans les Royaumes !');
+      this.broadcastChat('sys', 'Arrêt du serveur. À bientôt dans les Royaumes !');
       this.saveAll();
       console.log(`${this.players.size} personnage(s) sauvegardé(s). Extinction.`);
       for (const p of this.players.values()) {

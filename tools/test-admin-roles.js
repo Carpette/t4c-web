@@ -205,9 +205,9 @@ ok('journal : actions du MJ consignées',
 anim.inbox.length = 0;
 await api('/api/admin/roles', 'PUT', { accountId: animAcc.id, superAdmin: true });
 const crowned = await waitMsg(anim, m => m.t === 'perms');
-ok('promotion 👑 : TOUTES les permissions à chaud',
+ok('promotion super admin : TOUTES les permissions à chaud',
   crowned && ADMIN_PERMS.every(p => crowned.perms.includes(p)));
-ok('promotion 👑 : notification en jeu',
+ok('promotion super admin : notification en jeu',
   !!(await waitMsg(anim, m => m.t === 'info' && /super admin/.test(m.text))));
 // le promu peut désormais gérer les rôles lui-même
 const login3 = await (await fetch(`${BASE}/api/admin/login`, {
