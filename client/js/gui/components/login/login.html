@@ -28,4 +28,4 @@
   </div>
   <p id="login-error" v-show="error">{{ error }}</p>
 </div>
-<div id="game-version" title="Version déployée"></div>
+<div id="game-version" title="Version déployée" v-scope>{{ state.version?.label }}</div>

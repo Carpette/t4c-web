@@ -14,7 +14,7 @@ import { UI } from './gui/ui.js';
 import { initDraggableWindows } from './drag.js';
 import { settings } from './settings.js';
 import { globalBus } from './event-bus.js';
-import { uiStore } from './gui/ui-store.js';
+import { uiStore, repondre } from './gui/ui-store.js';
 import { guiManager } from './gui/gui-manager.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
@@ -115,7 +115,7 @@ net.on('announce', (m) => {
 });
 // commandes de la boîte à outils admin (composant gui/admin)
 globalBus.on('admin:cmd', (m) => net.send({ t: 'admin', ...m }));
-net.on('zone', async (m) => { // Émettre sur le bus pour les composants qui pourraient en avoir besoin
+net.on('zone', async (m) => {
   cancelAim(); cancelAuto(); ui.endCastBar(); targetId = null;
   em.clear(selfId); // tout de suite : les entités de la nouvelle zone vont arriver
   // le client régénère le même monde que le serveur : île (seed/carte fixe),
@@ -140,15 +140,15 @@ net.on('zone', async (m) => { // Émettre sur le bus pour les composants qui pou
 net.on('music', (m) => playMusic(m.file)); // changement à chaud par l'admin
 // ambiance de sous-zone (teinte/obscurité) : bascule à hystérésis côté serveur
 net.on('ambience', (m) => { renderer.ambience = m.ambience || null; });
-net.on('self', (m) => { // Émettre sur le bus
+net.on('self', (m) => {
   globalBus.emit('net:self-update', m);
 });
-net.on('vitals', (m) => globalBus.emit('net:vitals', m)); // Émettre sur le bus
+net.on('vitals', (m) => globalBus.emit('net:vitals', m));
 net.on('meta', (m) => { for (const meta of m.list) em.addMeta(meta); });
-net.on('chat', (m) => globalBus.emit('net:chat-received', m)); // Émettre sur le bus
-net.on('info', (m) => globalBus.emit('net:chat-received', { from: 'sys', text: m.text })); // Émettre sur le bus
+net.on('chat', (m) => globalBus.emit('net:chat-received', m));
+net.on('info', (m) => globalBus.emit('net:chat-received', { from: 'sys', text: m.text }));
 net.on('loot', (m) => {
-  globalBus.emit('net:chat-received', { from: 'sys', text: m.text }); // Émettre sur le bus
+  globalBus.emit('net:chat-received', { from: 'sys', text: m.text });
   if (/^\+\d+ or$/.test(m.text)) playSfx('or');           // pièces ramassées
   else if (m.text.startsWith('Vous ouvrez le coffre')) playSfx('coffre');
   const v = em.get(selfId);
@@ -163,7 +163,7 @@ net.on('died', (m) => {
   ui.showDeath(m);
 });
 // XP par coup : gains regroupés par le serveur -> un flotteur lisible + la barre
-net.on('xp', (m) => { // Émettre sur le bus
+net.on('xp', (m) => {
   globalBus.emit('net:xp', m);
   const v = em.get(selfId);
   if (v) triggerFloater(headPos(v), `+${m.gain} XP`, 'xp');
@@ -315,7 +315,7 @@ function validSpellTarget(sp, v) {
 function aimClick(spellId, ev) {
   const sp = ui.spellDef(spellId);
   if (!sp) return;
-  cancelAuto(); // Pourrait être un événement 'ui:cancel-auto-cast'
+  cancelAuto();
   if (sp.type === 'bolt') {
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
     if (!validSpellTarget(sp, v)) { ui.addChat('sys', 'Cible invalide.'); return; }
@@ -409,7 +409,7 @@ function castActive(spellId, ev) {
   if (!sp) return false;
   if (sp.type === 'heal' || sp.type === 'buff') { castSpellAt(spellId, {}); return true; }
   if (sp.type === 'aoe') {
-    const w = renderer.s2w(ev?.clientX ?? lastPointer.x, ev?.clientY ?? lastPointer.y); // Pourrait être un événement 'ui:get-world-coords'
+    const w = renderer.s2w(ev?.clientX ?? lastPointer.x, ev?.clientY ?? lastPointer.y);
     castSpellAt(spellId, { x: w.x, z: w.z });
     return true;
   }
@@ -417,7 +417,7 @@ function castActive(spellId, ev) {
   let tid = null;
   const v = ev ? renderer.pickEntity(em, ev.clientX, ev.clientY) : null;
   if (validSpellTarget(sp, v)) tid = v.id;
-  else if (targetId != null) tid = targetId; // targetId pourrait être géré par un TargetFrame
+  else if (targetId != null) tid = targetId;
   if (tid == null) { ui.addChat('sys', 'Aucune cible pour ' + sp.name + '.'); return false; }
   castSpellAt(spellId, { target: tid });
   return true;
@@ -449,7 +449,7 @@ canvas.addEventListener('pointerdown', (ev) => {
 
   // ---- mode combat : tous les clics sont des attaques/sorts ----
   if (combatMode) {
-    cancelAuto(); // Événement 'ui:cancel-auto-cast'
+    cancelAuto();
     if (ui.activeSpell) { castActive(ui.activeSpell, ev); return; }
     const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
     if (v && v.kind === KIND.MOB && !v.isDead?.()) {
@@ -460,7 +460,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     return;
   }
 
-  cancelAuto(); // Événement 'ui:cancel-auto-cast'
+  cancelAuto();
   const v = renderer.pickEntity(em, ev.clientX, ev.clientY);
   if (v && v.id !== selfId && !v.isDead?.()) {
     if (v.kind === KIND.MOB) {
@@ -569,8 +569,13 @@ canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Control' && !combatMode) { combatMode = true; ui.setCombatMode(true); }
+  // boîte de dialogue ouverte : elle a la main (Échap = annuler)
+  if (uiStore.dialogue) {
+    if (ev.key === 'Escape') { ev.preventDefault(); repondre(false); }
+    return;
+  }
   if (ui.isTyping() || ui.bindingSpell) return;
-  // menu ouvert : seules Échap (fermer) passe, le jeu est en pause d'entrées (pourrait être géré par un MenuManager)
+  // menu ouvert : seule Échap (fermer) passe, le jeu est en pause d'entrées
   if (ui.menuOpen()) {
     if (ev.key === 'Escape') ui.hideMenu();
     return;
@@ -583,7 +588,7 @@ window.addEventListener('keydown', (ev) => {
     if (spellId && (ui.self?.spells || []).includes(spellId)) {
       ev.preventDefault();
       const sp = ui.spellDef(spellId);
-      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); } // Événement 'ui:cast-spell'
+      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); }
       else { aimSpell = spellId; canvas.style.cursor = 'none'; }
       return;
     }
@@ -591,7 +596,7 @@ window.addEventListener('keydown', (ev) => {
 
   if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
-    cancelAuto(); // Événement 'ui:cancel-auto-cast'
+    cancelAuto();
     if (!arrows.has(ev.key)) { arrows.add(ev.key); sendMoveDirFromArrows(); }
     return;
   }
@@ -599,7 +604,7 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'i') guiManager.togglePanel('inventory');
   else if (k === 'c') guiManager.togglePanel('character');
   else if (k === 's') guiManager.togglePanel('spells');
-  else if (k === 'h') guiManager.togglePanel('help'); // Pourrait être un HelpPanel
+  else if (k === 'h') guiManager.togglePanel('help');
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
@@ -673,7 +678,7 @@ function frame() {
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
   drawAimCursor(now);
 
-  processHover(); // Pourrait être un HoverManager
+  processHover();
   if (frameN % 6 === 0) tickAutoCast();
   if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); updatePerfOverlay(); }
 }

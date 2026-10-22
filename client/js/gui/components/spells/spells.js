@@ -1,6 +1,5 @@
 import { uiStore, rawUiContainer } from '../../ui-store.js';
-
-const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
+import { SPELL_ICONS, icone } from '../../icones.js';
 
 export function SpellsController() {
   return {
@@ -18,16 +17,14 @@ export function SpellsController() {
     },
     getSpellIconHtml(sp) {
       const ui = rawUiContainer.instance;
-      return ui ? ui.spellIconHtml(sp) : (SPELL_ICONS[sp.type] || '✨');
+      return ui ? ui.spellIconHtml(sp) : icone(SPELL_ICONS[sp.type] || 'etincelle');
     },
     getHotkey(spellId) {
       const hotkeys = this.state.hotkeys || {};
       return Object.keys(hotkeys).find(k => hotkeys[k] === spellId);
     },
     toggleActiveSpell(spellId) {
-      const ui = rawUiContainer.instance;
       this.state.activeSpell = this.state.activeSpell === spellId ? null : spellId;
-      if (ui) ui.renderSpellbar();
     },
     startBinding(spellId) {
       this.state.bindingSpell = spellId;

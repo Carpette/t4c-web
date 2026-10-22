@@ -251,23 +251,24 @@ try {
 try {
   const { rawUiContainer } = await import('../client/js/gui/ui-store.js');
   const ui = rawUiContainer.instance;
-  // sort sans skin assigné : repli émoji ; sort inconnu : étincelle par défaut
-  spellIconOk = !!ui && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'heal' }) === '💚'
-    && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'inconnu' }) === '✨';
+  // sort sans skin assigné : icône SVG du type ; type inconnu : étincelle par défaut
+  spellIconOk = !!ui && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'heal' }).includes('#ico-coeur')
+    && ui.spellIconHtml({ id: 'zzz_inconnu', type: 'inconnu' }).includes('#ico-etincelle');
 } catch (e) { failures.push(e); console.error('✘ EXCEPTION spellIconHtml:', e.message); }
 try {
   const { SpellsController } = await import('../client/js/gui/components/spells/spells.js');
   const { ShopController } = await import('../client/js/gui/components/shop/shop.js');
   const sc = SpellsController(), hc = ShopController();
   compIconOk = typeof sc.getSpellIconHtml === 'function' && typeof hc.getSpellIconHtml === 'function'
-    && sc.getSpellIconHtml({ id: 'zzz', type: 'bolt' }) === '⚡';
+    && sc.getSpellIconHtml({ id: 'zzz', type: 'bolt' }).includes('#ico-eclair');
 } catch (e) { failures.push(e); console.error('✘ EXCEPTION composants sorts/boutique:', e.message); }
 
+const { uiStore: store } = await import('../client/js/gui/ui-store.js');
 const checks = [
-  ['version affichée au login (bas gauche)', String(doc.getElementById('game-version').textContent).startsWith('v')],
+  ['version connue pour le login (bas gauche)', String(store.version?.label || '').startsWith('v')],
   ['graphe client complet chargé (main.js et ses imports)', true],
   ['assets complets (manifest, images, skins 4 sections, 60+ presets fx)', assetsOk],
-  ['icônes de sorts : repli émoji correct (ui.spellIconHtml)', spellIconOk],
+  ['icônes de sorts : repli SVG correct (ui.spellIconHtml)', spellIconOk],
   ['composants Sorts/Boutique : helpers d\u2019icônes présents et fonctionnels', compIconOk],
   ['aucune exception client (boot, petite-vue, timers, rendu)', failures.length === 0],
 ];

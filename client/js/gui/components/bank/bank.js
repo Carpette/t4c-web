@@ -1,7 +1,6 @@
 import { uiStore, rawUiContainer } from '../../ui-store.js';
+import { SLOT_ICONS, icone } from '../../icones.js';
 import { globalBus } from '../../../event-bus.js';
-
-const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
 
 export function BankController() {
   return {
@@ -23,9 +22,7 @@ export function BankController() {
       return Object.values(this.s.equip).includes(iid);
     },
     getItemIconHtml(defId, slot) {
-      const fallback = SLOT_ICONS[slot] || '❓';
-      const ui = rawUiContainer.instance;
-      return ui ? ui.itemIconHtml(defId, fallback) : '';
+      return rawUiContainer.instance?.itemIconHtml(defId, slot) || icone(SLOT_ICONS[slot] || 'sac');
     },
     deposit(iid) {
       globalBus.emit('ui:send-packet', { t: 'bank_deposit', iid });

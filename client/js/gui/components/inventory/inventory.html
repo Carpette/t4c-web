@@ -2,23 +2,21 @@
   <h2>Inventaire</h2>
   <div id="paperdoll">
     <canvas id="doll-canvas" width="170" height="190"></canvas>
-    <div v-for="slot in SLOTS_LIST"
+    <button v-for="slot in SLOTS_LIST" type="button"
          class="doll-slot"
          :class="{ filled: isEquipped(slot), ['q' + getEquippedItem(slot)?.q]: isEquipped(slot) }"
          :style="SLOT_STYLES[slot]"
-         :title="getSlotTitle(slot)"
+         :aria-label="getSlotTitle(slot) + (isEquipped(slot) ? ' : ' + (getEquippedItem(slot)?.label || '') + ' (clic : retirer)' : ' (vide)')"
          @click="unequip(slot)"
          @contextmenu.prevent="unequip(slot)"
-         @mouseenter="showItemTooltip($event, getEquippedItem(slot))"
+         @mouseenter="showItemTooltip($event, getEquippedItem(slot), getSlotTitle(slot))"
          @mouseleave="hideTooltip()">
-      <img v-if="isEquipped(slot)" 
-           class="item-icon" 
-           :src="getItemIconUrl(getEquippedItem(slot)?.defId)" 
-           style="width: 34px; height: 34px;">
-    </div>
+      <img v-if="isEquipped(slot)" class="item-icon" :src="getItemIconUrl(getEquippedItem(slot)?.defId)" alt="">
+      <span v-else class="slot-vide" v-html="slotIcone(slot)"></span>
+    </button>
   </div>
   <div id="weight-row">
-    <div id="weight-bar">
+    <div id="weight-bar" role="meter" :aria-valuenow="s.weight" aria-valuemin="0" :aria-valuemax="s.capacity" aria-label="Encombrement">
       <div id="weight-fill" :class="{ over: weightPct >= 95 }" :style="{ width: weightPct + '%' }"></div>
     </div>
     <span id="weight-text">{{ s.weight }} / {{ s.capacity }}</span>
@@ -26,16 +24,15 @@
   <div id="inv-grid">
     <div v-for="item in gridItems"
          class="inv-item"
-         :class="{ ['q' + item.q]: item.q, equipped: isEquippedItem(item.iid) }"
-         :style="{ opacity: item.iid ? 1 : 0.35 }"
+         :class="{ ['q' + item.q]: item.q, equipped: isEquippedItem(item.iid), vide: !item.iid }"
          @click="item.iid && useOrEquip(item)"
          @contextmenu.prevent="item.iid && dropItem(item)"
          @mouseenter="item.iid && showItemTooltip($event, item)"
          @mouseleave="hideTooltip()">
-      <img v-if="item.iid" class="item-icon" :src="getItemIconUrl(item.defId)" style="width:34px; height:34px;">
+      <img v-if="item.iid" class="item-icon" :src="getItemIconUrl(item.defId)" alt="">
     </div>
   </div>
-  <p class="hint">Clic : équiper / utiliser — Clic droit (poupée) : retirer<br>
-  Clic droit (sac) : poser au sol — c'est ainsi qu'on échange entre joueurs</p>
-  <button id="btn-drop-gold" class="secondary" style="margin-top:6px" @click="dropGold()">Poser de l'or au sol…</button>
+  <p class="hint">Clic : équiper ou utiliser — clic sur la poupée : retirer<br>
+  Clic droit dans le sac : poser au sol (c'est ainsi qu'on échange entre joueurs)</p>
+  <button type="button" class="secondary bouton-plein" :disabled="!s.gold" @click="dropGold()">Poser de l'or au sol…</button>
 </div>

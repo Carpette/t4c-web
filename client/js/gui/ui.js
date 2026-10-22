@@ -1,16 +1,12 @@
 // Interface : connexion, HUD, inventaire (poupée T4C), fiche perso, chat, dégâts flottants
-import { STAT_NAMES, STATS, PROTOCOL_VERSION, GROUP_INVITE_TTL } from '../../../shared/constants.js';
-import { ITEMS, QUALITY, SLOTS, SLOT_NAMES } from '../../../shared/defs.js';
-import { LAYER_ORDER } from '../render2d/anim.js';
-import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting, resetSettings, sliderMeta } from '../settings.js';
-import { refreshMusic } from '../music.js';
+import { ITEMS } from '../../../shared/defs.js';
+import { settings } from '../settings.js';
 import { refreshSfx, play as playSfx } from '../sfx.js';
 import { globalBus } from '../event-bus.js';
 import { guiManager } from './gui-manager.js';
 import { uiStore, rawUiContainer } from './ui-store.js';
+import { SPELL_ICONS, SLOT_ICONS, icone } from './icones.js';
 
-const SLOT_ICONS = { weapon: '⚔️', shield: '🛡️', armor: '🥋', helmet: '⛑️', legs: '👖', gloves: '🧤', belt: '🎗️', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', use: '🧪', gold: '🟡' };
-const SPELL_ICONS = { bolt: '⚡', heal: '💚', aoe: '🔥', buff: '✨' };
 const $ = (id) => document.getElementById(id);
 
 export class UI {
@@ -26,7 +22,6 @@ export class UI {
   constructor(net) {
     this.net = net;
     this.self = null;
-    this.cds = {};            // spellId -> timestamp de fin
     try { this.hotkeys = JSON.parse(localStorage.getItem('t4c_hotkeys') || '{}'); } catch {}
 
     // Instanciation des sous-composants
@@ -41,10 +36,6 @@ export class UI {
 
     globalBus.on('net:self-update', (playerData) => {
       this.self = playerData;
-      this.renderSpellPanel();
-      this.renderSpellbar();
-      this.renderQuickbar();
-      this.renderBuffs();
     });
 
     globalBus.on('settings:sfx-changed', () => refreshSfx());
@@ -72,7 +63,6 @@ export class UI {
         if (this.RESERVED_KEYS[k]) {
           // touche déjà utilisée par l'interface : refusée, on reste en attente
           this.bindingError = `« ${k.toUpperCase()} » est réservée (${this.RESERVED_KEYS[k]}). Choisissez une autre touche.`;
-          this.renderSpellPanel();
           return;
         }
         for (const key of Object.keys(this.hotkeys)) {
@@ -83,46 +73,21 @@ export class UI {
         globalBus.emit('ui:hotkeys-updated');
       }
       this.bindingSpell = null;
-      this.renderSpellPanel();
-      this.renderSpellbar();
     }, true);
-
-    // Connexion
-
-    $('btn-respawn').onclick = () => {
-      uiStore.phase = 'creation';
-      net.send({ t: 'newchar' });
-    };
 
     // poser de l'or au sol (échange entre joueurs)
     guiManager.setUi(this);
     rawUiContainer.instance = this;
 
-    // ---- Menu de jeu (Échap) ----
-    $('menu-resume').onclick = () => this.hideMenu();
-    $('menu-about').onclick = () => {
-      $('menu-buttons').classList.add('hidden');
-      $('menu-about-panel').classList.remove('hidden');
-    };
-    $('about-back').onclick = () => {
-      $('menu-about-panel').classList.add('hidden');
-      $('menu-buttons').classList.remove('hidden');
-    };
-    $('menu-quit').onclick = () => {
+    globalBus.on('ui:quit', () => {
       try { net.ws?.close(1000, 'logout'); } catch {}
       location.reload(); // retour propre à l'écran de connexion
-    };
-    $('btn-trial-go').onclick = () => { $('trial-modal').classList.add('hidden'); net.send({ t: 'trial_enter' }); };
-    $('btn-trial-no').onclick = () => $('trial-modal').classList.add('hidden');
+    });
 
-    // ---- Groupe : réponses à l'invitation, départ, invitation par clic ----
-    this.party = null;          // { leaderId, members: [{id, name, level}] }
     this.selfId = null;         // renseigné par main.js au welcome
-    this.targetPlayerId = null; // joueur ciblé (bouton « Inviter »)
-    $('target-invite').onclick = () => {
-      if (this.targetPlayerId != null) net.send({ t: 'party_invite', id: this.targetPlayerId });
-    };
   }
+
+  get cds() { return uiStore.cds; } // spellId -> fin de recharge (s), lu par main.js
 
   setAssets(assets) { this.assets = assets; }
 
@@ -161,25 +126,10 @@ export class UI {
     return url;
   }
 
-  // élément DOM prêt à insérer ; émoji de secours si le sprite manque
-  itemIconEl(defId, fallback, size = 34) {
+  // version HTML (listes de boutique/banque) ; icône d'emplacement si le sprite manque
+  itemIconHtml(defId, slot, size = 22) {
     const url = this.itemIconUrl(defId, size);
-    if (!url) {
-      const span = document.createElement('span');
-      span.textContent = fallback || '❓';
-      return span;
-    }
-    const img = document.createElement('img');
-    img.className = 'item-icon';
-    img.src = url;
-    img.style.width = img.style.height = `${size}px`;
-    return img;
-  }
-
-  // version HTML inline (lignes de boutique/banque construites en innerHTML)
-  itemIconHtml(defId, fallback, size = 22) {
-    const url = this.itemIconUrl(defId, size);
-    return url ? `<img class="item-icon sm" src="${url}">` : (fallback || '');
+    return url ? `<img class="item-icon sm" src="${url}" alt="">` : icone(SLOT_ICONS[slot] || 'sac', { taille: size * 0.8 });
   }
 
   // ---- Annonce de MJ : bandeau dramatique plein écran, puis fondu ----
@@ -224,34 +174,10 @@ export class UI {
   }
   spellIconHtml(sp, size = 26) {
     const url = this.spellIconUrl(sp.id, size);
-    return url ? `<img class="item-icon sm" src="${url}">` : (SPELL_ICONS[sp.type] || '✨');
+    return url ? `<img class="item-icon sm" src="${url}" alt="">` : icone(SPELL_ICONS[sp.type] || 'etincelle', { taille: size * 0.8 });
   }
   spellDef(id) { return uiStore.spellDefs.find(s => s.id === id); }
   knownSpells() { return (this.self?.spells || []).map(id => this.spellDef(id)).filter(Boolean); }
-
-  renderSpellPanel() {}
-
-  renderSpellbar() {
-    const bar = $('spellbar');
-    bar.innerHTML = '';
-    // seuls les sorts dotés d'un RACCOURCI apparaissent dans la barre : les
-    // autres restent dans le panneau Sorts (S), l'interface reste légère
-    for (const sp of this.knownSpells()) {
-      const key = Object.keys(this.hotkeys).find(k => this.hotkeys[k] === sp.id);
-      if (!key) continue;
-      const slot = document.createElement('div');
-      slot.className = 'spell-slot' + (this.activeSpell === sp.id ? ' active' : '');
-      slot.innerHTML = `<span class="icon">${this.spellIconHtml(sp)}</span>` +
-        `<span class="key">${key.toUpperCase()}</span>`;
-      slot.title = `${sp.name} — ${sp.mana} mana — touche ${key.toUpperCase()}`;
-      slot.dataset.spell = sp.id;
-      slot.onclick = () => { this.activeSpell = this.activeSpell === sp.id ? null : sp.id; this.renderSpellPanel(); this.renderSpellbar(); };
-      const cd = document.createElement('div');
-      cd.className = 'cd hidden';
-      slot.appendChild(cd);
-      bar.appendChild(slot);
-    }
-  }
 
   // ---- Réglages appliqués À CHAUD (sans reload) ----
   // Applique TOUS les réglages qui touchent à l'interface/au rendu. Centralisé
@@ -298,43 +224,13 @@ export class UI {
     this.net.send({ t: 'use', iid: it.iid });
   }
 
-  renderQuickbar() {
-    const bar = $('quickbar');
-    if (!bar) return;
-    bar.innerHTML = '';
-    const defs = [
-      { kind: 'vie', key: 'P', defId: 'potion_vie', name: 'Potion de vie' },
-      { kind: 'mana', key: 'M', defId: 'potion_mana', name: 'Potion de mana' },
-    ];
-    for (const q of defs) {
-      const count = (this.self?.inventory || []).filter(it => {
-        const d = ITEMS[it.defId];
-        return d?.slot === 'use' && (q.kind === 'vie' ? d.heal : d.mana);
-      }).length;
-      const slot = document.createElement('div');
-      slot.className = 'spell-slot potion-slot' + (count ? '' : ' empty');
-      slot.title = `${q.name} — touche ${q.key}` + (count ? '' : ' (aucune)');
-      slot.appendChild(this.itemIconEl(q.defId, '🧪', 28));
-      slot.insertAdjacentHTML('beforeend',
-        `<span class="key">${q.key}</span><span class="count">${count}</span>`);
-      slot.onclick = () => this.usePotion(q.kind);
-      bar.appendChild(slot);
-    }
-  }
-
   startCooldown(spellId, dur) {
-    this.cds[spellId] = performance.now() / 1000 + dur;
+    uiStore.cds[spellId] = performance.now() / 1000 + dur;
   }
 
+  // horloge réactive des recharges et des buffs (appelée par la boucle de rendu)
   tickCooldowns() {
-    const now = performance.now() / 1000;
-    document.querySelectorAll('#spellbar .spell-slot').forEach(slot => {
-      const cd = slot.querySelector('.cd');
-      if (!cd) return;
-      const left = (this.cds[slot.dataset.spell] || 0) - now;
-      if (left > 0) { cd.classList.remove('hidden'); cd.textContent = Math.ceil(left); }
-      else cd.classList.add('hidden');
-    });
+    uiStore.now = performance.now() / 1000;
   }
 
   // ---- Barre d'incantation (vitesse de sort T4C) ----
@@ -359,8 +255,7 @@ export class UI {
   }
 
   showTrialConfirm(msg) {
-    $('trial-text').textContent = msg.text;
-    $('trial-modal').classList.remove('hidden');
+    uiStore.trial = { text: msg.text };
   }
 
   zoneBanner(name, levels) {
@@ -378,38 +273,18 @@ export class UI {
   // ---- Version déployée (login + À propos) ----
   setVersion(v) {
     const label = v.version + (v.sha ? ` — ${v.sha} (${v.date})` : '');
-    $('game-version').textContent = label;
-    $('about-version').textContent = label + (v.branch && v.branch !== 'main' ? ` — branche ${v.branch}` : '');
+    uiStore.version = {
+      label,
+      about: label + (v.branch && v.branch !== 'main' ? ` — branche ${v.branch}` : ''),
+    };
   }
 
   // ---- Menu de jeu ----
-  menuOpen() { return !$('game-menu').classList.contains('hidden'); }
-  showMenu() {
-    $('menu-settings-panel').classList.add('hidden');
-    $('menu-about-panel').classList.add('hidden');
-    $('menu-buttons').classList.remove('hidden');
-    $('game-menu').classList.remove('hidden');
-  }
-  hideMenu() { $('game-menu').classList.add('hidden'); }
+  menuOpen() { return !!uiStore.menu; }
+  showMenu() { uiStore.menu = 'buttons'; }
+  hideMenu() { uiStore.menu = null; }
   // un panneau (inventaire, sorts, boutique...) est-il ouvert ?
-  anyPanelOpen() {
-    return ['inventory', 'character', 'help', 'spells', 'shop', 'obelisk-panel', 'bank']
-      .some(p => !$(p).classList.contains('hidden'));
-  }
-
-  renderBuffs() {
-    const names = {
-      def: '🛡 Armure', speed: '💨 Hâte', dmg: '⚔ Instinct de combat',
-      regen: '💚 Régénération', maxhp: '❤ Bénédiction', str: '💪 Force de la terre',
-      light: '💡 Lumière', int: '🧠 Esprit clair', wis: '🕊 Tranquillité',
-      agi: '🤸 Dextérité', spellpow: '🔮 Afflux de Mana', retort: '🔥 Bouclier élémentaire',
-      resistAll: '🔮 Bouclier de mana', resist_feu: '🔥 Résistance au feu',
-      resist_eau: '❄ Résistance à la glace', sanctuaire: '⛨ Sanctuaire (intouchable)',
-      transe: '🧘 Transe (ni attaque ni sort)', maudit: '☠ Maudit (soins impossibles)',
-    };
-    $('buffs-display').innerHTML = (this.self?.buffs || [])
-      .map(b => `${names[b.stat] || b.stat} (${b.left}s)`).join('<br>');
-  }
+  anyPanelOpen() { return guiManager.anyPanelOpen(); }
 
   isTyping() {
     const chatInput = document.getElementById('chat-input');
@@ -421,16 +296,6 @@ export class UI {
     $('clock').textContent = daylight > 0.45 ? '🌞' : daylight > 0.12 ? '🌅' : '🌙';
     $('clock').title = `Heure du monde : ${Math.floor(frac * 24)}h`;
   }
-
-  updateVitals(hp, mana) {
-    if (this.self) { this.self.hp = hp; this.self.mana = mana; }
-    if (guiManager.store.player) {
-      guiManager.store.player.hp = hp;
-      guiManager.store.player.mana = mana;
-    }
-  }
-
-  renderBars() {}
 
   addChat(from, text, channelOrKind) {
     globalBus.emit('net:chat-received', { from, text, channel: channelOrKind });
@@ -449,19 +314,12 @@ export class UI {
   }
 
   showDeath(msg) {
-    $('death-by').textContent = `${this.self?.level ? `Niveau ${msg.level}` : ''} — tué par ${msg.by} dans ${msg.zone}. Ce personnage est perdu à jamais.`;
-    const pan = $('pantheon');
-    pan.innerHTML = '<b style="color:#c8b87a">Panthéon des morts</b><br>' +
-      (msg.pantheon || []).map(d =>
-        `<div class="dead-row">☠ ${d.name} — niveau ${d.level}, tué par ${d.killer} (${d.zone})</div>`).join('');
+    uiStore.menu = null;
+    guiManager.showOnly(null);
+    uiStore.death = msg;
   }
 
   // Tooltip générique
-  bindTooltip(el, fn) {
-    el.addEventListener('mouseenter', () => this.showTooltip(fn()));
-    el.addEventListener('mousemove', (e) => this.moveTooltip(e.clientX, e.clientY));
-    el.addEventListener('mouseleave', () => this.hideTooltip());
-  }
   showTooltip(text) {
     const t = $('tooltip');
     t.textContent = text;
@@ -476,21 +334,13 @@ export class UI {
 
   // `playerId` : si la cible est un autre joueur, propose de l'inviter au groupe
   setTarget(name, hpPct, playerId = null) {
-    if (!name) { $('target-frame').classList.add('hidden'); this.targetPlayerId = null; return; }
-    $('target-frame').classList.remove('hidden');
-    $('target-name').textContent = name;
-    $('target-hp').style.width = `${hpPct}%`;
-    this.targetPlayerId = playerId;
-    const alreadyGrouped = playerId != null && !!this.party?.members.some(m => m.id === playerId);
-    $('target-invite').classList.toggle('hidden', playerId == null || alreadyGrouped);
+    uiStore.target = name ? { name, hpPct, playerId } : null;
   }
 
   // ---- Groupe ----
   setParty(msg) {
     globalBus.emit('net:party-update', msg);
   }
-
-  renderParty() {}
 
   updatePartyVitals(msg) {
     globalBus.emit('net:party-vitals', msg);

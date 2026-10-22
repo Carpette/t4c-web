@@ -15,9 +15,7 @@ export function ObeliskController() {
       return (this.s.gold ?? 0) < this.obelisk.cost;
     },
     closePanel() {
-      this.state.panels['obelisk-panel'] = false;
-      const el = document.getElementById('obelisk-panel');
-      if (el) el.classList.add('hidden');
+      globalBus.emit('gui:close-panels');
     },
     teleportLocal(i) {
       this.closePanel();
