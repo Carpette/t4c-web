@@ -36,22 +36,34 @@
   <div id="login" class="overlay" v-show="store.phase === 'login'"></div>
 
   <!-- HUD -->
-  <div id="hud" v-show="store.phase === 'in-game'">
+  <div id="hud" v-show="store.phase === 'in-game'" :class="{ 'avec-carte': store.miniCarte }">
     <div id="hud-bars"></div>
     <div id="admin-panel"></div>
-    <div id="clock">🌞</div>
+    <div id="clock" role="img" aria-label="Heure du monde"></div>
+    <!-- mini-carte (N) : vue de la zone orientée comme l'écran -->
+    <div id="minicarte" v-show="store.miniCarte">
+      <canvas id="minicarte-canvas" width="176" height="176" aria-label="Mini-carte : cliquez pour vous y rendre"></canvas>
+      <div class="minicarte-zoom">
+        <button type="button" aria-label="Zoomer la mini-carte" :disabled="store.miniZoom <= 0" @click="zoomer(-1)">+</button>
+        <button type="button" aria-label="Dézoomer la mini-carte" :disabled="store.miniZoom >= ZOOM_MAX" @click="zoomer(1)">−</button>
+      </div>
+      <div class="minicarte-zone">{{ store.zoneName }}</div>
+    </div>
 
     <div id="chat"></div>
 
-    <div id="hotbuttons">
-      <button data-panel="inventory" title="Inventaire (I)">🎒</button>
-      <button data-panel="character" title="Personnage (C)">📜</button>
-      <button data-panel="spells" title="Sorts (S)">📖</button>
-      <button data-panel="help" title="Aide (H)">❔</button>
-    </div>
+    <nav id="hotbuttons" aria-label="Fenêtres">
+      <button type="button" data-panel="inventory" title="Inventaire (I)" aria-label="Inventaire (I)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-sac"/></svg></button>
+      <button type="button" data-panel="character" title="Personnage (C)" aria-label="Personnage (C)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-personnage"/></svg></button>
+      <button type="button" data-panel="spells" title="Sorts (S)" aria-label="Sorts (S)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-livre"/></svg></button>
+      <button type="button" data-panel="journal" title="Journal (J)" aria-label="Journal (J)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-journal"/></svg></button>
+      <button type="button" data-panel="joueurs" title="Joueurs en ligne (O)" aria-label="Joueurs en ligne (O)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-groupe"/></svg></button>
+      <button type="button" title="Mini-carte (N)" aria-label="Mini-carte (N)" :class="{ active: store.miniCarte }" :aria-pressed="store.miniCarte" @click="basculerCarte()"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-carte"/></svg></button>
+      <button type="button" data-panel="help" title="Aide (H)" aria-label="Aide (H)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-aide"/></svg></button>
+    </nav>
 
     <div id="zone-banner"></div>
-    <div id="compass" title="Le nord du monde part vers le haut-droite de l'écran">N&nbsp;↗</div>
+    <div id="compass" v-show="!store.miniCarte" title="Le nord du monde part vers le haut-droite de l'écran">N <svg class="ico" width="14" height="14" aria-hidden="true"><use href="#ico-boussole"/></svg></div>
     <!-- barre d'incantation : se remplit pendant le temps de lancement du sort -->
     <div id="castbar" class="hidden"><div id="castbar-fill"></div><span id="castbar-label"></span></div>
     <!-- barre d'action : potions (P / M) puis sorts à raccourci -->
@@ -91,6 +103,10 @@
     <!-- Aide -->
     <div id="help" class="panel" v-show="store.panels.help" role="dialog"></div>
 
+    <!-- Journal (J) et joueurs en ligne (O) -->
+    <div id="journal" class="panel" v-show="store.panels.journal" role="dialog"></div>
+    <div id="joueurs" class="panel" v-show="store.panels.joueurs" role="dialog"></div>
+
     <div id="target-frame" v-show="store.target" aria-live="polite">
       <span id="target-name">{{ store.target?.name }}</span>
       <div class="bar hp small"><div :style="{ width: (store.target?.hpPct ?? 0) + '%' }"></div></div>
@@ -126,7 +142,7 @@
       </div>
     </div>
 
-    <div id="buffs-display"></div>
+    <div id="buffs-display" :class="{ 'sous-carte': store.miniCarte }"></div>
     <!-- Boîte de dialogue de l'interface (confirmation ou quantité), cf. demander() -->
     <div id="dialogue" class="overlay" v-if="store.dialogue" role="alertdialog" aria-labelledby="dialogue-titre"
       @keydown.escape.stop="repondre(false)">

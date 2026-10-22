@@ -27,11 +27,8 @@ function withDynamicMaterials(declared, tilesets, prefix) {
 import { resolveTile } from '../render2d/assets.js';
 
 // couleurs d'aplat (rendu rapide à faible zoom + repli sans assets)
-export const TILE_COLORS = {
-  [TILE.WATER]: '#2a4a66', [TILE.SAND]: '#d8c890', [TILE.GRASS]: '#55844a',
-  [TILE.FOREST]: '#3a6435', [TILE.ROCK]: '#7d7d7a', [TILE.COBBLE]: '#9a9590',
-  [TILE.PATH]: '#9a8560', [TILE.GRAVE]: '#6a5f52',
-};
+import { TILE_COLORS } from '../render2d/couleurs-tuiles.js';
+export { TILE_COLORS };
 export const TILE_NAMES = {
   [TILE.GRASS]: 'herbe', [TILE.FOREST]: 'forêt', [TILE.PATH]: 'chemin', [TILE.COBBLE]: 'pavés',
   [TILE.SAND]: 'terre', [TILE.GRAVE]: 'cimetière', [TILE.ROCK]: 'roche (bloquant)', [TILE.WATER]: 'eau (bloquant)',

@@ -144,10 +144,14 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   position: fixed; top: 12px; left: 252px; color: var(--gold); font-size: 14px;
   background: rgba(0,0,0,0.55); padding: 4px 10px; border-radius: 4px; z-index: 10;
 }
-#clock { position: fixed; top: 12px; right: 12px; font-size: 20px; z-index: 10; background: rgba(0,0,0,0.4); border-radius: 6px; padding: 2px 8px; }
+#clock {
+  position: fixed; top: 12px; right: 196px; z-index: 12; display: flex; align-items: center; gap: 5px;
+  background: rgba(10, 14, 22, 0.72); border: 1px solid rgba(95, 111, 134, 0.5); border-radius: 6px;
+  padding: 3px 8px; color: var(--gold); font-size: 12px; font-variant-numeric: tabular-nums;
+}
 /* overlay discret ping / FPS, juste sous l'horloge (coin haut-droit) */
 #perf-overlay {
-  position: fixed; top: 46px; right: 12px; z-index: 10;
+  position: fixed; top: 44px; right: 196px; z-index: 10;
   font-size: 11px; color: #8ae8c8; font-variant-numeric: tabular-nums;
   background: rgba(0,0,0,0.4); border-radius: 4px; padding: 2px 7px;
   pointer-events: none; text-shadow: 0 1px 2px #000;
@@ -174,7 +178,11 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 #chat-input:focus { opacity: 1; outline: none; border-color: var(--accent); }
 
 #hotbuttons { position: fixed; bottom: 12px; right: 12px; display: flex; gap: 8px; z-index: 10; }
-#hotbuttons button { font-size: 18px; padding: 8px 12px; background: rgba(24,33,47,0.85); }
+#hotbuttons button {
+  display: flex; align-items: center; justify-content: center; width: 42px; height: 40px; padding: 0;
+  background: rgba(24,33,47,0.85); color: var(--text);
+}
+#hotbuttons button.active { background: var(--accent-deep); border-color: var(--accent); color: #fff; }
 
 .panel {
   position: fixed; right: 12px; bottom: 64px; width: 300px; max-height: 70vh; overflow-y: auto;
@@ -309,7 +317,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   pointer-events: none; opacity: 0; transition: opacity 0.8s;
 }
 #compass {
-  position: fixed; top: 12px; right: 56px;
+  position: fixed; top: 12px; right: 12px; display: flex; align-items: center; gap: 4px;
   color: var(--gold); font-weight: bold; font-size: 14px;
   text-shadow: 0 1px 4px #000; z-index: 12; pointer-events: auto; cursor: help;
 }
@@ -430,7 +438,8 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 #pantheon { font-size: 11px; color: var(--text-muted); margin: 12px 0; text-align: left; max-height: 180px; overflow-y: auto; }
 #pantheon .dead-row { padding: 3px 0; border-bottom: 1px solid rgba(95,111,134,0.3); }
 /* ---- Effets actifs (buffs / malédictions) ---- */
-#buffs-display { position: fixed; top: 74px; right: 12px; z-index: 10; }
+#buffs-display { position: fixed; top: 44px; right: 12px; z-index: 10; }
+#buffs-display.sous-carte { top: 228px; }
 .buffs { list-style: none; display: flex; flex-direction: column; gap: 4px; width: 180px; }
 .buff {
   display: flex; align-items: center; gap: 6px; padding: 3px 6px;
@@ -510,6 +519,8 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 .panel-close:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--border); color: var(--text); }
 .panel h2 { padding-right: 30px; }
+/* mini-carte affichée : les panneaux s'arrêtent sous elle (colonne de droite) */
+#hud.avec-carte .panel { max-height: calc(100vh - 300px); }
 .panel :focus-visible, #hud button:focus-visible, .login-box :focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
@@ -547,3 +558,92 @@ button:disabled, button:disabled:hover {
 .doll-slot { padding: 0; }
 .doll-slot .slot-vide { display: flex; color: rgba(95, 111, 134, 0.7); }
 .inv-item.vide { opacity: 0.35; cursor: default; }
+
+/* ---- Mini-carte (N) ---- */
+#minicarte { position: fixed; top: 12px; right: 12px; width: 176px; z-index: 11; }
+#minicarte-canvas {
+  display: block; width: 176px; height: 176px; border-radius: 50%; cursor: crosshair;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+}
+.minicarte-zoom { position: absolute; left: -4px; bottom: 26px; display: flex; flex-direction: column; gap: 3px; }
+.minicarte-zoom button {
+  width: 22px; height: 22px; padding: 0; font-size: 14px; line-height: 1;
+  background: rgba(10, 14, 22, 0.85); border-color: var(--border);
+}
+.minicarte-zone {
+  margin-top: 4px; text-align: center; font-size: 11px; color: var(--gold);
+  text-shadow: 0 1px 3px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- Utilitaires communs ---- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+button.petit { padding: 2px 9px; font-size: 11px; }
+.chip {
+  padding: 1px 8px; font-size: 11px; border-radius: 10px;
+  background: rgba(216, 176, 106, 0.12); border: 1px solid rgba(216, 176, 106, 0.45); color: var(--gold);
+}
+.chip:hover { background: var(--accent-deep); color: #fff; }
+.jauge { height: 6px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 3px; overflow: hidden; }
+.jauge span { display: block; height: 100%; transition: width 0.3s; }
+.jauge-xp span { background: linear-gradient(90deg, var(--accent-deep), var(--accent-hover)); }
+.bonus { color: #8fd0ff; }
+.malus { color: var(--danger-hover); }
+
+/* ---- Fiche personnage (C) : tableaux compacts ---- */
+.panel.panel-large, #character, #journal { width: 340px; }
+.fiche-tete { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+.fiche-xp { flex: 1; min-width: 0; }
+.fiche-xp-texte { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+.fiche-xp-texte b { color: var(--gold); }
+.fiche-or { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: var(--gold); background: rgba(216, 176, 106, 0.12); border: 1px solid rgba(216, 176, 106, 0.3); }
+.fiche-points { margin-bottom: 10px; padding: 6px; text-align: center; font-size: 12px; border-radius: 5px; color: #9fe6a0; background: rgba(60, 140, 80, 0.18); border: 1px solid rgba(90, 170, 110, 0.45); }
+.fiche-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px;
+  background: rgba(0, 0, 0, 0.15); border: 1px solid rgba(95, 111, 134, 0.35); border-top: 2px solid rgba(216, 176, 106, 0.4);
+}
+.fiche-table th {
+  padding: 4px 8px; text-align: right; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--gold); background: rgba(255, 255, 255, 0.04);
+}
+.fiche-table th:first-child { text-align: left; }
+.fiche-table td { padding: 4px 8px; text-align: right; font-variant-numeric: tabular-nums; border-top: 1px solid rgba(95, 111, 134, 0.2); }
+.fiche-table td:first-child { text-align: left; color: var(--text); }
+.fiche-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
+.fiche-table td.hint { text-align: left; font-size: 11px; }
+.fiche-actuel { color: var(--text-muted); font-size: 10px; margin-left: 4px; }
+.fiche-max { color: var(--text-muted); }
+.fiche-stat { display: inline-flex; align-items: center; gap: 6px; }
+.fiche-plus {
+  width: 18px; height: 18px; padding: 0; font-weight: bold; line-height: 1;
+  background: var(--accent-deep); border-color: var(--accent); color: #fff;
+}
+
+/* ---- Journal (J) ---- */
+.journal-intro { margin: -4px 0 8px; }
+.journal-filtre input, .joueurs input {
+  width: 100%; padding: 5px 8px; margin-bottom: 8px; font-size: 12px; color: var(--text);
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 4px;
+}
+.journal-pnj { padding: 6px 0; border-bottom: 1px solid rgba(95, 111, 134, 0.3); }
+.journal-tete {
+  display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 2px 0; text-align: left;
+  background: none; border: none; color: var(--text); font-size: 13px;
+}
+.journal-tete:hover { background: none; color: #fff; }
+.journal-nom { font-weight: bold; color: var(--gold); }
+.journal-zone { flex: 1; font-size: 10px; color: var(--text-muted); }
+.journal-nb { font-size: 10px; color: var(--text-muted); }
+.journal-mots { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.journal-derniere { font-size: 11px; color: var(--text-muted); font-style: italic; line-height: 1.45; }
+.journal-repliques { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; max-height: 240px; overflow-y: auto; }
+.journal-repliques li { font-size: 11px; line-height: 1.45; padding-left: 8px; border-left: 2px solid rgba(216, 176, 106, 0.35); }
+
+/* ---- Joueurs en ligne (O) ---- */
+.joueurs-barre { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.joueurs-table td { vertical-align: middle; }
+.joueurs-table tr.moi td:first-child { color: var(--gold); }
+.joueurs-zone { color: var(--text-muted); font-size: 11px; }
+.joueurs-groupe { display: flex; color: #6fc3ff; }

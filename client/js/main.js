@@ -15,7 +15,9 @@ import { initDraggableWindows } from './drag.js';
 import { settings } from './settings.js';
 import { globalBus } from './event-bus.js';
 import { uiStore, repondre } from './gui/ui-store.js';
-import { guiManager } from './gui/gui-manager.js';
+import { guiManager, basculerMiniCarte } from './gui/gui-manager.js';
+import { chargerJournal, effacerJournal } from './gui/journal.js';
+import { MiniCarte } from './gui/minicarte.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
 
@@ -39,6 +41,7 @@ try {
   assets = await loadAssets();
   const spellsJson = await (await fetch('/content/spells.json')).json();
   uiStore.spellDefs = spellsJson.spells;
+  uiStore.skillDefs = (await (await fetch('/content/skills.json')).json()).skills || [];
   ui.setAssets(assets); // pour la poupée d'inventaire
 } catch (e) {
   fatal(e.message);
@@ -46,6 +49,12 @@ try {
 }
 world = generateWorld();
 renderer = new Renderer(canvas, assets, world, buildDecor(world));
+// mini-carte : un clic dessus fait marcher vers le point visé
+const miniCarte = new MiniCarte(document.getElementById('minicarte-canvas'), (x, z) => {
+  cancelAuto();
+  net.send({ t: 'move', x, z });
+});
+miniCarte.setWorld(world);
 em = new EntityManager2D(assets);
 
 // thème de l'écran de connexion (content/music.json, clé `login`). En jeu, le
@@ -98,6 +107,8 @@ net.on('create_char', async (m) => {
 });
 net.on('welcome', (m) => {
   selfId = m.id;
+  uiStore.player.name = m.name || '';
+  chargerJournal();
   uiStore.selfId = m.id;
   uiStore.adminPerms = m.perms || [];
   ui.selfId = m.id;
@@ -108,6 +119,7 @@ net.on('welcome', (m) => {
   globalBus.emit('net:chat-received', { from: 'sys', text: "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…" });
 });
 net.on('perms', (m) => { uiStore.adminPerms = m.perms || []; });
+net.on('who', (m) => { uiStore.joueurs = m.list || []; });
 net.on('channels', (m) => { uiStore.channels = m.list || []; });
 net.on('announce', (m) => {
   ui.announce(m.text);
@@ -133,6 +145,8 @@ net.on('zone', async (m) => {
   renderer.setWorld(world, buildDecor(world), m.tint || null);
   renderer.cam = { x: m.x, z: m.z };
   ui.zoneBanner(m.name, m.levels || null);
+  uiStore.zoneName = m.name || '';
+  miniCarte.setWorld(world);
   renderer.ambience = m.ambience || null; // ambiance d'arrivée (teinte/obscurité)
   playMusic(m.music); // musique de la zone (null = silence)
   if (m.kind === 'trial') globalBus.emit('net:chat-received', { from: 'sys', text: '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.' });
@@ -155,6 +169,7 @@ net.on('loot', (m) => {
   if (v) triggerFloater(headPos(v), m.text, 'xp');
 });
 net.on('died', (m) => {
+  effacerJournal(); // la mort est définitive : le journal part avec le personnage
   cancelAim();
   cancelAuto();
   ui.endCastBar();
@@ -235,7 +250,10 @@ net.on('events', (m) => {
       const v = em.get(ev.id);
       if (v) {
         v.say(ev.text);
-        if (ev.npc) ui.addChat(v.meta.name + ' (PNJ)', ev.text); // chat local
+        if (ev.npc) {
+          ui.addChat(v.meta.name + ' (PNJ)', ev.text); // chat local
+          globalBus.emit('net:npc-say', { nom: v.meta.name, texte: ev.text, zone: uiStore.zoneName });
+        }
       }
     } else if (ev.t === 'proj') {
       const a = em.get(ev.from), b = em.get(ev.to);
@@ -605,6 +623,9 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 'c') guiManager.togglePanel('character');
   else if (k === 's') guiManager.togglePanel('spells');
   else if (k === 'h') guiManager.togglePanel('help');
+  else if (k === 'j') guiManager.togglePanel('journal');
+  else if (k === 'o') guiManager.togglePanel('joueurs');
+  else if (k === 'n') basculerMiniCarte();
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
@@ -680,6 +701,7 @@ function frame() {
 
   processHover();
   if (frameN % 6 === 0) tickAutoCast();
+  if (frameN % 6 === 0 && uiStore.miniCarte && uiStore.phase === 'in-game') miniCarte.dessiner(em, selfId, renderer.props);
   if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); updatePerfOverlay(); }
 }
 frame();

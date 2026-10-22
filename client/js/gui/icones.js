@@ -63,8 +63,10 @@ export const SLOT_ICONS = {
   amulet: 'amulette', use: 'potion', gold: 'piece',
 };
 export const SPELL_ICONS = { bolt: 'eclair', heal: 'coeur', aoe: 'flamme', buff: 'etincelle' };
+// éléments : clés du contenu (anglaises) et anciennes clés françaises
 export const ELEMENT_ICONS = {
-  feu: 'flamme', eau: 'flocon', air: 'vent', terre: 'montagne', lumiere: 'soleil', arcane: 'lune',
+  fire: 'flamme', water: 'flocon', air: 'eclair', earth: 'montagne', light: 'soleil', dark: 'lune', arcane: 'etoile',
+  feu: 'flamme', eau: 'flocon', terre: 'montagne', lumiere: 'soleil',
 };
 
 export function icone(nom, { taille = 16, classe = '' } = {}) {
