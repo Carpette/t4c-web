@@ -1,15 +1,19 @@
-// Palette de l'éditeur de carte : toute la base graphique du jeu.
-// — les 8 types de tuiles de sol (aperçu sprite Flare + couleur de repli) ;
-// — TOUS les types de props avec leurs variantes explicites (vignettes sprite) ;
-// — recherche/filtre, et options de pose (variante aléatoire, échelle, miroir).
-// La sélection devient l'outil de pose de l'éditeur (editor.js).
+// Palette de l'éditeur de carte : toute la base graphique du jeu, rangée par
+// TYPE D'OBJET (sols, murs, toits...) quelle que soit sa provenance (Flare,
+// atelier, murs IA) : qui cherche un mur trouve tous les murs. La provenance
+// ne sert plus que de sous-titre (« style neige », matériau) et de mot-clé.
+// — une catégorie affichée à la fois (pastilles), ou la recherche sur tout ;
+// — vignettes en grille, dessinées quand elles deviennent visibles ;
+// — encadré « Sélection » épinglé : ce qui sera posé, toujours sous les yeux ;
+// — options de pose (échelle, miroir). La sélection devient l'outil de pose
+//   de l'éditeur (editor.js).
 import { TILE } from '../../../shared/worldgen.js';
 import {
   FLOOR_IDS, PROP_TYPES, isScalableProp, isFlippableProp,
   TILESET_PROP_FAMILIES, tilesetPropId,
   GRASS_PROP_TYPE, GRASS_PROP_LABEL, grasslandPropId, classifyGrasslandFrame,
-  WALL_MATERIALS, WALL_PIECES, wallPropId,
-  FLOOR_MATERIALS, FLOOR_VARIANTS, floorPropId,
+  WALL_MATERIALS, wallPropId,
+  FLOOR_MATERIALS, floorPropId,
   ROOF_MATERIALS, roofPropId,
   userPropId,
 } from '../render2d/decormap.js';
@@ -44,7 +48,8 @@ export const PROP_GLYPHS = {
   [GRASS_PROP_TYPE]: ['⌂', '#dcb37a'],
 };
 
-const THUMB = 72; // côté d'une vignette (px) — assez grand pour distinguer la tuile
+const THUMB = 64; // côté interne d'une vignette (px), affichée à la largeur de la grille
+const RESULTATS_MAX = 400; // recherche : au-delà, on invite à affiner
 
 // dessine un sprite du tileset, ajusté au cadre de la vignette
 function drawThumb(canvas, assets, tileId) {
@@ -60,11 +65,143 @@ function drawThumb(canvas, assets, tileId) {
   return true;
 }
 
+// catégories (types d'objet), dans l'ordre d'affichage
+const CATEGORIES = [
+  ['sols', 'Sols'], ['murs', 'Murs'], ['toits', 'Toits'], ['barrieres', 'Barrières et ponts'],
+  ['batiments', 'Bâtiments'], ['vegetation', 'Végétation'], ['rochers', 'Rochers et falaises'],
+  ['objets', 'Objets et mobilier'], ['speciaux', 'Points spéciaux'], ['decors3d', 'Décors 3D'],
+];
+const NOM_CATEGORIE = Object.fromEntries(CATEGORIES);
+// props d'Arakas -> catégorie
+const CAT_PROP = {
+  tree: 'vegetation', rock: 'rochers', cave: 'rochers', grave: 'objets', ruin: 'objets',
+  wall: 'murs', fence: 'barrieres', bridge: 'barrieres', torch: 'objets', house: 'batiments',
+  well: 'speciaux', obelisk: 'speciaux', trialgate: 'speciaux', exitgate: 'speciaux', chest: 'speciaux', bank: 'speciaux',
+};
+// classement des frames Flare (ts.types / classifyGrasslandFrame) -> catégorie.
+// Ce classement est GÉOMÉTRIQUE (taille du sprite, cf. build-manifest.js) : une
+// plante haute peut passer pour un mur. Ces frames viennent donc APRÈS les
+// éléments nommés, sous un sous-titre qui le dit, avec un libellé neutre.
+const CAT_FRAME = { sol: 'sols', mur: 'murs', objet: 'objets', bati: 'batiments' };
+// la provenance devient un « style » (sous-titre), pas un classement
+const STYLE_FLARE = { cave: 'caverne', dungeon: 'donjon', snow: 'neige', ruins: 'ruines' };
+
+// recherche insensible à la casse et aux accents
+const norm = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// clé d'une sélection, pour retrouver sa vignette
+const cleDe = (t) => (t.kind === 'tile' ? `t:${t.tile}` : `p:${t.type}:${t.v ?? '*'}`);
+
+// Inventaire de tout ce qui se pose : [{ cle, cat, groupe, label, tileId,
+// glyph, color, swatch, outil, texte }], dans l'ordre d'affichage.
+function inventaire(assets) {
+  const out = [];
+  const tilesets = assets?.manifest?.tilesets || {};
+  const ajouter = (it) => {
+    it.cle = cleDe(it.outil);
+    it.texte = norm([it.label, it.groupe, NOM_CATEGORIE[it.cat], it.motsCles || ''].join(' '));
+    out.push(it);
+  };
+  const frames = (ts) => Object.keys(ts?.tiles || {}).map(Number).sort((a, b) => a - b);
+
+  // sols peints (terrain) : en tête, c'est le plus utilisé
+  for (const t of TILE_ORDER) {
+    ajouter({ cat: 'sols', groupe: 'Terrain', label: TILE_NAMES[t], tileId: FLOOR_IDS[t][0],
+      swatch: assets ? null : TILE_COLORS[t], outil: { kind: 'tile', tile: t } });
+  }
+  // props d'Arakas, variante par variante
+  for (const [type, def] of Object.entries(PROP_TYPES)) {
+    const cat = CAT_PROP[type] || 'objets';
+    const groupe = def.label[0].toUpperCase() + def.label.slice(1);
+    const [glyph, color] = PROP_GLYPHS[type] || ['?', '#fff'];
+    const multi = def.variants.length > 1 || def.random;
+    if (def.random && def.variants.length > 1) {
+      ajouter({ cat, groupe, label: `${def.label} (au hasard)`, glyph: '?', color: '#ffd24a',
+        motsCles: type, outil: { kind: 'prop', type, v: null } });
+    }
+    for (const va of def.variants) {
+      // les pans de toiture rangés parmi les « murs » historiques vont aux toits
+      const c = type === 'wall' && /toit|pan /.test(va.label) ? 'toits' : cat;
+      ajouter({ cat: c, groupe, label: va.label, tileId: va.id, glyph, color,
+        motsCles: type, outil: { kind: 'prop', type, v: multi ? va.v : null } });
+    }
+  }
+  // dalles de sol (atelier) : « au hasard » = variante par position, sans couture
+  for (const [mat, label] of withDynamicMaterials(FLOOR_MATERIALS, tilesets, 'floor_')) {
+    const type = `floor_${mat}`, ts = tilesets[type];
+    if (!ts?.tiles) continue;
+    const names = ts.names || [];
+    ajouter({ cat: 'sols', groupe: `Dalles ${label}`, label: `${label} (au hasard)`, tileId: floorPropId(type, 0),
+      glyph: '▦', color: '#8c6', motsCles: 'dalle ' + type, outil: { kind: 'prop', type, v: null } });
+    for (const n of frames(ts)) {
+      ajouter({ cat: 'sols', groupe: `Dalles ${label}`, label: names[n] || `pièce ${n}`, tileId: floorPropId(type, n),
+        glyph: '▦', color: '#8c6', motsCles: 'dalle ' + type, outil: { kind: 'prop', type, v: n } });
+    }
+  }
+  // murs : pièces par matériau (murs IA et murs d'arête procéduraux)
+  for (const [mat, label] of withDynamicMaterials(WALL_MATERIALS, tilesets, 'wall_')) {
+    const type = `wall_${mat}`, ts = tilesets[type];
+    if (!ts?.tiles) continue;
+    const names = ts.names || [];
+    for (const n of frames(ts)) {
+      ajouter({ cat: 'murs', groupe: label, label: names[n] || `pièce ${n}`, tileId: wallPropId(type, n),
+        glyph: '▮', color: '#ca8', motsCles: 'mur ' + type, outil: { kind: 'prop', type, v: n } });
+    }
+  }
+  // toits (atelier)
+  for (const [mat, label] of withDynamicMaterials(ROOF_MATERIALS, tilesets, 'roof_')) {
+    const type = `roof_${mat}`, ts = tilesets[type];
+    if (!ts?.tiles) continue;
+    const names = ts.names || [];
+    for (const n of frames(ts)) {
+      ajouter({ cat: 'toits', groupe: label, label: names[n] || `pièce ${n}`, tileId: roofPropId(type, n),
+        glyph: '⌂', color: '#d86', motsCles: 'toit ' + type, outil: { kind: 'prop', type, v: n } });
+    }
+  }
+  // tilesets Flare : chaque frame va dans la catégorie de son type (sol/mur/objet)
+  for (const [type, prefix, , [glyph, color]] of TILESET_PROP_FAMILIES) {
+    const ts = tilesets[prefix];
+    if (!ts?.tiles) continue;
+    const style = STYLE_FLARE[prefix] || prefix;
+    for (const n of frames(ts)) {
+      const t = ts.types?.[n] || 'objet';
+      ajouter({ cat: CAT_FRAME[t] || 'objets', groupe: `Style ${style} (classement automatique)`, label: `${style} n° ${n}`,
+        tileId: tilesetPropId(type, n), glyph, color, motsCles: `${type} ${prefix}`, outil: { kind: 'prop', type, v: n } });
+    }
+  }
+  // tileset des plaines (ids numériques) : classé par la géométrie des frames ;
+  // les transitions de berge (144-191) n'ont pas de sens isolées
+  {
+    const grass = assets?.manifest?.tiles || {};
+    const [glyph, color] = PROP_GLYPHS[GRASS_PROP_TYPE];
+    const ids = Object.keys(grass).filter(f => /^\d+$/.test(f) && !(+f >= 144 && +f <= 191))
+      .map(Number).sort((a, b) => a - b);
+    for (const n of ids) {
+      const t = classifyGrasslandFrame(grass[n]);
+      ajouter({ cat: CAT_FRAME[t] || 'objets', groupe: 'Style plaines (classement automatique)', label: `plaines n° ${n}`,
+        tileId: grasslandPropId(n), glyph, color, motsCles: `${GRASS_PROP_TYPE} grassland ${GRASS_PROP_LABEL}`,
+        outil: { kind: 'prop', type: GRASS_PROP_TYPE, v: n } });
+    }
+  }
+  // décors 3D (atelier) : un modèle par sous-titre, une vignette par orientation
+  for (const type of Object.keys(tilesets).filter(k => k.startsWith('user_')).sort()) {
+    const ts = tilesets[type];
+    if (!ts?.tiles || (ts.family || 'objet') !== 'objet') continue;
+    const label = ts.label || type.slice(5), names = ts.names || [];
+    for (const n of frames(ts)) {
+      ajouter({ cat: 'decors3d', groupe: label, label: names[n] || `orientation ${n + 1}`, tileId: userPropId(type, n),
+        glyph: '◆', color: '#9bd', motsCles: 'decor 3d atelier ' + type, outil: { kind: 'prop', type, v: n } });
+    }
+  }
+  return out;
+}
+
 // Construit la palette dans `container`. `assets` peut être null (mode dégradé :
 // vignettes en glyphes). `onSelect(tool)` est appelé à chaque sélection avec
 // { kind:'tile', tile } ou { kind:'prop', type, v|null, s, flip }.
 export function buildPalette({ container, assets, onSelect }) {
   const doc = container.ownerDocument || document;
+  const win = doc.defaultView || globalThis;
   const el = (tag, cls, text) => {
     const e = doc.createElement(tag);
     if (cls) e.className = cls;
@@ -72,29 +209,58 @@ export function buildPalette({ container, assets, onSelect }) {
     return e;
   };
 
-  // état de la sélection courante
+  // éléments nommés d'abord, frames à classement automatique ensuite (tri stable)
+  const items = inventaire(assets).sort((a, b) => a.groupe.endsWith('automatique)') - b.groupe.endsWith('automatique)'));
+  const parCle = new Map(items.map(it => [it.cle, it]));
+  const compte = {};
+  for (const it of items) compte[it.cat] = (compte[it.cat] || 0) + 1;
+
+  // état : sélection, options de pose, catégorie affichée (mémorisée)
   let current = { kind: 'tile', tile: TILE.GRASS };
-  const opts = { s: 1, flip: false }; // options de pose des props
-  const chips = []; // toutes les vignettes cliquables, pour le surlignage
+  const opts = { s: 1, flip: false };
+  const CAT_KEY = 'palCategorie';
+  let categorie = 'sols';
+  try { const c = localStorage.getItem(CAT_KEY); if (NOM_CATEGORIE[c]) categorie = c; } catch { /* stockage indispo */ }
 
   const root = el('div', 'pal-root');
   container.innerHTML = '';
   container.appendChild(root);
 
-  // --- en-tête ÉPINGLÉ : recherche + options de pose (échelle/miroir) restent
-  // visibles pendant qu'on fait défiler la liste des ressources (sticky en haut
-  // du panneau scrollable), pour ne plus avoir à remonter pour régler l'échelle.
+  // --- en-tête épinglé : sélection courante, recherche, catégories, options ---
   const header = el('div', 'pal-header');
-  header.style.cssText = 'position:sticky;top:0;z-index:5;background:var(--color-t4c-box-bg,#16181c);'
-    + 'padding:4px 0 6px;margin-bottom:2px;border-bottom:1px solid var(--color-t4c-input-border,#2e323b);';
   root.appendChild(header);
 
-  // --- recherche ---
+  const sel = el('div', 'pal-sel');
+  sel.setAttribute?.('aria-live', 'polite');
+  const selCv = el('canvas');
+  selCv.width = selCv.height = THUMB;
+  const selTxt = el('div', 'pal-sel-txt');
+  const selNom = el('div', 'pal-sel-nom');
+  const selCat = el('div', 'pal-sel-cat');
+  selTxt.append(selNom, selCat);
+  sel.append(selCv, selTxt);
+  header.appendChild(sel);
+
   const search = el('input', 'pal-search');
-  search.placeholder = 'Filtrer (arbre, mur, pont…)';
+  search.type = 'search';
+  search.placeholder = 'Chercher dans tout (mur, arbre, neige...)';
+  search.setAttribute?.('aria-label', 'Chercher un élément à poser');
   header.appendChild(search);
 
-  // --- options de pose (props) ---
+  const cats = el('div', 'pal-cats');
+  cats.setAttribute?.('role', 'tablist');
+  const boutonsCat = {};
+  for (const [id, nom] of CATEGORIES) {
+    if (!compte[id]) continue;
+    const b = el('button', 'pal-cat');
+    b.type = 'button';
+    b.append(el('span', null, nom), el('span', 'pal-cat-n', String(compte[id])));
+    b.onclick = () => { search.value = ''; choisirCategorie(id); };
+    boutonsCat[id] = b;
+    cats.appendChild(b);
+  }
+  header.appendChild(cats);
+
   const optBox = el('div', 'pal-options');
   const sRow = el('label', 'pal-opt', 'Échelle ');
   const sInput = el('input');
@@ -105,409 +271,159 @@ export function buildPalette({ container, assets, onSelect }) {
   const fRow = el('label', 'pal-opt');
   const fInput = el('input');
   fInput.type = 'checkbox';
-  fRow.append(fInput, doc.createTextNode(' Miroir horizontal'));
+  fRow.append(fInput, doc.createTextNode(' Miroir'));
   fInput.onchange = () => { opts.flip = !!fInput.checked; emit(); };
   optBox.append(sRow, fRow);
   header.appendChild(optBox);
 
+  const liste = el('div', 'pal-liste');
+  root.appendChild(liste);
+
+  // --- vignettes : dessinées à leur apparition (des milliers de canvas
+  // d'avance coûtaient des dizaines de Mo et une longue construction) ---
+  const aDessiner = new WeakMap();
+  const io = typeof win.IntersectionObserver === 'function'
+    ? new win.IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        io.unobserve(e.target);
+        aDessiner.get(e.target)?.();
+      }
+    }, { rootMargin: '200px' })
+    : null;
+  function vignette(cv, it) {
+    const dessiner = () => {
+      if (assets && it.tileId != null && drawThumb(cv, assets, it.tileId)) return;
+      const g = cv.getContext('2d');
+      g.clearRect?.(0, 0, cv.width, cv.height);
+      g.font = '26px sans-serif'; g.textAlign = 'center'; g.fillStyle = it.color || '#fff';
+      g.fillText(it.glyph || '?', THUMB / 2, THUMB / 2 + 9);
+    };
+    if (io) { aDessiner.set(cv, dessiner); io.observe(cv); } else dessiner();
+  }
+
+  let puces = []; // vignettes affichées : { div, cle }
+  function puce(it) {
+    const div = el('button', 'pal-chip');
+    div.type = 'button';
+    div.title = `${it.label} — ${it.groupe}`;
+    if (it.swatch) {
+      const sw = el('div', 'pal-swatch');
+      sw.style.background = it.swatch;
+      div.appendChild(sw);
+    } else {
+      const cv = el('canvas');
+      cv.width = cv.height = THUMB;
+      div.appendChild(cv);
+      vignette(cv, it);
+    }
+    div.appendChild(el('div', 'pal-chip-label', it.label));
+    div.onclick = () => { current = { ...it.outil }; emit(); };
+    puces.push({ div, cle: it.cle });
+    return div;
+  }
+
+  // affiche une liste d'éléments groupés par sous-titre (et par catégorie en recherche)
+  function afficher(liste_, avecCategorie) {
+    liste.innerHTML = '';
+    puces = [];
+    let cat = null, groupe = null, grille = null;
+    for (const it of liste_) {
+      if (avecCategorie && it.cat !== cat) {
+        cat = it.cat; groupe = null;
+        liste.appendChild(el('h3', 'pal-titre-cat', NOM_CATEGORIE[cat]));
+      }
+      if (it.groupe !== groupe) {
+        groupe = it.groupe;
+        liste.appendChild(el('h4', 'pal-groupe', groupe));
+        grille = el('div', 'pal-grid');
+        liste.appendChild(grille);
+      }
+      grille.appendChild(puce(it));
+    }
+    if (!liste_.length) liste.appendChild(el('p', 'pal-vide', 'Aucun élément ne correspond.'));
+    surligner();
+  }
+
+  function choisirCategorie(id) {
+    categorie = id;
+    try { localStorage.setItem(CAT_KEY, id); } catch { /* stockage indispo */ }
+    rendre();
+  }
+  function rendre() {
+    const mots = norm(search.value.trim()).split(/\s+/).filter(Boolean);
+    for (const [id, b] of Object.entries(boutonsCat)) b.classList.toggle('active', !mots.length && id === categorie);
+    if (!mots.length) { afficher(items.filter(it => it.cat === categorie), false); return; }
+    // recherche : tous les mots, dans toutes les catégories, rangés par catégorie
+    const ordre = Object.fromEntries(CATEGORIES.map(([id], i) => [id, i]));
+    const trouves = items.filter(it => mots.every(m => it.texte.includes(m)))
+      .sort((a, b) => ordre[a.cat] - ordre[b.cat]);
+    afficher(trouves.slice(0, RESULTATS_MAX), true);
+    if (trouves.length > RESULTATS_MAX) {
+      liste.appendChild(el('p', 'pal-vide', `${trouves.length - RESULTATS_MAX} autres résultats : précisez la recherche.`));
+    }
+  }
+  search.oninput = rendre;
+  search.onkeydown = (e) => { if (e.key === 'Escape') { search.value = ''; rendre(); } };
+
+  // élément de la palette correspondant à la sélection (variante inconnue :
+  // premier élément du même type, pour la catégorie et l'aperçu)
+  function itemCourant() {
+    return parCle.get(cleDe(current))
+      || (current.kind === 'prop' ? items.find(it => it.outil.type === current.type) : null);
+  }
+  function surligner() {
+    const cle = cleDe(current);
+    for (const p of puces) {
+      const actif = p.cle === cle;
+      p.div.classList.toggle('active', actif);
+      p.div.setAttribute?.('aria-pressed', actif ? 'true' : 'false');
+    }
+  }
+  function majSelection() {
+    const it = itemCourant();
+    const exact = it && it.cle === cleDe(current);
+    selNom.textContent = exact ? it.label : current.kind === 'prop' ? `${current.type} ${current.v ?? ''}` : '?';
+    selCat.textContent = it ? `${NOM_CATEGORIE[it.cat]} · ${it.groupe}` : '';
+    const g = selCv.getContext('2d');
+    g.clearRect?.(0, 0, THUMB, THUMB);
+    if (it?.swatch) { g.fillStyle = it.swatch; g.fillRect(0, 0, THUMB, THUMB); }
+    else if (!(assets && it?.tileId != null && exact && drawThumb(selCv, assets, it.tileId))) {
+      g.font = '26px sans-serif'; g.textAlign = 'center'; g.fillStyle = it?.color || '#fff';
+      g.fillText(it?.glyph || '?', THUMB / 2, THUMB / 2 + 9);
+    }
+  }
+
   function refreshOptions() {
     const isProp = current.kind === 'prop';
-    sRow.style.display = isProp && isScalableProp(current.type) ? '' : 'none';
-    fRow.style.display = isProp && isFlippableProp(current.type) ? '' : 'none';
+    const echelle = isProp && isScalableProp(current.type), miroir = isProp && isFlippableProp(current.type);
+    sRow.style.display = echelle ? '' : 'none';
+    fRow.style.display = miroir ? '' : 'none';
+    optBox.style.display = echelle || miroir ? '' : 'none';
   }
 
   function emit() {
     refreshOptions();
-    for (const c of chips) c.div.classList.toggle('active', c.match(current));
+    surligner();
+    majSelection();
     onSelect(current.kind === 'tile'
       ? { ...current }
       : { ...current, s: isScalableProp(current.type) ? opts.s : 1, flip: isFlippableProp(current.type) && opts.flip });
   }
-
-  // vignette générique : aperçu (sprite ou glyphe) + libellé en infobulle
-  function makeChip({ label, tileId, glyph, color, swatch }, select, match) {
-    const div = el('div', 'pal-chip');
-    div.title = label;
-    if (swatch) {
-      const sw = el('div', 'pal-swatch');
-      sw.style.background = swatch;
-      div.appendChild(sw);
-    } else {
-      const cv = el('canvas');
-      cv.width = THUMB; cv.height = THUMB;
-      let drawn = false;
-      if (assets && tileId != null) drawn = drawThumb(cv, assets, tileId);
-      if (!drawn) {
-        const g = cv.getContext('2d');
-        g.font = '26px sans-serif'; g.textAlign = 'center'; g.fillStyle = color || '#fff';
-        g.fillText(glyph || '?', THUMB / 2, THUMB / 2 + 9);
-      }
-      div.appendChild(cv);
-    }
-    div.appendChild(el('div', 'pal-chip-label', label));
-    div.onclick = () => { current = select(); emit(); };
-    chips.push({ div, match });
-    return div;
+  // sélection venue de la carte (pipette, R) : on montre sa vignette
+  function montrer() {
+    const it = itemCourant();
+    if (it && !search.value.trim() && it.cat !== categorie) choisirCategorie(it.cat);
+    puces.find(p => p.div.classList.contains('active'))?.div.scrollIntoView?.({ block: 'nearest' });
   }
 
-  // --- état d'ouverture des thèmes (accordéon), mémorisé entre sessions ---
-  const OPEN_KEY = 'palAccordionOpen';
-  let openState = {};
-  try { openState = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}') || {}; } catch { openState = {}; }
-  const saveOpen = () => { try { localStorage.setItem(OPEN_KEY, JSON.stringify(openState)); } catch { /* stockage indispo */ } };
-
-  // Crée un thème repliable (accordéon). `id` sert à mémoriser l'état ;
-  // `count` est affiché à droite de l'en-tête. Retourne le conteneur de corps
-  // dans lequel ajouter des sous-sections. Plusieurs thèmes peuvent être ouverts.
-  const themes = []; // { theme, head, body, text } pour le filtre et l'aplatissement
-  function makeTheme(id, label, count, defaultOpen = false) {
-    const theme = el('div', 'pal-theme');
-    const head = el('button', 'pal-theme-head');
-    head.type = 'button';
-    const chevron = el('span', 'pal-theme-chevron', '▶');
-    head.append(chevron, doc.createTextNode(label));
-    if (count != null) head.appendChild(el('span', 'pal-theme-count', String(count)));
-    const body = el('div', 'pal-theme-body');
-    theme.append(head, body);
-    const open = openState[id] ?? defaultOpen;
-    theme.classList.toggle('open', open);
-    head.onclick = () => {
-      const now = !theme.classList.contains('open');
-      theme.classList.toggle('open', now);
-      openState[id] = now;
-      saveOpen();
-    };
-    root.appendChild(theme);
-    themes.push({ id, theme, head, body });
-    return body;
-  }
-
-  // Sous-section « type » (Sols / Murs & falaises / Mobilier & objets) à
-  // l'intérieur d'un thème : un titre + une rangée de vignettes.
-  function makeSubsection(body, title) {
-    const sub = el('div', 'pal-subsec');
-    sub.appendChild(el('h4', null, title));
-    const row = el('div', 'pal-row');
-    sub.appendChild(row);
-    body.appendChild(sub);
-    return { sub, row };
-  }
-
-  // groupes plats : conservé pour la compat du filtre (désormais vide — tout est
-  // en accordéon, y compris les sols et décors de base d'Arakas).
-  const groups = [];
-
-  // --- section sols (accordéon, déplié par défaut : c'est le plus utilisé) ---
-  {
-    const body = makeTheme('base:sols', 'Sols', TILE_ORDER.length, true);
-    const row = el('div', 'pal-row');
-    for (const t of TILE_ORDER) {
-      row.appendChild(makeChip(
-        { label: TILE_NAMES[t], tileId: FLOOR_IDS[t][0], swatch: assets ? null : TILE_COLORS[t] },
-        () => ({ kind: 'tile', tile: t }),
-        (cur) => cur.kind === 'tile' && cur.tile === t,
-      ));
-    }
-    body.appendChild(row);
-    const text = 'sols ' + TILE_ORDER.map(t => TILE_NAMES[t]).join(' ');
-    themes[themes.length - 1].subGroups = [{ div: row, text }];
-    themes[themes.length - 1].text = text;
-  }
-
-  // --- sections props d'Arakas : un ACCORDÉON par type, toutes variantes ---
-  for (const [type, def] of Object.entries(PROP_TYPES)) {
-    const body = makeTheme('base:prop:' + type, def.label, def.variants.length);
-    const row = el('div', 'pal-row');
-    if (def.random && def.variants.length > 1) {
-      row.appendChild(makeChip(
-        { label: `${def.label} — variante aléatoire`, glyph: '?', color: '#ffd24a' },
-        () => ({ kind: 'prop', type, v: null }),
-        (cur) => cur.kind === 'prop' && cur.type === type && cur.v == null,
-      ));
-    }
-    for (const va of def.variants) {
-      const [glyph, color] = PROP_GLYPHS[type] || ['?', '#fff'];
-      row.appendChild(makeChip(
-        { label: va.label, tileId: va.id, glyph, color },
-        () => ({ kind: 'prop', type, v: def.variants.length > 1 || def.random ? va.v : null }),
-        (cur) => cur.kind === 'prop' && cur.type === type && cur.v === (def.variants.length > 1 || def.random ? va.v : null),
-      ));
-    }
-    body.appendChild(row);
-    const text = (type + ' ' + def.label + ' ' + def.variants.map(v => v.label).join(' ')).toLowerCase();
-    themes[themes.length - 1].subGroups = [{ div: row, text }];
-    themes[themes.length - 1].text = text;
-  }
-
-  // --- thèmes Flare additionnels : un ACCORDÉON par famille, sous-sections par type ---
-  // Énumère toutes les frames du tileset depuis le manifeste (cave/dungeon/ruins/
-  // neige) et les répartit en 3 sous-sections selon `ts.types[frame]` (sol/mur/objet,
-  // calculé par build-manifest.js). La pose enregistre un prop { type, v:frame }
-  // dont l'id de tuile rendu est « prefix:frame » (voir decormap.tilesetPropId).
-  const tilesets = assets?.manifest?.tilesets || {};
-  // libellés des sous-sections + ordre d'affichage des types
-  const TYPE_SUBSECTIONS = [
-    ['sol', 'Sols'],
-    ['mur', 'Murs & falaises'],
-    ['objet', 'Mobilier & objets'],
-  ];
-  for (const [type, prefix, label, [glyph, color]] of TILESET_PROP_FAMILIES) {
-    const ts = tilesets[prefix];
-    if (!ts || !ts.tiles) continue;
-    const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
-    if (!frames.length) continue;
-    const ttypes = ts.types || {};
-    const body = makeTheme('flare:' + prefix, label, frames.length);
-    const subGroups = []; // { div, text } pour le filtre (granularité sous-section)
-    for (const [tkey, subLabel] of TYPE_SUBSECTIONS) {
-      const inSec = frames.filter(f => (ttypes[f] || 'objet') === tkey);
-      if (!inSec.length) continue;
-      const { sub, row } = makeSubsection(body, `${subLabel} (${inSec.length})`);
-      for (const frame of inSec) {
-        const n = Number(frame);
-        const tileId = tilesetPropId(type, n); // « prefix:frame »
-        row.appendChild(makeChip(
-          { label: `${label} — ${subLabel} ${frame}`, tileId, glyph, color },
-          () => ({ kind: 'prop', type, v: n }),
-          (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-        ));
-      }
-      subGroups.push({ div: sub, text: (type + ' ' + prefix + ' ' + label + ' ' + subLabel).toLowerCase() });
-    }
-    // un thème compte comme un « groupe » pour le filtre : visible si l'une de
-    // ses sous-sections matche ; aplati (déplié) quand une recherche est active.
-    themes[themes.length - 1].subGroups = subGroups;
-    themes[themes.length - 1].text = (type + ' ' + prefix + ' ' + label).toLowerCase();
-  }
-
-  // --- thème « Plaines / Bâtiments (Flare) » : toutes les frames du tileset
-  // grassland (ids NUMÉRIQUES de manifest.tiles), pickables individuellement.
-  // Chaque frame est classée géométriquement (classifyGrasslandFrame) en
-  // Sols / Murs & falaises / Bâtiments / Mobilier & objets. La pose enregistre un
-  // prop { type:'flare_grass', v:<numéro de frame> } dont l'id de tuile rendu EST
-  // ce numéro (grasslandPropId) — même pipeline que les autres props.
-  {
-    const grassTiles = assets?.manifest?.tiles || {};
-    // frames numériques utiles à poser : on écarte les frames de sol/falaise
-    // d'autotiling (transitions de berge 144-191) qui n'ont pas de sens isolées.
-    const SKIP = new Set();
-    for (let id = 144; id <= 191; id++) SKIP.add(String(id));
-    const frames = Object.keys(grassTiles)
-      .filter(f => /^\d+$/.test(f) && !SKIP.has(f))
-      .sort((a, b) => Number(a) - Number(b));
-    if (frames.length) {
-      // libellés + ordre des sous-sections (4 types, dont « Bâtiments »)
-      const GRASS_SUBSECTIONS = [
-        ['bati', 'Bâtiments'],
-        ['mur', 'Murs & falaises'],
-        ['objet', 'Mobilier & objets'],
-        ['sol', 'Sols'],
-      ];
-      const byType = {};
-      for (const f of frames) {
-        const t = classifyGrasslandFrame(grassTiles[f]);
-        (byType[t] ||= []).push(f);
-      }
-      const body = makeTheme('flare:grass', GRASS_PROP_LABEL, frames.length);
-      const [glyph, color] = PROP_GLYPHS[GRASS_PROP_TYPE];
-      const subGroups = [];
-      for (const [tkey, subLabel] of GRASS_SUBSECTIONS) {
-        const inSec = byType[tkey] || [];
-        if (!inSec.length) continue;
-        const { sub, row } = makeSubsection(body, `${subLabel} (${inSec.length})`);
-        for (const f of inSec) {
-          const n = Number(f);
-          row.appendChild(makeChip(
-            { label: `${subLabel} — frame ${f}`, tileId: grasslandPropId(n), glyph, color },
-            () => ({ kind: 'prop', type: GRASS_PROP_TYPE, v: n }),
-            (cur) => cur.kind === 'prop' && cur.type === GRASS_PROP_TYPE && cur.v === n,
-          ));
-        }
-        subGroups.push({ div: sub, text: (GRASS_PROP_TYPE + ' grassland plaines ' + GRASS_PROP_LABEL + ' ' + subLabel).toLowerCase() });
-      }
-      themes[themes.length - 1].subGroups = subGroups;
-      themes[themes.length - 1].text = (GRASS_PROP_TYPE + ' grassland plaines ' + GRASS_PROP_LABEL).toLowerCase();
-    }
-  }
-
-  // --- thème « Sols (atelier) » : dalles posables générées procéduralement ---
-  // Une SOUS-SECTION par matériau. La première vignette « aléatoire » pose avec
-  // v=null : le moteur choisit la variante PAR POSITION ((x%4)+(z%4)*4), garanti
-  // sans couture. Suivent les 16 variantes explicites puis les 8 bords (transitions).
-  {
-    const tilesets = assets?.manifest?.tilesets || {};
-    const present = withDynamicMaterials(FLOOR_MATERIALS, tilesets, 'floor_')
-      .filter(([mat]) => tilesets[`floor_${mat}`]?.tiles);
-    if (present.length) {
-      const total = present.reduce((n, [mat]) =>
-        n + Object.keys(tilesets[`floor_${mat}`].tiles).length, 0);
-      const body = makeTheme('floors', 'Sols (atelier)', total);
-      const subGroups = [];
-      for (const [mat, label] of present) {
-        const type = `floor_${mat}`;
-        const ts = tilesets[type];
-        const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
-        if (!frames.length) continue;
-        const names = ts.names || [];
-        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
-        // vignette « aléatoire » : v=null -> variante par position (recommandé)
-        row.appendChild(makeChip(
-          { label: `${label} — aléatoire (par position)`, tileId: floorPropId(type, 0), glyph: '▦', color: '#8c6' },
-          () => ({ kind: 'prop', type, v: null }),
-          (cur) => cur.kind === 'prop' && cur.type === type && cur.v == null,
-        ));
-        for (const frame of frames) {
-          const n = Number(frame);
-          row.appendChild(makeChip(
-            { label: `${label} — ${names[n] || `pièce ${frame}`}`, tileId: floorPropId(type, n), glyph: '▦', color: '#8c6' },
-            () => ({ kind: 'prop', type, v: n }),
-            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-          ));
-        }
-        subGroups.push({ div: sub, text: ('sol sols dalle atelier ' + mat + ' ' + label).toLowerCase() });
-      }
-      themes[themes.length - 1].subGroups = subGroups;
-      themes[themes.length - 1].text = ('sols atelier ' + present.map(([, l]) => l).join(' ')).toLowerCase();
-    }
-  }
-  void FLOOR_VARIANTS;
-
-  // --- thème « Toits (atelier) » : pièces de toit posées par case, au-dessus des murs ---
-  {
-    const tilesets = assets?.manifest?.tilesets || {};
-    const present = withDynamicMaterials(ROOF_MATERIALS, tilesets, 'roof_')
-      .filter(([mat]) => tilesets[`roof_${mat}`]?.tiles);
-    if (present.length) {
-      const total = present.reduce((n, [mat]) =>
-        n + Object.keys(tilesets[`roof_${mat}`].tiles).length, 0);
-      const body = makeTheme('roofs', 'Toits (atelier)', total);
-      const subGroups = [];
-      for (const [mat, label] of present) {
-        const type = `roof_${mat}`;
-        const ts = tilesets[type];
-        const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
-        if (!frames.length) continue;
-        const names = ts.names || [];
-        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
-        for (const frame of frames) {
-          const n = Number(frame);
-          row.appendChild(makeChip(
-            { label: `${label} — ${names[n] || `pièce ${frame}`}`, tileId: roofPropId(type, n), glyph: '⌂', color: '#d86' },
-            () => ({ kind: 'prop', type, v: n }),
-            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-          ));
-        }
-        subGroups.push({ div: sub, text: ('toit toits atelier ' + mat + ' ' + label).toLowerCase() });
-      }
-      themes[themes.length - 1].subGroups = subGroups;
-      themes[themes.length - 1].text = ('toits atelier ' + present.map(([, l]) => l).join(' ')).toLowerCase();
-    }
-  }
-
-  // --- thème « Décors 3D (atelier) » : modèles 3D cuits dans l'onglet Atelier 3D ---
-  // Un tileset « user_<nom> » (famille objet) par modèle, découvert au manifeste :
-  // une sous-section par modèle, une vignette par orientation (frame).
-  {
-    const tilesets = assets?.manifest?.tilesets || {};
-    const decors = Object.keys(tilesets)
-      .filter(k => k.startsWith('user_') && tilesets[k]?.tiles && (tilesets[k].family || 'objet') === 'objet')
-      .sort();
-    if (decors.length) {
-      const total = decors.reduce((n, k) => n + Object.keys(tilesets[k].tiles).length, 0);
-      const body = makeTheme('decors3d', 'Décors 3D (atelier)', total);
-      const subGroups = [];
-      for (const type of decors) {
-        const ts = tilesets[type];
-        const label = ts.label || type.slice(5);
-        const frames = Object.keys(ts.tiles).sort((a, b) => Number(a) - Number(b));
-        const names = ts.names || [];
-        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
-        for (const frame of frames) {
-          const n = Number(frame);
-          row.appendChild(makeChip(
-            { label: `${label} — ${names[n] || `frame ${frame}`}`, tileId: userPropId(type, n), glyph: '◆', color: '#9bd' },
-            () => ({ kind: 'prop', type, v: n }),
-            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-          ));
-        }
-        subGroups.push({ div: sub, text: ('décor decor 3d atelier ' + type + ' ' + label).toLowerCase() });
-      }
-      themes[themes.length - 1].subGroups = subGroups;
-      themes[themes.length - 1].text = ('décors decors 3d atelier ' + decors.join(' ')).toLowerCase();
-    }
-  }
-
-  // --- thème « Murs » : murs IA (assets propres au projet, pas Flare) ---
-  // Un ACCORDÉON « Murs » avec une SOUS-SECTION par matériau (Rondins, Brique
-  // rouge, Colombage, Terre, Planches, Pierre médiévale, Brique grise), chacune
-  // exposant ses 16 pièces (segments, coins, T, croix, embouts, portes, pilier,
-  // créneaux, ruine). La pose enregistre un prop { type:'wall_<mat>', v:frame }
-  // dont l'id de tuile rendu est « wall_<mat>:frame » (cf. decormap.wallPropId).
-  // Les pièces de mur sont flippables : l'option « Miroir horizontal » s'affiche.
-  {
-    const tilesets = assets?.manifest?.tilesets || {};
-    // matériaux déclarés + créés à chaud, réellement présents au manifeste
-    const present = withDynamicMaterials(WALL_MATERIALS, tilesets, 'wall_')
-      .filter(([mat]) => tilesets[`wall_${mat}`]?.tiles);
-    if (present.length) {
-      const total = present.reduce((n, [mat]) =>
-        n + Object.keys(tilesets[`wall_${mat}`].tiles).length, 0);
-      const body = makeTheme('walls', 'Murs', total);
-      const subGroups = [];
-      for (const [mat, label] of present) {
-        const type = `wall_${mat}`;
-        const frames = Object.keys(tilesets[type].tiles).sort((a, b) => Number(a) - Number(b));
-        if (!frames.length) continue;
-        const names = tilesets[type].names || []; // libellés lisibles des pièces (optionnel)
-        const { sub, row } = makeSubsection(body, `${label} (${frames.length})`);
-        for (const frame of frames) {
-          const n = Number(frame);
-          const tileId = wallPropId(type, n); // « wall_<mat>:frame »
-          const pieceLabel = names[n] || `pièce ${frame}`;
-          row.appendChild(makeChip(
-            { label: `${label} — ${pieceLabel}`, tileId, glyph: '▮', color: '#ca8' },
-            () => ({ kind: 'prop', type, v: n }),
-            (cur) => cur.kind === 'prop' && cur.type === type && cur.v === n,
-          ));
-        }
-        subGroups.push({ div: sub, text: ('mur murs ' + mat + ' ' + label).toLowerCase() });
-      }
-      themes[themes.length - 1].subGroups = subGroups;
-      themes[themes.length - 1].text = ('murs ' + present.map(([, l]) => l).join(' ')).toLowerCase();
-    }
-  }
-  void WALL_PIECES; // documentation : 16 pièces par matériau (cf. walls.json)
-
-  search.oninput = () => {
-    const q = search.value.trim().toLowerCase();
-    // groupes plats (sols + props d'Arakas)
-    for (const grp of groups) grp.div.style.display = !q || grp.text.includes(q) ? '' : 'none';
-    // thèmes Flare : recherche active -> on aplatit (déplie tout) et on filtre
-    // par sous-section ; recherche vide -> on restaure l'état d'accordéon mémorisé.
-    for (const t of themes) {
-      const subs = t.subGroups || [];
-      let anyMatch = false;
-      for (const s of subs) {
-        const show = !q || s.text.includes(q) || (t.text || '').includes(q);
-        s.div.style.display = show ? '' : 'none';
-        if (show) anyMatch = true;
-      }
-      if (q) {
-        t.theme.style.display = anyMatch ? '' : 'none';
-        t.theme.classList.add('open'); // aplatit l'accordéon pour montrer les résultats
-      } else {
-        t.theme.style.display = '';
-        t.theme.classList.toggle('open', openState[t.id] ?? false); // restaure l'état mémorisé
-      }
-    }
-  };
-
+  rendre();
   emit(); // sélection initiale : herbe
 
   return {
     // pipette : sélectionne une tuile depuis la carte
-    selectTile(t) { current = { kind: 'tile', tile: t }; emit(); },
-    // pipette : sélectionne un prop (variante/échelle/miroir repris du prop visé)
+    selectTile(t) { current = { kind: 'tile', tile: t }; emit(); montrer(); },
+    // pipette / rotation : sélectionne un prop (variante/échelle/miroir repris)
     // (tout type de prop : Arakas, tilesets Flare, murs, toits, atelier 3D)
     selectProp(type, v = null, s = 1, flip = false) {
       if (!type) return;
@@ -515,7 +431,11 @@ export function buildPalette({ container, assets, onSelect }) {
       opts.s = s; sInput.value = String(s); sVal.textContent = '×' + s.toFixed(2);
       opts.flip = flip; fInput.checked = flip;
       emit();
+      montrer();
     },
-    getSelection() { return { ...current } },
+    getSelection() { return { ...current }; },
+    // catégories présentes (tests, raccourcis)
+    categories() { return Object.keys(boutonsCat); },
+    choisirCategorie,
   };
 }

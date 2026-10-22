@@ -167,10 +167,13 @@ ok(`palette construite (${chips.length} vignettes, sols + variantes de props)`, 
 // de vignettes de frames numériques pickables (les sols/props d'Arakas seuls ne
 // génèrent pas autant de vignettes). Sélection -> pose d'un prop flare_grass.
 {
-  const themeCount = doc.getElementById('map-palette').querySelectorAll('.pal-theme').length;
-  ok(`palette : thèmes en accordéon présents (${themeCount})`, themeCount >= 6);
-  // le thème grassland ajoute ~167 vignettes : la palette en compte largement >150
-  ok(`palette : frames grassland exposées (${chips.length} vignettes)`, chips.length >= 150);
+  // palette rangée par TYPE d'objet : une pastille par catégorie présente
+  const cats = ed.palette.categories();
+  ok(`palette : catégories par type d'objet (${cats.join(', ')})`,
+    ['sols', 'murs', 'toits', 'batiments', 'objets'].every(c => cats.includes(c)));
+  // les sols de la catégorie par défaut viennent de toutes les sources
+  // (terrain, dalles d'atelier, frames Flare) : largement plus de 150
+  ok(`palette : catégorie Sols toutes sources confondues (${chips.length} vignettes)`, chips.length >= 150);
   // sélectionner une frame grassland arme la pose d'un prop flare_grass numérique
   ed.setTool({ kind: 'prop', type: 'flare_grass', v: 296 });
   canvas.fire('pointerdown', { clientX: 540, clientY: 360, button: 0 });
@@ -189,10 +192,11 @@ ok(`palette construite (${chips.length} vignettes, sols + variantes de props)`, 
   ok('variante « mur » Flare (toit_grand) posable',
     ed.getOverrides().props.add.some(p => p.type === 'wall' && p.v === 'toit_grand'));
   // thème « Murs » (murs IA propres au projet) : présent + pièce posable avec miroir
-  const palRoot = doc.getElementById('map-palette');
-  const wallTheme = palRoot._descendants().some(e => e.classList.contains('pal-theme-head')
-    && (e.children || []).some(c => c && c.textContent === 'Murs'));
-  ok('palette : thème « Murs » chargé', wallTheme);
+  // catégorie « Murs » : murs IA, murs d'arête ET frames de mur Flare réunis
+  ed.palette.choisirCategorie('murs');
+  const murs = doc.getElementById('map-palette').querySelectorAll('.pal-chip');
+  ok(`palette : catégorie « Murs » toutes sources (${murs.length} vignettes)`, murs.length >= 100);
+  ed.palette.choisirCategorie('sols');
   // pose d'une pièce de mur pierre (frame 5) avec miroir : prop wall_pierre v=5 rot=PI
   ed.setTool({ kind: 'prop', type: 'wall_pierre', v: 5, flip: true });
   canvas.fire('pointerdown', { clientX: 600, clientY: 396, button: 0 });

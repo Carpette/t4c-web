@@ -2571,7 +2571,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     // outil « Mur » : tracer un mur sur les arêtes en glissant (poteaux auto)
     if (mode === 'wall') {
       const wt = currentWallType();
-      if (!wt) { msg('Choisissez d\'abord un matériau d\'atelier (« … (atelier) », thème « Murs ») dans la palette.'); return; }
+      if (!wt) { msg('Choisissez d\'abord un matériau d\'atelier (« … (atelier) », catégorie « Murs ») dans la palette.'); return; }
       pushHistory();
       gesture = { mode: 'wallDraw', type: wt, placed: new Set() };
       wallDrawTo(wpt);
@@ -3102,7 +3102,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   $('tool-select')?.addEventListener('click', () => { setMode('select'); msg('Glissez pour sélectionner une région, puis Ctrl+C / Ctrl+V.'); });
   $('tool-erase').onclick = () => setMode('erase');
   $('tool-move').onclick = () => setMode('move');
-  $('tool-wall')?.addEventListener('click', () => { setMode('wall'); msg('Choisissez un matériau d\'atelier (« … (atelier) », thème « Murs »), puis glissez sur la carte pour tracer un mur sur les arêtes.'); });
+  $('tool-wall')?.addEventListener('click', () => { setMode('wall'); msg('Choisissez un matériau d\'atelier (« … (atelier) », catégorie « Murs »), puis glissez sur la carte pour tracer un mur sur les arêtes.'); });
   $('brush-size').onchange = () => { brushSize = parseInt($('brush-size').value, 10) || 1; };
   $('undo-map').onclick = undo;
   $('redo-map').onclick = redo;
