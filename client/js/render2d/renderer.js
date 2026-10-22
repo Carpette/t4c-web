@@ -11,6 +11,13 @@ export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
 // pénombre minimale des cavernes : il y fait nuit quel que soit le soleil —
 // torches rares et sort Lumière deviennent indispensables
 const CAVE_DARKNESS = 0.72;
+// Cache du sol : rectangles de BLOC px en coordonnées écran du monde (à
+// l'échelle courante). Redessiner ~200 tuiles par image coûtait la moitié
+// de la frame en rendu logiciel (Firefox) ; un bloc, peint une fois dans
+// l'ordre iso et découpé à ses bords, s'affiche ensuite d'un seul
+// drawImage, au pixel près identique.
+const BLOC = 512;
+const BLOCS_MAX = 48;   // au-delà, on oublie les blocs les plus lointains
 
 export class Renderer {
   constructor(canvas, assets, world, decor) {
@@ -34,6 +41,8 @@ export class Renderer {
     // de teintes des monstres, entities2d.TINT_CACHE), puis on réutilise ce canvas
     // par un drawImage simple — aucun ctx.scale/translate ni allocation par frame.
     this._flipCache = new Map();
+    this._sol = new Map();   // `${bx},${by}` -> { cv, complet }
+    this._solEchelle = 0;
 
     // canvas d'éclairage
     this.lightCanvas = document.createElement('canvas');
@@ -61,6 +70,7 @@ export class Renderer {
     this.tint = tint;
     this.ambience = null; // le serveur repousse l'ambiance d'arrivée (message `zone`)
     this.cam = { x: world.spawnPoint.x, z: world.spawnPoint.z };
+    this._sol?.clear();
     // tuiles et décors de la zone : chargement lancé tout de suite (à la
     // demande sinon, avec un bref vide à l'écran)
     this.assets.images.chargerTout?.(imagesDuDecor(this.assets, decor));
@@ -126,14 +136,15 @@ export class Renderer {
   // dessine une tuile/un sprite du tileset à l'ancrage (px, py).
   // k : échelle propre au prop (1 par défaut) ; flip : miroir horizontal
   // autour de l'ancrage (la « rotation » des sprites iso pré-rendus).
-  drawTile(id, px, py, k = 1, flip = false) {
+  // rend false si l'image est encore en chargement (rien n'est dessiné)
+  drawTile(id, px, py, k = 1, flip = false, ctx = this.ctx) {
     let r = this._tileCache.get(id);
     if (r === undefined) {
       r = resolveTile(this.assets, id, this.grass, this.water);
-      if (r === undefined) return; // image en chargement : redemandée à la frame suivante
+      if (r === undefined) return false; // image en chargement : redemandée plus tard
       this._tileCache.set(id, r);
     }
-    if (!r) return;
+    if (!r) return true;
     const [x, y, w, h, ox, oy] = r.rect;
     const s = this.scale * k;
     if (flip) {
@@ -141,9 +152,82 @@ export class Renderer {
       // L'ancre miroir : le bord droit de la pièce (w-ox) devient le bord gauche,
       // donc l'origine X dessinée est px - (w - ox) * s (équivalent au scale(-1)).
       const fc = this._flippedPiece(r.img, x, y, w, h);
-      this.ctx.drawImage(fc, px - (w - ox) * s, py - oy * s, w * s, h * s);
+      ctx.drawImage(fc, px - (w - ox) * s, py - oy * s, w * s, h * s);
     } else {
-      this.ctx.drawImage(r.img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+      ctx.drawImage(r.img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
+    }
+    return true;
+  }
+
+  // Peint le bloc (bx, by) du sol : toutes les tuiles dont l'image peut
+  // toucher le rectangle, dans l'ordre iso (somme x+z croissante, puis x),
+  // comme le rendu direct. X = (x-z)·HW·s, Y = (x+z+1)·HH·s : ancre d'une
+  // tuile en coordonnées écran du monde.
+  _peindreBloc(bx, by) {
+    const s = this.scale, N = this.world.size;
+    let b = this._sol.get(`${bx},${by}`);
+    if (!b) {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = BLOC;
+      b = { cv, g: cv.getContext('2d'), complet: false };
+      this._sol.set(`${bx},${by}`, b);
+    }
+    const g = b.g;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, BLOC, BLOC);
+    g.setTransform(1, 0, 0, 1, -bx * BLOC, -by * BLOC);
+    // marges : débord d'une image de tuile autour de son ancre (comme le
+    // découpage du rendu direct : 200 px en largeur, 150 en hauteur)
+    const mx = 200 * s, my = 150 * s;
+    const X0 = bx * BLOC - mx, X1 = (bx + 1) * BLOC + mx;
+    const Y0 = by * BLOC - my, Y1 = (by + 1) * BLOC + my;
+    const a0 = X0 / (HW * s), a1 = X1 / (HW * s);          // x - z
+    const s0 = Y0 / (HH * s) - 1, s1 = Y1 / (HH * s) - 1;  // x + z
+    const sMin = Math.max(0, Math.floor(s0)), sMax = Math.min(2 * N - 2, Math.ceil(s1));
+    let complet = true;
+    for (let sum = sMin; sum <= sMax; sum++) {
+      // x - z = 2x - sum dans [a0, a1]
+      const xMin = Math.max(0, sum - (N - 1), Math.ceil((sum + a0) / 2));
+      const xMax = Math.min(N - 1, sum, Math.floor((sum + a1) / 2));
+      for (let x = xMin; x <= xMax; x++) {
+        const z = sum - x;
+        if (!this.drawTile(this.decor.floor[z * N + x], (x - z) * HW * s, (sum + 1) * HH * s, 1, false, g)) complet = false;
+      }
+    }
+    b.complet = complet;
+    return b;
+  }
+
+  // Sol visible : blocs en cache, peints à la demande ; on prépare aussi UN
+  // bloc voisin par image (pas d'à-coup en marchant).
+  _dessinerSol(ctx, W, H) {
+    const s = this.scale;
+    if (s !== this._solEchelle) { this._sol.clear(); this._solEchelle = s; }
+    // décalage monde -> écran, arrondi : tous les blocs bougent d'un pixel entier
+    const ox = Math.round(W / 2 - (this.cam.x - this.cam.z) * HW * s);
+    const oy = Math.round(H / 2 - (this.cam.x + this.cam.z) * HH * s);
+    const bx0 = Math.floor(-ox / BLOC), bx1 = Math.floor((W - ox) / BLOC);
+    const by0 = Math.floor(-oy / BLOC), by1 = Math.floor((H - oy) / BLOC);
+    for (let by = by0; by <= by1; by++) {
+      for (let bx = bx0; bx <= bx1; bx++) {
+        let b = this._sol.get(`${bx},${by}`);
+        if (!b || !b.complet) b = this._peindreBloc(bx, by);
+        ctx.drawImage(b.cv, bx * BLOC + ox, by * BLOC + oy);
+      }
+    }
+    // anneau autour de la vue : un bloc préparé par image
+    let prepare = false;
+    for (let by = by0 - 1; by <= by1 + 1 && !prepare; by++) {
+      for (let bx = bx0 - 1; bx <= bx1 + 1 && !prepare; bx++) {
+        if (!this._sol.has(`${bx},${by}`)) { this._peindreBloc(bx, by); prepare = true; }
+      }
+    }
+    // mémoire bornée : on oublie les blocs hors de l'anneau
+    if (this._sol.size > BLOCS_MAX) {
+      for (const k of this._sol.keys()) {
+        const [bx, by] = k.split(',').map(Number);
+        if (bx < bx0 - 1 || bx > bx1 + 1 || by < by0 - 1 || by > by1 + 1) this._sol.delete(k);
+      }
     }
   }
 
@@ -199,22 +283,8 @@ export class Renderer {
     ctx.fillStyle = '#06070c';
     ctx.fillRect(0, 0, W, H);
 
-    // --- Sols : zone de tuiles visible ---
-    const margin = 3;
-    const corners = [this.s2w(0, 0), this.s2w(W, 0), this.s2w(0, H), this.s2w(W, H)];
-    const minX = Math.max(0, Math.floor(Math.min(...corners.map(c => c.x))) - margin);
-    const maxX = Math.min(this.world.size - 1, Math.ceil(Math.max(...corners.map(c => c.x))) + margin);
-    const minZ = Math.max(0, Math.floor(Math.min(...corners.map(c => c.z))) - margin);
-    const maxZ = Math.min(this.world.size - 1, Math.ceil(Math.max(...corners.map(c => c.z))) + margin);
-    const N = this.world.size;
-    for (let sum = minX + minZ; sum <= maxX + maxZ; sum++) {
-      for (let x = Math.max(minX, sum - maxZ); x <= Math.min(maxX, sum - minZ); x++) {
-        const z = sum - x;
-        const p = this.w2s(x + 0.5, z + 0.5);
-        if (p.x < -200 * s || p.x > W + 200 * s || p.y < -150 * s || p.y > H + 150 * s) continue;
-        this.drawTile(this.decor.floor[z * N + x], p.x, p.y);
-      }
-    }
+    // --- Sols : blocs en cache ---
+    this._dessinerSol(ctx, W, H);
 
     // --- Objets + entités triés en profondeur ---
     const camSx = (this.cam.x - this.cam.z) * HW, camSy = (this.cam.x + this.cam.z) * HH;
