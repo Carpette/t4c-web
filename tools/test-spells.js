@@ -64,7 +64,7 @@ ws.on('message', (raw, bin) => {
     case 'events':
       for (const ev of m.list) {
         if (ev.t === 'dmg' && !ev.miss && !ev.parry) {
-          S.dmgEvents.push({ from: ev.from, to: ev.to, amount: ev.amount, at: Date.now() });
+          S.dmgEvents.push({ from: ev.from, to: ev.to, amount: ev.amount, crit: ev.crit, at: Date.now() });
         }
       }
       break;
@@ -335,7 +335,8 @@ async function sampleHits(n, timeout = 9000) {
   const t0 = Date.now();
   while (out.length < n && Date.now() - t0 < timeout) {
     await sleep(150);
-    for (const d of S.dmgEvents.slice(seen)) if (d.to === S.id) out.push(d.amount);
+    // les critiques (×1,6) faussent la mesure : écartés
+    for (const d of S.dmgEvents.slice(seen)) if (d.to === S.id && !d.crit) out.push(d.amount);
     seen = S.dmgEvents.length;
   }
   return out;
@@ -359,7 +360,7 @@ ok('Bouclier de mana : dégâts magiques réduits de 33 % (3 -> 2)',
 
 await sleep(1200); // récupération du sort précédent
 send({ t: 'cast', spellId: 'resistance_au_feu' });
-await waitFor(() => (S.self?.buffs || []).some(b => b.stat === 'resist_feu'), 4000);
+await waitFor(() => (S.self?.buffs || []).some(b => b.stat === 'resist_fire'), 4000);
 const avecResist = await sampleHits(3);
 console.log('   morsures sous Résistance au feu (attendu 0,0,0) :', avecResist.join(', '));
 ok('Résistance au feu : le feu est entièrement annulé (0 dégât)',

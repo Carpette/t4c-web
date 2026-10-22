@@ -10,7 +10,10 @@ export const BUFFS = {
   str: ['haltere', 'Force de la terre'], light: ['ampoule', 'Lumière'], int: ['etoile', 'Esprit clair'],
   wis: ['lune', 'Tranquillité'], agi: ['vent', 'Dextérité'], spellpow: ['etincelle', 'Afflux de mana'],
   retort: ['flamme', 'Bouclier élémentaire'], resistAll: ['bouclier', 'Bouclier de mana'],
-  resist_feu: ['flamme', 'Résistance au feu'], resist_eau: ['flocon', 'Résistance à la glace'],
+  resist_fire: ['flamme', 'Résistance au feu'], resist_water: ['flocon', 'Résistance à la glace'],
+  resist_air: ['eclair', 'Résistance à la foudre'], resist_earth: ['montagne', 'Résistance à la terre'],
+  resist_light: ['soleil', 'Résistance à la lumière'], resist_dark: ['lune', 'Résistance aux ténèbres'],
+  resist_arcane: ['etoile', 'Résistance aux arcanes'],
   sanctuaire: ['bouclier', 'Sanctuaire (intouchable)'], transe: ['sablier', 'Transe (ni attaque ni sort)'],
   maudit: ['crane', 'Maudit (soins impossibles)'],
 };

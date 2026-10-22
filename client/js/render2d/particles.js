@@ -3,6 +3,7 @@
 // emplacements les plus anciens. Coordonnées monde (x, z) + hauteur écran (h,
 // en pixels non zoomés) pour les effets qui montent ou retombent.
 import { settings } from '../settings.js';
+import { elementCanonique } from '../../../shared/constants.js';
 
 const MAX = 700;
 
@@ -143,11 +144,11 @@ export function emitFromDef(P, def, x, z, opts = {}) {
 
 // Palettes et comportements par style (élément, ou poison/drain dérivés)
 export const FX_STYLES = {
-  feu:     { colors: ['#ff5010', '#ff9040', '#ffd24a'], rise: 55,  spread: 1.6, size: 3.5 },
-  eau:     { colors: ['#bfeaff', '#9fd4ff', '#ffffff'], rise: 25,  spread: 1.4, size: 2.6 },
+  fire:    { colors: ['#ff5010', '#ff9040', '#ffd24a'], rise: 55,  spread: 1.6, size: 3.5 },
+  water:   { colors: ['#bfeaff', '#9fd4ff', '#ffffff'], rise: 25,  spread: 1.4, size: 2.6 },
   air:     { colors: ['#e8f4ff', '#9fe4ff', '#ffffff'], rise: 40,  spread: 1.8, size: 2.2 },
-  terre:   { colors: ['#b89868', '#8a6a48', '#d8c8a8'], rise: 30,  spread: 1.8, size: 3.2 },
-  lumiere: { colors: ['#fff4c8', '#ffe9a8', '#ffffff'], rise: 60,  spread: 1.0, size: 3.0 },
+  earth:   { colors: ['#b89868', '#8a6a48', '#d8c8a8'], rise: 30,  spread: 1.8, size: 3.2 },
+  light:   { colors: ['#fff4c8', '#ffe9a8', '#ffffff'], rise: 60,  spread: 1.0, size: 3.0 },
   arcane:  { colors: ['#b040b0', '#7a2090', '#d070d0'], rise: 35,  spread: 1.4, size: 3.0 },
   neutre:  { colors: ['#d8b8ff', '#ffffff', '#c8a8ff'], rise: 35,  spread: 1.4, size: 2.8 },
   poison:  { colors: ['#7ec850', '#a0d870', '#4e8a30'], rise: 45,  spread: 1.0, size: 3.0 },
@@ -155,7 +156,7 @@ export const FX_STYLES = {
 };
 
 export function styleOf(element) {
-  return FX_STYLES[element] || FX_STYLES.neutre;
+  return FX_STYLES[elementCanonique(element)] || FX_STYLES.neutre;
 }
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -167,7 +168,7 @@ export function emitTrail(P, element, x, z, h = 40) {
     P.spawn({
       x, z, h: h + (Math.random() - 0.5) * 10,
       vx: (Math.random() - 0.5) * st.spread, vz: (Math.random() - 0.5) * st.spread,
-      vh: st.rise * (0.2 + Math.random() * 0.4), g: element === 'terre' ? 80 : 0,
+      vh: st.rise * (0.2 + Math.random() * 0.4), g: st === FX_STYLES.earth ? 80 : 0,
       life: 0.3 + Math.random() * 0.25, size: st.size, color: pick(st.colors),
     });
   }
@@ -197,9 +198,9 @@ export function emitGround(P, element, x, z, radius = 3) {
     P.spawn({
       x: x + Math.cos(a) * d, z: z + Math.sin(a) * d, h: 0,
       vx: 0, vz: 0,
-      vh: st.rise * (0.5 + Math.random() * 0.9), g: element === 'terre' ? 160 : 30,
+      vh: st.rise * (0.5 + Math.random() * 0.9), g: st === FX_STYLES.earth ? 160 : 30,
       life: 0.5 + Math.random() * 0.5, size: st.size * (0.8 + Math.random() * 0.8),
-      color: pick(st.colors), grow: element === 'feu' ? 0.6 : 0,
+      color: pick(st.colors), grow: st === FX_STYLES.fire ? 0.6 : 0,
     });
   }
 }

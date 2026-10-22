@@ -2,7 +2,7 @@
 // shared/defs.js ; l'écran écrit des surcharges dans content/creatures.json,
 // validées et appliquées à chaud par le serveur (prochaines apparitions).
 import { MOBS, ITEMS, ORIGINE_MOBS } from '../../../../shared/defs.js';
-import { mobXpReward } from '../../../../shared/constants.js';
+import { mobXpReward, elementCanonique } from '../../../../shared/constants.js';
 import { chargerSurcharges } from '../../../surcharges.js';
 import { chargerRessources, dessinerCreature, difference, fixerNombre, norm, copie } from '../../forge.js';
 
@@ -11,7 +11,8 @@ const CHAMPS = {
   comportement: [['speed', 'Vitesse de course', 0.1], ['atkSpeed', 'Délai d’attaque (s)', 0.1], ['atkRange', 'Portée d’attaque (cases)', 0.1],
     ['aggro', 'Détection (cases)', 1], ['leash', 'Poursuite (cases)', 1]],
 };
-const ELEMENTS = [['feu', 'Feu'], ['eau', 'Eau'], ['air', 'Air'], ['terre', 'Terre'], ['lumiere', 'Lumière'], ['arcane', 'Arcane']];
+// clés du moteur (resist_fire…) ; anciennes clés françaises lues comme leur équivalent
+const ELEMENTS = [['fire', 'Feu'], ['water', 'Eau, glace'], ['air', 'Air, foudre'], ['earth', 'Terre'], ['light', 'Lumière'], ['dark', 'Ténèbres'], ['arcane', 'Arcane']];
 
 export function CreaturesController(api) {
   let surcharges = {};   // contenu de content/creatures.json (mobs)
@@ -69,6 +70,9 @@ export function CreaturesController(api) {
       if (!def) return;
       this.courant = id; this.nouveau = false; this.vue = 'fiche';
       this.fiche = copie({ resist: {}, drops: [], ...def });
+      // anciennes clés françaises (feu, eau…) : affichées sous leur clé du moteur
+      this.fiche.resist = Object.fromEntries(Object.entries(this.fiche.resist).map(([k, v]) => [elementCanonique(k), v]));
+      if (this.fiche.element) this.fiche.element = elementCanonique(this.fiche.element);
       reference = JSON.stringify(this.fiche);
       this.dire('');
       this.apercu();

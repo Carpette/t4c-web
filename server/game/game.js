@@ -729,6 +729,10 @@ export class Game {
                 statName = 'power_' + ae.target_parameter;
               }
             }
+            // Bouclier de mana : plusieurs résistances d'une même source -> un seul buff
+            if (ae.type === EFFECT_TYPES.RESIST_BOOST) {
+              statName = ae.source?.id === 'bouclier_de_mana' ? 'resistAll' : 'resist_' + ae.target_parameter;
+            }
             if (ae.type === 'damage_boost') statName = 'dmg';
             if (ae.type === 'hp_regen_boost') statName = 'regen';
             if (ae.type === 'mp_regen_boost') statName = 'manaregen';

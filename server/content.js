@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FormulaEngine } from '../shared/formula-engine.js';
 import { ORIGINE_MOBS, ORIGINE_ITEMS, SLOTS, MOBS, appliquerSurcharges } from '../shared/defs.js';
-import { MAX_LEVEL } from '../shared/constants.js';
+import { MAX_LEVEL, ELEMENTS, elementCanonique } from '../shared/constants.js';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
 
@@ -144,6 +144,8 @@ function erreursMob(id, m, items) {
   if (nombre(m.level) && m.level < 1) e.push('niveau minimum : 1');
   if (nombre(m.hp) && m.hp < 1) e.push('points de vie minimum : 1');
   if (m.resist != null && (typeof m.resist !== 'object' || Object.values(m.resist).some(v => !nombre(v)))) e.push('résistances invalides');
+  else for (const k of Object.keys(m.resist || {})) if (!ELEMENTS.includes(elementCanonique(k))) e.push(`résistance à un élément inconnu : ${k}`);
+  if (m.element != null && m.element !== 'neutre' && !ELEMENTS.includes(elementCanonique(m.element))) e.push(`élément inconnu : ${m.element}`);
   if (!Array.isArray(m.drops)) e.push('butin invalide');
   else for (const d of m.drops) {
     if (!Array.isArray(d) || d.length !== 4) { e.push('ligne de butin invalide'); continue; }

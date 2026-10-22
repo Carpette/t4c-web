@@ -9,14 +9,15 @@
 // client/assets/sfx/. Sinon, repli sur la synthèse ci-dessous.
 //
 // Noms de sons reconnus (déposez des fichiers portant ces noms) :
-//   cast_feu, impact_feu, cast_eau, impact_eau, cast_air, impact_air,
-//   cast_terre, impact_terre, cast_poison, impact_poison, cast_lumiere,
+//   cast_fire, impact_fire, cast_water, impact_water, cast_air, impact_air,
+//   cast_earth, impact_earth, cast_poison, impact_poison, cast_light,
 //   cast_arcane, impact_arcane, cast_neutre, impact_neutre, drain,
 //   soin, buff, malediction, coup, parade, mort, coffre, levelup, or
 //
 // Règles navigateur : l'AudioContext n'est créé/réveillé qu'au premier geste
 // utilisateur (pointerdown/keydown). Onglet en arrière-plan : coupure totale.
 import { settings } from './settings.js';
+import { elementCanonique } from '../../shared/constants.js';
 
 let ctx = null;           // AudioContext (créé au premier geste)
 let master = null;        // gain global (volume des paramètres)
@@ -125,22 +126,22 @@ function noise(t0, { type = 'lowpass', f = 800, f1 = null, q = 1, dur = 0.2, g =
 // ---------- Recettes par son ----------
 const SYNTH = {
   // feu : whoosh grave qui monte, impact soufflé
-  cast_feu:    (t) => noise(t, { f: 180, f1: 950, q: 2, dur: 0.28, g: 0.25 }),
-  impact_feu:  (t) => { noise(t, { f: 1400, f1: 200, dur: 0.3, g: 0.3 }); tone(t, { type: 'sawtooth', f: 200, f1: 55, dur: 0.25, g: 0.12 }); },
+  cast_fire:    (t) => noise(t, { f: 180, f1: 950, q: 2, dur: 0.28, g: 0.25 }),
+  impact_fire:  (t) => { noise(t, { f: 1400, f1: 200, dur: 0.3, g: 0.3 }); tone(t, { type: 'sawtooth', f: 200, f1: 55, dur: 0.25, g: 0.12 }); },
   // glace : pings cristallins, éclats de verre
-  cast_eau:    (t) => { tone(t, { f: 1750, dur: 0.16, g: 0.12 }); tone(t + 0.05, { f: 2350, dur: 0.14, g: 0.09 }); },
-  impact_eau:  (t) => { for (let i = 0; i < 3; i++) tone(t + i * 0.045, { f: 2900 - i * 500 - Math.random() * 250, dur: 0.1, g: 0.1 }); noise(t, { type: 'highpass', f: 3200, dur: 0.12, g: 0.07 }); },
+  cast_water:    (t) => { tone(t, { f: 1750, dur: 0.16, g: 0.12 }); tone(t + 0.05, { f: 2350, dur: 0.14, g: 0.09 }); },
+  impact_water:  (t) => { for (let i = 0; i < 3; i++) tone(t + i * 0.045, { f: 2900 - i * 500 - Math.random() * 250, dur: 0.1, g: 0.1 }); noise(t, { type: 'highpass', f: 3200, dur: 0.12, g: 0.07 }); },
   // éclair : crack sec
   cast_air:    (t) => noise(t, { type: 'highpass', f: 900, dur: 0.07, g: 0.2, a: 0.001 }),
   impact_air:  (t) => { noise(t, { type: 'highpass', f: 1300, dur: 0.14, g: 0.35, a: 0.001 }); tone(t, { type: 'square', f: 110, f1: 45, dur: 0.12, g: 0.12, a: 0.001 }); },
   // terre : coup sourd, gravats
-  cast_terre:  (t) => tone(t, { type: 'sine', f: 95, f1: 42, dur: 0.3, g: 0.3 }),
-  impact_terre:(t) => { tone(t, { type: 'sine', f: 80, f1: 36, dur: 0.32, g: 0.35 }); noise(t, { f: 320, f1: 110, dur: 0.3, g: 0.2 }); },
+  cast_earth:  (t) => tone(t, { type: 'sine', f: 95, f1: 42, dur: 0.3, g: 0.3 }),
+  impact_earth:(t) => { tone(t, { type: 'sine', f: 80, f1: 36, dur: 0.32, g: 0.35 }); noise(t, { f: 320, f1: 110, dur: 0.3, g: 0.2 }); },
   // poison : glouglou discret
   cast_poison: (t) => { for (let i = 0; i < 3; i++) tone(t + i * 0.07, { f: 260 + i * 60, f1: 430 + i * 70, dur: 0.07, g: 0.08 }); },
   impact_poison:(t) => { for (let i = 0; i < 4; i++) tone(t + i * 0.06, { f: 300 + Math.random() * 160, f1: 520, dur: 0.06, g: 0.07 }); },
   // lumière / soin : carillon doux
-  cast_lumiere:(t) => { tone(t, { f: 660, dur: 0.25, g: 0.08 }); tone(t + 0.08, { f: 880, dur: 0.3, g: 0.08 }); },
+  cast_light:(t) => { tone(t, { f: 660, dur: 0.25, g: 0.08 }); tone(t + 0.08, { f: 880, dur: 0.3, g: 0.08 }); },
   soin:        (t) => { tone(t, { f: 660, dur: 0.3, g: 0.08 }); tone(t + 0.09, { f: 880, dur: 0.3, g: 0.08 }); tone(t + 0.18, { f: 990, dur: 0.4, g: 0.07 }); },
   // arcane / drain : nappe sombre descendante
   cast_arcane: (t) => tone(t, { type: 'sawtooth', f: 150, f1: 75, dur: 0.3, g: 0.1 }),
@@ -182,10 +183,12 @@ export function play(name, delay = 0) {
 
 // raccourcis style (élément, ou poison/drain dérivés côté serveur) -> sons
 export function playCast(style) {
+  style = elementCanonique(style);
   if (style === 'drain') return play('drain');
   play(SYNTH[`cast_${style}`] ? `cast_${style}` : 'cast_neutre');
 }
 export function playImpact(style, delay = 0) {
+  style = elementCanonique(style);
   if (style === 'drain') return play('drain', delay);
   play(SYNTH[`impact_${style}`] ? `impact_${style}` : 'impact_neutre', delay);
 }
