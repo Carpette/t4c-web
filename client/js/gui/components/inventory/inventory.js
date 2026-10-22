@@ -73,6 +73,7 @@ export function InventoryController() {
         main: look.main || null, off: look.off || null,
       };
       const DIR = 6; // face au joueur (sud)
+      const manquantes = []; // couches pas encore chargées (chargement à la demande)
       for (const type of LAYER_ORDER[DIR]) {
         const name = layers[type];
         if (!name || !sheet[name]) continue;
@@ -81,9 +82,14 @@ export function InventoryController() {
         if (!fr) continue;
         const [x, y, w, h, ox, oy] = fr;
         const img = ui.assets.images.get(sheet[name].image);
-        if (!img) continue;
+        if (!img) { manquantes.push(sheet[name].image); continue; }
         const S = 1.4;
         ctx.drawImage(img, x, y, w, h, canvas.width / 2 - ox * S, canvas.height - 14 - oy * S, w * S, h * S);
+      }
+      // redessine quand les couches manquantes arrivent (une seule fois si
+      // aucune ne se charge : pas de boucle sur une image introuvable)
+      if (manquantes.length) {
+        ui.assets.images.chargerTout(manquantes).then(r => { if (r.some(Boolean)) this.drawDoll(); });
       }
     },
 

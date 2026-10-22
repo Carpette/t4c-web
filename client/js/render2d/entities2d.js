@@ -62,7 +62,7 @@ class EntityView2D {
       this.layers = {};
       for (const [type, name] of Object.entries(BASE_LAYERS)) {
         const def = this.avatarDef(name);
-        if (def) this.layers[type] = { name, anim: new Animator(def.anims) };
+        if (def) { this.assets.images.get(def.image); this.layers[type] = { name, anim: new Animator(def.anims) }; }
       }
       this.setLook(meta.look || {});
     } else if (meta.kind === KIND.MOB) {
@@ -77,9 +77,12 @@ class EntityView2D {
       this.spriteScale = useSkin ? 1 : (def?.spriteScale || 1);
       if (this.meta?.boss) this.spriteScale *= 1.35; // les boss en imposent
       this.anim = new Animator(assets.manifest.enemies[sprite].anims);
-      const base = assets.images.get(assets.manifest.enemies[sprite].image);
-      // une planche fournie a ses propres couleurs : pas de recoloration
-      this.image = useSkin ? base : tintedSheet(base, sprite, def?.tint);
+      // planche chargée à la demande : résolue (et teinte appliquée) au
+      // premier dessin où elle est prête
+      this.imagePath = assets.manifest.enemies[sprite].image;
+      this.tint = useSkin ? null : def?.tint; // une planche fournie garde ses couleurs
+      this.image = null;
+      assets.images.get(this.imagePath); // lance le chargement dès l'entrée en vue réseau
     } else {
       // objet au sol : skin admin (image entière, ancrée bas-centre) prioritaire
       const skinImg = meta.defId !== 'or' && assets.skins?.items?.[meta.defId]
@@ -121,7 +124,7 @@ class EntityView2D {
       // re-crée aussi les couches de base avec le bon atlas
       for (const [type, name] of Object.entries(BASE_LAYERS)) {
         const def = this.avatarDef(name);
-        if (def) this.layers[type] = { name, anim: new Animator(def.anims) };
+        if (def) { this.assets.images.get(def.image); this.layers[type] = { name, anim: new Animator(def.anims) }; }
       }
     }
     for (const [type, name] of Object.entries(want)) {
@@ -129,6 +132,7 @@ class EntityView2D {
       if (!sexChanged && this.layers[type]?.name === name) continue;
       const def = this.avatarDef(name);
       if (!def) { delete this.layers[type]; continue; }
+      this.assets.images.get(def.image); // lance le chargement de la couche
       const anim = new Animator(def.anims);
       // garde la synchro avec les autres couches
       const ref = this.layers.feet?.anim;
@@ -215,12 +219,19 @@ class EntityView2D {
   draw(ctx, assets, px, py, s) {
     const d = flareDir(this.dir);
     if (this.kind === KIND.DROP) {
+      if (!this.lootImage) this.lootImage = assets.images.get(this.loot.image);
+      if (!this.lootImage) return;
       const [x, y, w, h, ox, oy] = this.loot.frame;
       ctx.drawImage(this.lootImage, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
       this.bbox = { x: px - ox * s, y: py - oy * s, w: w * s, h: h * s, sy: py };
       return;
     }
     if (this.kind === KIND.MOB) {
+      if (!this.image) {
+        const base = assets.images.get(this.imagePath);
+        if (!base) return;
+        this.image = tintedSheet(base, this.sprite, this.tint);
+      }
       const f = this.anim.frame(d);
       if (!f) return;
       const [x, y, w, h, ox, oy] = f;
@@ -241,6 +252,7 @@ class EntityView2D {
       const def = this.avatarDef(layer.name);
       if (!def) continue;
       const img = this.assets.images.get(def.image);
+      if (!img) continue; // couche en chargement
       ctx.drawImage(img, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
       minX = Math.min(minX, px - ox * s); minY = Math.min(minY, py - oy * s);
       maxX = Math.max(maxX, px - ox * s + w * s); maxY = Math.max(maxY, py - oy * s + h * s);
