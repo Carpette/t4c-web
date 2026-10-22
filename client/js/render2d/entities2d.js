@@ -221,6 +221,21 @@ class EntityView2D {
     if (this.kind === KIND.DROP) {
       if (!this.lootImage) this.lootImage = assets.images.get(this.loot.image);
       if (!this.lootImage) return;
+      // lueur au sol qui respire : un butin ne se perd plus dans l'herbe
+      // (or : objet rare ou pièces ; bleu : objet magique ; blanc : ordinaire)
+      const t = performance.now() / 1000;
+      const lueur = couleurButin(this.meta);
+      const r = 26 * s * (1 + Math.sin(t * 2.4 + this.id) * 0.12);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, lueur.replace('A', '0.8'));
+      g.addColorStop(1, lueur.replace('A', '0'));
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(px, py, r, r / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
       const [x, y, w, h, ox, oy] = this.loot.frame;
       ctx.drawImage(this.lootImage, x, y, w, h, px - ox * s, py - oy * s, w * s, h * s);
       this.bbox = { x: px - ox * s, y: py - oy * s, w: w * s, h: h * s, sy: py };
@@ -286,10 +301,39 @@ class EntityView2D {
     return { x: px - w / 2 - 2, y: top - 6 - taille, w: w + 4, h: taille + 2 };
   }
 
+  // nom d'un objet au sol (Alt maintenu), sur un cartouche sombre, juste
+  // au-dessus du point de pose ; décalé vers le haut tant qu'il chevauche
+  // une plaque ou une étiquette déjà placée (`occupes`, complété)
+  drawEtiquetteButin(ctx, px, py, s, occupes = []) {
+    const m = this.meta;
+    const texte = m.gold ? `${m.gold} pièces d'or` : (ITEMS[m.defId]?.name || 'Objet');
+    ctx.font = `bold ${Math.max(11, 12 * s)}px "Trebuchet MS", sans-serif`;
+    const w = ctx.measureText(texte).width + 10, h = Math.max(15, 16 * s);
+    let y = py - 14 * s - h;
+    for (let i = 0; i < 8; i++) {
+      const o = occupes.find(o => px - w / 2 < o.x + o.w && px + w / 2 > o.x && y < o.y + o.h && y + h > o.y);
+      if (!o) break;
+      y = o.y - h - 2;
+    }
+    occupes.push({ x: px - w / 2, y, w, h });
+    ctx.fillStyle = 'rgba(8, 12, 20, 0.82)';
+    ctx.strokeStyle = couleurButin(m).replace('A', '0.9');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px - w / 2, y, w, h, 3);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = m.gold || m.q >= 2 ? '#f0cf7a' : m.q === 1 ? '#8fb8ff' : '#ece4d2';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(texte, px, y + h / 2 + 0.5);
+    ctx.textBaseline = 'alphabetic';
+  }
+
   // `sansNom` : plaque masquée parce qu'elle chevaucherait une plus prioritaire
   // (la barre de vie et la bulle restent)
-  drawOverlay(ctx, px, py, s, selfId, sansNom = false) {
-    if (this.kind === KIND.DROP || this.state === ST.DEAD) return;
+  drawOverlay(ctx, px, py, s, selfId, sansNom = false, butin = null) {
+    if (this.kind === KIND.DROP) { if (butin) this.drawEtiquetteButin(ctx, px, py, s, butin); return; }
+    if (this.state === ST.DEAD) return;
     const top = (this.topY ?? (py - 100 * s)) - 8;
     const isNpc = this.kind === KIND.NPC;
     const isPlayer = this.kind === KIND.PLAYER;
@@ -349,6 +393,11 @@ class EntityView2D {
       lines.forEach((l, i) => ctx.fillText(l, px, by + 16 + i * lh));
     }
   }
+}
+
+// teinte d'un butin, gabarit rgba à compléter (« A » = opacité)
+function couleurButin(m) {
+  return m.gold || m.q >= 2 ? 'rgba(255, 200, 90, A)' : m.q === 1 ? 'rgba(110, 160, 255, A)' : 'rgba(235, 230, 215, A)';
 }
 
 export class EntityManager2D {
