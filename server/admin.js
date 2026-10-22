@@ -575,7 +575,7 @@ export async function handleAdmin(req, res, url, game) {
         user: true,       // marque « asset créé dans l'atelier »
       };
       if (Array.isArray(names)) entry.names = names.map(s => String(s).slice(0, 40));
-      if (kd === 'mur') entry.edgekit = true; // jeu de pièces d'ARÊTE (outil de tracé ▦)
+      if (kd === 'mur') entry.edgekit = true; // jeu de pièces d'ARÊTE (outil de tracé)
       manifest.tilesets[tsName] = entry;
       fs.writeFileSync(manifestPath, JSON.stringify(manifest));
       return json(200, {

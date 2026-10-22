@@ -68,7 +68,7 @@ ok('canal /g : message reçu par le membre', !!gmsg && /au pont/.test(gmsg.text)
 await pause();
 rec.inbox.length = 0;
 send(rec, { t: 'chat', text: '.groupe' });
-ok('.groupe : composition et PV', !!(await waitText(rec, /Groupe 2\/5.*👑.*PV.*\/g/)));
+ok('.groupe : composition et PV', !!(await waitText(rec, /Groupe 2\/5.*\(chef\).*PV.*\/g/)));
 
 // ---- 5. exclusion par le chef -> la recrue quitte le groupe ----
 send(chef, { t: 'party_kick', id: rec.id });
