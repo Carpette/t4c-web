@@ -13,7 +13,8 @@
           <span class="shop-icone" v-html="getItemIconHtml(it.defId, it.slot)"></span>
           <span>{{ it.name }}<span class="meta">{{ getItemMeta(it) }}</span></span>
         </span>
-        <button type="button" :disabled="s.gold < it.price" @click="buyItem(it.defId)">
+        <button type="button" :disabled="s.gold < it.price" :class="{ 'trop-cher': s.gold < it.price }"
+          :title="s.gold < it.price ? 'Il vous manque ' + (it.price - s.gold) + ' pièces d\'or' : ''" @click="buyItem(it.defId)">
           {{ it.price }} <span v-html="or"></span>
         </button>
       </div>
@@ -27,7 +28,8 @@
           <span>{{ sp.name }}<span class="meta"><span v-if="sp.element" v-html="elementHtml(sp.element)"></span>{{ getSpellMeta(sp) }}</span></span>
         </span>
         <button v-if="sp.known" type="button" disabled>Appris</button>
-        <button v-else type="button" :disabled="!sp.reqMet || s.gold < sp.price" @click="buySpell(sp.id)">
+        <button v-else type="button" :disabled="!sp.reqMet || s.gold < sp.price" :class="{ 'trop-cher': s.gold < sp.price }"
+          :title="!sp.reqMet ? 'Prérequis non remplis' : s.gold < sp.price ? 'Il vous manque ' + (sp.price - s.gold) + ' pièces d\'or' : ''" @click="buySpell(sp.id)">
           {{ sp.price }} <span v-html="or"></span>
         </button>
       </div>
@@ -41,10 +43,12 @@
           <span>{{ sk.name }} <b class="points">{{ sk.pts }}</b>/{{ sk.max >= 9999 ? '∞' : sk.max }}
             <span class="meta">{{ sk.desc }}</span><span class="meta">Requis : {{ sk.reqText }}</span></span>
         </span>
-        <button v-if="!sk.known" type="button" :disabled="!sk.reqMet || s.gold < sk.learnCost" @click="buySkill(sk.id)">
+        <button v-if="!sk.known" type="button" :disabled="!sk.reqMet || s.gold < sk.learnCost" :class="{ 'trop-cher': s.gold < sk.learnCost }"
+          :title="!sk.reqMet ? 'Prérequis non remplis' : s.gold < sk.learnCost ? 'Il vous manque ' + (sk.learnCost - s.gold) + ' pièces d\'or' : ''" @click="buySkill(sk.id)">
           Apprendre {{ sk.learnCost }} <span v-html="or"></span>
         </button>
-        <button v-else-if="sk.pts < sk.max" type="button" :disabled="!sk.reqMet || s.gold < sk.trainCost" @click="trainSkill(sk.id)">
+        <button v-else-if="sk.pts < sk.max" type="button" :disabled="!sk.reqMet || s.gold < sk.trainCost" :class="{ 'trop-cher': s.gold < sk.trainCost }"
+          :title="!sk.reqMet ? 'Prérequis non remplis' : s.gold < sk.trainCost ? 'Il vous manque ' + (sk.trainCost - s.gold) + ' pièces d\'or' : ''" @click="trainSkill(sk.id)">
           +1 pt · {{ sk.trainCost }} <span v-html="or"></span>
         </button>
         <button v-else type="button" disabled>Maximum</button>

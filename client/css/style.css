@@ -477,7 +477,9 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 .shop-row .meta { color: var(--text-muted); font-size: 11px; }
 .shop-row button { padding: 2px 9px; font-size: 11px; background: #3a6a3a; border-color: #5a8a5a; white-space: nowrap; }
-.shop-row button:disabled { background: #333; border-color: #444; color: #777; cursor: default; }
+/* bouton grisé mais prix LISIBLE : en rouge quand l'or manque */
+.shop-row button:disabled { background: rgba(40, 44, 52, 0.9); border-color: #4a5160; color: #b4b9c4; cursor: default; }
+.shop-row button.trop-cher:disabled { color: #ff8a7a; border-color: #6a3a34; }
 #bank .bank-section { font-size: 12px; color: var(--gold); margin: 10px 0 4px; }
 /* sprites d'objets (atlas loot Flare) dans les cases et les listes */
 .item-icon { image-rendering: pixelated; width: 34px; height: 34px; object-fit: contain; pointer-events: none; }
@@ -613,7 +615,8 @@ button:disabled, button:disabled:hover {
 .shop-libelle { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .shop-libelle .meta { display: block; }
 .shop-icone { display: flex; width: 22px; justify-content: center; color: var(--text-muted); }
-.shop-row.inaccessible { opacity: 0.55; }
+/* prérequis non remplis : seul le libellé s'estompe (prix et raison restent lisibles) */
+.shop-row.inaccessible .shop-libelle { opacity: 0.6; }
 .shop-row .points { color: var(--gold); }
 .shop-row button { display: inline-flex; align-items: center; gap: 4px; }
 
