@@ -46,6 +46,7 @@ export function montrerPointSurCarte(zoneId, x, z) { demande = { zoneId, x, z };
 export function MondeCarteController(api) {
   // hors réactivité : moteur de rendu, entités, gros tableaux, canevas
   let assets = null, renderer = null, em = null, monde = null, ov = null, fond = null;
+  let ovRev = null; // révision des retouches affichées (cf. rafraichir)
   let cv = null, mini = null, glisse = null, brouillon = null, tirePnj = null, tireMus = null;
   let worldTime = 0, dernier = 0, npcDefs = {};
 
@@ -104,6 +105,7 @@ export function MondeCarteController(api) {
       this.zoneId = +id; this.chargement = true; this.point = null; this.choix = null;
       const z = this.zones.find(x => x.id === this.zoneId);
       try { ov = await api(`/api/admin/overrides/${this.zoneId}`); } catch { ov = null; }
+      ovRev = null; // relevée au premier rafraîchissement
       // laisse le navigateur peindre « chargement » : la génération prend ~250 ms
       await new Promise(r => setTimeout(r, 0));
       monde = applyOverrides(generateWorld(z.seed, z.map), ov);
@@ -141,10 +143,29 @@ export function MondeCarteController(api) {
       this.retires = (ov?.npcs?.remove || []).map(id => ({ cle: 'retire:' + id, nom: npcDefs[id]?.name || id }));
       if (this.aPlacer && !this.aPlacerListe.some(m => m.cle === this.aPlacer)) this.aPlacer = '';
     },
+    // retouches de la carte changées ailleurs (Forge, autre admin, annulation
+    // d'une publication) : la vue restait sur l'ancienne carte jusqu'au
+    // changement de zone. On la reconstruit en gardant le cadrage.
+    async rechargerCarte() {
+      const z = this.zones.find(x => x.id === this.zoneId);
+      if (!z || !renderer) return;
+      try { ov = await api(`/api/admin/overrides/${this.zoneId}`); } catch { return; }
+      monde = applyOverrides(generateWorld(z.seed, z.map), ov);
+      const cam = { ...renderer.cam }, echelle = renderer.scale;
+      renderer.setWorld(monde, buildDecor(monde), z.tint || null);
+      renderer.cam = cam; renderer.scale = echelle;
+      this.peindreMini();
+      this.lireOv();
+    },
     async rafraichir() {
       if (!em) return;
       try {
         const d = await api(`/api/admin/monde/zone/${this.zoneId}`);
+        if (d.zoneId === this.zoneId && d.ovRev != null) {
+          const avant = ovRev;
+          ovRev = d.ovRev;
+          if (avant != null && avant !== d.ovRev) await this.rechargerCarte();
+        }
         this.indispo = '';
         this.joueurs = d.joueurs; this.musique = d.musique;
         const t = performance.now() / 1000;

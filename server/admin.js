@@ -33,6 +33,11 @@ export function overridesPath(zoneId) {
 export function loadOverrides(zoneId) {
   try { return JSON.parse(fs.readFileSync(overridesPath(zoneId), 'utf8')); } catch { return null; }
 }
+// révision des retouches d'une zone (date d'écriture du fichier, 0 sans
+// retouche) : les vues ouvertes rechargent la carte quand elle change
+export function revisionOverrides(zoneId) {
+  try { return fs.statSync(overridesPath(zoneId)).mtimeMs; } catch { return 0; }
+}
 // écrit les retouches d'une zone en les consignant dans l'historique
 export function ecrireOverrides(zoneId, ov, auteur = 'serveur', note = null) {
   let avant = null;
@@ -772,7 +777,8 @@ export async function handleAdmin(req, res, url, game) {
         entites.push({ ...game.metaFor(e), x: e.x, z: e.z, dir: e.dir || 0, state: e.state || 0,
           hpPct: e.kind === KIND.MOB ? Math.max(0, Math.min(100, Math.round((e.hp / e.maxHp) * 100))) : 100 });
       }
-      return json(200, { zoneId, joueurs, pnj, entites, worldTime: game.worldTime, musique: content.music.zones?.[zoneId] || null });
+      return json(200, { zoneId, joueurs, pnj, entites, worldTime: game.worldTime, musique: content.music.zones?.[zoneId] || null,
+        ovRev: revisionOverrides(zoneId) });
     }
     if (url === '/api/admin/monde/journal' && req.method === 'GET') {
       return json(200, { journal: game.journal.slice(-150).reverse() });
