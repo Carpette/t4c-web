@@ -1,36 +1,63 @@
-<div v-if="s">
-  <h2>Guide de l'Aventurier</h2>
-  <div class="space-y-3 font-sans text-xs text-gray-300">
-    <p class="text-amber-400 font-semibold mb-1">Contrôles de Base :</p>
-    <ul class="space-y-1 list-disc pl-4 mb-3" style="font-size: 11px; line-height: 1.4;">
-      <li><b>Clic Gauche</b> : Se déplacer, attaquer, ramasser, ou parler à un PNJ.</li>
-      <li><b>Clic Droit</b> : Annuler la visée d'un sort actif.</li>
-      <li><b>Molette</b> : Zoomer ou dézoomer la caméra.</li>
-      <li><b>Maintenir Ctrl</b> : Mode Combat (tous les clics attaquent ou lancent un sort).</li>
-      <li><b>Double-clic Titre</b> : Recentrer les fenêtres déplaçables.</li>
-    </ul>
+<div class="aide">
+  <h2>Guide de l'aventurier</h2>
 
-    <p class="text-amber-400 font-semibold mb-1">Raccourcis Système :</p>
-    <div class="grid grid-cols-2 gap-x-2 gap-y-1 font-mono mb-3" style="font-size: 11px;">
-      <div><span style="color: var(--gold)">I</span> : Inventaire</div>
-      <div><span style="color: var(--gold)">C</span> : Fiche Personnage</div>
-      <div><span style="color: var(--gold)">S</span> : Livre des Sorts</div>
-      <div><span style="color: var(--gold)">H</span> : Ce Guide d'Aide</div>
-      <div><span style="color: var(--gold)">P</span> : Potion de Vie</div>
-      <div><span style="color: var(--gold)">M</span> : Potion de Mana</div>
-      <div><span style="color: var(--gold)">Entrée</span> : Activer le Chat</div>
-      <div><span style="color: var(--gold)">Échap</span> : Menu / Annuler</div>
-    </div>
+  <h3 class="aide-titre">Contrôles</h3>
+  <dl class="aide-touches">
+    <dt>Clic gauche</dt><dd>se déplacer, attaquer, ramasser, parler à un PNJ</dd>
+    <dt>Clic maintenu</dt><dd>marcher vers le curseur</dd>
+    <dt>Flèches</dt><dd>se déplacer au clavier</dd>
+    <dt>Ctrl maintenu</dt><dd>mode combat : chaque clic attaque ou lance le sort actif</dd>
+    <dt>Clic droit</dt><dd>annuler la visée d'un sort</dd>
+    <dt>Molette</dt><dd>zoomer, dézoomer</dd>
+  </dl>
 
-    <p class="text-amber-400 font-semibold mb-1">Vos Raccourcis de Sorts :</p>
-    <div class="space-y-1 font-mono bg-black/40 p-2 rounded border border-white/5" style="font-size: 11px; max-height: 110px; overflow-y: auto;">
-      <div v-if="spellHotkeys.length === 0" class="text-gray-500 italic">Aucun sort assigné. Ouvrez votre livre des sorts (S) pour en lier un à une touche.</div>
-      <div v-else>
-        <div v-for="hk in spellHotkeys" :key="hk.key" style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 2px;">
-          <span>Touche <b style="color: var(--gold)">{{ hk.key.toUpperCase() }}</b></span>
-          <span style="color: #8ac8ff;">{{ hk.name }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
+  <h3 class="aide-titre">Fenêtres et raccourcis</h3>
+  <dl class="aide-touches aide-colonnes">
+    <dt>I</dt><dd>Inventaire</dd> <dt>C</dt><dd>Personnage</dd>
+    <dt>S</dt><dd>Sorts</dd> <dt>J</dt><dd>Journal</dd>
+    <dt>O</dt><dd>Joueurs en ligne</dd> <dt>N</dt><dd>Mini-carte</dd>
+    <dt>P</dt><dd>Potion de vie</dd> <dt>M</dt><dd>Potion de mana</dd>
+    <dt>V</dt><dd>Dictée vocale</dd> <dt>H</dt><dd>Cette aide</dd>
+    <dt>Entrée</dt><dd>Écrire dans le chat</dd> <dt>Échap</dt><dd>Fermer, menu</dd>
+  </dl>
+
+  <h3 class="aide-titre">Sorts</h3>
+  <p>Achetez vos sorts aux maîtres, puis donnez-leur une touche dans le panneau Sorts (S).
+    La touche arme la visée : cliquez la cible. Le sort se relance seul tant que vous ne faites
+    rien d'autre et que la cible vit.</p>
+  <dl class="aide-touches" v-if="spellHotkeys.length">
+    <div v-for="hk in spellHotkeys" :key="hk.key" class="aide-paire"><dt>{{ hk.key.toUpperCase() }}</dt><dd>{{ hk.name }}</dd></div>
+  </dl>
+  <p v-else class="hint">Aucun sort n'a encore de touche.</p>
+
+  <h3 class="aide-titre">Parler aux PNJ</h3>
+  <p>Cliquez un PNJ pour le saluer : il suggère des sujets. Dites ensuite ces mots-clés dans le chat
+    local, près de lui. Les mots entre guillemets « » de ses réponses ouvrent de nouvelles pistes ;
+    le Journal (J) les garde et permet de les redire d'un clic.</p>
+
+  <h3 class="aide-titre">Commerce et échanges</h3>
+  <p>Les marchands achètent et vendent ; les maîtres enseignent sorts et compétences.
+    Le coffre de la banque garde vos objets sans poids. Pour donner un objet ou de l'or à un joueur,
+    posez-le au sol (clic droit dans le sac) : il le ramasse.</p>
+
+  <h3 class="aide-titre">Groupe</h3>
+  <p>Invitez depuis le panneau Joueurs (O), en ciblant un joueur, ou avec <code>/inviter Nom</code>.
+    L'expérience est partagée entre membres proches ; <code>/g message</code> parle au groupe.</p>
+
+  <h3 class="aide-titre">La mort est définitive</h3>
+  <p>Un personnage tué est perdu, avec son coffre et son journal ; il entre au Panthéon.
+    Les obélisques font voyager entre les zones déjà conquises. L'Épreuve ouvre la zone suivante :
+    atteignez la sortie du labyrinthe, ou périssez.</p>
+
+  <h3 class="aide-titre">Commandes du chat</h3>
+  <dl class="aide-touches">
+    <dt>/general, /aide, /ventes, /roleplay</dt><dd>parler sur un canal</dd>
+    <dt>.qui</dt><dd>joueurs en ligne</dd>
+    <dt>.pos · .zone</dt><dd>position, zone et niveaux</dd>
+    <dt>.boss</dt><dd>le boss de la zone</dd>
+    <dt>.groupe</dt><dd>composition du groupe</dd>
+    <dt>.pantheon</dt><dd>les morts illustres</dd>
+    <dt>.canal</dt><dd>créer, rejoindre, quitter un canal</dd>
+    <dt>.aide</dt><dd>toutes les commandes</dd>
+  </dl>
 </div>

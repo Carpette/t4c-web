@@ -11,8 +11,7 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "build:admin-css": "tailwindcss -i client/css/admin-input.css -o client/css/admin-tailwind.css --minify",
-    "build:game-css": "tailwindcss -i client/css/game-input.css -o client/css/game-tailwind.css --minify",
-    "build:css": "npm run build:admin-css && npm run build:game-css"
+    "build:css": "npm run build:admin-css"
   },
   "engines": {
     "node": ">=22.5"
