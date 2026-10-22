@@ -71,6 +71,7 @@ export const uiStore = reactive({
   death: null,       // écran de mort : message `died` du serveur
   version: null,     // { label, about } (login + À propos)
   cds: {},           // spellId -> fin de recharge (s, horloge performance)
+  cdDur: {},         // spellId -> durée de la dernière recharge (s) : balayage de la barre
   now: 0,            // horloge rafraîchie par la boucle de rendu (recharges, buffs)
   dialogue: null,    // boîte modale : { titre, texte, ok, danger?, nombre?: { max } }
   dialogueValeur: '', // quantité saisie dans la boîte (hors de `dialogue` : v-model survit à sa fermeture)

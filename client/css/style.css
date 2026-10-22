@@ -353,12 +353,21 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 .spell-slot .icon { display: flex; }
 .spell-slot .icon .ico { width: 24px; height: 24px; }
 .spell-slot .key {
-  position: absolute; top: 1px; right: 3px; font-size: 9px; color: var(--gold);
+  position: absolute; top: 1px; right: 4px; font-size: 11px; font-weight: bold; color: var(--gold);
+  text-shadow: 0 1px 2px #000;
 }
+.spell-slot .mana {
+  position: absolute; bottom: 1px; left: 4px; font-size: 9px; color: #8fb8ff; text-shadow: 0 1px 2px #000;
+}
+/* recharge : voile qui se retire dans le sens horaire (--part : 1 -> 0) */
 .spell-slot .cd {
-  position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex;
-  align-items: center; justify-content: center; color: #fff; font-size: 13px;
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 14px; font-weight: bold; text-shadow: 0 1px 3px #000;
+  background: conic-gradient(rgba(0,0,0,0.72) calc(var(--part, 1) * 360deg), rgba(0,0,0,0.18) 0);
 }
+/* mana insuffisante : icône éteinte, coût en rouge */
+.spell-slot.manque .icon { opacity: 0.35; filter: grayscale(1); }
+.spell-slot.manque .mana { color: #ff7a6a; }
 .potion-slot .count {
   position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: bold;
   color: var(--gold); text-shadow: 0 1px 2px #000;
