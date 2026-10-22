@@ -304,10 +304,42 @@ export class Renderer {
       drawables.push({ sy: sy + (v.isDead?.() ? -96 : 0), view: v });
     }
     drawables.sort((a, b) => a.sy - b.sy);
+    // Décors qui masquent le joueur (ou sa cible) : dessinés en transparence,
+    // avec un fondu, pour ne jamais perdre de vue son personnage sous un toit
+    // ou derrière un mur. Boîtes écran de l'image précédente (bbox des vues).
+    const masques = [];
+    for (const id of [selfId, hl.targetId]) {
+      const v = id != null ? em.get(id) : null;
+      if (v?.bbox && !v.isDead?.()) masques.push({ sy: (v.x + v.z) * HH, b: v.bbox, v, cache: false });
+    }
+    const dtFondu = Math.min(0.1, Math.max(0, now - (this._fonduT ?? now)));
+    this._fonduT = now;
     for (const d of drawables) {
       if (d.prop) {
         const p = this.w2s(d.prop.x, d.prop.z);
-        this.drawTile(d.prop.tileId, p.x, p.y, d.prop.s || 1, d.prop.flip);
+        const k = d.prop.s || 1;
+        let cible = 1;
+        if (masques.length) {
+          const r = this._tileCache.get(d.prop.tileId);
+          if (r) {
+            const [, , w, h, ox, oy] = r.rect;
+            const x0 = d.prop.flip ? p.x - (w - ox) * s * k : p.x - ox * s * k, y0 = p.y - oy * s * k;
+            for (const m of masques) {
+              // seuls les décors DEVANT (dessinés après) et assez hauts pour cacher
+              if (d.sy <= m.sy || h * s * k < m.b.h * 0.5) continue;
+              const bx = m.b.x + m.b.w * 0.2, bw = m.b.w * 0.6, by = m.b.y + m.b.h * 0.1, bh = m.b.h * 0.8;
+              if (x0 < bx + bw && x0 + w * s * k > bx && y0 < by + bh && y0 + h * s * k > by) { cible = 0.55; m.cache = true; }
+            }
+          }
+        }
+        const a = d.prop._fondu ?? 1;
+        d.prop._fondu = a + (cible - a) * Math.min(1, dtFondu * 8);
+        if (d.prop._fondu > 0.995) d.prop._fondu = 1;
+        if (d.prop._fondu < 1) {
+          ctx.globalAlpha = d.prop._fondu;
+          this.drawTile(d.prop.tileId, p.x, p.y, k, d.prop.flip);
+          ctx.globalAlpha = 1;
+        } else this.drawTile(d.prop.tileId, p.x, p.y, k, d.prop.flip);
       } else {
         const p = this.w2s(d.view.x, d.view.z);
         // surlignement : cible en cours (pulsant) ou entité survolée
@@ -318,6 +350,14 @@ export class Renderer {
         }
         d.view.draw(ctx, this.assets, p.x, p.y, s);
       }
+    }
+    // silhouette par-dessus le décor qui la cache : on voit toujours où l'on est
+    for (const m of masques) {
+      if (!m.cache) continue;
+      const p = this.w2s(m.v.x, m.v.z);
+      ctx.globalAlpha = 0.5;
+      m.v.draw(ctx, this.assets, p.x, p.y, s);
+      ctx.globalAlpha = 1;
     }
 
     // --- Effets de sorts (projectiles, éclairs, zones d'effet) + particules ---
