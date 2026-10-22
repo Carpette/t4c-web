@@ -1,6 +1,7 @@
 // Barre de potions (raccourcis P / M) : compte des potions de l'inventaire.
 import { uiStore, rawUiContainer } from '../../ui-store.js';
 import { ITEMS } from '../../../../../shared/defs.js';
+import { icone } from '../../icones.js';
 
 const POTIONS = [
   { kind: 'vie', key: 'P', defId: 'potion_vie', name: 'Potion de vie', match: (d) => d.heal },
@@ -9,6 +10,7 @@ const POTIONS = [
 
 export function QuickbarController() {
   return {
+    potion: icone('potion', { taille: 22 }),
     get potions() {
       const inv = uiStore.player.inventory || [];
       return POTIONS.map(q => ({

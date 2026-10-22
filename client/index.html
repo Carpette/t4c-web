@@ -55,7 +55,7 @@
     <div id="castbar" class="hidden"><div id="castbar-fill"></div><span id="castbar-label"></span></div>
     <!-- barre d'action : potions (P / M) puis sorts à raccourci -->
     <div id="barre-action"><div id="quickbar"></div><div id="spellbar"></div></div>
-    <div id="combat-indicator" class="hidden">⚔ MODE COMBAT</div>
+    <div id="combat-indicator" class="hidden"><svg class="ico" width="14" height="14" aria-hidden="true"><use href="#ico-epees"/></svg> MODE COMBAT</div>
 
     <!-- Inventaire T4C : poupée d'équipement + grille -->
     <div id="inventory" class="panel" v-show="store.panels.inventory" role="dialog"></div>
@@ -78,7 +78,7 @@
     <!-- Confirmation d'Épreuve -->
     <div id="trial-modal" class="overlay" v-show="store.trial" role="dialog" aria-labelledby="trial-titre">
       <div class="login-box modal-box">
-        <h1 id="trial-titre">⚠ L'Épreuve</h1>
+        <h1 id="trial-titre">L'Épreuve</h1>
         <p class="modal-texte">{{ store.trial?.text }}</p>
         <div class="login-buttons">
           <button class="danger-btn" @click="entrerEpreuve()">Entrer dans l'Épreuve</button>
@@ -156,12 +156,12 @@
        pas en jeu), sinon ils sont invisibles à la connexion. -->
   <div id="death-screen" class="overlay" v-show="store.phase === 'death'" role="dialog" aria-labelledby="death-titre">
     <div class="login-box modal-box">
-      <h1 id="death-titre">☠ Mort définitive</h1>
+      <h1 id="death-titre">Mort définitive</h1>
       <p class="modal-texte" v-if="store.death">Niveau {{ store.death.level }} — tué par {{ store.death.by }}
         dans {{ store.death.zone }}. Ce personnage est perdu à jamais.</p>
       <div id="pantheon" v-if="store.death">
         <b>Panthéon des morts</b>
-        <div class="dead-row" v-for="d in store.death.pantheon || []">☠ {{ d.name }} — niveau {{ d.level }},
+        <div class="dead-row" v-for="d in store.death.pantheon || []">{{ d.name }} — niveau {{ d.level }},
           tué par {{ d.killer }} ({{ d.zone }})</div>
       </div>
       <button @click="renaitre()">Créer un nouveau personnage</button>

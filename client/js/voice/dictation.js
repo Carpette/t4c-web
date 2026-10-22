@@ -14,7 +14,7 @@ const LS = typeof localStorage !== 'undefined' ? localStorage : { getItem: () =>
 const log = (...a) => console.log('[dictée]', ...a);
 
 export const voice = reactive({
-  // supported=false => le bouton 🎙 n'apparaît PAS. Causes possibles :
+  // supported=false => le bouton micro n'apparaît PAS. Causes possibles :
   //  - SharedArrayBuffer absent : les en-têtes COOP/COEP ne sont pas servis
   //    (vérifier : onglet Réseau -> la page -> Cross-Origin-Embedder-Policy)
   //    ou la page est ouverte en file:// (il FAUT passer par le serveur) ;
@@ -64,7 +64,7 @@ export async function acceptModel() {
   worker.onerror = (e) => {
     voice.state = 'error';
     voice.error = e.message || 'worker en erreur';
-    log('✘ worker.onerror :', e.message, '—', e.filename, ':', e.lineno);
+    log('ERREUR worker.onerror :', e.message, '—', e.filename, ':', e.lineno);
   };
   const totals = {};
   worker.onmessage = (e) => {
@@ -76,10 +76,10 @@ export async function acceptModel() {
       voice.progress = total ? Math.round(100 * loaded / total) : 0;
     } else if (m.type === 'ready') {
       voice.state = 'ready';
-      log('✔ prêt — le micro est chaud (V maintenue pour dicter)');
+      log('prêt — le micro est chaud (V maintenue pour dicter)');
     } else if (m.type === 'text') {
       voice.state = 'ready';
-      log(`✔ transcription (${m.ms | 0} ms) : « ${m.text} »`);
+      log(`transcription (${m.ms | 0} ms) : « ${m.text} »`);
       if (m.text && onText) onText(m.text);
     } else if (m.type === 'error') {
       voice.state = 'error';
@@ -90,7 +90,7 @@ export async function acceptModel() {
       //    huggingface.co doit répondre avec Access-Control-Allow-Origin) ;
       //  - « no available backend found » : le .wasm vendorisé ne charge pas
       //    (404 sur /js/vendor/transformers/ort-*.wasm ? mauvais MIME ?).
-      console.error('[dictée] ✘', m.error);
+      console.error('[dictée]', m.error);
     }
   };
   worker.postMessage({ type: 'load', webgpu: 'gpu' in navigator });
@@ -118,7 +118,7 @@ export async function startListening() {
     node.connect(ctx.destination);
     media = { ctx, stream, source, node, chunks };
     voice.state = 'listening';
-    // RÉSULTAT ATTENDU : 🔴 sur le bouton, et à ce stade le navigateur a
+    // RÉSULTAT ATTENDU : micro rouge sur le bouton, et à ce stade le navigateur a
     // demandé (et obtenu) la permission micro. sampleRate doit dire 16000 —
     // si le navigateur refuse ce taux, il faudrait rééchantillonner à la main.
     log('écoute… (sampleRate réel :', ctx.sampleRate, 'Hz)');
@@ -127,7 +127,7 @@ export async function startListening() {
     voice.error = 'Micro refusé ou indisponible.';
     // NotAllowedError = permission refusée (cadenas dans la barre d'adresse) ;
     // NotFoundError = aucun micro ; autre chose = contexte non sécurisé ?
-    log('✘ getUserMedia :', err.name, err.message);
+    log('ERREUR getUserMedia :', err.name, err.message);
   }
 }
 
@@ -168,7 +168,7 @@ export async function deleteModel() {
         if (/transformers/i.test(k)) { await caches.delete(k); log('cache supprimé :', k); }
       }
     }
-  } catch (err) { log('✘ suppression du cache :', err.message); }
+  } catch (err) { log('ERREUR suppression du cache :', err.message); }
   LS.removeItem('t4c:voice');
   voice.declined = false;
   voice.state = 'off';

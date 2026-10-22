@@ -1,97 +1,94 @@
 <div v-if="perms.length">
-  <!-- bouton flottant : ouvre la boîte à outils d'animation -->
-  <button @click="toggle()" title="Outils d'administration"
-    style="position:fixed;left:10px;top:52px;z-index:60;width:34px;height:34px;border-radius:8px;
-           background:rgba(20,14,6,.85);border:1px solid var(--gold);color:var(--gold);font-size:16px;">🛠</button>
+  <!-- bouton : ouvre la boîte à outils d'animation -->
+  <button type="button" class="outils-bouton" :class="{ active: open }" :aria-expanded="open"
+    title="Outils d'administration" aria-label="Outils d'administration" @click="toggle()" v-html="ico.outils"></button>
 
-  <div v-if="open" style="position:fixed;left:10px;top:92px;z-index:60;width:280px;max-height:70vh;overflow-y:auto;
-       background:rgba(16,11,5,.94);border:1px solid var(--gold);border-radius:10px;padding:10px;
-       font-size:12px;color:#e8d9b0;">
-    <div style="display:flex;gap:4px;margin-bottom:8px;">
-      <button v-if="perms.includes('spawn')" @click="tab='spawn'" :style="tabStyle('spawn')">Invoquer</button>
-      <button v-if="perms.includes('map')" @click="tab='map'" :style="tabStyle('map')">Carte</button>
-      <button v-if="perms.includes('quests')" @click="tab='quests'" :style="tabStyle('quests')">Quêtes</button>
+  <div v-if="open" class="outils" role="dialog" aria-label="Outils d'administration">
+    <div class="outils-onglets" role="tablist">
+      <button v-if="perms.includes('spawn')" type="button" role="tab" :aria-selected="tab === 'spawn'" :class="{ active: tab === 'spawn' }" @click="tab='spawn'">Invoquer</button>
+      <button v-if="perms.includes('map')" type="button" role="tab" :aria-selected="tab === 'map'" :class="{ active: tab === 'map' }" @click="tab='map'">Carte</button>
+      <button v-if="perms.includes('quests')" type="button" role="tab" :aria-selected="tab === 'quests'" :class="{ active: tab === 'quests' }" @click="tab='quests'">Quêtes</button>
     </div>
 
-    <!-- bandeau mode placement -->
-    <div v-if="placing" style="background:#3a2c12;border:1px solid var(--gold);border-radius:6px;padding:5px 8px;margin-bottom:8px;">
-      🎯 {{ placing }} — clique sur le monde (clic droit ou <button @click="stopPlace()" style="padding:0 6px;">stop</button>)
+    <!-- bandeau du mode placement -->
+    <div v-if="placing" class="outils-placement" role="status">
+      <span v-html="ico.cible"></span> {{ placing }} — cliquez sur le monde
+      <button type="button" class="petit" @click="stopPlace()">Arrêter</button>
     </div>
 
     <!-- ================= INVOQUER ================= -->
     <div v-if="tab==='spawn' && perms.includes('spawn')">
-      <div style="color:var(--gold);margin-bottom:4px;">Créatures</div>
-      <input v-model="mobSearch" placeholder="filtrer…" style="width:100%;margin-bottom:4px;">
-      <select v-model="mobId" size="5" style="width:100%;">
+      <h3 class="outils-titre">Créatures</h3>
+      <input class="outils-champ" v-model="mobSearch" placeholder="Filtrer…" aria-label="Filtrer les créatures">
+      <select class="outils-champ" v-model="mobId" size="5" aria-label="Créature">
         <option v-for="m in mobList()" :value="m.id">{{ m.name }} (niv {{ m.level }})</option>
       </select>
-      <div style="display:flex;gap:4px;margin:4px 0 10px;">
-        ×<input v-model="nMob" style="width:34px;">
-        <button @click="placeMob()">Poser au clic</button>
-        <button @click="spawnHere()">Ici</button>
+      <div class="outils-ligne">
+        <label>Nombre <input class="outils-nombre" type="number" min="1" v-model="nMob"></label>
+        <button type="button" @click="placeMob()">Poser au clic</button>
+        <button type="button" class="secondary" @click="spawnHere()">Ici</button>
       </div>
 
-      <div style="color:var(--gold);margin-bottom:4px;">Objets</div>
-      <input v-model="itemSearch" placeholder="filtrer…" style="width:100%;margin-bottom:4px;">
-      <select v-model="itemId" size="5" style="width:100%;">
+      <h3 class="outils-titre">Objets</h3>
+      <input class="outils-champ" v-model="itemSearch" placeholder="Filtrer…" aria-label="Filtrer les objets">
+      <select class="outils-champ" v-model="itemId" size="5" aria-label="Objet">
         <option v-for="i in itemList()" :value="i.id">{{ i.name }}</option>
       </select>
-      <div style="display:flex;gap:4px;margin:4px 0;">
-        ×<input v-model="nItem" style="width:34px;">
-        <button @click="giveItem()">Donner (au sol)</button>
+      <div class="outils-ligne">
+        <label>Nombre <input class="outils-nombre" type="number" min="1" v-model="nItem"></label>
+        <button type="button" @click="giveItem()">Donner (au sol)</button>
       </div>
-      <div style="display:flex;gap:4px;align-items:center;">
-        Or <input v-model="gold" style="width:70px;">
-        <button @click="giveGold()">Donner</button>
+      <div class="outils-ligne">
+        <label>Or <input class="outils-nombre large" type="number" min="1" v-model="gold"></label>
+        <button type="button" @click="giveGold()">Donner</button>
       </div>
 
-      <div style="color:var(--gold);margin:10px 0 4px;">Événement de MJ</div>
-      <input v-model="announceText" placeholder="annonce à tous les joueurs…" style="width:100%;">
-      <button @click="sendAnnounce()" style="width:100%;margin:4px 0 8px;">📣 Annoncer au serveur</button>
-      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-        vagues <input v-model="waves" style="width:30px;">
-        × <input v-model="nWave" style="width:30px;"> créatures /
-        <input v-model="waveSec" style="width:34px;"> s
+      <h3 class="outils-titre">Événement de MJ</h3>
+      <input class="outils-champ" v-model="announceText" placeholder="Annonce à tous les joueurs…" aria-label="Texte de l'annonce">
+      <button type="button" class="bouton-plein" @click="sendAnnounce()"><span v-html="ico.annonce"></span> Annoncer au serveur</button>
+      <div class="outils-ligne">
+        <label><input class="outils-nombre" type="number" min="1" v-model="waves"> vagues</label>
+        <label>de <input class="outils-nombre" type="number" min="1" v-model="nWave"></label>
+        <label>toutes les <input class="outils-nombre" type="number" min="1" v-model="waveSec"> s</label>
       </div>
-      <button @click="placeWave()" style="width:100%;margin-top:4px;">⚔ Invasion au clic (créature sélectionnée)</button>
+      <button type="button" class="bouton-plein" @click="placeWave()"><span v-html="ico.epees"></span> Invasion au clic (créature choisie)</button>
     </div>
 
     <!-- ================= CARTE ================= -->
     <div v-if="tab==='map' && perms.includes('map')">
-      <div style="color:var(--gold);margin-bottom:4px;">Peindre une tuile</div>
-      <select v-model="tileId" style="width:100%;">
+      <h3 class="outils-titre">Peindre une tuile</h3>
+      <select class="outils-champ" v-model="tileId" aria-label="Tuile">
         <option v-for="t in tiles" :value="t.id">{{ t.name }}</option>
       </select>
-      <button @click="placeTile()" style="margin:4px 0 10px;width:100%;">🖌 Peindre au clic</button>
+      <button type="button" class="bouton-plein" @click="placeTile()">Peindre au clic</button>
 
-      <div style="color:var(--gold);margin-bottom:4px;">Poser un décor</div>
-      <select v-model="propType" style="width:100%;">
+      <h3 class="outils-titre">Poser un décor</h3>
+      <select class="outils-champ" v-model="propType" aria-label="Décor">
         <option v-for="p in propTypes" :value="p">{{ p }}</option>
       </select>
-      <div style="display:flex;gap:4px;align-items:center;margin:4px 0;">
-        échelle <input v-model="propScale" style="width:44px;">
-        <button @click="placeProp()">🌳 Poser au clic</button>
+      <div class="outils-ligne">
+        <label>Échelle <input class="outils-nombre" type="number" step="0.1" min="0.1" v-model="propScale"></label>
+        <button type="button" @click="placeProp()">Poser au clic</button>
       </div>
-      <button @click="placeRemove()" style="width:100%;margin-top:6px;">🗑 Retirer un décor au clic</button>
-      <p style="color:#a3946e;margin-top:8px;">Appliqué à chaud pour tous les joueurs de la zone, et persistant (overrides de l'éditeur web).</p>
+      <button type="button" class="bouton-plein danger-btn" @click="placeRemove()">Retirer un décor au clic</button>
+      <p class="hint">Appliqué à chaud pour tous les joueurs de la zone, et persistant (surcharges de l'éditeur).</p>
     </div>
 
     <!-- ================= QUÊTES ================= -->
     <div v-if="tab==='quests' && perms.includes('quests')">
-      <div style="color:var(--gold);margin-bottom:4px;">Dialogues / quêtes d'un PNJ</div>
-      <select v-model="npcId" @change="loadDialogues()" style="width:100%;">
+      <h3 class="outils-titre">Dialogues et quêtes d'un PNJ</h3>
+      <select class="outils-champ" v-model="npcId" @change="loadDialogues()" aria-label="PNJ">
         <option v-for="n in npcs" :value="n.id">{{ n.name }} ({{ n.id }})</option>
       </select>
-      <textarea v-model="dlgText" rows="12" spellcheck="false"
-        style="width:100%;margin-top:6px;font-family:monospace;font-size:11px;background:#100a04;color:#e8d9b0;border:1px solid #6b5322;"></textarea>
-      <div style="display:flex;gap:4px;margin-top:4px;">
-        <button @click="saveDialogues()">💾 Enregistrer</button>
-        <button @click="loadDialogues()">↺ Recharger</button>
+      <textarea class="outils-champ outils-code" v-model="dlgText" rows="12" spellcheck="false" aria-label="Dialogues (JSON)"></textarea>
+      <div class="outils-ligne">
+        <button type="button" @click="saveDialogues()">Enregistrer</button>
+        <button type="button" class="secondary" @click="loadDialogues()">Recharger</button>
       </div>
-      <div style="color:#9d9;min-height:1.2em;">{{ msg }}</div>
-      <details style="margin-top:6px;color:#a3946e;">
-        <summary style="cursor:pointer;">Format (aide)</summary>
-        <pre style="font-size:10px;white-space:pre-wrap;">[{
+      <p class="outils-message" role="status">{{ msg }}</p>
+      <details class="outils-aide">
+        <summary>Format (aide)</summary>
+        <pre>[{
  "keywords": ["travail","quête"],
  "reponse": "…",
  "conditions": { "flag": "clef", "notFlag": "clef",
@@ -105,7 +102,7 @@
  "repeatable": true
 }]
 Récompenses versées UNE fois par personnage
-(sauf repeatable). Test : parle au PNJ en jeu.</pre>
+(sauf repeatable). Test : parlez au PNJ en jeu.</pre>
       </details>
     </div>
   </div>

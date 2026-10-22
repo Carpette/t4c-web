@@ -18,6 +18,7 @@ import { uiStore, repondre } from './gui/ui-store.js';
 import { guiManager, basculerMiniCarte } from './gui/gui-manager.js';
 import { chargerJournal, effacerJournal } from './gui/journal.js';
 import { MiniCarte } from './gui/minicarte.js';
+import { BUFFS } from './gui/components/buffs/buffs.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
 
@@ -121,10 +122,8 @@ net.on('welcome', (m) => {
 net.on('perms', (m) => { uiStore.adminPerms = m.perms || []; });
 net.on('who', (m) => { uiStore.joueurs = m.list || []; });
 net.on('channels', (m) => { uiStore.channels = m.list || []; });
-net.on('announce', (m) => {
-  ui.announce(m.text);
-  globalBus.emit('net:chat-received', { from: 'sys', text: '📣 ' + m.text });
-});
+// le serveur diffuse aussi l'annonce dans le chat : ici, seulement le bandeau
+net.on('announce', (m) => ui.announce(m.text));
 // commandes de la boîte à outils admin (composant gui/admin)
 globalBus.on('admin:cmd', (m) => net.send({ t: 'admin', ...m }));
 net.on('zone', async (m) => {
@@ -149,7 +148,7 @@ net.on('zone', async (m) => {
   miniCarte.setWorld(world);
   renderer.ambience = m.ambience || null; // ambiance d'arrivée (teinte/obscurité)
   playMusic(m.music); // musique de la zone (null = silence)
-  if (m.kind === 'trial') globalBus.emit('net:chat-received', { from: 'sys', text: '⚠ Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.' });
+  if (m.kind === 'trial') globalBus.emit('net:chat-received', { from: 'sys', text: 'Vous êtes dans l\'Épreuve. Atteignez la sortie ou périssez.' });
 });
 net.on('music', (m) => playMusic(m.file)); // changement à chaud par l'admin
 // ambiance de sous-zone (teinte/obscurité) : bascule à hystérésis côté serveur
@@ -239,10 +238,10 @@ net.on('events', (m) => {
         // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
         const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
         if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff', ev.fx);
-        triggerFloater(headPos(v), '✨', 'heal');
+        triggerFloater(headPos(v), BUFFS[ev.stat]?.[1] || 'renforcé', 'heal');
         if (ev.id === selfId) playSfx('buff');
       }
-      if (ev.kind === 'curse') { triggerFloater(headPos(v), '☠ maudit', 'miss'); playSfx('malediction'); }
+      if (ev.kind === 'curse') { triggerFloater(headPos(v), 'maudit', 'miss'); playSfx('malediction'); }
       if (ev.kind === 'die') playSfx('mort');
     } else if (ev.t === 'look') {
       em.get(ev.id)?.setLook(ev.look);
@@ -373,27 +372,46 @@ function tickAutoCast() {
   ui.cds[sp.id] = now + 0.4; // anti-spam local en attendant le cast_ok serveur
 }
 
-// curseur "main scintillante" dessiné dans le canvas (un curseur CSS ne s'anime pas)
+// curseur de visée dessiné dans le canvas (un curseur CSS ne s'anime pas) :
+// réticule à la couleur du sort, qui tourne, entouré d'étincelles
 function drawAimCursor(now) {
   if (!aimSpell) return;
   const ctx = renderer.ctx;
   const { x, y } = lastPointer;
-  const sp = ui.spellDef(aimSpell);
+  const couleur = ui.spellDef(aimSpell)?.color || '#ffe48a';
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(Math.sin(now * 6) * 0.14);
-  ctx.font = '30px serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('🖐', 0, 12);
-  // étincelles au bout des doigts
+  ctx.lineCap = 'round';
+  // contour sombre puis trait coloré : lisible sur tous les sols
+  for (const [largeur, teinte] of [[4, 'rgba(0,0,0,0.6)'], [2, couleur]]) {
+    ctx.strokeStyle = teinte;
+    ctx.lineWidth = largeur;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.save();
+    ctx.rotate(now * 1.6);
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.moveTo(Math.cos(a) * 14, Math.sin(a) * 14);
+      ctx.lineTo(Math.cos(a) * 20, Math.sin(a) * 20);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = couleur;
+  ctx.beginPath();
+  ctx.arc(0, 0, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // étincelles en orbite
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 5; i++) {
-    const a = now * 7 + i * 1.3;
-    const px = -2 + Math.sin(a) * 7 + (i - 2) * 4;
-    const py = -16 + Math.cos(a * 1.7) * 5;
-    const r = 1.5 + Math.sin(a * 2.3 + i) * 1;
+    const a = now * 3 + i * 1.26;
+    const px = Math.cos(a) * 16, py = Math.sin(a) * 16;
+    const r = 1.5 + Math.sin(now * 7 + i) * 1;
     const g = ctx.createRadialGradient(px, py, 0, px, py, r * 3);
-    g.addColorStop(0, sp?.color || '#ffe48a');
+    g.addColorStop(0, couleur);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(px - r * 3, py - r * 3, r * 6, r * 6);
