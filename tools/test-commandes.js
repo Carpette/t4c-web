@@ -1,7 +1,7 @@
 // Test d'intégration des commandes joueur « . » (mode expert) : réponses
 // privées, jamais diffusées, hors anti-spam. Couvre .pos, .zone, .xpstat
 // (gain réel via la récompense de quête d'Aldric), .xpreset, .boss, .qui,
-// .pantheon (vide), et l'inconnue.
+// .pantheon (vide), l'inconnue, et la liste structurée `who`.
 // À lancer sur une base FRAÎCHE (1er compte = super admin pour goto).
 // Usage : node tools/test-commandes.js [urlHttp=http://localhost:8090]
 import WebSocket from 'ws';
@@ -19,7 +19,8 @@ function connect(name) {
     ws.on('open', () => ws.send(JSON.stringify({ t: 'register', v: PROTOCOL_VERSION, name, pass: 'test1234' })));
     const iv = setInterval(() => {
       if (c.inbox.some(m => m.t === 'create_char')) ws.send(JSON.stringify({ t: 'create', stats: { str: 22, end: 18, agi: 14, int: 8, wis: 8 } }));
-      if (c.inbox.some(m => m.t === 'welcome')) { clearInterval(iv); resolve(c); }
+      const w = c.inbox.find(m => m.t === 'welcome');
+      if (w) { clearInterval(iv); c.welcomeName = w.name; resolve(c); }
     }, 50);
     setTimeout(() => reject(new Error('timeout ' + name)), 8000);
   });
@@ -83,6 +84,17 @@ await cmd(a, '.pantheon');
 ok('.pantheon : vide sur base fraîche', await wait(a, /Panthéon est vide/));
 await cmd(a, '.abracadabra');
 ok('commande inconnue : renvoi vers .aide', await wait(a, /\.abracadabra inconnue.*\.aide/));
+
+// ---- liste structurée des joueurs (panneau Joueurs du client) ----
+ok('welcome : nom du personnage transmis', a.welcomeName === a.name);
+a.inbox.length = 0;
+send(a, { t: 'who' });
+await pause(400);
+const who = a.inbox.find(m => m.t === 'who');
+const moi = who?.list?.find(j => j.name === a.name);
+ok('who : liste des joueurs en ligne, avec niveau et zone',
+  !!moi && Number.isFinite(moi.level) && typeof moi.zone === 'string' && moi.zone.length > 0
+  && who.list.some(j => j.name === b.name) && moi.party === false);
 
 a.ws.close(); b.ws.close();
 const failed = checks.filter(([, c]) => !c);

@@ -5,6 +5,13 @@ export const rawUiContainer = {
   instance: null
 };
 
+function lirePref(cle, defaut) {
+  try { const v = JSON.parse(localStorage.getItem(cle)); return v ?? defaut; } catch { return defaut; }
+}
+export function ecrirePref(cle, valeur) {
+  try { localStorage.setItem(cle, JSON.stringify(valeur)); } catch { /* stockage bloqué */ }
+}
+
 export const uiStore = reactive({
   phase: 'login',
   adminPerms: [],   // permissions d'administration reçues au welcome
@@ -32,6 +39,7 @@ export const uiStore = reactive({
   channels: [],      // canaux de discussion (serveur) : {name, private?, owner?, mine?, joined}
   hotkeys: {},
   spellDefs: [],
+  skillDefs: [],     // content/skills.json (noms et descriptions des compétences)
   activeSpell: null,
   bindingSpell: null,
   bindingError: null,
@@ -49,7 +57,14 @@ export const uiStore = reactive({
     shop: false,
     bank: false,
     obelisk: false,
+    journal: false,
+    joueurs: false,
   },
+  journal: [],       // PNJ rencontrés et leurs répliques (gui/journal.js)
+  joueurs: null,     // aventuriers en ligne (message `who`)
+  zoneName: '',
+  miniCarte: lirePref('t4c_minicarte', true),  // mini-carte affichée
+  miniZoom: lirePref('t4c_minizoom', 1),       // index dans les niveaux de zoom
   menu: null,        // menu Échap : null | 'buttons' | 'settings' | 'about'
   target: null,      // cadre de cible : { name, hpPct, playerId }
   trial: null,       // confirmation d'entrée dans l'Épreuve : { text }

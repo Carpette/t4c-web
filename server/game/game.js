@@ -436,7 +436,7 @@ export class Game {
     this.players.set(p.id, p);
     zi.add(p);
     zi.players++;
-    this.send(p, { t: 'welcome', id: p.id, time: this.worldTime, admin: p.isAdmin, perms: this.permsOf(p) });
+    this.send(p, { t: 'welcome', id: p.id, name: p.name, time: this.worldTime, admin: p.isAdmin, perms: this.permsOf(p) });
     this.sendChannels(p);
     this.sendZone(p);
     this.sendSelf(p);
@@ -1217,6 +1217,16 @@ export class Game {
           // un PNJ à portée d'oreille peut réagir aux mots-clés (quêtes T4C)
           handleNpcKeywords(this, p, rawText);
         }
+        break;
+      }
+      // liste des aventuriers en ligne (panneau Joueurs du client)
+      case 'who': {
+        const list = [...this.players.values()].filter(o => !o.permadead && o.zi).map(o => ({
+          name: o.name, level: o.level,
+          zone: o.zi.isTrial ? 'L’Épreuve' : (o.zi.caveName || this.zoneDef(o.zi.zoneId)?.name || ''),
+          party: !!(p.party && o.party === p.party),
+        })).sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+        this.send(p, { t: 'who', list });
         break;
       }
       case 'party_invite': {

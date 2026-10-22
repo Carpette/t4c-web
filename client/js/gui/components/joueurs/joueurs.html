@@ -1,0 +1,19 @@
+<div class="joueurs" @vue:mounted="rafraichir()">
+  <h2>Aventuriers en ligne</h2>
+  <div class="joueurs-barre">
+    <span class="hint">{{ state.joueurs ? pluriel(state.joueurs.length) : 'Chargement…' }}</span>
+    <button type="button" class="secondary petit" @click="rafraichir()">Rafraîchir</button>
+  </div>
+  <table class="fiche-table joueurs-table" v-if="state.joueurs && state.joueurs.length">
+    <thead><tr><th>Nom</th><th>Niv.</th><th>Zone</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      <tr v-for="j in state.joueurs" :key="j.name" :class="{ moi: j.name === state.player.name }">
+        <td><span class="fiche-stat"><span v-if="j.party" class="joueurs-groupe" title="Dans votre groupe" v-html="iconeGroupe"></span>{{ j.name }}</span></td>
+        <td>{{ j.level }}</td>
+        <td class="joueurs-zone">{{ j.zone }}</td>
+        <td><button v-if="j.name !== state.player.name && !j.party" type="button" class="secondary petit"
+          :title="'Inviter ' + j.name + ' dans votre groupe'" @click="inviter(j.name)">Inviter</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div>

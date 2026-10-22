@@ -1,5 +1,7 @@
 import { createApp } from '/js/vendor/petite-vue.js';
-import { uiStore, repondre } from './ui-store.js';
+import { uiStore, repondre, ecrirePref } from './ui-store.js';
+import { icone } from './icones.js';
+import { ZOOM_MAX } from './minicarte.js';
 import { globalBus } from '../event-bus.js';
 import { CharacterController } from './components/character/character.js';
 import { InventoryController } from './components/inventory/inventory.js';
@@ -18,6 +20,8 @@ import { AdminController } from './components/admin/admin.js';
 import { SpellbarController } from './components/spellbar/spellbar.js';
 import { QuickbarController } from './components/quickbar/quickbar.js';
 import { BuffsController } from './components/buffs/buffs.js';
+import { JournalController } from './components/journal/journal.js';
+import { JoueursController } from './components/joueurs/joueurs.js';
 
 // Application racine (montée sur <body>) : écrans et fenêtres déclarés en dur
 // dans index.html (menu Échap, Épreuve, cible, mort), liés au store.
@@ -39,8 +43,20 @@ function RootController() {
       send({ t: 'newchar' });
     },
     quitter() { globalBus.emit('ui:quit'); },
+    icone,
+    ZOOM_MAX,
+    zoomer(d) {
+      uiStore.miniZoom = Math.max(0, Math.min(ZOOM_MAX, uiStore.miniZoom + d));
+      ecrirePref('t4c_minizoom', uiStore.miniZoom);
+    },
+    basculerCarte() { basculerMiniCarte(); },
     repondre,
   };
+}
+
+export function basculerMiniCarte() {
+  uiStore.miniCarte = !uiStore.miniCarte;
+  ecrirePref('t4c_minicarte', uiStore.miniCarte);
 }
 
 const COMPONENT_MAP = {
@@ -61,14 +77,16 @@ const COMPONENT_MAP = {
   spellbar: '#spellbar',
   quickbar: '#quickbar',
   buffs: '#buffs-display',
+  journal: '#journal',
+  joueurs: '#joueurs',
 };
 
 // panneaux latéraux exclusifs : un seul ouvert à la fois (clé de uiStore.panels)
-const PANELS = ['inventory', 'character', 'help', 'spells', 'shop', 'bank', 'obelisk'];
+const PANELS = ['inventory', 'character', 'help', 'spells', 'shop', 'bank', 'obelisk', 'journal', 'joueurs'];
 
 const PANEL_TITLES = {
   inventory: 'Inventaire (I)', character: 'Personnage (C)', help: 'Aide (H)', spells: 'Sorts (S)',
-  shop: 'Marchand', bank: 'Coffre', obelisk: 'Obélisque',
+  shop: 'Marchand', bank: 'Coffre', obelisk: 'Obélisque', journal: 'Journal (J)', joueurs: 'Joueurs (O)',
 };
 
 const PHASE_COMPONENTS = {
@@ -99,6 +117,8 @@ class GuiManager {
       spellbar: SpellbarController,
       quickbar: QuickbarController,
       buffs: BuffsController,
+      journal: JournalController,
+      joueurs: JoueursController,
     };
     this.ui = null;
     this.loaded = new Set();
@@ -157,7 +177,7 @@ class GuiManager {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'panel-close';
-    btn.textContent = '✕';
+    btn.innerHTML = icone('fermer', { taille: 14 });
     btn.title = 'Fermer (Échap)';
     btn.setAttribute('aria-label', `Fermer — ${PANEL_TITLES[name] || name}`);
     btn.onclick = () => this.showOnly(null);
@@ -204,7 +224,7 @@ class GuiManager {
   }
 
   setupHotbuttons() {
-    document.querySelectorAll('#hotbuttons button').forEach(btn => {
+    document.querySelectorAll('#hotbuttons button[data-panel]').forEach(btn => {
       const panelName = btn.dataset.panel;
       btn.onclick = (e) => {
         e.preventDefault();

@@ -1,23 +1,37 @@
 import { uiStore } from '../../ui-store.js';
 import { STAT_NAMES, STATS, hpRegenPerSec, manaRegenPerSec } from '../../../../../shared/constants.js';
 import { globalBus } from '../../../event-bus.js';
+import { ELEMENT_ICONS, icone } from '../../icones.js';
 
-const ELEMENT_NAMES = {
-  fire: 'Feu 🔥',
-  water: 'Eau / Glace ❄️',
-  earth: 'Terre ⛰️',
-  air: 'Air / Foudre 🌪️',
-  light: 'Lumière ☀️',
-  dark: 'Ténèbres 🌑',
-  arcane: 'Arcane 🔮'
-};
+// clés des résistances calculées par le serveur (eff.resist_<id>)
+const ELEMENTS = [
+  { id: 'fire', nom: 'Feu' }, { id: 'water', nom: 'Eau et glace' }, { id: 'earth', nom: 'Terre' },
+  { id: 'air', nom: 'Air et foudre' }, { id: 'light', nom: 'Lumière' }, { id: 'dark', nom: 'Ténèbres' },
+  { id: 'arcane', nom: 'Arcanes' },
+];
 
 export function CharacterController() {
   return {
     state: uiStore,
     STATS,
     STAT_NAMES,
-    ELEMENT_NAMES,
+    ELEMENTS,
+    or: icone('piece', { taille: 12, classe: 'ico-or' }),
+
+    elementIcone(id) { return icone(ELEMENT_ICONS[id], { taille: 13 }); },
+    // résistance en % (0,25 -> 25) ; négative = faiblesse
+    resistance(id) { return Math.round((this.s?.eff?.['resist_' + id] || 0) * 100); },
+    get degats() {
+      if (!this.s) return '';
+      return this.s.dmgMin != null && this.s.dmgMax != null ? `${this.s.dmgMin} – ${this.s.dmgMax}` : this.formatVal(this.s.dmg || 0, 0);
+    },
+    // compétences apprises (points > 0 ou innées), dans l'ordre du contenu
+    get competences() {
+      const pts = this.s?.skills || {};
+      return (this.state.skillDefs || [])
+        .filter(sk => pts[sk.id] != null)
+        .map(sk => ({ id: sk.id, name: sk.name, desc: sk.desc, max: sk.max, pts: pts[sk.id] }));
+    },
 
     get s() {
       return this.state.player;
@@ -114,7 +128,8 @@ export function CharacterController() {
     },
 
     formatVal(v, decimals = 1) {
-      return Number.isInteger(v) ? String(v) : v.toFixed(decimals);
+      if (v == null || !Number.isFinite(+v)) return '—';
+      return Number.isInteger(+v) ? String(v) : (+v).toFixed(decimals);
     },
 
     getStatBoost(st) {

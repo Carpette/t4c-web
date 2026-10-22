@@ -1,197 +1,76 @@
-<div v-if="s">
-  <div class="panel-header flex flex-col gap-2 p-4 border-b border-white/10 bg-black/20">
-    <div class="flex justify-between items-center">
-      <h2 class="text-xl font-bold text-amber-400">Niveau {{ s.level }}</h2>
-      <span class="text-xs font-semibold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded border border-amber-500/30">
-        {{ s.gold }} 🟡
-      </span>
+<div v-if="s" class="fiche">
+  <h2>Niveau {{ s.level }}</h2>
+  <div class="fiche-tete">
+    <div class="fiche-xp">
+      <div class="fiche-xp-texte"><span>{{ Math.floor(currentXpInLevel) }} / {{ totalXpForLevel }} XP</span><b>{{ xpPct.toFixed(1) }} %</b></div>
+      <div class="jauge jauge-xp" role="progressbar" aria-label="Expérience" :aria-valuenow="Math.round(xpPct)" aria-valuemin="0" aria-valuemax="100">
+        <span :style="{ width: xpPct + '%' }"></span></div>
     </div>
-    
-    <!-- Jauge d'XP -->
-    <div class="flex flex-col gap-1 mt-1">
-      <div class="flex justify-between text-xxs text-gray-400 font-mono">
-        <span>XP : {{ Math.floor(currentXpInLevel) }} / {{ totalXpForLevel }}</span>
-        <span class="font-bold text-amber-300">{{ xpPct.toFixed(1) }}%</span>
-      </div>
-      <div class="w-full bg-black/40 rounded h-1.5 overflow-hidden border border-white/5">
-        <div class="bg-gradient-to-r from-amber-500 to-amber-300 h-full rounded transition-all duration-300" :style="{ width: xpPct + '%' }"></div>
-      </div>
-    </div>
+    <span class="fiche-or">{{ s.gold }} <span v-html="or"></span></span>
   </div>
 
-  <div class="panel-content overflow-y-auto p-4 space-y-5" style="max-height: calc(100% - 90px);">
-    <!-- Indicateur de points de statistiques restants -->
-    <div v-if="s.statPoints > 0" class="bg-emerald-500/20 border border-emerald-500/30 rounded p-2 text-center text-xs text-emerald-300 font-bold animate-pulse">
-      ✨ Points à répartir : {{ s.statPoints }}
-    </div>
+  <p v-if="s.statPoints > 0" class="fiche-points">Points à répartir : <b>{{ s.statPoints }}</b></p>
 
-    <!-- Table : Vitalité (HP / MP) -->
-    <div class="shadow-lg">
-      <div class="overflow-hidden rounded border border-white/5 border-t-2 border-t-amber-500/40 bg-black/15">
-        <table class="w-full table-fixed text-left text-xs text-gray-300">
-          <thead class="border-b border-white/10 bg-white/5">
-            <tr class="text-xxs uppercase tracking-wider text-amber-500/80">
-              <th class="py-1.5 px-3 text-left font-bold">Vitalité</th>
-              <th class="py-1.5 px-3 text-right font-bold w-16">Base</th>
-              <th class="py-1.5 px-3 text-right font-bold w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5 font-mono">
-            <!-- HP -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Points de Vie">
-                <span class="truncate">Points de Vie <span class="text-xxs text-emerald-400 font-normal">({{ Math.round(s.hp) }} / {{ s.maxHp }})</span></span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(baseMaxHp, 0) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                {{ formatVal(s.maxHp, 0) }}
-                <span v-if="tempHpBoost !== 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(tempHpBoost, 0) }})</span>
-              </td>
-            </tr>
-            <!-- MP -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Points de Mana">
-                <span class="truncate">Points de Mana <span class="text-xxs text-sky-400 font-normal">({{ Math.round(s.mana) }} / {{ s.maxMana }})</span></span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(baseMaxMana, 0) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                {{ formatVal(s.maxMana, 0) }}
-                <span v-if="tempMpBoost !== 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(tempMpBoost, 0) }})</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <table class="fiche-table">
+    <thead><tr><th>Vitalité</th><th>Base</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr><td>Points de vie <span class="fiche-actuel">{{ Math.round(s.hp) }} / {{ s.maxHp }}</span></td>
+        <td>{{ formatVal(baseMaxHp, 0) }}</td>
+        <td>{{ formatVal(s.maxHp, 0) }}<span v-if="tempHpBoost" class="bonus"> +{{ formatVal(tempHpBoost, 0) }}</span></td></tr>
+      <tr><td>Points de mana <span class="fiche-actuel">{{ Math.round(s.mana) }} / {{ s.maxMana }}</span></td>
+        <td>{{ formatVal(baseMaxMana, 0) }}</td>
+        <td>{{ formatVal(s.maxMana, 0) }}<span v-if="tempMpBoost" class="bonus"> +{{ formatVal(tempMpBoost, 0) }}</span></td></tr>
+    </tbody>
+  </table>
 
-    <!-- Table : Statistiques principales -->
-    <div class="shadow-lg">
-      <div class="overflow-hidden rounded border border-white/5 border-t-2 border-t-amber-500/40 bg-black/15">
-        <table class="w-full table-fixed text-left text-xs text-gray-300">
-          <thead class="border-b border-white/10 bg-white/5">
-            <tr class="text-xxs uppercase tracking-wider text-amber-500/80">
-              <th class="py-1.5 px-3 text-left font-bold">Statistiques</th>
-              <th class="py-1.5 px-3 text-right font-bold w-16">Base</th>
-              <th class="py-1.5 px-3 text-right font-bold w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5 font-mono">
-              <tr v-for="st in STATS" class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" :title="STAT_NAMES[st]">
-                  <span class="truncate">{{ STAT_NAMES[st] }}</span>
-                  <button v-if="s.statPoints > 0" @click="allocateStat(st)" class="bg-amber-500 hover:bg-amber-400 text-black font-bold w-4 h-4 rounded flex items-center justify-center transition active:scale-95 shadow ml-2">
-                    +
-                  </button>
-                </td>
-                <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(s.stats[st], 0) }}</td>
-                <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                  {{ formatVal(s.eff[st], 0) }}
-                  <span v-if="getStatBoost(st) > 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(getStatBoost(st), 0) }})</span>
-                  <span v-else-if="getStatBoost(st) < 0" class="text-xxs font-semibold text-red-400">({{ formatVal(getStatBoost(st), 0) }})</span>
-                </td>
-              </tr>
-            </tbody>
-        </table>
-      </div>
-    </div>
+  <table class="fiche-table">
+    <thead><tr><th>Caractéristiques</th><th>Base</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr v-for="st in STATS">
+        <td><span class="fiche-stat">{{ STAT_NAMES[st] }}
+          <button v-if="s.statPoints > 0" type="button" class="fiche-plus" :aria-label="'Ajouter un point en ' + STAT_NAMES[st]" @click="allocateStat(st)">+</button></span></td>
+        <td>{{ formatVal(s.stats[st], 0) }}</td>
+        <td>{{ formatVal(s.eff[st], 0) }}<span v-if="getStatBoost(st) > 0" class="bonus"> +{{ formatVal(getStatBoost(st), 0) }}</span><span v-else-if="getStatBoost(st) < 0" class="malus"> {{ formatVal(getStatBoost(st), 0) }}</span></td>
+      </tr>
+    </tbody>
+  </table>
 
-    <!-- Table : Combat -->
-    <div class="shadow-lg">
-      <div class="overflow-hidden rounded border border-white/5 border-t-2 border-t-amber-500/40 bg-black/15">
-        <table class="w-full table-fixed text-left text-xs text-gray-300">
-          <thead class="border-b border-white/10 bg-white/5">
-            <tr class="text-xxs uppercase tracking-wider text-amber-500/80">
-              <th class="py-1.5 px-3 text-left font-bold">Combat</th>
-              <th class="py-1.5 px-3 text-right font-bold w-16">Base</th>
-              <th class="py-1.5 px-3 text-right font-bold w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5 font-mono">
-            <!-- Dégâts Physiques -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Dégâts Physiques">
-                <span class="truncate">Dégâts Physiques</span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(s.dmg, 0) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">{{ formatVal(s.dmg, 0) }}</td>
-            </tr>
-            <!-- Classe d'Armure -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Classe d'Armure">
-                <span class="truncate">Classe d'Armure</span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(baseDefense, 1) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                {{ formatVal(totalDefense, 1) }}
-                <span v-if="tempDefBoost !== 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(tempDefBoost, 1) }})</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <table class="fiche-table">
+    <thead><tr><th>Combat</th><th>Base</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr><td>Dégâts</td><td></td><td>{{ degats }}</td></tr>
+      <tr><td>Classe d'armure</td><td>{{ formatVal(baseDefense, 1) }}</td>
+        <td>{{ formatVal(totalDefense, 1) }}<span v-if="tempDefBoost" class="bonus"> +{{ formatVal(tempDefBoost, 1) }}</span></td></tr>
+    </tbody>
+  </table>
 
-    <!-- Table : Régénération -->
-    <div class="shadow-lg">
-      <div class="overflow-hidden rounded border border-white/5 border-t-2 border-t-amber-500/40 bg-black/15">
-        <table class="w-full table-fixed text-left text-xs text-gray-300">
-          <thead class="border-b border-white/10 bg-white/5">
-            <tr class="text-xxs uppercase tracking-wider text-amber-500/80">
-              <th class="py-1.5 px-3 text-left font-bold">Régénérations (sec)</th>
-              <th class="py-1.5 px-3 text-right font-bold w-16">Base</th>
-              <th class="py-1.5 px-3 text-right font-bold w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5 font-mono">
-            <!-- HP Regen -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Régénération de Vie">
-                <span class="truncate">Régénération de Vie</span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(baseHpRegen, 2) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                {{ formatVal(finalHpRegen, 2) }}
-                <span v-if="hpRegenBoostVal > 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(hpRegenBoostVal, 2) }})</span>
-                <span v-else-if="hpRegenBoostVal < 0" class="text-xxs font-semibold text-red-400">({{ formatVal(hpRegenBoostVal, 2) }})</span>
-              </td>
-            </tr>
-            <!-- MP Regen -->
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 flex items-center justify-between gap-1 overflow-hidden truncate" title="Régénération de Mana">
-                <span class="truncate">Régénération de Mana</span>
-              </td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">{{ formatVal(baseMpRegen, 2) }}</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">
-                  {{ formatVal(finalMpRegen, 2) }}
-                  <span v-if="mpRegenBoostVal > 0" class="text-xxs font-semibold text-sky-400">(+{{ formatVal(mpRegenBoostVal, 2) }})</span>
-                  <span v-else-if="mpRegenBoostVal < 0" class="text-xxs font-semibold text-red-400">({{ formatVal(mpRegenBoostVal, 2) }})</span>
-                </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <table class="fiche-table">
+    <thead><tr><th>Régénération (par s)</th><th>Base</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr><td>Vie</td><td>{{ formatVal(baseHpRegen, 2) }}</td>
+        <td>{{ formatVal(finalHpRegen, 2) }}<span v-if="hpRegenBoostVal > 0.005" class="bonus"> +{{ formatVal(hpRegenBoostVal, 2) }}</span></td></tr>
+      <tr><td>Mana</td><td>{{ formatVal(baseMpRegen, 2) }}</td>
+        <td>{{ formatVal(finalMpRegen, 2) }}<span v-if="mpRegenBoostVal > 0.005" class="bonus"> +{{ formatVal(mpRegenBoostVal, 2) }}</span></td></tr>
+    </tbody>
+  </table>
 
-    <!-- Table : Résistances -->
-    <div class="shadow-lg">
-      <div class="overflow-hidden rounded border border-white/5 border-t-2 border-t-amber-500/40 bg-black/15">
-        <table class="w-full table-fixed text-left text-xs text-gray-300">
-          <thead class="border-b border-white/10 bg-white/5">
-            <tr class="text-xxs uppercase tracking-wider text-amber-500/80">
-              <th class="py-1.5 px-3 text-left font-bold">Résistances Élémentaires</th>
-              <th class="py-1.5 px-3 text-right font-bold w-16">Base</th>
-              <th class="py-1.5 px-3 text-right font-bold w-24">Total</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5 font-mono">
-            <tr v-for="(name, key) in ELEMENT_NAMES" class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-2 px-3 font-sans font-medium text-gray-300 truncate">{{ name }}</td>
-              <td class="py-2 px-3 text-right text-white font-mono w-16">—</td>
-              <td class="py-2 px-3 text-right text-amber-300 font-bold font-mono w-24">{{ Math.round((s.resist?.[key] || 0) * 100) }}%</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <table class="fiche-table">
+    <thead><tr><th colspan="2">Résistances</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr v-for="el in ELEMENTS">
+        <td colspan="2"><span class="fiche-stat"><span v-html="elementIcone(el.id)"></span>{{ el.nom }}</span></td>
+        <td :class="{ bonus: resistance(el.id) > 0, malus: resistance(el.id) < 0 }">{{ resistance(el.id) }} %</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="fiche-table">
+    <thead><tr><th colspan="2">Compétences</th><th>Points</th></tr></thead>
+    <tbody>
+      <tr v-for="sk in competences" :title="sk.desc">
+        <td colspan="2">{{ sk.name }}</td><td>{{ sk.pts }}<span class="fiche-max" v-if="sk.max < 9999"> / {{ sk.max }}</span></td>
+      </tr>
+      <tr v-if="!competences.length"><td colspan="3" class="hint">Aucune compétence apprise. Les maîtres d'armes et les érudits les enseignent.</td></tr>
+    </tbody>
+  </table>
 </div>

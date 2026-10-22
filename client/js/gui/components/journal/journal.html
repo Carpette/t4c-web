@@ -1,0 +1,21 @@
+<div class="journal">
+  <h2>Journal</h2>
+  <p class="hint journal-intro">Les PNJ répondent aux mots-clés dits près d'eux, dans le chat local.
+    Les mots entre guillemets sont des pistes : cliquez-en un pour le dire.</p>
+  <label class="journal-filtre"><span class="sr-only">Filtrer le journal</span>
+    <input type="search" v-model="filtre" placeholder="Chercher un PNJ, un mot…"></label>
+  <p v-if="!pnjs.length" class="hint">{{ state.journal.length ? 'Rien ne correspond.' : 'Personne ne vous a encore parlé. Cliquez sur un PNJ pour le saluer.' }}</p>
+  <section v-for="p in pnjs" :key="p.nom" class="journal-pnj">
+    <button type="button" class="journal-tete" :aria-expanded="ouvert === p.nom" @click="ouvert = ouvert === p.nom ? null : p.nom">
+      <span class="journal-nom">{{ p.nom }}</span><span class="journal-zone">{{ p.zone }}</span>
+      <span class="journal-nb">{{ p.repliques.length }}</span>
+    </button>
+    <div v-if="p.mots.length" class="journal-mots">
+      <button v-for="m in p.mots" type="button" class="chip" :title="'Dire « ' + m + ' » dans le chat local'" @click="dire(m)">{{ m }}</button>
+    </div>
+    <ol v-if="ouvert === p.nom" class="journal-repliques">
+      <li v-for="r in [...p.repliques].reverse()">{{ r.texte }}</li>
+    </ol>
+    <p v-else class="journal-derniere">{{ p.repliques[p.repliques.length - 1]?.texte }}</p>
+  </section>
+</div>

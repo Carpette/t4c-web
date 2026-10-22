@@ -47,8 +47,8 @@ export class UI {
 
     // capture de touche pour l'assignation de raccourci
     this.RESERVED_KEYS = {
-      i: 'inventaire', c: 'personnage', s: 'sorts', h: 'aide',
-      p: 'potion de vie', m: 'potion de mana',
+      i: 'inventaire', c: 'personnage', s: 'sorts', h: 'aide', j: 'journal', o: 'joueurs',
+      n: 'mini-carte', p: 'potion de vie', m: 'potion de mana', v: 'dictée vocale',
     };
     // purge d'éventuels raccourcis réservés enregistrés avant ce garde-fou
     for (const k of Object.keys(this.hotkeys)) {
@@ -293,8 +293,14 @@ export class UI {
   focusChat() { document.getElementById('chat-input')?.focus(); }
 
   setClock(daylight, frac) {
-    $('clock').textContent = daylight > 0.45 ? '🌞' : daylight > 0.12 ? '🌅' : '🌙';
-    $('clock').title = `Heure du monde : ${Math.floor(frac * 24)}h`;
+    const moment = daylight > 0.45 ? 'soleil' : daylight > 0.12 ? 'couchant' : 'lune';
+    const heure = Math.floor(frac * 24);
+    if (moment === this._moment && heure === this._heure) return; // appelé à chaque image
+    this._moment = moment; this._heure = heure;
+    const el = $('clock');
+    el.innerHTML = icone(moment, { taille: 18 }) + `<span>${heure} h</span>`;
+    el.title = `Heure du monde : ${heure} h`;
+    el.setAttribute('aria-label', el.title);
   }
 
   addChat(from, text, channelOrKind) {
