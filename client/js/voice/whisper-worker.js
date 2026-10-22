@@ -18,28 +18,49 @@ self.onmessage = async (e) => {
   const { type } = e.data;
 
   if (type === 'load') {
-    try {
-      const device = e.data.webgpu ? 'webgpu' : 'wasm';
-      // RÉSULTAT ATTENDU dans la console (contexte « whisper-worker.js ») :
-      // ce log, puis les progressions relayées à la page, puis « ready ».
-      // Premier lancement : les requêtes partent vers huggingface.co (onglet
-      // Réseau) ; lancements suivants : servies depuis Cache Storage (0 ms).
-      console.log('[dictée:worker] chargement du modèle', MODEL_ID, '— backend :', device,
-        '| runtime :', env.backends.onnx.wasm.wasmPaths);
-      transcriber = await pipeline('automatic-speech-recognition', MODEL_ID, {
-        dtype: device === 'webgpu' ? 'fp16' : 'q8',
-        device,
-        progress_callback: (p) => {
-          if (p.status === 'progress' && p.total) {
-            self.postMessage({ type: 'progress', file: p.file, loaded: p.loaded, total: p.total });
-          }
-        },
-      });
-      console.log('[dictée:worker] modèle prêt');
-      self.postMessage({ type: 'ready' });
-    } catch (err) {
-      self.postMessage({ type: 'error', error: String(err?.message || err) });
+    // WebGPU (rapide) seulement si un adaptateur existe ET gère le fp16 :
+    // sinon « does not support fp16 », et le modèle fp32 pèserait plusieurs
+    // centaines de Mo. Dans tous les autres cas, et si WebGPU échoue quand
+    // même, WASM q8 (~60 Mo), plus lent mais disponible partout.
+    const essais = [];
+    if (e.data.webgpu) {
+      let adaptateur = null;
+      try { adaptateur = await navigator.gpu?.requestAdapter(); } catch {}
+      if (adaptateur?.features.has('shader-f16')) essais.push({ device: 'webgpu', dtype: 'fp16' });
+      else console.log('[dictée:worker] WebGPU sans adaptateur fp16 : backend WASM');
     }
+    essais.push({ device: 'wasm', dtype: 'q8' });
+    let derniere = null;
+    for (const { device, dtype } of essais) {
+      try {
+        // RÉSULTAT ATTENDU dans la console (contexte « whisper-worker.js ») :
+        // ce log, puis les progressions relayées à la page, puis « ready ».
+        // Premier lancement : les requêtes partent vers huggingface.co (onglet
+        // Réseau) ; lancements suivants : servies depuis Cache Storage (0 ms).
+        console.log('[dictée:worker] chargement du modèle', MODEL_ID, '— backend :', device, dtype,
+          '| runtime :', env.backends.onnx.wasm.wasmPaths);
+        transcriber = await pipeline('automatic-speech-recognition', MODEL_ID, {
+          dtype,
+          device,
+          // ONNX Runtime 1.26 : l'optimisation « TransposeDQWeightsForMatMulNBits »
+          // casse le décodeur quantifié de Whisper (« Missing required scale ») ;
+          // le niveau « basic » ne l'applique pas
+          session_options: { graphOptimizationLevel: 'basic' },
+          progress_callback: (p) => {
+            if (p.status === 'progress' && p.total) {
+              self.postMessage({ type: 'progress', file: p.file, loaded: p.loaded, total: p.total });
+            }
+          },
+        });
+        console.log('[dictée:worker] modèle prêt (' + device + ')');
+        self.postMessage({ type: 'ready', device });
+        return;
+      } catch (err) {
+        derniere = err;
+        console.warn('[dictée:worker] échec du backend', device, ':', err?.message || err);
+      }
+    }
+    self.postMessage({ type: 'error', error: String(derniere?.message || derniere) });
     return;
   }
 
