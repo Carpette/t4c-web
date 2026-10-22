@@ -558,10 +558,28 @@ window.addEventListener('pointerup', () => {
 
 let hoverPending = null;
 let hover = { id: null, color: null }; // entité survolée (pour le surlignement)
+let pointeurSurCarte = false;  // le pointeur survole le canvas (pas le HUD)
+let survolRevuA = 0;           // dernière réévaluation du survol sans mouvement
 canvas.addEventListener('pointermove', (ev) => {
   hoverPending = ev;
+  pointeurSurCarte = true;
   lastPointer = { x: ev.clientX, y: ev.clientY };
 });
+// pointeur parti sur le HUD ou hors de la fenêtre : plus rien n'est survolé
+canvas.addEventListener('pointerleave', () => {
+  pointeurSurCarte = false;
+  hoverPending = null;
+  hover = { id: null, color: null };
+  ui.hideTooltip();
+});
+// la carte défile sous un pointeur immobile (marche, monstre qui passe) :
+// le survol est réévalué au même point, sinon l'infobulle d'une entité
+// partie reste affichée
+function revoirSurvol(now) {
+  if (!pointeurSurCarte || hoverPending || now - survolRevuA < 0.15) return;
+  survolRevuA = now;
+  hoverPending = { clientX: lastPointer.x, clientY: lastPointer.y };
+}
 function processHover() {
   if (!hoverPending || selfId == null || !renderer) return;
   const ev = hoverPending;
@@ -762,6 +780,7 @@ function frame() {
   ui.setClock(daylight, (worldTime % DAY_LENGTH) / DAY_LENGTH);
   drawAimCursor(now);
 
+  revoirSurvol(now);
   processHover();
   if (frameN % 6 === 0) tickAutoCast();
   if (frameN % 6 === 0 && uiStore.miniCarte && uiStore.phase === 'in-game') miniCarte.dessiner(em, selfId, renderer.props);
