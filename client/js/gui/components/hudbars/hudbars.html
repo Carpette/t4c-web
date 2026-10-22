@@ -1,6 +1,8 @@
 <div v-if="s">
+  <!-- vie basse : liseré rouge pulsant sur les bords de l'écran -->
+  <div id="alerte-vie" :class="{ on: s.maxHp && hpPct < 30 && s.hp > 0 }" aria-hidden="true"></div>
   <div id="vitals">
-    <div class="bar hp">
+    <div class="bar hp" :class="{ basse: s.maxHp && hpPct < 30 }">
       <div :style="{ width: hpPct + '%' }"></div>
       <span v-if="s.maxHp">{{ Math.round(s.hp) }} / {{ s.maxHp }}</span>
     </div>

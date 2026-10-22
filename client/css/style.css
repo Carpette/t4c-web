@@ -124,10 +124,26 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 #party-panel, #target-frame, #combat-indicator {
   font-size: calc(13px * var(--hud-scale, 1));
 }
-#vitals { position: fixed; top: 12px; left: 12px; width: 230px; z-index: 10; }
+#vitals { position: fixed; top: 12px; left: 12px; width: 250px; z-index: 10; }
 .bar {
   position: relative; height: 20px; margin-bottom: 5px; background: rgba(0,0,0,0.6);
   border: 1px solid #444; border-radius: 4px; overflow: hidden;
+}
+#vitals .bar.hp, #vitals .bar.mana { height: 22px; border-color: rgba(0,0,0,0.8); }
+#vitals .bar span { font-size: 12px; font-weight: bold; line-height: 21px; letter-spacing: 0.3px; }
+#vitals .bar.xp { height: 14px; }
+#vitals .bar.xp span { font-size: 11px; line-height: 13px; font-weight: normal; }
+/* vie basse : la jauge bat, les bords de l'écran rougeoient */
+#vitals .bar.hp.basse { border-color: #ff5a4a; animation: battement 0.9s ease-in-out infinite; }
+@keyframes battement { 50% { box-shadow: 0 0 10px rgba(255, 70, 50, 0.85); } }
+#alerte-vie {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9; opacity: 0;
+  box-shadow: inset 0 0 140px 30px rgba(170, 10, 0, 0.6); transition: opacity 0.4s;
+}
+#alerte-vie.on { opacity: 1; animation: alerte 1.6s ease-in-out infinite; }
+@keyframes alerte { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  #alerte-vie.on, #vitals .bar.hp.basse { animation: none; }
 }
 .bar.small { height: 10px; width: 140px; }
 .bar div { height: 100%; width: 100%; transition: width 0.25s; }
@@ -141,7 +157,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 .bar.xp span { line-height: 11px; font-size: 10px; }
 #gold-display {
-  position: fixed; top: 12px; left: 252px; color: var(--gold); font-size: 14px;
+  position: fixed; top: 12px; left: 272px; color: var(--gold); font-size: 14px;
   background: rgba(0,0,0,0.55); padding: 4px 10px; border-radius: 4px; z-index: 10;
 }
 #clock {
@@ -235,9 +251,17 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 
 #target-frame {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px; z-index: 10;
+  background: rgba(10, 14, 22, 0.8); border: 1px solid rgba(95, 111, 134, 0.6);
+  padding: 6px 12px 4px; border-radius: 6px; z-index: 10; min-width: 240px;
   color: #fff; font-size: 13px; text-align: center;
 }
+#target-name { display: block; font-weight: bold; font-size: 14px; margin-bottom: 4px; text-shadow: 0 1px 2px #000; }
+#target-name.facile { color: #a0a8b4; }
+#target-name.egal { color: #f2ead8; }
+#target-name.dur { color: #ffb050; }
+#target-name.mortel { color: #ff5a4a; }
+#target-frame .bar { height: 16px; margin-bottom: 2px; }
+#target-frame .bar span { font-size: 11px; line-height: 15px; }
 #target-invite { display: block; margin: 5px auto 0; padding: 2px 10px; font-size: 11px; }
 
 /* ---- Groupe : panneau sobre des membres (sous les jauges de vie) ---- */
@@ -261,17 +285,28 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 
 #floaters { position: fixed; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
 .floater {
-  position: absolute; font-weight: bold; font-size: 16px; color: #ff5a4a;
-  text-shadow: 0 1px 3px #000; animation: floatUp 1.1s ease-out forwards; white-space: nowrap;
+  position: absolute; font-weight: bold; font-size: 15px; color: #e0a898;
+  /* contour plein : lisible sur l'herbe claire comme sur la pierre */
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px #000;
+  animation: floatUp 1.1s ease-out forwards; white-space: nowrap;
 }
-.floater.crit { color: var(--gold); font-size: 21px; }
-.floater.miss { color: #aaa; font-style: italic; font-size: 13px; }
-.floater.self { color: #ff8a8a; }
+.floater.inflige { color: #fff3d6; font-size: 19px; }
+.floater.self { color: #ff4a3a; font-size: 19px; }
+.floater.crit { color: var(--gold); font-size: 26px; animation: floatCrit 1.3s ease-out forwards; }
+.floater.miss { color: #aaa; font-style: italic; font-size: 14px; }
 .floater.heal { color: #6ae86a; }
 .floater.xp { color: var(--gold); font-size: 13px; }
 @keyframes floatUp {
   0% { transform: translateY(0); opacity: 1; }
+  70% { opacity: 1; }
   100% { transform: translateY(-55px); opacity: 0; }
+}
+@keyframes floatCrit {
+  0% { transform: translateY(0) scale(0.6); opacity: 1; }
+  15% { transform: translateY(-6px) scale(1.25); }
+  30% { transform: translateY(-10px) scale(1); }
+  75% { opacity: 1; }
+  100% { transform: translateY(-60px) scale(1); opacity: 0; }
 }
 #creation .stat-alloc {
   display: flex; justify-content: space-between; align-items: center;
@@ -373,6 +408,8 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   color: var(--gold); text-shadow: 0 1px 2px #000;
 }
 .potion-slot.empty { opacity: 0.4; filter: grayscale(0.8); }
+.potion-slot.urgente { border-color: #ff5a4a; animation: battement 0.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .potion-slot.urgente { animation: none; } }
 #settings-list {
   width: 460px; max-width: 100%; max-height: 60vh; overflow-y: auto; margin: 0 auto;
   text-align: left; scrollbar-width: thin;
@@ -654,13 +691,13 @@ button.petit { padding: 2px 9px; font-size: 11px; }
 
 /* ---- Boîte à outils admin en jeu ---- */
 .outils-bouton {
-  position: fixed; left: 340px; top: 8px; z-index: 60; width: 34px; height: 34px; padding: 0;
+  position: fixed; left: 372px; top: 8px; z-index: 60; width: 34px; height: 34px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(10, 14, 22, 0.85); border-color: var(--border-strong); color: var(--gold);
 }
 .outils-bouton.active { background: var(--accent-deep); color: #fff; }
 .outils {
-  position: fixed; left: 340px; top: 48px; z-index: 60; width: 290px; max-height: 70vh; overflow-y: auto;
+  position: fixed; left: 372px; top: 48px; z-index: 60; width: 290px; max-height: 70vh; overflow-y: auto;
   padding: 10px 12px; font-size: 12px; color: var(--text);
   background: var(--panel-deep); border: 1px solid var(--border-strong); border-radius: 8px;
 }

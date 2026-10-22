@@ -360,8 +360,9 @@ export class UI {
   hideTooltip() { $('tooltip').classList.add('hidden'); }
 
   // `playerId` : si la cible est un autre joueur, propose de l'inviter au groupe
-  setTarget(name, hpPct, playerId = null) {
-    uiStore.target = name ? { name, hpPct, playerId } : null;
+  // `danger` (monstre) : facile | egal | dur | mortel, selon l'écart de niveau
+  setTarget(name, hpPct, playerId = null, danger = null) {
+    uiStore.target = name ? { name, hpPct, playerId, danger } : null;
   }
 
   // ---- Groupe ----

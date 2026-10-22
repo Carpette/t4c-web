@@ -223,7 +223,8 @@ net.on('events', (m) => {
       else if (ev.miss) triggerFloater(pos, 'raté', 'miss');
       else {
         const suffix = ev.mod === 'resist' ? ' (résisté)' : ev.mod === 'weak' ? ' !' : '';
-        const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : '')
+        // couleurs : dégâts REÇUS en rouge, INFLIGÉS en clair, ceux des autres atténués
+        const cls = (ev.crit ? 'crit' : '') + (ev.to === selfId ? ' self' : ev.from === selfId ? ' inflige' : '')
           + (ev.mod === 'resist' ? ' miss' : '') + (ev.mod === 'weak' ? ' heal' : '');
         triggerFloater(pos, `-${ev.amount}${suffix}`, cls);
         if (ev.from === selfId || ev.to === selfId) playSfx('coup');
@@ -683,7 +684,11 @@ function updateTargetFrame() {
   if (!v || v.isDead?.()) { targetId = null; ui.setTarget(null); return; }
   // cible joueur : son id permet le bouton « Inviter dans le groupe »
   const playerId = (v.kind === KIND.PLAYER && v.id !== selfId) ? v.id : null;
-  ui.setTarget(`${v.meta.name} [${v.level || v.meta.level}]`, v.hpPct, playerId);
+  // difficulté d'un monstre selon l'écart de niveau (couleur du nom de la cible)
+  const niv = v.level || v.meta.level || 1, ecart = niv - (ui.self?.level || 1);
+  const danger = v.kind !== KIND.MOB ? null
+    : ecart >= 5 ? 'mortel' : ecart >= 2 ? 'dur' : ecart <= -6 ? 'facile' : 'egal';
+  ui.setTarget(`${v.meta.name} [${niv}]`, v.hpPct, playerId, danger);
 }
 
 // ---------- Boucle de rendu ----------

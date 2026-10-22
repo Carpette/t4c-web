@@ -18,6 +18,11 @@ export function QuickbarController() {
         count: inv.filter(it => { const d = ITEMS[it.defId]; return d?.slot === 'use' && q.match(d); }).length,
       }));
     },
+    // vie basse et potion disponible : la case s'illumine (le réflexe « P »)
+    urgente(q) {
+      const p = uiStore.player;
+      return q.kind === 'vie' && q.count > 0 && p.maxHp > 0 && p.hp > 0 && p.hp / p.maxHp < 0.3;
+    },
     icone(defId) { return rawUiContainer.instance?.itemIconUrl(defId, 28) || ''; },
     boire(kind) { rawUiContainer.instance?.usePotion(kind); },
   };
