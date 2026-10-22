@@ -74,7 +74,7 @@
                     <input id="bib-remplacer" type="file" accept=".png,image/png" class="sr-only" @change="remplacer($event)" /></label>
                 <button type="button" class="cs-btn justify-center flex-1" @click="dupliquer()" title="Copie l’image et ses découpes sous une nouvelle clé">Dupliquer</button>
             </div>
-            <p class="text-[13px]" :class="info.startsWith('✘') ? 'text-red-400' : 'text-green-400'" v-if="info" role="status">{{ info }}</p>
+            <p class="text-[13px]" :class="infoErreur ? 'text-red-400' : 'text-green-400'" v-if="info" role="status">{{ info }}</p>
         </div>
     </aside>
 </div>

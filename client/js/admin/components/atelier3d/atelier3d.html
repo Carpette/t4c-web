@@ -82,7 +82,7 @@
             </label>
             <button @click="publier" :disabled="occupe || !nom.trim()"
                 class="px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
-                💾 {{ type === 'creature' ? 'Cuire la planche et publier' : 'Cuire et ajouter à la palette' }}</button>
+                {{ type === 'creature' ? 'Cuire la planche et publier' : 'Cuire et ajouter à la palette' }}</button>
             <div v-if="progres !== null" class="w-full bg-t4c-input-bg rounded h-2">
                 <div class="bg-t4c-gold h-2 rounded" :style="{ width: Math.round(progres * 100) + '%' }"></div>
             </div>

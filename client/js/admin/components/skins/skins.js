@@ -49,6 +49,13 @@ les visages convergent vers trente ans, neutre, symétrique.`,
 
 export function SkinsController(api) {
   const $ = (id) => document.getElementById(id);
+  // message d'état : vert, ou rouge pour une erreur
+  const dire = (id, texte, erreur = false) => {
+    const el = $(id);
+    el.textContent = texte;
+    el.classList.toggle('text-red-400', erreur);
+    el.classList.toggle('text-green-400', !erreur);
+  };
 
   // ---- état ----
   let skinFiles = [];    // PNG de client/assets/skins/
@@ -548,7 +555,7 @@ Tu as le droit de me poser des questions si tu hésites.`;
     if (thumb) { img.src = thumb; img.classList.remove('hidden'); }
     else img.classList.add('hidden');
     $('at2-desc').value = descMap[`${section}:${selId}`] || '';
-    $('at2-desc-msg').textContent = '';
+    dire('at2-desc-msg', '');
   }
 
   function refreshTypeUI() {
@@ -568,7 +575,7 @@ Tu as le droit de me poser des questions si tu hésites.`;
   //             IMPORT & CONTRÔLE (étape 3)
   // ============================================================
 
-  function stopAnim() { cancelAnimationFrame(animRAF); animRAF = 0; $('at2-anim-play').textContent = '▶'; }
+  function stopAnim() { cancelAnimationFrame(animRAF); animRAF = 0; $('at2-anim-play').textContent = 'Lire'; }
 
   function drawAnchoredFrame(ctx, img, x, y, w, h, ax2, ay2, size) {
     // dessine la frame à l'échelle « contain », l'ancrage posé à 8 px du bas
@@ -599,7 +606,7 @@ Tu as le droit de me poser des questions si tu hésites.`;
     if (oldEntry) { oldImg.onload = () => { oldReady = true; }; oldImg.src = '/assets/' + oldEntry.image; }
     const nFrames = Math.max(1, (a.to | 0) - (a.from | 0) + 1);
     const t0 = performance.now();
-    $('at2-anim-play').textContent = '⏸';
+    $('at2-anim-play').textContent = 'Pause';
     const loop = (t) => {
       const dir = parseInt($('at2-anim-dir').value, 10) || 0;
       const f = Math.floor((t - t0) / ((a.duration || 800) / nFrames)) % nFrames;
@@ -634,7 +641,7 @@ Tu as le droit de me poser des questions si tu hésites.`;
           const grid = regridSheet(native.canvas, cw, ch, ax, ay);
           if (grid) {
             procCanvas = grid.canvas; procCols = grid.cols;
-            if (grid.cols !== declared) procNote = `⚠ grille réelle : ${grid.cols} colonnes (${declared} déclarées)`;
+            if (grid.cols !== declared) procNote = `Attention : grille réelle : ${grid.cols} colonnes (${declared} déclarées)`;
           } else {
             const prep = await prepareImage(curFile, { targetW: declared * cw, targetH: 8 * ch, mode: 'stretch' });
             procCanvas = realignSheet(prep.canvas, cw, ch, ax, ay);
@@ -678,9 +685,9 @@ Tu as le droit de me poser des questions si tu hésites.`;
         $('at2-animbox').classList.add('hidden');
       }
       $('at2-check').classList.remove('hidden');
-      $('skins-msg').textContent = procNote;
+      dire('skins-msg', procNote);
     } catch (e) {
-      $('skins-msg').textContent = '✘ ' + e.message;
+      dire('skins-msg', e.message, true);
     }
   }
 
@@ -697,7 +704,7 @@ Tu as le droit de me poser des questions si tu hésites.`;
         spellList = r.spells || [];
         npcList = r.npcs || [];
         descMap = r.desc || {};
-      } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; return; }
+      } catch (e) { dire('skins-msg', e.message, true); return; }
       try { manifest = await (await fetch('/assets/manifest.json')).json(); } catch { manifest = null; }
       refreshTypeUI();
       renderList(this);
@@ -729,26 +736,26 @@ Tu as le droit de me poser des questions si tu hésites.`;
       if (v) descMap[k] = v; else delete descMap[k];
       try {
         await api('/api/admin/atelier', 'PUT', { desc: descMap });
-        $('at2-desc-msg').textContent = '✔ fiche enregistrée';
-      } catch (e) { $('at2-desc-msg').textContent = '✘ ' + e.message; }
+        dire('at2-desc-msg', 'fiche enregistrée');
+      } catch (e) { dire('at2-desc-msg', e.message, true); }
     },
 
     buildPrompt() {
-      if (!selId) { $('skins-msg').textContent = '✘ Sélectionne d\u2019abord une cible (étape ①).'; return; }
+      if (!selId) { dire('skins-msg', 'Sélectionnez d\u2019abord une cible (étape 1).', true); return; }
       const text = section === 'mobs' ? promptMob()
         : section === 'items' ? promptItem()
         : section === 'spells' ? promptSpell()
         : promptNpc();
       $('skin-prompt').value = text;
       navigator.clipboard?.writeText(text).then(
-        () => { $('skin-prompt-msg').textContent = '✔ copié dans le presse-papier'; },
-        () => { $('skin-prompt-msg').textContent = ''; });
+        () => { dire('skin-prompt-msg', 'copié dans le presse-papier'); },
+        () => { dire('skin-prompt-msg', ''); });
       pushHistory(`${SECTIONS[section].label} · ${entityName()}`, text);
     },
 
     copyPrompt() {
       const t = $('skin-prompt').value;
-      if (t) navigator.clipboard?.writeText(t).then(() => { $('skin-prompt-msg').textContent = '✔ copié'; });
+      if (t) navigator.clipboard?.writeText(t).then(() => { dire('skin-prompt-msg', 'copié'); });
     },
 
     refreshPreview() { processFile(this); },
@@ -772,24 +779,24 @@ Tu as le droit de me poser des questions si tu hésites.`;
           const data = procCanvas.toDataURL('image/png').split(',')[1];
           const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data });
           skinMap.mobs[selId] = r.sprite;
-          $('skins-msg').textContent = `✔ Planche « ${r.sprite} » ${r.existed ? 'remplacée' : 'importée'} et assignée — Enregistrer les assignations pour publier. ${procNote}`;
+          dire('skins-msg', `Planche « ${r.sprite} » ${r.existed ? 'remplacée' : 'importée'} et assignée — Enregistrer les assignations pour publier. ${procNote}`);
         } else {
           const data = procCanvas.toDataURL('image/png').split(',')[1];
           const r = await api('/api/admin/skins/upload', 'POST', { name: `${SECTIONS[section].label}_${selId}`, data });
           skinMap[section][selId] = r.file;
-          $('skins-msg').textContent = `✔ ${r.file} téléversé et assigné — Enregistrer les assignations pour publier.`;
+          dire('skins-msg', `${r.file} téléversé et assigné — Enregistrer les assignations pour publier.`);
         }
         await this.loadSkins();
         this.selectEntity(selId);
-      } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
+      } catch (e) { dire('skins-msg', e.message, true); }
     },
 
     async saveSkins() {
       try {
         const r = await api('/api/admin/skins', 'PUT', skinMap);
         const n = ['items', 'mobs', 'spells', 'npcs'].map(s => Object.keys(skinMap[s]).length);
-        $('skins-msg').textContent = `✔ Enregistré : ${n[0]} objet(s), ${n[1]} créature(s), ${n[2]} sort(s), ${n[3]} PNJ. ` + (r.note || '');
-      } catch (e) { $('skins-msg').textContent = '✘ ' + e.message; }
+        dire('skins-msg', `Enregistré : ${n[0]} objet(s), ${n[1]} créature(s), ${n[2]} sort(s), ${n[3]} PNJ. ` + (r.note || ''));
+      } catch (e) { dire('skins-msg', e.message, true); }
     },
 
     init() {

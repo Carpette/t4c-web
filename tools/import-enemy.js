@@ -1,5 +1,5 @@
 // Import d'une planche de monstre FOURNIE PAR L'UTILISATEUR vers le manifest.
-// (La même chose est possible sans terminal : admin -> onglet 🎨 Skins.)
+// (La même chose est possible sans terminal : admin -> écran Skins.)
 //
 // Convention attendue (bien plus simple que l'atlas Flare compacté) :
 //   - un PNG en GRILLE RÉGULIÈRE : 8 lignes = 8 directions (ordre Flare :
@@ -66,4 +66,4 @@ fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 console.log(`✔ ${cfg.name} ${existed ? 'remplacé' : 'ajouté'} : ${entry.cols} colonnes, `
   + `${Object.keys(entry.anims).length} animations (${Object.keys(entry.anims).join(', ')})`);
 console.log(`  Utilisation : sprite: '${cfg.name}' dans shared/defs.js (MOBS), ou onglet`
-  + ' admin 🎨 Skins -> assigner à une créature, puis rechargez le client (Ctrl+Shift+R).');
+  + ' admin, écran Skins -> assigner à une créature, puis rechargez le client (Ctrl+Shift+R).');

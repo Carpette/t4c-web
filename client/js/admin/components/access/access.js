@@ -72,13 +72,13 @@ export function AccessController(api) {
     tout(section, n) { for (const d of section.droits) this.fixer(d.id, Math.min(n, this.plafond(d.id))); },
     async enregistrer() {
       const f = this.fiche;
-      if (!f.nom.trim()) { this.dire('✘ Donnez un nom au profil.', true); return; }
+      if (!f.nom.trim()) { this.dire('Donnez un nom au profil.', true); return; }
       try {
         const r = await api('/api/admin/profils', f.id ? 'PUT' : 'POST', f);
         await this.charger();
         this.ouvrir(r.id);
-        this.dire(`✔ Profil « ${f.nom.trim()} » enregistré, appliqué aux comptes connectés.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(`Profil « ${f.nom.trim()} » enregistré, appliqué aux comptes connectés.`);
+      } catch (e) { this.dire(e.message, true); }
     },
     async supprimer() {
       if (!this.fiche.id) { this.ouvrir('super'); return; }
@@ -88,20 +88,20 @@ export function AccessController(api) {
         reference = JSON.stringify(this.fiche); // évite la confirmation d'abandon
         await this.charger();
         this.ouvrir('super');
-        this.dire('✔ Profil supprimé.');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire('Profil supprimé.');
+      } catch (e) { this.dire(e.message, true); }
     },
 
     // ---------- comptes ----------
     // comptes : rechargés à chaque ouverture (sanctions et profils changent ailleurs)
-    async voirComptes() { this.onglet = 'comptes'; try { await this.charger(); } catch (e) { this.dire('✘ ' + e.message, true); } },
+    async voirComptes() { this.onglet = 'comptes'; try { await this.charger(); } catch (e) { this.dire(e.message, true); } },
     get peutSanctionner() { return this.superAdmin || (this.moi?.droits?.sanctions | 0) >= 2; },
     async debannir(c) {
       try {
         await api(`/api/admin/comptes/${c.id}/debannir`, 'POST');
         await this.charger();
-        this.dire(`✔ ${c.name} peut de nouveau se connecter.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(`${c.name} peut de nouveau se connecter.`);
+      } catch (e) { this.dire(e.message, true); }
     },
     peutChanger(c) { return this.edition && c.id !== 1 && (this.superAdmin || (!c.isAdmin && c.id !== this.moiId)); },
     async attribuer(c, valeur) {
@@ -115,8 +115,8 @@ export function AccessController(api) {
         await api('/api/admin/roles', 'PUT', corps);
         await this.charger();
         const n = this.comptes.find(x => x.id === c.id);
-        this.dire(`✔ ${c.name} : ${this.nomProfil(n)}. Appliqué à chaud s’il est connecté.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); await this.charger(); }
+        this.dire(`${c.name} : ${this.nomProfil(n)}. Appliqué à chaud s’il est connecté.`);
+      } catch (e) { this.dire(e.message, true); await this.charger(); }
     },
 
     async charger() {
@@ -128,7 +128,7 @@ export function AccessController(api) {
         this.moi = await api('/api/admin/me');
         await this.charger();
         this.ouvrir(this.profils[0]?.id ?? 'super');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
   };
 }

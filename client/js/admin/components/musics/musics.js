@@ -87,7 +87,7 @@ export function MusicsController(api) {
     renommer() {
       const ancien = this.courant, id = (prompt('Nouveau nom du groupe', ancien) || '').trim();
       if (!id || id === ancien) return;
-      if (this.carte.groups[id]) { this.dire(`✘ Le groupe « ${id} » existe déjà.`, true); return; }
+      if (this.carte.groups[id]) { this.dire(`Le groupe « ${id} » existe déjà.`, true); return; }
       // les zones musicales de la carte pointent le groupe par son nom : le
       // serveur les réécrit à l'enregistrement
       const carte = this.sousZones.filter(s => s.track?.group === ancien);
@@ -101,7 +101,7 @@ export function MusicsController(api) {
     },
     supprimer() {
       const u = this.usages(this.courant);
-      if (u.length) { this.dire(`✘ Encore joué dans : ${u.map(x => x.nom).join(', ')}.`, true); return; }
+      if (u.length) { this.dire(`Encore joué dans : ${u.map(x => x.nom).join(', ')}.`, true); return; }
       if (!confirm(`Supprimer le groupe « ${this.courant} » ?`)) return;
       delete this.carte.groups[this.courant];
       this.courant = this.groupes[0]?.id || null;
@@ -197,19 +197,19 @@ export function MusicsController(api) {
         if (this.vue === 'pistes') this.mesurer(faits);
         if (this.groupe && this.vue === 'groupe') { this.groupe.new.push(...faits.filter(f => !this.groupe.new.includes(f))); this.mesurer(); }
       }
-      const ok = faits.length ? `✔ ${faits.length} piste${faits.length > 1 ? 's' : ''} importée${faits.length > 1 ? 's' : ''}${this.groupe && this.vue === 'groupe' ? ` et ajoutée${faits.length > 1 ? 's' : ''} à « ${this.courant} »` : ''}.` : '';
-      this.dire([ok, echecs.length ? `✘ Refusé : ${echecs.join(', ')}.` : ''].filter(Boolean).join(' '), !!echecs.length);
+      const ok = faits.length ? `${faits.length} piste${faits.length > 1 ? 's' : ''} importée${faits.length > 1 ? 's' : ''}${this.groupe && this.vue === 'groupe' ? ` et ajoutée${faits.length > 1 ? 's' : ''} à « ${this.courant} »` : ''}.` : '';
+      this.dire([ok, echecs.length ? `Refusé : ${echecs.join(', ')}.` : ''].filter(Boolean).join(' '), !!echecs.length);
     },
 
     // ---------- enregistrement ----------
     async enregistrer() {
       const vides = Object.entries(this.carte.groups).filter(([, g]) => !g.new.length && !g.legacy).map(([id]) => id);
-      if (vides.length) { this.dire(`✘ Groupe vide (le serveur l’ignorerait) : ${vides.join(', ')}. Ajoutez une piste ou supprimez-le.`, true); return; }
+      if (vides.length) { this.dire(`Groupe vide (le serveur l’ignorerait) : ${vides.join(', ')}. Ajoutez une piste ou supprimez-le.`, true); return; }
       try {
         await api('/api/admin/music', 'PUT', { ...this.carte, renommages: this.renommages });
         reference = JSON.stringify(this.carte); refSousZones = JSON.stringify(this.sousZones); this.renommages = [];
-        this.dire('✔ Musiques enregistrées, appliquées aux joueurs connectés.');
-      } catch (err) { this.dire('✘ ' + err.message, true); }
+        this.dire('Musiques enregistrées, appliquées aux joueurs connectés.');
+      } catch (err) { this.dire(err.message, true); }
     },
     annuler() {
       this.carte = JSON.parse(reference);
@@ -233,7 +233,7 @@ export function MusicsController(api) {
         for (const zn of this.zones) c.zones[zn.id] = norme(c.zones[zn.id]);
         this.carte = c; reference = JSON.stringify(c);
         if (this.groupes[0]) this.ouvrir(this.groupes[0].id); else this.vue = 'emplacements';
-      } catch (err) { this.dire('✘ ' + err.message, true); }
+      } catch (err) { this.dire(err.message, true); }
       window.addEventListener('beforeunload', (e) => { if (this.sale) e.preventDefault(); });
     },
   };

@@ -137,9 +137,9 @@ export function ZonePropsController(api) {
         reference = JSON.stringify(this.fiche);
         const creee = this.brouillon === this.courant;
         this.brouillon = null;
-        this.dire(creee ? `✔ ${this.fiche.name} créée : elle sera générée au prochain redémarrage du serveur (Publication).` : `✔ ${this.fiche.name} enregistrée. ${r.note || ''}`);
+        this.dire(creee ? `${this.fiche.name} créée : elle sera générée au prochain redémarrage du serveur (Publication).` : `${this.fiche.name} enregistrée. ${r.note || ''}`);
         window.dispatchEvent(new CustomEvent('t4c:contenu', { detail: { nom: 'zones', source: 'proprietes' } }));
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     async init() {
@@ -147,7 +147,7 @@ export function ZonePropsController(api) {
         fichier = await api('/api/admin/content/zones');
         this.zones = fichier.zones || [];
         if (this.zones.length) this.ouvrir(this.zones[0].id);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
       // contexte facultatif (selon les droits du compte)
       try { this.musique = await api('/api/admin/music'); } catch { /* sans musique */ }
       try { this.joueurs = (await api('/api/admin/players')).players || []; } catch { /* sans joueurs */ }

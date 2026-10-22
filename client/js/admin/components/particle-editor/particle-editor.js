@@ -121,23 +121,23 @@ export function ParticleEditorController(api) {
       try {
         await api('/api/admin/content/particles', 'POST', { ...fichier, particles: effets });
         fichier = { ...fichier, particles: effets }; this.effets = effets;
-        this.dire('✔ ' + succes + ' Les joueurs le verront au prochain chargement de page.');
+        this.dire(succes + ' Les joueurs le verront au prochain chargement de page.');
         return true;
-      } catch (e) { this.dire('✘ ' + e.message, true); return false; }
+      } catch (e) { this.dire(e.message, true); return false; }
     },
     async enregistrer() {
       const f = copie(this.fiche);
       f.id = String(f.id || '').trim();
-      if (!/^[a-z0-9_]{1,60}$/.test(f.id)) { this.dire('✘ Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
-      if (this.nouveau && this.effets.some(e => e.id === f.id)) { this.dire(`✘ L’identifiant « ${f.id} » existe déjà.`, true); return; }
-      if (!f.colors?.length) { this.dire('✘ Il faut au moins une couleur.', true); return; }
+      if (!/^[a-z0-9_]{1,60}$/.test(f.id)) { this.dire('Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
+      if (this.nouveau && this.effets.some(e => e.id === f.id)) { this.dire(`L’identifiant « ${f.id} » existe déjà.`, true); return; }
+      if (!f.colors?.length) { this.dire('Il faut au moins une couleur.', true); return; }
       const effets = this.nouveau ? [...this.effets, f] : this.effets.map(e => e.id === this.courant ? f : e);
       if (await this.ecrire(effets, `${f.name} enregistré.`)) { const m = this.message; this.nouveau = false; reference = null; this.ouvrir(f.id); this.dire(m); }
     },
     async supprimer() {
       if (this.nouveau) { this.annuler(); return; }
       const deps = [...this.utilisePar.map(s => s.name), ...(this.usageJeu ? [this.usageJeu] : [])];
-      if (deps.length) { this.dire(`✘ Encore utilisé par : ${deps.join(', ')}.`, true); return; }
+      if (deps.length) { this.dire(`Encore utilisé par : ${deps.join(', ')}.`, true); return; }
       if (!confirm(`Supprimer l’effet ${this.fiche.name} ?`)) return;
       const id = this.courant;
       if (await this.ecrire(this.effets.filter(e => e.id !== id), 'Effet supprimé.')) { reference = null; this.fiche = null; this.ouvrir(this.effets[0]?.id); }
@@ -145,7 +145,7 @@ export function ParticleEditorController(api) {
 
     async init() {
       try { fichier = await api('/api/admin/content/particles'); this.effets = fichier.particles || []; }
-      catch (e) { this.dire('✘ ' + e.message, true); }
+      catch (e) { this.dire(e.message, true); }
       try { this.sorts = (await api('/api/admin/content/spells')).spells || []; } catch { /* facultatif */ }
       // un sort enregistré peut changer ses effets : « Utilisé par » suit
       window.addEventListener('t4c:contenu', async (e) => {

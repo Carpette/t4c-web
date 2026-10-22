@@ -244,9 +244,9 @@ export function NpcsEditorController(api) {
     // ---------- enregistrement ----------
     async enregistrer() {
       const id = this.nouveau ? this.nouvelId.trim().toLowerCase() : this.courant;
-      if (!/^[a-z0-9_]{1,40}$/.test(id)) { this.dire('✘ Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
-      if (this.nouveau && this.npcs[id]) { this.dire(`✘ L’identifiant « ${id} » existe déjà.`, true); return; }
-      if (!this.fiche.name?.trim()) { this.dire('✘ Le nom est obligatoire.', true); return; }
+      if (!/^[a-z0-9_]{1,40}$/.test(id)) { this.dire('Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
+      if (this.nouveau && this.npcs[id]) { this.dire(`L’identifiant « ${id} » existe déjà.`, true); return; }
+      if (!this.fiche.name?.trim()) { this.dire('Le nom est obligatoire.', true); return; }
       const fiche = copie(this.fiche);
       fiche.greetings = fiche.greetings.map(s => s.trim()).filter(Boolean);
       if (!Object.keys(fiche.look || {}).length) delete fiche.look;
@@ -256,14 +256,14 @@ export function NpcsEditorController(api) {
         fichier = { ...fichier, npc }; this.npcs = npc;
         this.nouveau = false; reference = '';
         this.ouvrir(id);
-        this.dire('✔ Enregistré. Les PNJ en jeu adoptent la fiche immédiatement.');
+        this.dire('Enregistré. Les PNJ en jeu adoptent la fiche immédiatement.');
         this.chargerPositions();
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     async supprimer() {
       if (this.nouveau) { this.nouveau = false; reference = ''; this.fiche = null; this.ouvrir(this.courant || Object.keys(this.npcs)[0]); return; }
-      if (this.courant === 'merchant') { this.dire('✘ « merchant » sert de modèle aux PNJ ajoutés sur la carte : il ne peut pas être supprimé.', true); return; }
+      if (this.courant === 'merchant') { this.dire('« merchant » sert de modèle aux PNJ ajoutés sur la carte : il ne peut pas être supprimé.', true); return; }
       if (!confirm(`Supprimer le PNJ ${this.fiche.name} (${this.courant}) ?`)) return;
       const npc = { ...this.npcs };
       delete npc[this.courant];
@@ -272,8 +272,8 @@ export function NpcsEditorController(api) {
         fichier = { ...fichier, npc }; this.npcs = npc;
         reference = JSON.stringify(this.fiche);
         this.ouvrir(Object.keys(npc)[0]);
-        this.dire('✔ PNJ supprimé.');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire('PNJ supprimé.');
+      } catch (e) { this.dire(e.message, true); }
     },
 
     async chargerPositions() {
@@ -284,7 +284,7 @@ export function NpcsEditorController(api) {
       try {
         fichier = await api('/api/admin/content/npcs');
         this.npcs = fichier.npc || {};
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
       try { this.spells = (await api('/api/admin/content/spells')).spells || []; } catch { /* lecture réservée */ }
       try { this.skills = (await api('/api/admin/content/skills')).skills || []; } catch { /* lecture réservée */ }
       this.couchesDispo = Object.keys((await chargerRessources()).manifest.avatar.male).sort();

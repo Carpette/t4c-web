@@ -61,13 +61,13 @@ export function MaterialsController(api) {
             box.appendChild(wrap);
           }
           $('mat-save').disabled = false;
-          msg(`✔ ${pieces.length} pièces générées` + (seamFixed
+          msg(`${pieces.length} pièces générées` + (seamFixed
             ? ' — couture détectée dans la texture : correction automatique appliquée (fondu des bords).' : '.'));
         } catch (e) {
-          msg('✘ Génération impossible : ' + e.message, true);
+          msg('Génération impossible : ' + e.message, true);
         }
       };
-      img.onerror = () => msg('✘ Image illisible.', true);
+      img.onerror = () => msg('Image illisible.', true);
       img.src = URL.createObjectURL(file);
     },
 
@@ -80,9 +80,9 @@ export function MaterialsController(api) {
           name, kind: baked.kind, data: baked.dataBase64,
           tiles: baked.tiles, names: baked.names,
         });
-        msg(`✔ Matériau « ${name} » enregistré (${r.frames} pièces, tileset ${r.tileset}). ${r.note || ''}`);
+        msg(`Matériau « ${name} » enregistré (${r.frames} pièces, tileset ${r.tileset}). ${r.note || ''}`);
       } catch (e) {
-        msg('✘ Enregistrement refusé : ' + e.message, true);
+        msg('Enregistrement refusé : ' + e.message, true);
       }
     },
   };

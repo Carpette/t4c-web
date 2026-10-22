@@ -49,31 +49,31 @@ export function PublicationController(api) {
       try {
         const d = await api('/api/admin/publication');
         Object.assign(this, { modifications: d.modifications, versions: d.versions, enLigne: d.enLigne, production: d.production, arret: d.arret });
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
       this.chargement = false;
     },
     async annuler(m) {
       if (!confirm(`Défaire cette modification de ${this.nomFichier(m)} (${m.auteur}, ${this.ilya(m.t)}) ? Elle est retirée du jeu à chaud.`)) return;
       try {
         const r = await api(`/api/admin/publication/annuler/${m.id}`, 'POST');
-        this.dire(r.conflits ? `✔ Modification défaite en partie : ${r.conflits} valeur${r.conflits > 1 ? 's ont' : ' a'} changé depuis et ${r.conflits > 1 ? 'sont gardées' : 'est gardée'}.` : '✔ Modification défaite.');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(r.conflits ? `Modification défaite en partie : ${r.conflits} valeur${r.conflits > 1 ? 's ont' : ' a'} changé depuis et ${r.conflits > 1 ? 'sont gardées' : 'est gardée'}.` : 'Modification défaite.');
+      } catch (e) { this.dire(e.message, true); }
       await this.charger();
     },
     async marquer() {
       try {
         const r = await api('/api/admin/publication/version', 'POST', { note: this.note });
         this.note = '';
-        this.dire(`✔ Version v${r.id} marquée : vous pourrez y revenir depuis l’historique.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(`Version v${r.id} marquée : vous pourrez y revenir depuis l’historique.`);
+      } catch (e) { this.dire(e.message, true); }
       await this.charger();
     },
     async restaurer(v) {
       if (!confirm(`Restaurer la version v${v.id} ? Tout le contenu modifié depuis reprend son état du ${this.date(v.t)}, à chaud. Les modifications défaites restent dans l’historique.`)) return;
       try {
         const r = await api(`/api/admin/publication/restaurer/${v.id}`, 'POST');
-        this.dire(r.fichiers ? `✔ Version v${v.id} restaurée (${r.fichiers} fichier${r.fichiers > 1 ? 's' : ''}).` : `Rien à restaurer : le contenu est déjà celui de la version v${v.id}.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(r.fichiers ? `Version v${v.id} restaurée (${r.fichiers} fichier${r.fichiers > 1 ? 's' : ''}).` : `Rien à restaurer : le contenu est déjà celui de la version v${v.id}.`);
+      } catch (e) { this.dire(e.message, true); }
       await this.charger();
     },
     async redemarrer() {
@@ -83,15 +83,15 @@ export function PublicationController(api) {
       try {
         const r = await api('/api/admin/publication/redemarrer', 'POST', { secondes: this.delai });
         this.arret = r.arret;
-        this.dire(`✔ Redémarrage programmé à ${this.heure(r.arret)}. Les joueurs sont prévenus.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(`Redémarrage programmé à ${this.heure(r.arret)}. Les joueurs sont prévenus.`);
+      } catch (e) { this.dire(e.message, true); }
     },
     async annulerRedemarrage() {
       try {
         await api('/api/admin/publication/annuler-redemarrage', 'POST');
         this.arret = null;
-        this.dire('✔ Redémarrage annulé, les joueurs sont prévenus.');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire('Redémarrage annulé, les joueurs sont prévenus.');
+      } catch (e) { this.dire(e.message, true); }
     },
 
     // rechargé à chaque ouverture de l'écran (les autres écrans écrivent)

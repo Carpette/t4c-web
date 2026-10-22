@@ -172,7 +172,7 @@ class GuiManager {
     }
   }
 
-  // bouton ✕ commun à tous les panneaux (hors gabarit : petite-vue n'y touche pas)
+  // bouton de fermeture commun à tous les panneaux (hors gabarit : petite-vue n'y touche pas)
   addCloseButton(container, name) {
     const btn = document.createElement('button');
     btn.type = 'button';
