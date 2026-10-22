@@ -121,7 +121,7 @@ export function buildPalette({ container, assets, onSelect }) {
     for (const c of chips) c.div.classList.toggle('active', c.match(current));
     onSelect(current.kind === 'tile'
       ? { ...current }
-      : { ...current, s: SCALABLE_PROPS.has(current.type) ? opts.s : 1, flip: FLIPPABLE_PROPS.has(current.type) && opts.flip });
+      : { ...current, s: isScalableProp(current.type) ? opts.s : 1, flip: isFlippableProp(current.type) && opts.flip });
   }
 
   // vignette générique : aperçu (sprite ou glyphe) + libellé en infobulle
@@ -508,8 +508,9 @@ export function buildPalette({ container, assets, onSelect }) {
     // pipette : sélectionne une tuile depuis la carte
     selectTile(t) { current = { kind: 'tile', tile: t }; emit(); },
     // pipette : sélectionne un prop (variante/échelle/miroir repris du prop visé)
+    // (tout type de prop : Arakas, tilesets Flare, murs, toits, atelier 3D)
     selectProp(type, v = null, s = 1, flip = false) {
-      if (!PROP_TYPES[type]) return;
+      if (!type) return;
       current = { kind: 'prop', type, v };
       opts.s = s; sInput.value = String(s); sVal.textContent = '×' + s.toFixed(2);
       opts.flip = flip; fInput.checked = flip;

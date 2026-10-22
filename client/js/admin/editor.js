@@ -16,7 +16,7 @@ import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { buildDecor } from '../render2d/decor.js';
 import { resolveTile } from '../render2d/assets.js';
-import { PROP_TYPES, propScale, propFlip, FLIPPABLE_PROPS, propSprites } from '../render2d/decormap.js';
+import { PROP_TYPES, propScale, propFlip, isFlippableProp, isUserProp, propSprites, FLOOR_IDS } from '../render2d/decormap.js';
 import { buildPalette, TILE_COLORS, TILE_NAMES, PROP_GLYPHS } from './palette.js';
 
 // --- réglages du rendu ---
@@ -280,7 +280,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // flippable, en plus de la case « Miroir » de la palette. Évite d'avoir à
   // fouiller la palette ; pratique sans touche Alt (Mac).
   let mirror = false;
-  const palFlippable = () => palTool.kind === 'prop' && FLIPPABLE_PROPS.has(palTool.type);
+  // isFlippableProp : mêmes règles que le rendu (propFlip), murs créés à chaud compris
+  const palFlippable = () => palTool.kind === 'prop' && isFlippableProp(palTool.type);
   const poseFlip = () => (palTool.flip || mirror) && palFlippable();
   function toggleMirror(on) {
     mirror = on != null ? !!on : !mirror;
@@ -293,6 +294,50 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   function toggleCollide(on) {
     collide = on != null ? !!on : !collide;
     $('tool-solid')?.classList.toggle('active', collide);
+  }
+
+  // ---------- rotation du décor à poser (R / Maj+R) ----------
+  // Les sprites sont pré-rendus en iso : pas de rotation libre. « Tourner »
+  // passe à l'orientation suivante QUAND le décor en a (pièces jumelles du
+  // manifeste), sinon bascule le miroir. Le libellé s'affiche près du fantôme.
+  let rotLabel = null, rotLabelJusqua = 0;
+  // orientations du décor `type` : liste ordonnée de variantes `v`, ou null
+  function orientationsDe(type, v) {
+    if (type === 'fence' || type === 'bridge') return v === 'x' || v === 'z' ? ['x', 'z'] : null;
+    const ts = assets?.manifest?.tilesets?.[type];
+    if (!ts?.tiles) return null;
+    // atelier 3D : une frame par quart de tour
+    if (isUserProp(type)) return Object.keys(ts.tiles).map(Number).sort((a, b) => a - b);
+    // murs procéduraux et toits : pièce jumelle nommée avec la flèche inverse
+    const nom = ts.names?.[v];
+    if (!nom || !/[↘↙]/.test(nom)) return null;
+    const jumeau = ts.names.indexOf(nom.replace(/[↘↙]/g, c => (c === '↘' ? '↙' : '↘')));
+    return jumeau >= 0 ? [v, jumeau] : null;
+  }
+  function libelleVariante(type, v) {
+    const n = assets?.manifest?.tilesets?.[type]?.names?.[v];
+    if (n) return n;
+    if (type === 'fence' || type === 'bridge') return PROP_TYPES[type].variants.find(va => va.v === v)?.label || String(v);
+    return isUserProp(type) ? `orientation ${Number(v) + 1}` : String(v);
+  }
+  function tourner(sens = 1) {
+    if (palTool.kind !== 'prop') { msg('Tourner : choisissez d\'abord un décor dans la palette.'); return; }
+    const liste = orientationsDe(palTool.type, palTool.v);
+    if (liste && liste.length > 1) {
+      const i = Math.max(0, liste.indexOf(palTool.v));
+      const v = liste[(i + sens + liste.length) % liste.length];
+      palette.selectProp(palTool.type, v, palTool.s || 1, !!palTool.flip);
+      rotLabel = libelleVariante(palTool.type, v);
+    } else if (palFlippable()) {
+      toggleMirror();
+      rotLabel = mirror ? 'miroir' : 'sens d\'origine';
+    } else {
+      msg('Ce décor n\'a qu\'une orientation.');
+      return;
+    }
+    rotLabelJusqua = performance.now() + 1500;
+    setTimeout(markDirty, 1550); // efface le libellé
+    markDirty();
   }
 
   const palette = buildPalette({
@@ -612,11 +657,36 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     }
     if (palTool.kind === 'tile') {
       const half = Math.floor(brushSize / 2);
+      const ids = FLOOR_IDS[palTool.tile];
+      if (assets && decor && view.z >= SPRITE_ZOOM && ids?.length) {
+        // fantôme du sol : la vraie texture, rendue comme la carte (losanges
+        // du fond vers l'avant en iso, centre de tuile en vue du dessus)
+        ctx.globalAlpha = 0.75;
+        const N = world.size, k = view.z / GAME_PX;
+        for (let sum = -2 * half; sum <= 2 * half; sum++) {
+          for (let dx = -half; dx <= half; dx++) {
+            const dz = sum - dx;
+            if (dz < -half || dz > half) continue;
+            const x = tx + dx, z = tz + dz;
+            if (x < 0 || z < 0 || x >= N || z >= N) continue;
+            const id = ids[(x * 7 + z * 13) % ids.length]; // variantes mêlées, stables
+            if (view.iso) { const c = w2s(x + 0.5, z + 0.5); drawTileInto(ctx, id, c.x, c.y, k); continue; }
+            const r = resolveTile(assets, id, assets.grass, assets.water);
+            if (!r) continue;
+            const [sx, sy, w, h] = r.rect, o = w2s(x, z);
+            ctx.drawImage(r.img, sx + w * 0.25, sy + h * 0.25, w * 0.5, h * 0.5, o.x, o.y, view.z, view.z);
+          }
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        // carte en aplats : l'aplat de couleur EST le rendu
+        fillCellPath(tx - half, tz - half, tx + half + 1, tz + half + 1);
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = TILE_COLORS[palTool.tile] || '#fff';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       fillCellPath(tx - half, tz - half, tx + half + 1, tz + half + 1);
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = TILE_COLORS[palTool.tile] || '#fff';
-      ctx.fill();
-      ctx.globalAlpha = 1;
       ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; ctx.stroke();
     } else {
       // fantôme du décor à poser : on résout l'image EXACTEMENT comme la pose
@@ -640,7 +710,23 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ctx.globalAlpha = 1;
       fillCellPath(tx, tz, tx + 1, tz + 1);
       ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; ctx.stroke();
+      // libellé de l'orientation, juste après un R
+      if (rotLabel && performance.now() < rotLabelJusqua) {
+        const c = w2s(tx + 1, tz + 1);
+        ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(rotLabel, c.x + 8, c.y + 4);
+        ctx.fillStyle = '#ffd24a'; ctx.fillText(rotLabel, c.x + 8, c.y + 4);
+      }
     }
+  }
+
+  // le fantôme de pose REMPLACE le curseur système (repère : contour jaune) ;
+  // curseur rendu dès qu'on navigue, sélectionne ou arme une autre pose
+  function majCurseur() {
+    const fantome = hover && mode === 'paint' && !pendingPlace && !pasting && !spaceHeld
+      && (!gesture || gesture.mode === 'paint' || gesture.mode === 'rect');
+    const voulu = fantome ? 'none' : '';
+    if (canvas.style.cursor !== voulu) canvas.style.cursor = voulu;
   }
 
   function drawPlayers() {
@@ -2126,6 +2212,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     drawGrid();
     drawSelection();
     drawOverlays();
+    majCurseur();
     drawCamps();
     drawNpcs();
     drawMusic();
@@ -2546,6 +2633,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     }
   });
 
+  // souris hors de la carte : plus de fantôme (il resterait figé au bord)
+  canvas.addEventListener('pointerleave', () => { if (!gesture) { hover = null; markDirty(); } });
   canvas.addEventListener('pointermove', (e) => {
     const { px, py } = mousePos(e);
     hover = s2w(px, py);
@@ -2634,7 +2723,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   window.addEventListener('keydown', (e) => {
     const t = document.activeElement?.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-    if (e.code === 'Space') { spaceHeld = true; e.preventDefault?.(); }
+    if (e.code === 'Space') { spaceHeld = true; e.preventDefault?.(); markDirty(); }
     else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
       e.preventDefault?.();
       if (e.shiftKey) redo(); else undo();
@@ -2652,15 +2741,18 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     else if (OUTILS_CLAVIER[e.code]) { e.preventDefault?.(); $(OUTILS_CLAVIER[e.code])?.click?.(); }
     // M : bascule le miroir horizontal du décor à poser (murs, portes...)
     else if (e.code === 'KeyM') { e.preventDefault?.(); toggleMirror(); }
+    // R / Maj+R : orientation suivante / précédente du décor à poser
+    else if (e.code === 'KeyR') { e.preventDefault?.(); tourner(e.shiftKey ? -1 : 1); }
     // C : bascule la solidité (collision) des décors posés
     else if (e.code === 'KeyC') { e.preventDefault?.(); toggleCollide(); }
     // Échap : annule sélection et collage en cours
     else if (e.code === 'Escape') { selection = null; pasting = false; pendingPlace = null; updateTplSaveBtn(); markDirty(); }
   });
   $('tool-mirror').onclick = () => toggleMirror();
+  $('tool-rotate')?.addEventListener('click', () => tourner(1));
   $('tool-solid').onclick = () => toggleCollide();
   toggleCollide(true); // état initial : décor solide par défaut
-  window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
+  window.addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceHeld = false; markDirty(); } });
 
   // ====================================================================
   // ÉDITEUR DE QUÊTES — couche d'édition de HAUT NIVEAU au-dessus des
@@ -3446,6 +3538,9 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     redo,
     paintAt: (x, z) => { pushHistory(); paintCells(x, z); },
     setTool: (t) => { palTool = t; setMode('paint'); },
+    getTool: () => palTool,
+    palette,
+    tourner,
     setMode,
     rebuildNow: rebuild,
     // pot de peinture / copier-coller
