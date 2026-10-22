@@ -514,10 +514,28 @@ export class Renderer {
     }
 
     // --- Plaques de nom + barres de vie (au-dessus de l'éclairage) ---
-    for (const d of drawables) {
-      if (d.view) {
-        const p = this.w2s(d.view.x, d.view.z);
-        d.view.drawOverlay(ctx, p.x, p.y, s, selfId);
+    // Une plaque qui en chevaucherait une autre est omise (la barre de vie
+    // reste) : soi, la cible et l'entité survolée d'abord, puis du plus proche
+    // de la caméra au plus lointain. Les prioritaires sont dessinées en dernier.
+    const vues = drawables.filter(d => d.view).map(d => d.view);
+    const prio = (v) => v.id === selfId || v.id === hl.targetId || v.id === hl.hoverId;
+    const occupes = [], sansNom = new Set();
+    const ordre = [...vues].sort((a, b) => (prio(b) - prio(a)) || ((b.x + b.z) - (a.x + a.z)));
+    for (const v of ordre) {
+      const p = this.w2s(v.x, v.z);
+      const r = v.rectPlaque(ctx, p.x, p.y, s, selfId);
+      if (!r) continue;
+      if (!prio(v) && occupes.some(o => r.x < o.x + o.w && r.x + r.w > o.x && r.y < o.y + o.h && r.y + r.h > o.y)) {
+        sansNom.add(v.id);
+        continue;
+      }
+      occupes.push(r);
+    }
+    for (const passe of [false, true]) {
+      for (const v of vues) {
+        if (prio(v) !== passe) continue;
+        const p = this.w2s(v.x, v.z);
+        v.drawOverlay(ctx, p.x, p.y, s, selfId, sansNom.has(v.id));
       }
     }
 

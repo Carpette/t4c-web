@@ -263,21 +263,39 @@ class EntityView2D {
     }
   }
 
-  drawOverlay(ctx, px, py, s, selfId) {
+  // texte de la plaque de nom (null : pas de nom affiché)
+  nomPlaque(selfId) {
+    if (this.kind === KIND.DROP || this.state === ST.DEAD) return null;
+    const isNpc = this.kind === KIND.NPC, isPlayer = this.kind === KIND.PLAYER;
+    // préférences d'affichage (panneau Paramètres)
+    const showName = isNpc ? true
+      : isPlayer ? (this.id === selfId ? settings.showSelfName : settings.showPlayerNames)
+      : settings.showMobNames;
+    if (!showName) return null;
+    const showLevel = isPlayer ? settings.showPlayerLevels : settings.showMobLevels;
+    return (isNpc || !showLevel) ? this.meta.name : `${this.meta.name} [${this.level || this.meta.level}]`;
+  }
+
+  // rectangle écran de la plaque de nom (évitement des chevauchements)
+  rectPlaque(ctx, px, py, s, selfId) {
+    const name = this.nomPlaque(selfId);
+    if (!name) return null;
+    const taille = Math.max(11, 13 * s);
+    ctx.font = `bold ${taille}px "Trebuchet MS", sans-serif`;
+    const w = ctx.measureText(name).width, top = (this.topY ?? (py - 100 * s)) - 8;
+    return { x: px - w / 2 - 2, y: top - 6 - taille, w: w + 4, h: taille + 2 };
+  }
+
+  // `sansNom` : plaque masquée parce qu'elle chevaucherait une plus prioritaire
+  // (la barre de vie et la bulle restent)
+  drawOverlay(ctx, px, py, s, selfId, sansNom = false) {
     if (this.kind === KIND.DROP || this.state === ST.DEAD) return;
     const top = (this.topY ?? (py - 100 * s)) - 8;
     const isNpc = this.kind === KIND.NPC;
     const isPlayer = this.kind === KIND.PLAYER;
     const isSelf = this.id === selfId;
-    // préférences d'affichage (panneau Paramètres)
-    const showName = isNpc ? true
-      : isPlayer ? (isSelf ? settings.showSelfName : settings.showPlayerNames)
-      : settings.showMobNames;
-    const showLevel = isPlayer ? settings.showPlayerLevels : settings.showMobLevels;
-    if (showName) {
-      const name = (isNpc || !showLevel)
-        ? this.meta.name
-        : `${this.meta.name} [${this.level || this.meta.level}]`;
+    const name = sansNom ? null : this.nomPlaque(selfId);
+    if (name) {
       ctx.font = `bold ${Math.max(11, 13 * s)}px "Trebuchet MS", sans-serif`;
       ctx.textAlign = 'center';
       ctx.lineWidth = 3;
