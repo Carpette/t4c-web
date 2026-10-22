@@ -40,6 +40,8 @@ export function ChatController() {
       initDictation((text) => {
         uiStore.chat.input = (uiStore.chat.input ? uiStore.chat.input + ' ' : '') + text;
         document.getElementById('chat-input')?.focus();
+      }, (erreur) => {
+        globalBus.emit('net:chat-received', { from: 'sys', text: `Dictée vocale indisponible : ${erreur}. Cliquez sur le micro pour réessayer.` });
       });
       resumeIfAccepted(); // déjà consenti : rechargé en silence (cache navigateur)
       // push-to-talk : V maintenue (hors saisie de texte)

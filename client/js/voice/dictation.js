@@ -31,9 +31,11 @@ export const voice = reactive({
 let worker = null;
 let media = null;        // { ctx, stream, source, node, chunks }
 let onText = null;       // callback(texte) fourni par le chat
+let onError = null;      // callback(message) : l'erreur est dite au joueur
 
-export function initDictation(cb) {
+export function initDictation(cb, cbErreur) {
   onText = cb;
+  onError = cbErreur;
   log('init — supported:', voice.supported,
     '| SharedArrayBuffer:', typeof SharedArrayBuffer !== 'undefined',
     '| WebGPU:', typeof navigator !== 'undefined' && 'gpu' in navigator,
@@ -43,6 +45,8 @@ export function initDictation(cb) {
 // ---- consentement : ouvre la question ; accept/refuse depuis la modale ----
 export function askConsent() {
   if (!voice.supported) return;
+  // déjà accepté (échec précédent) : on retente sans redemander
+  if (LS.getItem('t4c:voice') === 'accepted') { acceptModel(); return; }
   voice.state = 'asking';
 }
 export function refuseModel() {
@@ -60,11 +64,13 @@ export async function acceptModel() {
   // Si RIEN ne suit ce log : le worker n'a pas démarré (onglet Réseau ->
   // whisper-worker.js en 404 ? erreur d'import module dans la console ?).
   log('téléchargement/chargement du modèle demandé…');
+  if (worker) worker.terminate();
   worker = new Worker(new URL('./whisper-worker.js', import.meta.url), { type: 'module' });
   worker.onerror = (e) => {
     voice.state = 'error';
     voice.error = e.message || 'worker en erreur';
     log('ERREUR worker.onerror :', e.message, '—', e.filename, ':', e.lineno);
+    onError?.(voice.error);
   };
   const totals = {};
   worker.onmessage = (e) => {
@@ -76,7 +82,7 @@ export async function acceptModel() {
       voice.progress = total ? Math.round(100 * loaded / total) : 0;
     } else if (m.type === 'ready') {
       voice.state = 'ready';
-      log('prêt — le micro est chaud (V maintenue pour dicter)');
+      log('prêt (' + m.device + ') — le micro est chaud (V maintenue pour dicter)');
     } else if (m.type === 'text') {
       voice.state = 'ready';
       log(`transcription (${m.ms | 0} ms) : « ${m.text} »`);
@@ -91,6 +97,7 @@ export async function acceptModel() {
       //  - « no available backend found » : le .wasm vendorisé ne charge pas
       //    (404 sur /js/vendor/transformers/ort-*.wasm ? mauvais MIME ?).
       console.error('[dictée]', m.error);
+      onError?.(m.error);
     }
   };
   worker.postMessage({ type: 'load', webgpu: 'gpu' in navigator });
