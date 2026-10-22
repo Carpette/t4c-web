@@ -157,7 +157,7 @@ export function SpellsTableController(api) {
         this.sorts = brut.spells.map(s => JSON.parse(JSON.stringify(s)));
         this.selection = this.selection.filter(id => origine[id]);
         this.dire('');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     async enregistrer() {
@@ -166,9 +166,9 @@ export function SpellsTableController(api) {
         await api('/api/admin/content/spells', 'POST', { ...brut, spells: sorts });
         const n = this.nbModifies;
         await this.charger();
-        this.dire(`✔ ${n} sort(s) enregistré(s), appliqué à chaud.`);
+        this.dire(`${n} sort(s) enregistré(s), appliqué à chaud.`);
         window.dispatchEvent(new CustomEvent('t4c:contenu', { detail: { nom: 'spells', source: 'tableau' } }));
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     exporter() {

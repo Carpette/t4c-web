@@ -23,18 +23,18 @@
   <div class="flex flex-wrap gap-6">
     <!-- ================= ÉTAPE 1 — CIBLE ================= -->
     <div class="flex-1 min-w-[380px] max-w-[520px]">
-      <h2 class="text-xl text-t4c-gold mb-2">① Cible</h2>
+      <h2 class="text-xl text-t4c-gold mb-2">1. Cible</h2>
       <div class="flex gap-1 mb-2" id="at2-sections">
-        <button data-sec="items"  @click="setSection('items')"  class="at2-sec flex-1">🗡 Objets</button>
-        <button data-sec="mobs"   @click="setSection('mobs')"   class="at2-sec flex-1">🐺 Créatures</button>
-        <button data-sec="spells" @click="setSection('spells')" class="at2-sec flex-1">✨ Sorts</button>
-        <button data-sec="npcs"   @click="setSection('npcs')"   class="at2-sec flex-1">👤 PNJ</button>
+        <button data-sec="items"  @click="setSection('items')"  class="at2-sec flex-1">Objets</button>
+        <button data-sec="mobs"   @click="setSection('mobs')"   class="at2-sec flex-1">Créatures</button>
+        <button data-sec="spells" @click="setSection('spells')" class="at2-sec flex-1">Sorts</button>
+        <button data-sec="npcs"   @click="setSection('npcs')"   class="at2-sec flex-1">PNJ</button>
       </div>
       <input id="at2-search" placeholder="Filtrer…" @input="renderList()"
         class="w-full bg-t4c-input-bg border border-t4c-input-border rounded-md px-3 py-2 mb-2 text-t4c-text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-t4c-button">
       <div id="at2-list" class="max-h-[380px] overflow-y-auto rounded-md border border-t4c-input-border bg-t4c-input-bg"></div>
       <div class="toolbar mt-2 flex items-center gap-2">
-        <button @click="saveSkins" class="flex-1 px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">💾 Enregistrer les assignations</button>
+        <button @click="saveSkins" class="flex-1 px-4 py-2 bg-t4c-success hover:bg-green-600 text-white font-bold rounded-md">Enregistrer les assignations</button>
       </div>
 
       <!-- fiche de l'entité sélectionnée -->
@@ -51,7 +51,7 @@
           placeholder="Silhouette, matières, couleurs dominantes, posture, signes distinctifs…"
           class="w-full bg-t4c-main-bg border border-t4c-input-border rounded-md p-2 text-t4c-text-light text-sm"></textarea>
         <div class="flex items-center gap-2 mt-1">
-          <button @click="saveDesc" class="px-3 py-1 text-sm">💾 Fiche</button>
+          <button @click="saveDesc" class="px-3 py-1 text-sm">Fiche</button>
           <span id="at2-desc-msg" class="text-green-400 text-xs"></span>
         </div>
       </div>
@@ -59,7 +59,7 @@
 
     <!-- ================= ÉTAPES 2 & 3 ================= -->
     <div class="flex-[1.4] min-w-[460px]">
-      <h2 class="text-xl text-t4c-gold mb-2">② Prompt <span class="text-sm text-gray-400 font-normal">(calibré Nano Banana / Gemini)</span></h2>
+      <h2 class="text-xl text-t4c-gold mb-2">2. Prompt <span class="text-sm text-gray-400 font-normal">(calibré Nano Banana / Gemini)</span></h2>
 
       <div class="p-3 rounded-md border border-t4c-input-border bg-t4c-input-bg space-y-3">
         <div class="flex flex-wrap items-center gap-4">
@@ -98,8 +98,8 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <button @click="buildPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">🧠 Générer le prompt</button>
-          <button @click="copyPrompt" class="px-3 py-2">📋 Copier</button>
+          <button @click="buildPrompt" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">Générer le prompt</button>
+          <button @click="copyPrompt" class="px-3 py-2">Copier</button>
           <span id="skin-prompt-msg" class="text-green-400 text-sm"></span>
         </div>
         <textarea id="skin-prompt" spellcheck="false" rows="10"
@@ -109,7 +109,7 @@
         <div id="at2-history" class="flex flex-wrap gap-1"></div>
       </div>
 
-      <h2 class="text-xl text-t4c-gold mt-5 mb-2">③ Import &amp; contrôle</h2>
+      <h2 class="text-xl text-t4c-gold mt-5 mb-2">3. Import &amp; contrôle</h2>
       <div class="p-3 rounded-md border border-t4c-input-border bg-t4c-input-bg space-y-3">
         <div id="at2-drop" class="border-2 border-dashed border-t4c-border rounded-md p-6 text-center text-gray-400 cursor-pointer hover:border-t4c-button-active">
           Dépose l'image générée ici, ou clique pour choisir un fichier
@@ -118,16 +118,16 @@
 
         <div class="flex flex-wrap items-center gap-4 text-sm">
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" id="skin-chroma" checked> 🟩 Fond → transparent
+            <input type="checkbox" id="skin-chroma" checked> Fond → transparent
           </label>
           <label class="flex items-center gap-2">tolérance
             <input type="range" id="skin-chroma-tol" min="20" max="180" value="90" class="w-28" @input="refreshPreview()">
           </label>
           <label class="flex items-center gap-2 cursor-pointer" id="at2-realign-wrap">
-            <input type="checkbox" id="skin-realign" checked> ♻ Recaler les frames (grille IA)
+            <input type="checkbox" id="skin-realign" checked> Recaler les frames (grille IA)
           </label>
           <label class="flex items-center gap-2 cursor-pointer" id="at2-resize-wrap">
-            <input type="checkbox" id="skin-resize" checked> 📐 Redimensionner à
+            <input type="checkbox" id="skin-resize" checked> Redimensionner à
             <input id="skin-item-size" value="96" class="w-14 bg-t4c-main-bg border border-t4c-input-border rounded px-1 py-0.5"> px
           </label>
         </div>
@@ -158,7 +158,7 @@
                   <option value="3">NE</option><option value="4">E</option><option value="5">SE</option>
                   <option value="6" selected>S</option><option value="7">SO</option>
                 </select>
-                <button @click="toggleAnim" id="at2-anim-play">▶</button>
+                <button @click="toggleAnim" id="at2-anim-play">Lire</button>
               </div>
             </div>
             <div id="at2-iconbox" class="hidden text-center">
@@ -171,8 +171,8 @@
             </div>
           </div>
           <div class="toolbar flex items-center gap-2 mt-3">
-            <button @click="importCurrent" id="at2-import" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">⬆ Importer et assigner à la cible</button>
-            <span class="text-xs text-gray-400">puis « Enregistrer les assignations » (étape ①)</span>
+            <button @click="importCurrent" id="at2-import" class="px-4 py-2 bg-t4c-button hover:bg-t4c-button-hover font-bold rounded-md">Importer et assigner à la cible</button>
+            <span class="text-xs text-gray-400">puis « Enregistrer les assignations » (étape 1)</span>
           </div>
         </div>
       </div>

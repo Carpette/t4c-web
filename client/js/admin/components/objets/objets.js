@@ -123,14 +123,14 @@ export function ObjetsController(api) {
         this.fichier = { ...this.fichier, items };
         await chargerSurcharges();
         this.rafraichirListe();
-        this.dire(`✔ ${succes} ${r.note || ''}`);
+        this.dire(`${succes} ${r.note || ''}`);
         return true;
-      } catch (e) { this.dire('✘ ' + e.message, true); return false; }
+      } catch (e) { this.dire(e.message, true); return false; }
     },
 
     async enregistrer() {
       const id = this.nouveau ? this.nouvelId.trim() : this.courant;
-      if (this.nouveau && ITEMS[id]) { this.dire(`✘ L’identifiant « ${id} » existe déjà.`, true); return; }
+      if (this.nouveau && ITEMS[id]) { this.dire(`L’identifiant « ${id} » existe déjà.`, true); return; }
       const items = { ...surcharges };
       const s = difference(copie(this.fiche), ORIGINE_ITEMS[id]);
       if (Object.keys(s).length) items[id] = s; else delete items[id];
@@ -154,7 +154,7 @@ export function ObjetsController(api) {
 
     async init() {
       try { this.fichier = await api('/api/admin/content/objets'); surcharges = this.fichier.items || {}; }
-      catch (e) { this.dire('✘ ' + e.message, true); this.fichier = { items: {} }; }
+      catch (e) { this.dire(e.message, true); this.fichier = { items: {} }; }
       const res = await chargerRessources().catch(() => null);
       this.lootCles = res ? Object.keys(res.manifest.loot).sort() : [];
       try {

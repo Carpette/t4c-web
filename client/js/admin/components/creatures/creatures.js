@@ -109,14 +109,14 @@ export function CreaturesController(api) {
         this.fichier = { ...this.fichier, mobs };
         await chargerSurcharges();   // MOBS de l'admin à jour (autres écrans compris)
         this.rafraichirListe();
-        this.dire(`✔ ${succes} ${r.note || ''}`);
+        this.dire(`${succes} ${r.note || ''}`);
         return true;
-      } catch (e) { this.dire('✘ ' + e.message, true); return false; }
+      } catch (e) { this.dire(e.message, true); return false; }
     },
 
     async enregistrer() {
       const id = this.nouveau ? this.nouvelId.trim() : this.courant;
-      if (this.nouveau && MOBS[id]) { this.dire(`✘ L’identifiant « ${id} » existe déjà.`, true); return; }
+      if (this.nouveau && MOBS[id]) { this.dire(`L’identifiant « ${id} » existe déjà.`, true); return; }
       const fiche = copie(this.fiche);
       const mobs = { ...surcharges };
       const s = difference(fiche, ORIGINE_MOBS[id]);
@@ -141,7 +141,7 @@ export function CreaturesController(api) {
 
     async init() {
       try { this.fichier = await api('/api/admin/content/creatures'); surcharges = this.fichier.mobs || {}; }
-      catch (e) { this.dire('✘ ' + e.message, true); this.fichier = { mobs: {} }; }
+      catch (e) { this.dire(e.message, true); this.fichier = { mobs: {} }; }
       const res = await chargerRessources().catch(() => null);
       this.sprites = res ? Object.keys(res.manifest.enemies).sort() : [];
       this.skins = res?.skins.mobs || {};

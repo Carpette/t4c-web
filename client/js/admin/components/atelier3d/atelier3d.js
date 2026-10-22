@@ -101,11 +101,11 @@ export function Atelier3DController(api) {
         this.preparer();
         this.majClips();
         this.charge = true;
-        this.dire(`✔ Modèle chargé (${m.clips.length} animation(s)).`);
+        this.dire(`Modèle chargé (${m.clips.length} animation(s)).`);
         setTimeout(() => this.apercu(), 0);
         this.boucle();
       } catch (e) {
-        this.dire('✘ Chargement impossible : ' + e.message, true);
+        this.dire('Chargement impossible : ' + e.message, true);
       } finally {
         this.occupe = false;
       }
@@ -148,9 +148,9 @@ export function Atelier3DController(api) {
       try {
         await this.moteur().ajouterAnimations(modele, '/src3d/' + this.lib);
         this.majClips();
-        this.dire(`✔ Animations ajoutées (${modele.clips.length} au total).`);
+        this.dire(`Animations ajoutées (${modele.clips.length} au total).`);
       } catch (e) {
-        this.dire('✘ Bibliothèque illisible : ' + e.message, true);
+        this.dire('Bibliothèque illisible : ' + e.message, true);
       } finally {
         this.occupe = false; this.lib = '';
       }
@@ -207,7 +207,7 @@ export function Atelier3DController(api) {
           const { canvas, cfg } = await B.cuireCreature(this.moteur(), modele, clips, { progres: p => { this.progres = p; } });
           cfg.name = 'a3d_' + nom;
           const r = await api('/api/admin/skins/enemy', 'POST', { cfg, data: B.versBase64(canvas) });
-          let txt = `✔ Planche « ${r.sprite} » publiée (${canvas.width}×${canvas.height} px, ${r.anims.join(', ')}).`;
+          let txt = `Planche « ${r.sprite} » publiée (${canvas.width}×${canvas.height} px, ${r.anims.join(', ')}).`;
           if (this.mob) {
             const cur = await api('/api/admin/skins');
             const map = { items: {}, mobs: {}, spells: {}, npcs: {}, ...(cur.map || {}) };
@@ -220,10 +220,10 @@ export function Atelier3DController(api) {
           const { canvas, tiles, names } = B.cuireDecor(this.moteur(), modele);
           const types = Object.fromEntries(Object.keys(tiles).map(k => [k, 'objet']));
           const r = await api('/api/admin/tiles', 'POST', { name: nom, kind: 'objet', data: B.versBase64(canvas), tiles, types, names });
-          this.dire(`✔ Décor « ${r.tileset} » publié (${r.frames} orientations). Rechargez l'admin (F5) : palette, thème « Décors 3D (atelier) ».`);
+          this.dire(`Décor « ${r.tileset} » publié (${r.frames} orientations). Rechargez l'admin (F5) : palette, thème « Décors 3D (atelier) ».`);
         }
       } catch (e) {
-        this.dire('✘ Publication refusée : ' + e.message, true);
+        this.dire('Publication refusée : ' + e.message, true);
       } finally {
         this.occupe = false; this.progres = null;
       }

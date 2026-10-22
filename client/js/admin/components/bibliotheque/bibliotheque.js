@@ -88,7 +88,7 @@ export function BibliothequeController(api) {
 
   return {
     TYPES,
-    ressources: [], type: null, q: '', inutilisees: false, limite: PAGE, courant: null, chargement: true, message: '', info: '',
+    ressources: [], type: null, q: '', inutilisees: false, limite: PAGE, courant: null, chargement: true, message: '', info: '', infoErreur: false,
 
     get filtres() {
       return [{ id: null, nom: 'Toutes', n: this.ressources.length },
@@ -110,23 +110,23 @@ export function BibliothequeController(api) {
     get jeu() { return this.fiche?.type === 'materiau' ? JEU_MATERIAU[this.fiche.cle.match(MATERIAU)?.[1]] || '' : ''; },
     get modifiable() { return !!this.fiche && this.fiche.type !== 'modele'; },
 
-    ouvrir(id) { this.courant = id; this.info = ''; this.apercu(); },
+    ouvrir(id) { this.courant = id; this.info = ''; this.infoErreur = false; this.apercu(); },
     // remplace l'image (mêmes dimensions, vérifiées par le serveur)
     async remplacer(e) {
       const f = e.target.files?.[0]; e.target.value = '';
       if (!f || !this.fiche) return;
       try {
         const r = await api('/api/admin/bibliotheque/remplacer', 'POST', { type: this.fiche.type, cle: this.fiche.cle, data: await lireB64(f) });
-        this.info = '✔ ' + r.note; this.message = '';
+        this.info = r.note; this.infoErreur = false; this.message = '';
         await this.recharger(this.courant);
-      } catch (err) { this.info = '✘ ' + err.message; }
+      } catch (err) { this.info = err.message; this.infoErreur = true; }
     },
     async dupliquer() {
       try {
         const r = await api('/api/admin/bibliotheque/dupliquer', 'POST', { type: this.fiche.type, cle: this.fiche.cle });
         await this.recharger(`${this.fiche.type}:${r.cle}`);
-        this.info = `✔ Copie créée : ${r.cle}. Retouchez-la dans l’atelier.`;
-      } catch (err) { this.info = '✘ ' + err.message; }
+        this.info = `Copie créée : ${r.cle}. Retouchez-la dans l’atelier.`; this.infoErreur = false;
+      } catch (err) { this.info = err.message; this.infoErreur = true; }
     },
     async recharger(id) {
       oublierRessources();
@@ -264,7 +264,7 @@ export function BibliothequeController(api) {
         } catch { /* sources 3D indisponibles */ }
         this.ressources = res;
         this.courant = res[0]?.id || null;
-      } catch (e) { this.message = '✘ ' + e.message; }
+      } catch (e) { this.message = e.message; }
       this.chargement = false;
       this.peindre(); this.apercu();
     },

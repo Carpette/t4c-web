@@ -91,7 +91,7 @@ export function buildPalette({ container, assets, onSelect }) {
 
   // --- recherche ---
   const search = el('input', 'pal-search');
-  search.placeholder = '🔍 filtrer (arbre, mur, pont...)';
+  search.placeholder = 'Filtrer (arbre, mur, pont…)';
   header.appendChild(search);
 
   // --- options de pose (props) ---
@@ -220,7 +220,7 @@ export function buildPalette({ container, assets, onSelect }) {
     const row = el('div', 'pal-row');
     if (def.random && def.variants.length > 1) {
       row.appendChild(makeChip(
-        { label: `${def.label} — variante aléatoire`, glyph: '🎲', color: '#ffd24a' },
+        { label: `${def.label} — variante aléatoire`, glyph: '?', color: '#ffd24a' },
         () => ({ kind: 'prop', type, v: null }),
         (cur) => cur.kind === 'prop' && cur.type === type && cur.v == null,
       ));

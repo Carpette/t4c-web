@@ -51,7 +51,8 @@ export function MapEditorController(api) {
           console.error("MapEditor: Failed to initialize:", e);
           const msgEl = document.getElementById('map-msg');
           if (msgEl) {
-            msgEl.textContent = '✘ Failed to initialize map editor: ' + e.message;
+            msgEl.textContent = 'Échec du chargement de l’éditeur de carte : ' + e.message;
+            msgEl.classList.replace('text-green-400', 'text-red-400');
           }
         }
       }, 0);

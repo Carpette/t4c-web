@@ -68,7 +68,7 @@ export function ContentController(api) {
     async voirDifferences() {
       this.vue = 'diff';
       try { this.reference = await api(`/api/admin/content/${this.courant}/reference`); }
-      catch (e) { this.reference = null; this.dire('✘ ' + e.message, true); }
+      catch (e) { this.reference = null; this.dire(e.message, true); }
     },
 
     dire(t, err = false) { this.message = t; this.erreur = err; },
@@ -86,7 +86,7 @@ export function ContentController(api) {
         this.texte = this.original = JSON.stringify(await api(`/api/admin/content/${this.courant}`), null, 2);
         this.ligne = this.colonne = 1;
         this.dire('');
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     formater() { if (this.valide) this.texte = JSON.stringify(this.analyse.data, null, 2); },
@@ -96,9 +96,9 @@ export function ContentController(api) {
       try {
         const r = await api(`/api/admin/content/${this.courant}`, 'PUT', this.analyse.data);
         this.original = this.texte;
-        this.dire('✔ Enregistré. ' + (r.note || ''));
+        this.dire('Enregistré. ' + (r.note || ''));
         if (this.vue === 'diff') await this.voirDifferences();
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     curseur(e) {

@@ -20,9 +20,9 @@ const ZOMBIE = 'zombie_by_quaternius/Zombie by @Quaternius/';
 
 export const CATALOGUE3D = [
   ['Personnages (avatar / PNJ)', 'creature', [
-    { nom: 'UBC Superhero ♂ + UAL', url: 'universal_base_characters/Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
-    { nom: 'Outfit Rôdeur ♂', url: OUT + 'Male_Ranger.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
-    { nom: 'Outfit Paysanne ♀', url: OUT + 'Female_Peasant.gltf', anims: UAL, h: 1.7, clip: '^Idle_Loop$' },
+    { nom: 'UBC Superhero (homme) + UAL', url: 'universal_base_characters/Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
+    { nom: 'Outfit Rôdeur (homme)', url: OUT + 'Male_Ranger.gltf', anims: UAL, h: 1.8, clip: '^Idle_Loop$' },
+    { nom: 'Outfit Paysanne (femme)', url: OUT + 'Female_Peasant.gltf', anims: UAL, h: 1.7, clip: '^Idle_Loop$' },
   ]],
   ['Créatures', 'creature', [
     { nom: 'Zombie (FBX)', url: ZOMBIE + 'FBX/Zombie.fbx', texture: ZOMBIE + 'Blends/ZombieTexture.png', h: 1.8, clip: 'ZombieIdle' },

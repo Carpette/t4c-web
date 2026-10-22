@@ -164,19 +164,19 @@ export function SpellsEditorController(api) {
         fichier = { ...fichier, spells: sorts };
         this.sorts = sorts;
         window.dispatchEvent(new CustomEvent('t4c:contenu', { detail: { nom: 'spells', source: 'fiche' } }));
-        this.dire('✔ ' + succes);
+        this.dire(succes);
         return true;
-      } catch (e) { this.dire('✘ ' + e.message, true); return false; }
+      } catch (e) { this.dire(e.message, true); return false; }
     },
 
     async enregistrer() {
       const f = copie(this.fiche);
       f.id = String(f.id || '').trim();
       if (!String(f.cooldown ?? '').trim()) delete f.cooldown; // repli : cast / castMin / castStep
-      if (!/^[a-z0-9_]{1,60}$/.test(f.id)) { this.dire('✘ Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
-      if (this.nouveau && this.sorts.some(s => s.id === f.id)) { this.dire(`✘ L’identifiant « ${f.id} » existe déjà.`, true); return; }
-      if (!f.name?.trim()) { this.dire('✘ Le nom est obligatoire.', true); return; }
-      if (f.cooldown && this.courbe?.erreur) { this.dire('✘ La formule de recharge n’est pas valide.', true); return; }
+      if (!/^[a-z0-9_]{1,60}$/.test(f.id)) { this.dire('Identifiant : minuscules, chiffres et _ uniquement.', true); return; }
+      if (this.nouveau && this.sorts.some(s => s.id === f.id)) { this.dire(`L’identifiant « ${f.id} » existe déjà.`, true); return; }
+      if (!f.name?.trim()) { this.dire('Le nom est obligatoire.', true); return; }
+      if (f.cooldown && this.courbe?.erreur) { this.dire('La formule de recharge n’est pas valide.', true); return; }
       const sorts = this.nouveau ? [...this.sorts, f] : this.sorts.map(s => s.id === this.courant ? f : s);
       if (await this.ecrire(sorts, `${f.name} enregistré.`)) {
         const m = this.message; this.nouveau = false; reference = null; this.ouvrir(f.id); this.dire(m);
@@ -252,7 +252,7 @@ export function SpellsEditorController(api) {
       try {
         fichier = await api('/api/admin/content/spells');
         this.sorts = fichier.spells || [];
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
       try { fx = (await api('/api/admin/content/particles')).particles || []; } catch { fx = []; }
       const familles = {};
       for (const p of fx) (familles[p.id.includes('_') ? p.id.split('_')[0] : 'divers'] ||= []).push(p);

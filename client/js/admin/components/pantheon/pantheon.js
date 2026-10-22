@@ -56,7 +56,7 @@ export function PantheonController(api) {
       if (!remplacer && !confirm(`Rendre ${d.name} (niveau ${d.level}) à son compte, tel qu’il était à sa mort ?`)) return;
       try {
         await api(`/api/admin/pantheon/${d.id}/restaurer`, 'POST', { remplacer });
-        this.info = `✔ ${d.name} restauré : le joueur le retrouve à sa prochaine connexion.`; this.erreur = '';
+        this.info = `${d.name} restauré : le joueur le retrouve à sa prochaine connexion.`; this.erreur = '';
         await this.charger();
       } catch (e) {
         // le compte s'est réincarné : on ne remplace qu'après confirmation

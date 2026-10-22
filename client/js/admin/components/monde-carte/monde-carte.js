@@ -390,10 +390,10 @@ export function MondeCarteController(api) {
         modif(o);
         await api(`/api/admin/overrides/${this.zoneId}`, 'PUT', o);
         ov = o; this.lireOv();
-        this.dire('✔ ' + succes);
+        this.dire(succes);
         await this.rafraichir();
         return true;
-      } catch (e) { this.dire('✘ ' + e.message, true); return false; }
+      } catch (e) { this.dire(e.message, true); return false; }
     },
     npcsDe(o) {
       if (!o.npcs || typeof o.npcs !== 'object') o.npcs = {};
@@ -488,10 +488,10 @@ export function MondeCarteController(api) {
     async agir(action, corps = {}, succes = '') {
       try {
         const r = await api(`/api/admin/monde/joueur/${this.choix.id}`, 'POST', { action, ...corps });
-        this.dire('✔ ' + succes);
+        this.dire(succes);
         await this.rafraichir();
         return r;
-      } catch (e) { this.dire('✘ ' + e.message, true); return null; }
+      } catch (e) { this.dire(e.message, true); return null; }
     },
     async appliquerEtat() {
       const corps = {};
@@ -527,8 +527,8 @@ export function MondeCarteController(api) {
       if (!this.point) { this.dire('Cliquez d’abord un point de la carte.', true); return; }
       try {
         await api('/api/admin/teleport', 'POST', { zoneId: this.zoneId, x: this.point.x, z: this.point.z });
-        this.dire(`✔ Votre personnage est à ${Math.round(this.point.x)}, ${Math.round(this.point.z)}.`);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+        this.dire(`Votre personnage est à ${Math.round(this.point.x)}, ${Math.round(this.point.z)}.`);
+      } catch (e) { this.dire(e.message, true); }
     },
     async voirJournal() { this.onglet = 'journal'; await this.chargerJournal(); },
 
@@ -551,7 +551,7 @@ export function MondeCarteController(api) {
         assets = await loadAssets();
         this.brancher();
         if (this.zones.length) await this.changerZone(this.zones[0].id);
-      } catch (e) { this.dire('✘ ' + e.message, true); this.chargement = false; }
+      } catch (e) { this.dire(e.message, true); this.chargement = false; }
       this.image();
       setInterval(() => { if (visible()) this.rafraichir(); }, RAFRAICHIR_MS);
       recepteur = async () => {
@@ -560,7 +560,7 @@ export function MondeCarteController(api) {
         if (d.joueur == null) {
           // zone omise : celle affichée
           if (d.zoneId != null && d.zoneId !== this.zoneId) {
-            if (!this.zones.some(z => z.id === d.zoneId)) { this.dire(`✘ Zone ${d.zoneId} inconnue.`, true); return; }
+            if (!this.zones.some(z => z.id === d.zoneId)) { this.dire(`Zone ${d.zoneId} inconnue.`, true); return; }
             await this.changerZone(d.zoneId);
           }
           this.choix = null; this.point = { x: d.x, z: d.z };

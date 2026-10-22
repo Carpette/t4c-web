@@ -186,9 +186,9 @@ export function ConsoleController(api) {
     async agir(p, action, ok) {
       try {
         await api(`/api/admin/monde/joueur/${p.id}`, 'POST', { action });
-        this.aviser('✔ ' + ok);
+        this.aviser(ok);
         this.joueurs();
-      } catch (e) { this.aviser('✘ ' + e.message, true); }
+      } catch (e) { this.aviser(e.message, true); }
     },
 
     executer(r) {

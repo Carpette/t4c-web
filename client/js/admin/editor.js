@@ -57,7 +57,61 @@ const LIGHT_R_MIN = 60, LIGHT_R_MAX = 900;
 // calques coffres / points spéciaux : teintes et icônes
 const CHEST_COLOR = '#ffae42';   // teinte du calque coffres (ambre)
 const MARKER_COLORS = { spawn: '#4dff8a', exit: '#ff6a6a', teleport: '#5ab9ff' };
-const MARKER_GLYPHS = { spawn: '⚑', exit: '⮌', teleport: '✦' };
+// Pictogrammes des calques, dessinés au trait (aucun emoji : leur rendu
+// dépend du système). (x, y) = centre, r = demi-taille, couleur du trait.
+const PICTOS = {
+  lumiere(ctx, r) {           // ampoule : disque et rayons
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      ctx.moveTo(Math.cos(a) * r * 0.65, Math.sin(a) * r * 0.65);
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.stroke();
+  },
+  feu(ctx, r) {               // flamme
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.bezierCurveTo(r * 0.9, -r * 0.1, r * 0.8, r, 0, r);
+    ctx.bezierCurveTo(-r * 0.8, r, -r * 0.9, -r * 0.1, 0, -r);
+    ctx.fill();
+  },
+  personne(ctx, r) {          // tête et épaules
+    ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, r * 0.75, r * 0.65, Math.PI, 0); ctx.fill();
+  },
+  coffre(ctx, r) {            // caisse et couvercle
+    ctx.strokeRect(-r * 0.75, -r * 0.45, r * 1.5, r * 1.1);
+    ctx.beginPath(); ctx.moveTo(-r * 0.75, -r * 0.05); ctx.lineTo(r * 0.75, -r * 0.05); ctx.stroke();
+    ctx.fillRect(-r * 0.12, -r * 0.2, r * 0.24, r * 0.3);
+  },
+  drapeau(ctx, r) {           // apparition
+    ctx.beginPath(); ctx.moveTo(-r * 0.5, r); ctx.lineTo(-r * 0.5, -r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.5, -r); ctx.lineTo(r * 0.7, -r * 0.55); ctx.lineTo(-r * 0.5, -r * 0.1); ctx.fill();
+  },
+  sortie(ctx, r) {            // flèche de retour
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.65, -Math.PI * 0.9, Math.PI * 0.6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.95, -r * 0.55); ctx.lineTo(-r * 0.45, -r * 0.1); ctx.lineTo(-r * 0.25, -r * 0.75); ctx.fill();
+  },
+  etoile(ctx, r) {            // téléport
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4 - Math.PI / 2, d = i % 2 ? r * 0.35 : r;
+      ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d);
+    }
+    ctx.closePath(); ctx.fill();
+  },
+};
+function picto(ctx, nom, x, y, r, couleur) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = ctx.strokeStyle = couleur;
+  ctx.lineWidth = Math.max(1.2, r * 0.18);
+  ctx.lineCap = 'round';
+  PICTOS[nom]?.(ctx, r);
+  ctx.restore();
+}
+const MARKER_PICTOS = { spawn: 'drapeau', exit: 'sortie', teleport: 'etoile' };
 const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'téléport' };
 
 export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], skills = [], musicFiles = [], musicGroups = [] }) {
@@ -66,7 +120,13 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   const ctx = canvas.getContext('2d');
   const mini = $('map-mini');
   const mctx = mini.getContext('2d');
-  const msg = (t) => { $('map-msg').textContent = t; };
+  // message d'état : vert, ou rouge pour une erreur
+  const msg = (t, erreur = false) => {
+    const el = $('map-msg');
+    el.textContent = t;
+    el.classList.toggle('text-red-400', erreur);
+    el.classList.toggle('text-green-400', !erreur);
+  };
   const W = () => canvas.width, H = () => canvas.height;
   // la carte occupe toute la largeur disponible (fenêtre, colonne d'outils
   // redimensionnée) : la résolution du canevas suit sa taille affichée
@@ -518,7 +578,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
       return;
     }
-    // pose armée (➕ Camp / ➕ PNJ / ➕ Zone musicale / ➕ Coffre / ➕ Point / ➕ Ambiance / ➕ Lumière / Tester ici)
+    // pose armée (+ Camp / + PNJ / + Zone musicale / + Coffre / + Point / + Ambiance / + Lumière / Tester ici)
     if (pendingPlace) {
       if (pendingPlace === 'music') strokeRing(hover.x, hover.z, view.z * (MUSIC_DEFAULT_W / 2), MUSIC_COLOR);
       else if (pendingPlace === 'ambience') strokeRing(hover.x, hover.z, view.z * (AMBIENCE_DEFAULT_W / 2), AMBIENCE_COLOR);
@@ -695,7 +755,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   }
   function musicLabel(m) {
     let name;
-    if (m.track?.group) name = `🎵 ${m.track.group}`; // référence de groupe
+    if (m.track?.group) name = `groupe ${m.track.group}`; // référence de groupe
     else {
       const f = m.track?.new || m.track?.legacy;
       name = f ? f.replace(/\.(mp3|ogg)$/i, '') : '(silence)';
@@ -938,10 +998,11 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       const e = w2s(l.x + lightTileRadius(l.r), l.z);
       ctx.fillStyle = LIGHT_COLOR;
       ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();
-      // ampoule au centre
-      ctx.font = `${Math.max(12, view.z)}px sans-serif`;
-      ctx.textAlign = 'center';
-      labelText(s.x, s.y + view.z * 0.3, l.flicker ? '🔥' : '💡', LIGHT_COLOR);
+      // ampoule (ou flamme vacillante) au centre, sur pastille sombre
+      const rp = Math.max(6, view.z * 0.45);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, rp * 1.25, 0, Math.PI * 2); ctx.fill();
+      picto(ctx, l.flicker ? 'feu' : 'lumiere', s.x, s.y, rp, LIGHT_COLOR);
     }
   }
   // Aperçu jour/nuit dans l'éditeur : reproduit l'éclairage du jeu sur le canvas
@@ -1037,7 +1098,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             real.flicker = flickInput.checked;
             refreshEditLayers();
             closePanel();
-            msg('✔ Lumière réglée — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Lumière réglée — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1104,7 +1165,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             real.priority = prioInput.value | 0;
             refreshEditLayers();
             closePanel();
-            msg('✔ Zone d\'ambiance modifiée — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Zone d\'ambiance modifiée — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1186,10 +1247,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#10202a';
       ctx.stroke();
-      ctx.font = `${Math.max(9, r * 1.2)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#10202a';
-      ctx.fillText('☻', s.x, s.y + r * 0.45);
+      picto(ctx, 'personne', s.x, s.y, r * 0.75, '#10202a');
       labelText(s.x, s.y - r - 5, n.def.name || n.npcId, color);
     }
   }
@@ -1326,7 +1384,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   function panelTitle(text) {
     return h('div', { className: 'edit-panel-title' },
       h('b', { textContent: text }),
-      h('button', { textContent: '✕', onclick: closePanel }));
+      h('button', { textContent: '×', title: 'Fermer', ariaLabel: 'Fermer', onclick: closePanel }));
   }
 
   // Sélecteur FILTRABLE réutilisable : un champ de recherche + un <select> dont
@@ -1361,7 +1419,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         num.onchange = () => { m[1] = Math.max(1, num.value | 0); };
         rows.append(h('div', { className: 'edit-dlg' }, fs.wrap,
           h('div', { className: 'edit-row' }, 'n ', num,
-            h('button', { textContent: '✕', onclick: () => { mobs.splice(i, 1); renderRows(); } }))));
+            h('button', { textContent: '×', title: 'Retirer', ariaLabel: 'Retirer', onclick: () => { mobs.splice(i, 1); renderRows(); } }))));
       });
     };
     renderRows();
@@ -1383,7 +1441,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             real.mobs = Object.fromEntries(mobs.filter(([d, n]) => MOBS[d] && n > 0));
             refreshEditLayers();
             closePanel();
-            msg('✔ Camp modifié — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Camp modifié — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1567,7 +1625,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         rpt.onchange = () => { dlg.repeatable = rpt.checked || undefined; };
         dlgBox.append(h('div', { className: 'edit-dlg' },
           h('div', { className: 'edit-row' }, h('b', { textContent: `Dialogue ${i + 1}` }),
-            h('button', { textContent: '✕', onclick: () => { dialogues.splice(i, 1); renderDialogues(); } })),
+            h('button', { textContent: '×', title: 'Retirer', ariaLabel: 'Retirer', onclick: () => { dialogues.splice(i, 1); renderDialogues(); } })),
           kw, rep,
           jsonField(dlg, 'conditions', 'conditions JSON — ex {"flag":"clef"} {"item":"potion_vie","consume":true}'),
           jsonField(dlg, 'reactions', 'réactions JSON — ex [{"type":"gold","amount":50},{"type":"flag","key":"clef"}]'),
@@ -1618,7 +1676,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             }
             refreshEditLayers();
             closePanel();
-            msg('✔ PNJ modifié — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('PNJ modifié — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1726,7 +1784,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             real.priority = prioInput.value | 0;
             refreshEditLayers();
             closePanel();
-            msg('✔ Zone musicale modifiée — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Zone musicale modifiée — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1760,7 +1818,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     const g = c.loot.gold;
     if (Array.isArray(g) && (g[0] || g[1])) parts.push(`${g[0]}-${g[1]} or`);
     if (c.loot.items?.length) parts.push(`${c.loot.items.length} objet(s)`);
-    if (c.loot.reqFlag) parts.push('🔒');
+    if (c.loot.reqFlag) parts.push('verrouillé');
     return parts.join(', ') || 'coffre vide';
   }
   // pose un coffre : prop 'chest' + entrée de butin par défaut (générique tant
@@ -1800,10 +1858,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ctx.fillStyle = CHEST_COLOR;
       ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#10202a'; ctx.stroke();
-      ctx.font = `${Math.max(9, r * 1.1)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#10202a';
-      ctx.fillText('🧰', s.x, s.y + r * 0.4);
+      picto(ctx, 'coffre', s.x, s.y, r * 0.8, '#10202a');
       labelText(s.x, s.y - r - 5, chestLabel(c), CHEST_COLOR);
     }
   }
@@ -1841,7 +1896,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         rows.append(h('div', { className: 'edit-dlg' },
           h('div', { className: 'edit-row' }, search, sel),
           h('div', { className: 'edit-row' }, 'n ', n, ' chance ', ch,
-            h('button', { textContent: '✕', onclick: () => { items.splice(i, 1); renderRows(); } }))));
+            h('button', { textContent: '×', title: 'Retirer', ariaLabel: 'Retirer', onclick: () => { items.splice(i, 1); renderRows(); } }))));
       });
     };
     renderRows();
@@ -1871,7 +1926,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             if (reqFlag.v) entry.reqFlag = reqFlag.v; else delete entry.reqFlag;
             refreshEditLayers();
             closePanel();
-            msg('✔ Coffre configuré — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Coffre configuré — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -1928,10 +1983,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ctx.fillStyle = color;
       ctx.fill();
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#10202a'; ctx.stroke();
-      ctx.font = `${Math.max(10, r * 1.2)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#10202a';
-      ctx.fillText(MARKER_GLYPHS[m.kind] || '?', s.x, s.y + r * 0.4);
+      picto(ctx, MARKER_PICTOS[m.kind] || 'etoile', s.x, s.y, r * 0.75, '#10202a');
       labelText(s.x, s.y - r - 5, markerLabel(m), color);
       // téléporteur : trait vers la destination si dans la même zone
       if (m.target && (m.target.zoneId == null || m.target.zoneId === curZone)) {
@@ -1997,7 +2049,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
             else real.target = { zoneId: parseInt(zoneSel.value, 10), x: +txInput.value, z: +tzInput.value };
             refreshEditLayers();
             closePanel();
-            msg('✔ Point spécial modifié — « Enregistrer » pour l\'appliquer au serveur.');
+            msg('Point spécial modifié — « Enregistrer » pour l\'appliquer au serveur.');
           },
         }),
         h('button', {
@@ -2322,7 +2374,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       props.push(e);
     }
     clipboard = { w: b.x1 - b.x0 + 1, h: b.z1 - b.z0 + 1, tiles, props };
-    msg(`✔ Région copiée (${clipboard.w}×${clipboard.h}, ${tiles.length} tuiles, ${props.length} décors). Ctrl+V pour coller.`);
+    msg(`Région copiée (${clipboard.w}×${clipboard.h}, ${tiles.length} tuiles, ${props.length} décors). Ctrl+V pour coller.`);
   }
   // colle le presse-papier au coin haut-gauche (tx, tz) : tuiles + props add décalés
   function pasteAt(tx, tz) {
@@ -2344,7 +2396,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ov.props.add.push(e);
     }
     rebuild();
-    msg('✔ Région collée — « Enregistrer » pour l\'appliquer au serveur.');
+    msg('Région collée — « Enregistrer » pour l\'appliquer au serveur.');
   }
 
   // index des décors par chunk + tris pour le rendu
@@ -2419,7 +2471,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (tx < 0 || tz < 0 || tx >= N || tz >= N) return;
     // collage en attente (Ctrl+V) : ce clic valide la pose au curseur
     if (pasting) { pasteAt(tx, tz); pasting = false; return; }
-    // calques d'édition : pose armée (➕), puis saisie d'un PNJ ou d'un camp
+    // calques d'édition : pose armée (+), puis saisie d'un PNJ ou d'un camp
     if (pendingPlace === 'camp') { placeCampAt(tx, tz); return; }
     if (pendingPlace === 'npc') { placeNpcAt(tx, tz); return; }
     if (pendingPlace === 'chest') { placeChestAt(tx, tz); return; }
@@ -2764,10 +2816,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       card.append(renderChain(q));
       // intégrité
       if (integ.orphanRefs.length) card.append(h('div', { className: 'quest-bad', textContent:
-        '⚠ Drapeaux exigés mais jamais posés (étape inatteignable) : ' + integ.orphanRefs.join(', ') }));
+        'Drapeaux exigés mais jamais posés (étape inatteignable) : ' + integ.orphanRefs.join(', ') }));
       if (integ.deadFlags.length) card.append(h('div', { className: 'quest-warn', textContent:
-        '○ Drapeaux posés mais jamais exigés (sans effet) : ' + integ.deadFlags.join(', ') }));
-      if (!integ.orphanRefs.length && !integ.deadFlags.length) card.append(h('div', { className: 'quest-ok', textContent: '✔ Intégrité : aucune incohérence détectée.' }));
+        'Drapeaux posés mais jamais exigés (sans effet) : ' + integ.deadFlags.join(', ') }));
+      if (!integ.orphanRefs.length && !integ.deadFlags.length) card.append(h('div', { className: 'quest-ok', textContent: 'Intégrité : aucune incohérence détectée.' }));
       list.append(card);
     }
     questPanel.append(list);
@@ -2893,7 +2945,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         tpOn.onchange = syncTp; tpZone.onchange = syncTp; tpX.onchange = syncTp; tpZ.onchange = syncTp;
         card.append(
           h('div', { className: 'edit-row' }, h('b', { textContent: `Étape ${s.n || (i + 1)} → pose ${shortFlag(s.flag)}` }),
-            h('button', { textContent: '✕', onclick: () => { m2.steps.splice(i, 1); renderSteps(); } })),
+            h('button', { textContent: '×', title: 'Retirer', ariaLabel: 'Retirer', onclick: () => { m2.steps.splice(i, 1); renderSteps(); } })),
           h('div', { className: 'edit-row' }, 'Déclencheur — PNJ : ', npcSel, ' mot-clé : ', kwIn),
           repIn,
           h('h4', { textContent: 'Conditions' }),
@@ -2915,7 +2967,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       renderSteps();
     } }));
     questPanel.append(h('div', { className: 'edit-row', style: { marginTop: '10px' } },
-      h('button', { textContent: '✔ Générer / mettre à jour', onclick: () => { generateQuest(m2); } }),
+      h('button', { textContent: 'Générer / mettre à jour', onclick: () => { generateQuest(m2); } }),
       h('button', { textContent: '↩ Annuler', onclick: renderQuestList })));
   }
 
@@ -2929,7 +2981,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       npcWriteQuestDialogue(s.npcId, s.flag, buildStepDialogue(s));
     }
     refreshEditLayers();
-    msg(`✔ Quête « ${m2.id} » générée (${m2.steps.length} étape(s)) — « Enregistrer » pour l'appliquer au serveur.`);
+    msg(`Quête « ${m2.id} » générée (${m2.steps.length} étape(s)) — « Enregistrer » pour l'appliquer au serveur.`);
     renderQuestList();
   }
 
@@ -2937,7 +2989,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   function panelTitleEl(text, onClose) {
     return h('div', { className: 'edit-panel-title' },
       h('span', { textContent: text }),
-      h('button', { textContent: '✕', onclick: onClose }));
+      h('button', { textContent: '×', title: 'Fermer', ariaLabel: 'Fermer', onclick: onClose }));
   }
 
   // ---------- barre d'outils ----------
@@ -3248,7 +3300,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     }
     refreshTemplatesPanel();
     const err = await persistTemplates();
-    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : `✔ Template « ${finalName} » enregistré.`);
+    msg(err ? `Sauvegarde serveur échouée (gardé en local) : ${err}` : `Template « ${finalName} » enregistré.`, !!err);
   }
   // arme le collage d'un template : injecte dans clipboard puis active le même
   // mécanisme que Ctrl+V (aperçu fantôme + clic de validation + undo/redo)
@@ -3265,14 +3317,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     tpl.name = nv;
     refreshTemplatesPanel();
     const err = await persistTemplates();
-    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : '✔ Template renommé.');
+    msg(err ? `Sauvegarde serveur échouée (gardé en local) : ${err}` : 'Template renommé.', !!err);
   }
   async function deleteTemplate(tpl) {
     if (!confirm(`Supprimer le template « ${tpl.name} » ?`)) return;
     templates = templates.filter(t => t !== tpl);
     refreshTemplatesPanel();
     const err = await persistTemplates();
-    msg(err ? `✘ Sauvegarde serveur échouée (gardé en local) : ${err}` : '✔ Template supprimé.');
+    msg(err ? `Sauvegarde serveur échouée (gardé en local) : ${err}` : 'Template supprimé.', !!err);
   }
   $('tpl-save')?.addEventListener('click', () => saveTemplateFromSelection());
   await loadTemplates();
@@ -3290,22 +3342,22 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     pendingPlace = null;
     try {
       await api('/api/admin/teleport', 'POST', { zoneId: curZone, x: tx + 0.5, z: tz + 0.5 });
-      msg(`✔ Personnage téléporté en ${tx}, ${tz}.`);
-    } catch (e) { msg('✘ ' + e.message); }
+      msg(`Personnage téléporté en ${tx}, ${tz}.`);
+    } catch (e) { msg(e.message, true); }
   }
 
   $('save-map').onclick = async () => {
     try {
       await api(`/api/admin/overrides/${curZone}`, 'PUT', ov);
-      msg('✔ Enregistré et appliqué au serveur.');
-    } catch (e) { msg('✘ ' + e.message); }
+      msg('Enregistré et appliqué au serveur.');
+    } catch (e) { msg(e.message, true); }
   };
   $('reset-map').onclick = async () => {
     if (!confirm('Effacer toutes les modifications de cette zone ?')) return;
     pushHistory(); // la réinitialisation reste annulable localement (puis Enregistrer)
     ov = emptyOv();
     rebuildTileIndex();
-    try { await api(`/api/admin/overrides/${curZone}`, 'PUT', ov); } catch (e) { msg('✘ ' + e.message); }
+    try { await api(`/api/admin/overrides/${curZone}`, 'PUT', ov); } catch (e) { msg(e.message, true); }
     rebuild();
   };
   $('export-map').onclick = () => {
@@ -3326,8 +3378,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       ov = normalizeOv(data);
       rebuildTileIndex();
       rebuild();
-      msg("✔ Fichier importé — « Enregistrer » pour l'appliquer au serveur.");
-    } catch (e) { msg('✘ Import impossible : ' + e.message); }
+      msg("Fichier importé — « Enregistrer » pour l'appliquer au serveur.");
+    } catch (e) { msg('Import impossible : ' + e.message, true); }
     $('import-file').value = '';
   };
 

@@ -47,7 +47,7 @@ export function CharactersController(api) {
         const presents = new Set(this.lignes.map(c => c.accountId));
         this.coches = this.coches.filter(id => presents.has(id));
         if (this.fiche) this.ouvrir(this.fiche);
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     // facultatif : noms de zones et profils d'accès (droit « Accès et rôles » en lecture)
@@ -80,7 +80,7 @@ export function CharactersController(api) {
     get drapeaux() { return Object.keys(this.edit?.perso?.flags || {}); },
     ajouterDrapeau() {
       const k = this.drapeauNeuf.trim();
-      if (!DRAPEAU.test(k)) { this.dire('✘ Drapeau : lettres, chiffres, « _ : . - », 60 caractères au plus.', true); return; }
+      if (!DRAPEAU.test(k)) { this.dire('Drapeau : lettres, chiffres, « _ : . - », 60 caractères au plus.', true); return; }
       this.edit.perso.flags = { ...this.edit.perso.flags, [k]: true };
       this.drapeauNeuf = '';
     },
@@ -112,10 +112,10 @@ export function CharactersController(api) {
           if (x !== Math.round(c.char.x ?? 0) || z !== Math.round(c.char.z ?? 0)) Object.assign(corps, { x, z });
           await api(`/api/admin/character/${c.accountId}`, 'PUT', corps);
         }
-        this.dire(`✔ ${c.char?.name || c.account} mis à jour.`);
+        this.dire(`${c.char?.name || c.account} mis à jour.`);
         await this.contexte();
         await this.charger();
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     async supprimer() {
@@ -123,9 +123,9 @@ export function CharactersController(api) {
       if (!confirm(`Supprimer définitivement le personnage ${c.char.name} (compte ${c.account}) ?`)) return;
       try {
         await api(`/api/admin/character/${c.accountId}`, 'DELETE');
-        this.dire(`✔ Personnage de ${c.account} supprimé.`);
+        this.dire(`Personnage de ${c.account} supprimé.`);
         await this.charger();
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     // ---------- actions en direct ----------
@@ -134,9 +134,9 @@ export function CharactersController(api) {
       if (!confirm(`Expulser ${c.char.name} ?`)) return;
       try {
         await api(`/api/admin/monde/joueur/${c.joueurId}`, 'POST', { action: 'expulser' });
-        this.dire(`✔ ${c.char.name} expulsé.`);
+        this.dire(`${c.char.name} expulsé.`);
         await this.charger();
-      } catch (e) { this.dire('✘ ' + e.message, true); }
+      } catch (e) { this.dire(e.message, true); }
     },
 
     // ---------- sélection et actions groupées ----------
@@ -161,8 +161,8 @@ export function CharactersController(api) {
         } catch (e) { echecs.push(`${c.char.name} (${e.message})`); }
       }
       this.occupe = false;
-      const parts = [ok.length && `✔ ${verbe} : ${ok.join(', ')}`, ignores.length && `hors ligne, ignoré${ignores.length > 1 ? 's' : ''} : ${ignores.join(', ')}`,
-        echecs.length && `✘ ${echecs.join(', ')}`].filter(Boolean);
+      const parts = [ok.length && `${verbe} : ${ok.join(', ')}`, ignores.length && `hors ligne, ignoré${ignores.length > 1 ? 's' : ''} : ${ignores.join(', ')}`,
+        echecs.length && `échec : ${echecs.join(', ')}`].filter(Boolean);
       this.dire(parts.join(' · ') || 'Aucun personnage choisi.', !!echecs.length);
       await this.charger();
     },
