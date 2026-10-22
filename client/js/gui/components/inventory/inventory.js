@@ -1,5 +1,5 @@
 import { uiStore, rawUiContainer, demander } from '../../ui-store.js';
-import { SLOT_NAMES } from '../../../../../shared/defs.js';
+import { SLOT_NAMES, ITEMS } from '../../../../../shared/defs.js';
 import { LAYER_ORDER } from '../../../render2d/anim.js';
 import { Item } from '../../../Item.js';
 import { globalBus } from '../../../event-bus.js';
@@ -103,6 +103,12 @@ export function InventoryController() {
       return iid && this.s.inventory.find(i => i.iid === iid);
     },
 
+    // prérequis de caractéristiques remplis (mêmes règles que le serveur)
+    portable(item) {
+      const req = ITEMS[item.defId]?.req, eff = this.s?.eff || {};
+      return !req || Object.entries(req).every(([st, v]) => (eff[st] || 0) >= v);
+    },
+
     isEquippedItem(iid) {
       if (!this.s || !this.s.equip) return false;
       return Object.values(this.s.equip).includes(iid);
@@ -150,7 +156,11 @@ export function InventoryController() {
     showItemTooltip(e, rawItem, vide = '') {
       const ui = rawUiContainer.instance;
       if (!ui || (!rawItem && !vide)) return;
-      ui.showTooltip(rawItem ? new Item(rawItem).getTooltip() : `${vide} — vide`);
+      if (!rawItem) { ui.showTooltip(`${vide} — vide`); ui.moveTooltip(e.clientX, e.clientY); return; }
+      // comparaison avec l'objet porté au même emplacement (2e anneau inclus)
+      const slot = ITEMS[rawItem.defId]?.slot;
+      const porte = slot && slot !== 'use' ? (this.getEquippedItem(slot) || (slot === 'ring' ? this.getEquippedItem('ring2') : null)) : null;
+      ui.showTooltipHtml(new Item(rawItem).getTooltipHtml({ stats: this.s?.eff, porte: porte ? new Item(porte) : null }));
       ui.moveTooltip(e.clientX, e.clientY);
     },
 

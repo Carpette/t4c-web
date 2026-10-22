@@ -245,6 +245,9 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 .inv-item.equipped { border-color: var(--gold); box-shadow: inset 0 0 6px rgba(216,176,106,0.5); }
 .inv-item.q1 { border-color: #5b9cff; }
 .inv-item.q2 { border-color: var(--gold); }
+/* prérequis non remplis : voile rouge (l'infobulle dit lesquels) */
+.inv-item.inutilisable { background: rgba(110, 20, 14, 0.55); }
+.inv-item.inutilisable .item-icon { filter: saturate(0.5); }
 
 #char-stats .stat-row {
   display: flex; justify-content: space-between; align-items: center; padding: 4px 0;
@@ -505,8 +508,13 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 #tooltip {
   position: fixed; pointer-events: none; background: rgba(10, 14, 22, 0.92);
   border: 1px solid var(--border); border-radius: 5px; padding: 5px 9px;
-  color: var(--text); font-size: 12px; z-index: 30; white-space: pre;
+  color: var(--text); font-size: 12px; z-index: 30; white-space: pre; line-height: 1.45;
 }
+#tooltip .tip-nom { font-size: 13px; }
+#tooltip .tip-mieux { color: #7ee07e; }
+#tooltip .tip-moins { color: #ff7a6a; }
+#tooltip .tip-egal, #tooltip .tip-discret { color: var(--text-muted); }
+#tooltip .tip-bonus { color: #8fb8ff; }
 
 /* ---- Lueurs animees des torches du decor (login-bg.png) ----
    Halos ambres poses PILE sur les flammes peintes de l'illustration de fond.
