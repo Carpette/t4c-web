@@ -209,6 +209,28 @@ ok(`palette construite (${chips.length} vignettes, sols + variantes de props)`, 
   ed.setTool({ kind: 'tile', tile: 2 }); // restaure l'outil par défaut (herbe = TILE.GRASS=2)
 }
 
+// rotation (R) : orientation jumelle quand elle existe, miroir sinon
+{
+  ed.palette.selectProp('wall_proc_pierre', 0);
+  win.fire('keydown', { code: 'KeyR' });
+  ok('R : mur d\'arête ↘ -> pièce jumelle ↙ (frame 1)', ed.getTool().type === 'wall_proc_pierre' && ed.getTool().v === 1);
+  win.fire('keydown', { code: 'KeyR', shiftKey: true });
+  ok('Maj+R : retour à l\'orientation précédente', ed.getTool().v === 0);
+  ed.palette.selectProp('fence', 'x');
+  ed.tourner(1);
+  ok('R : barrière — -> barrière |', ed.getTool().v === 'z');
+  ed.palette.selectProp('tree', 2);
+  ed.tourner(1);
+  ed.setTool({ ...ed.getTool() }); // la pose suit le miroir global
+  canvas.fire('pointerdown', { clientX: 540, clientY: 360, button: 0 });
+  win.fire('pointerup', {});
+  ok('R sans orientation : arbre posé en miroir (rot PI)',
+    ed.getOverrides().props.add.some(p => p.type === 'tree' && p.rot === Math.PI));
+  win.fire('keydown', { code: 'KeyZ', ctrlKey: true });
+  ed.tourner(1); // rend le miroir
+  ed.palette.selectTile(2);
+}
+
 // zoom à la molette, centré sur le curseur
 const z0 = ed.getView().z;
 for (let i = 0; i < 20; i++) canvas.fire('wheel', { clientX: 500, clientY: 352, deltaY: -100 });
