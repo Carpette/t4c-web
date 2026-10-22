@@ -312,6 +312,16 @@ let autoCast = null;          // { spellId, targetId?, x?, z? }
 let spellReadyAt = 0;         // fin de la récupération globale (ms, performance.now)
 
 function cancelAim() { aimSpell = null; canvas.style.cursor = ''; }
+
+// touche ou case de la barre : visée (curseur réticule), ou lancement
+// immédiat d'un sort centré sur le lanceur
+function armerSort(spellId) {
+  if (selfId == null || !(ui.self?.spells || []).includes(spellId)) return;
+  const sp = ui.spellDef(spellId);
+  if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); }
+  else { aimSpell = spellId; canvas.style.cursor = 'none'; }
+}
+globalBus.on('ui:sort', armerSort);
 function cancelAuto() { autoCast = null; }
 
 function castSpellAt(spellId, params) {
@@ -623,9 +633,7 @@ window.addEventListener('keydown', (ev) => {
     const spellId = ui.hotkeys[ev.key.toLowerCase()];
     if (spellId && (ui.self?.spells || []).includes(spellId)) {
       ev.preventDefault();
-      const sp = ui.spellDef(spellId);
-      if (sp?.centered) { cancelAuto(); castSpellAt(spellId, {}); }
-      else { aimSpell = spellId; canvas.style.cursor = 'none'; }
+      armerSort(spellId);
       return;
     }
   }

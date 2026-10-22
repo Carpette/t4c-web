@@ -1,10 +1,10 @@
-<div class="barre-sorts" role="toolbar" aria-label="Sorts à raccourci">
+<div class="barre-sorts" role="toolbar" aria-label="Sorts">
   <button v-for="sp in sorts" :key="sp.id" type="button" class="spell-slot"
-    :class="{ active: state.activeSpell === sp.id }" :aria-pressed="state.activeSpell === sp.id"
-    :title="sp.name + ' — ' + sp.mana + ' mana — touche ' + sp.touche.toUpperCase()"
-    @click="basculer(sp.id)">
+    :class="{ active: state.activeSpell === sp.id, manque: manque(sp) }" :aria-pressed="state.activeSpell === sp.id"
+    :title="titre(sp)" @mousedown.prevent @click="lancer(sp.id)" @contextmenu.prevent="basculer(sp.id)">
     <span class="icon" v-html="icone(sp)"></span>
-    <span class="key">{{ sp.touche.toUpperCase() }}</span>
-    <span class="cd" v-if="recharge(sp.id) > 0">{{ recharge(sp.id) }}</span>
+    <span class="key" v-if="sp.touche">{{ sp.touche.toUpperCase() }}</span>
+    <span class="mana">{{ sp.mana }}</span>
+    <span class="cd" v-if="recharge(sp.id) > 0" :style="{ '--part': balayage(sp.id) }">{{ recharge(sp.id) }}</span>
   </button>
 </div>

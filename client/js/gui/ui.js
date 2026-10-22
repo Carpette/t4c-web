@@ -36,6 +36,7 @@ export class UI {
 
     globalBus.on('net:self-update', (playerData) => {
       this.self = playerData;
+      this.assignerRaccourcis(playerData?.spells);
     });
 
     globalBus.on('settings:sfx-changed', () => refreshSfx());
@@ -226,6 +227,26 @@ export class UI {
 
   startCooldown(spellId, dur) {
     uiStore.cds[spellId] = performance.now() / 1000 + dur;
+    uiStore.cdDur[spellId] = dur;
+  }
+
+  // Un sort appris sans raccourci reçoit la première touche libre de 1 à 0 :
+  // il apparaît aussitôt dans la barre, sans détour par le panneau Sorts. Les
+  // choix du joueur (touches déjà attribuées) ne sont jamais modifiés.
+  assignerRaccourcis(sorts) {
+    if (!Array.isArray(sorts) || !sorts.length) return;
+    const pris = new Set(Object.values(this.hotkeys));
+    const libres = [...'1234567890'].filter(k => !this.hotkeys[k]);
+    let change = false;
+    for (const id of sorts) {
+      if (pris.has(id) || !libres.length) continue;
+      this.hotkeys[libres.shift()] = id;
+      pris.add(id);
+      change = true;
+    }
+    if (!change) return;
+    try { localStorage.setItem('t4c_hotkeys', JSON.stringify(this.hotkeys)); } catch { /* stockage bloqué */ }
+    globalBus.emit('ui:hotkeys-updated');
   }
 
   // horloge réactive des recharges et des buffs (appelée par la boucle de rendu)
