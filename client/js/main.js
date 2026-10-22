@@ -643,6 +643,14 @@ window.addEventListener('keydown', (ev) => {
     }
   }
 
+  // Tab : attaquer le monstre le plus proche ; encore Tab : le suivant
+  // (Maj+Tab : le précédent). Laissé au navigateur quand un panneau est
+  // ouvert, pour la navigation au clavier dans ses boutons.
+  if (ev.key === 'Tab' && !ev.ctrlKey && !ev.altKey && !ui.anyPanelOpen()) {
+    ev.preventDefault();
+    attaquerSuivant(ev.shiftKey ? -1 : 1);
+    return;
+  }
   if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
     cancelAuto();
@@ -684,6 +692,23 @@ window.addEventListener('blur', () => {
   ui.setCombatMode(false);
   if (selfId != null) net.send({ t: 'movedir', x: 0, z: 0 });
 });
+
+// monstres vivants à moins de 14 cases, du plus proche au plus lointain ;
+// on prend celui qui suit (ou précède) la cible actuelle dans cet ordre
+function attaquerSuivant(sens) {
+  const me = em.get(selfId);
+  if (!me) return;
+  const proches = [...em.views.values()]
+    .filter(v => v.kind === KIND.MOB && !v.isDead?.() && Math.hypot(v.x - me.x, v.z - me.z) < 14)
+    .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z));
+  if (!proches.length) { ui.addChat('sys', 'Aucun monstre à proximité.'); return; }
+  const i = proches.findIndex(v => v.id === targetId);
+  const v = proches[i < 0 ? 0 : (i + sens + proches.length) % proches.length];
+  cancelAuto();
+  targetId = v.id;
+  net.send({ t: 'attack', id: v.id });
+  updateTargetFrame();
+}
 
 function updateTargetFrame() {
   const v = targetId != null ? em.get(targetId) : null;
