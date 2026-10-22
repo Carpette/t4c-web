@@ -26,7 +26,8 @@ const CHUNK = 16;          // côté d'un chunk de rendu sprite (tuiles)
 const FLAT_CHUNK = 32;     // côté d'un chunk d'aplats (tuiles)
 const FLAT_RES = 4;        // px/tuile des chunks d'aplats
 const ZQ_LEVELS = [12, 16, 24, 32, 48]; // résolutions quantifiées des chunks sprites
-const CACHE_MAX = 64;      // chunks gardés en mémoire (éviction LRU)
+const CACHE_MAX = 64;      // chunks gardés en mémoire (éviction LRU), au minimum
+const CHUNK_BUDGET_MS = 6; // temps de rendu de chunks neufs par image (le reste suit)
 const GAME_PX = 96;        // px écran par pas de tuile dans le jeu (échelle sprite 1)
 // marges des chunks iso (en tuiles) : débord des sprites hauts/larges
 const ISO_MX = 2.5, ISO_MT = 6, ISO_MB = 1.5;
@@ -117,7 +118,12 @@ const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'télépor
 export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], skills = [], musicFiles = [], musicGroups = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
-  const ctx = canvas.getContext('2d');
+  // `ctx` vise l'écran, ou le calque du fond pendant que draw() le repeint
+  let ctx = canvas.getContext('2d');
+  // calque du fond (carte + grille), recopié tel quel quand seule la souris bouge
+  const fond = document.createElement('canvas');
+  const fctx = fond.getContext('2d');
+  let fondOk = false;
   const mini = $('map-mini');
   const mctx = mini.getContext('2d');
   // message d'état : vert, ou rouge pour une erreur
@@ -347,14 +353,40 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   });
 
   // ---------- cache de chunks (LRU) ----------
+  // La capacité suit le nombre de chunks visibles : avec un plafond fixe, un
+  // grand écran un peu dézoomé en affichait plus que le cache n'en gardait,
+  // et chaque image re-rendait toute la vue (saccades).
   const chunkCache = new Map();
+  let cacheCap = CACHE_MAX;
   function cachedChunk(key, make) {
     let c = chunkCache.get(key);
     if (c) { chunkCache.delete(key); chunkCache.set(key, c); return c; } // rafraîchit le LRU
     c = make();
     chunkCache.set(key, c);
-    if (chunkCache.size > CACHE_MAX) chunkCache.delete(chunkCache.keys().next().value);
+    while (chunkCache.size > cacheCap) chunkCache.delete(chunkCache.keys().next().value);
     return c;
+  }
+  // Chunk sprite à la résolution zq, rendu dans le budget de l'image ; hors
+  // budget, on montre la version d'une autre résolution déjà en cache (mise à
+  // l'échelle) et on finit aux images suivantes : un changement de niveau de
+  // zoom ne bloque plus l'affichage le temps de re-rendre toute la vue.
+  // Rend { c, zq } ou null (rien en cache : case laissée vide une image).
+  let budgetFin = 0, chunksEnAttente = false;
+  function chunkSprite(prefixe, cx, cz, zq, rendre) {
+    const key = `${prefixe}:${zq}:${cx}:${cz}`;
+    if (chunkCache.has(key) || performance.now() < budgetFin) return { c: cachedChunk(key, rendre), zq };
+    chunksEnAttente = true;
+    for (const l of ZQ_LEVELS) {
+      const c = chunkCache.get(`${prefixe}:${l}:${cx}:${cz}`);
+      if (c) return { c, zq: l };
+    }
+    return null;
+  }
+  // visibles triés du centre vers les bords : les chunks neufs les plus
+  // proches du centre passent en premier dans le budget
+  function prioriserCentre(list, cxOf, czOf) {
+    const c = s2w(W() / 2, H() / 2);
+    return [...list].sort((a, b) => Math.hypot(cxOf(a) - c.x, czOf(a) - c.z) - Math.hypot(cxOf(b) - c.x, czOf(b) - c.z));
   }
 
   // dessine une tuile/un sprite du tileset dans un contexte donné (ancrage px, py)
@@ -491,15 +523,21 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   function drawTopSprites() {
     const zq = ZQ_LEVELS.find(l => l >= view.z) ?? ZQ_LEVELS[ZQ_LEVELS.length - 1];
     const N = world.size, nc = Math.ceil(N / CHUNK), k = view.z / zq;
+    const list = [];
     for (let cz = 0; cz < nc; cz++) {
       for (let cx = 0; cx < nc; cx++) {
         const o = w2s(cx * CHUNK, cz * CHUNK);
         const side = CHUNK * view.z;
         if (o.x > W() || o.y > H() || o.x + side < 0 || o.y + side < 0) continue;
-        const c = cachedChunk(`t:${zq}:${cx}:${cz}`, () => renderTopChunk(cx, cz, zq));
-        ctx.drawImage(c, o.x, o.y, c.width * k, c.height * k);
+        list.push({ cx, cz, o });
       }
     }
+    cacheCap = Math.max(CACHE_MAX, list.length * 3);
+    for (const it of prioriserCentre(list, (it) => (it.cx + 0.5) * CHUNK, (it) => (it.cz + 0.5) * CHUNK)) {
+      const r = chunkSprite('t', it.cx, it.cz, zq, () => renderTopChunk(it.cx, it.cz, zq));
+      if (r) ctx.drawImage(r.c, it.o.x, it.o.y, r.c.width * (view.z / r.zq), r.c.height * (view.z / r.zq));
+    }
+    void k;
     // décors : sprites ancrés au sol, triés par profondeur (z croissant)
     const b = visibleTileBounds(0);
     const ks = view.z / GAME_PX;
@@ -525,11 +563,19 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         list.push({ cx, cz, sx, sy });
       }
     }
+    cacheCap = Math.max(CACHE_MAX, list.length * 3);
+    // rendu des chunks neufs, du centre vers les bords, dans le budget
+    const centre = (it) => (it.cx + 0.5) * CHUNK;
+    for (const it of prioriserCentre(list, centre, (it) => (it.cz + 0.5) * CHUNK)) {
+      it.r = chunkSprite('i', it.cx, it.cz, zq, () => renderIsoChunk(it.cx, it.cz, zq));
+    }
     list.sort((a, b) => (a.cx + a.cz) - (b.cx + b.cz)); // du fond vers l'avant
     for (const it of list) {
-      const c = cachedChunk(`i:${zq}:${it.cx}:${it.cz}`, () => renderIsoChunk(it.cx, it.cz, zq));
-      ctx.drawImage(c, it.sx, it.sy, c.width * k, c.height * k);
+      if (!it.r) continue;
+      const kk = view.z / it.r.zq;
+      ctx.drawImage(it.r.c, it.sx, it.sy, it.r.c.width * kk, it.r.c.height * kk);
     }
+    void k;
     // gros sprites (maisons) par frame : leur débord excéderait les marges de chunk
     const ks = view.z / GAME_PX;
     for (const p of bigProps) {
@@ -2196,20 +2242,42 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   mini.addEventListener('pointermove', (e) => { if (miniDrag) miniJump(e); });
 
   // ---------- frame ----------
-  function markDirty() { dirty = true; }
+  // markDirty : la carte a changé (vue, données, calques) -> fond à repeindre.
+  // markSurvol : seule la souris a bougé -> on recopie le fond tel quel et on
+  // ne redessine que les surimpressions (fantôme, poignées). Repeindre toute
+  // la carte à chaque mouvement faisait saccader le fantôme, qui tient lieu
+  // de curseur (Firefox : ~25 ms par image sur un grand écran).
+  function markDirty() { dirty = true; fondOk = false; }
+  function markSurvol() { dirty = true; }
   function draw() {
     if (!world) return;
     const sprites = assets && decor && view.z >= SPRITE_ZOOM;
+    // --- fond : carte, décors, jour/nuit, grille (repeint seulement s'il a changé)
+    if (fond.width !== canvas.width || fond.height !== canvas.height) {
+      fond.width = canvas.width; fond.height = canvas.height; fondOk = false;
+    }
+    if (!fondOk) {
+      const ecran = ctx;
+      ctx = fctx;
+      try {
+        budgetFin = performance.now() + CHUNK_BUDGET_MS;
+        chunksEnAttente = false;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = '#0a0814';
+        ctx.fillRect(0, 0, W(), H());
+        if (!sprites) drawFlatLayer();
+        else if (view.iso) drawIsoSprites();
+        else drawTopSprites();
+        drawPendingTiles();
+        if (!sprites) drawGlyphProps();
+        drawDayNightPreview(); // aperçu jour/nuit : voile d'obscurité + halos de lumière
+        drawGrid();
+      } finally { ctx = ecran; }
+      fondOk = !chunksEnAttente; // chunks neufs restants : on repeindra
+    }
+    // --- écran : fond recopié tel quel, puis surimpressions
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#0a0814';
-    ctx.fillRect(0, 0, W(), H());
-    if (!sprites) drawFlatLayer();
-    else if (view.iso) drawIsoSprites();
-    else drawTopSprites();
-    drawPendingTiles();
-    if (!sprites) drawGlyphProps();
-    drawDayNightPreview(); // aperçu jour/nuit : voile d'obscurité + halos de lumière
-    drawGrid();
+    ctx.drawImage(fond, 0, 0);
     drawSelection();
     drawOverlays();
     majCurseur();
@@ -2228,6 +2296,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (dirty) {
       dirty = false;
       try { draw(); } catch (e) { console.error('éditeur :', e); }
+      if (!fondOk) dirty = true; // chunks neufs restants : à l'image suivante
     }
     requestAnimationFrame(loop);
   })();
@@ -2634,7 +2703,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   });
 
   // souris hors de la carte : plus de fantôme (il resterait figé au bord)
-  canvas.addEventListener('pointerleave', () => { if (!gesture) { hover = null; markDirty(); } });
+  canvas.addEventListener('pointerleave', () => { if (!gesture) { hover = null; markSurvol(); } });
   canvas.addEventListener('pointermove', (e) => {
     const { px, py } = mousePos(e);
     hover = s2w(px, py);
@@ -2656,8 +2725,9 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     } else if (gesture?.mode === 'chestMove' || gesture?.mode === 'markerMove') {
       dragChestOrMarker(gesture);
     }
-    // musicDraw / select : l'aperçu du rectangle est dessiné par drawOverlays (markDirty)
-    markDirty();
+    // musicDraw / select : l'aperçu du rectangle est dessiné par drawOverlays.
+    // Simple survol : le fond est réutilisé, seules les surimpressions bougent.
+    if (gesture) markDirty(); else markSurvol();
   });
 
   window.addEventListener('pointerup', () => {
