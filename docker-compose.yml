@@ -10,6 +10,8 @@ services:
       - NODE_ENV=production
       - PORT=8080
       - T4C_DB=/data/game.db
+      # contenu, cartes et ressources de la Forge : vivent sur le volume
+      - T4C_DATA_DIR=/data
       - T4C_START_GOLD=25
     volumes:
       - t4c-data:/data

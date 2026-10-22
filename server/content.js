@@ -1,12 +1,14 @@
 // Chargement (et rechargement à chaud) du contenu éditable : zones, sorts, compétences
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { FormulaEngine } from '../shared/formula-engine.js';
 import { ORIGINE_MOBS, ORIGINE_ITEMS, SLOTS, MOBS, appliquerSurcharges } from '../shared/defs.js';
 import { MAX_LEVEL, ELEMENTS, elementCanonique } from '../shared/constants.js';
+// contenu de CETTE instance (dépôt en développement, volume de données en
+// production : voir server/donnees.js, qui le synchronise avec la base livrée)
+import { CONTENT_DIR as DIR } from './donnees.js';
 
-const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content'); // Corrected path
+
 
 export const content = { zones: [], npc: {}, spells: [], skills: [], particles: [], particlesById: {}, spellFormulas: new Map(), music: { login: null, trial: null, zones: {}, groups: {} }, skins: { items: {}, mobs: {}, spells: {}, npcs: {} }, atelier: { desc: {} }, templates: [], creatures: { mobs: {} }, objets: { items: {} } };
 

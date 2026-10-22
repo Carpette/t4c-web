@@ -12,6 +12,10 @@ const BASE = process.argv[2] || 'http://localhost:8090';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'client/assets/manifest.json');
 const ORIG_MANIFEST = fs.readFileSync(MANIFEST); // octets d'origine (restaurés en fin de test)
+
+// manifeste EFFECTIF, tel que le serveur le sert (en production, la Forge
+// écrit dans le dossier de données de l'instance, pas dans le dépôt)
+const manifesteServi = async () => (await fetch(BASE + '/assets/manifest.json', { cache: 'no-store' })).json();
 const checks = [];
 const ok = (name, cond) => { checks.push([name, !!cond]); console.log(cond ? '  ✔' : '  ✘', name); };
 
@@ -49,7 +53,7 @@ ok('POST mur : nom assaini -> wall_u_poc_mur_ + 3 frames', w.ok && w.tileset ===
 const served = await fetch(`${BASE}/assets/tilesets/user/poc_mur_.png`);
 ok('PNG servi au client', served.status === 200 && served.headers.get('content-type') === 'image/png');
 
-const m1 = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+const m1 = await manifesteServi();
 const ent = m1.tilesets.wall_u_poc_mur_;
 ok('entrée manifeste : images + tiles', !!ent && ent.images[0] === 'tilesets/user/poc_mur_.png' && Object.keys(ent.tiles).length === 3);
 ok('rect au schéma [x,y,w,h,ox,oy,imgIndex=0]', !!ent && Array.isArray(ent.tiles['0']) && ent.tiles['0'].length === 7 && ent.tiles['0'][6] === 0);
@@ -59,7 +63,7 @@ ok('mur : edgekit + names + label (outil de tracé + palette)', !!ent && ent.edg
 // ---- 2. sol / toit : préfixes floor_u_ / roof_u_ ----
 const s = await api('/api/admin/tiles', 'POST', { name: 'poc_sol', kind: 'sol', data: TINY_PNG, tiles: { 0: [0, 0, 192, 96, 96, 48] } });
 const r = await api('/api/admin/tiles', 'POST', { name: 'poc_toit', kind: 'toit', data: TINY_PNG, tiles: { 0: [0, 0, 220, 160, 110, 200] } });
-const m2 = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+const m2 = await manifesteServi();
 ok('POST sol : tileset floor_u_ + type sol', s.ok && s.tileset === 'floor_u_poc_sol' && m2.tilesets.floor_u_poc_sol.types['0'] === 'sol');
 ok('POST toit : tileset roof_u_ + famille toit', r.ok && r.tileset === 'roof_u_poc_toit' && m2.tilesets.roof_u_poc_toit.family === 'toit');
 

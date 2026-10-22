@@ -6,7 +6,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as db from './db.js';
 import { content, saveContentFile, validerSurcharges, validerZones, consignerEcriture, journaliserEcritures } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
@@ -14,11 +13,10 @@ import { src3dDisponible, listerModeles } from './src3d.js';
 import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
 import { DROITS, OPTIONS, LECTURE, EDITION, niveau, aConsole, inclus, permsDe, accesDe, nettoyerProfil } from '../shared/acces.js';
 import { differences, annulerDifferences, decrire, resume } from '../shared/diff.js';
+import { CONTENT_DIR, cheminAsset, cheminAssetEcriture, listerAssets, lireManifeste, ecrireManifeste } from './donnees.js';
 
-const CONTENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'content');
 // historique de la Forge : chaque écriture de contenu est consignée en base
 journaliserEcritures((fichier, avant, apres, auteur, note) => db.ajouterModification(fichier, avant, apres, auteur, note));
-const ASSETS_DIR = path.join(CONTENT_DIR, '..', 'client', 'assets');
 const tokens = new Map(); // token -> { accountId, expires }
 
 // Dossier des overrides de carte (overrides_<zone>.json). Par défaut le dossier
@@ -321,12 +319,8 @@ export async function handleAdmin(req, res, url, game) {
 
     // ---- musiques : liste des fichiers + correspondance zone -> musique ----
     if (url === '/api/admin/music') {
-      const musicDir = path.join(CONTENT_DIR, '..', 'client', 'assets', 'music');
       if (req.method === 'GET') {
-        let files = [];
-        try {
-          files = fs.readdirSync(musicDir).filter(f => /\.(mp3|ogg)$/i.test(f)).sort();
-        } catch { /* pas de dossier musique */ }
+        const files = listerAssets('music', f => /\.(mp3|ogg)$/i.test(f));
         // sous-zones musicales dessinées sur la carte : l'écran Musiques montre
         // où chaque groupe est joué et refuse d'en supprimer un encore utilisé
         const sousZones = [];
@@ -391,22 +385,18 @@ export async function handleAdmin(req, res, url, game) {
       const ogg = buf.subarray(0, 4).toString('latin1') === 'OggS';
       const mp3 = buf.subarray(0, 3).toString('latin1') === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0);
       if (!(m[2].toLowerCase() === 'ogg' ? ogg : mp3)) return json(400, { error: `${name} n'est pas un fichier ${m[2].toUpperCase()} valide` });
-      const musicDir = path.join(CONTENT_DIR, '..', 'client', 'assets', 'music');
       const file = `${base}.${m[2].toLowerCase()}`;
       // pas d'écrasement : une piste déjà jouée changerait sous les pieds des joueurs
-      if (fs.existsSync(path.join(musicDir, file))) return json(409, { error: `${file} existe déjà` });
-      fs.mkdirSync(musicDir, { recursive: true });
-      fs.writeFileSync(path.join(musicDir, file), buf);
+      if (fs.existsSync(cheminAsset(`music/${file}`))) return json(409, { error: `${file} existe déjà` });
+      fs.writeFileSync(cheminAssetEcriture(`music/${file}`), buf);
       return json(200, { ok: true, file });
     }
 
     // ---- skins : images d'objets et planches de créatures fournies ----
     if (url === '/api/admin/skins') {
       if (req.method === 'GET') {
-        const skinsDir = path.join(ASSETS_DIR, 'skins');
-        let files = [];
-        try { files = fs.readdirSync(skinsDir).filter(f => /\.png$/i.test(f)).sort(); } catch { /* pas encore de skins */ }
-        const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
+        const files = listerAssets('skins', f => /\.png$/i.test(f));
+        const manifest = lireManifeste();
         // listes pour l'atelier 2D : sorts (icônes) et PNJ (portraits), avec le
         // minimum utile aux prompts — le client admin n'importe pas le contenu serveur
         const spells = (content.spells || []).map(s => ({
@@ -421,14 +411,14 @@ export async function handleAdmin(req, res, url, game) {
       }
       if (req.method === 'PUT') {
         const map = JSON.parse(await readBody(req));
-        const manifest = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'manifest.json'), 'utf8'));
+        const manifest = lireManifeste();
         const clean = { items: {}, mobs: {}, spells: {}, npcs: {} };
         // items, sorts et PNJ pointent tous vers un PNG de assets/skins/
         for (const section of ['items', 'spells', 'npcs']) {
           for (const [defId, file] of Object.entries(map[section] || {})) {
             if (typeof file !== 'string' || !file) continue;
             const rel = file.startsWith('skins/') ? file : `skins/${file}`;
-            if (!fs.existsSync(path.join(ASSETS_DIR, rel))) return json(400, { error: `image introuvable : ${rel}` });
+            if (!fs.existsSync(cheminAsset(rel) || '')) return json(400, { error: `image introuvable : ${rel}` });
             clean[section][defId] = rel;
           }
         }
@@ -461,10 +451,8 @@ export async function handleAdmin(req, res, url, game) {
       const { name, data } = JSON.parse(await readBody(req, 16e6));
       const buf = Buffer.from(String(data || ''), 'base64');
       pngSize(buf); // valide que c'est bien un PNG
-      const skinsDir = path.join(ASSETS_DIR, 'skins');
-      fs.mkdirSync(skinsDir, { recursive: true });
       const file = `${safeName(name)}.png`;
-      fs.writeFileSync(path.join(skinsDir, file), buf);
+      fs.writeFileSync(cheminAssetEcriture(`skins/${file}`), buf);
       return json(200, { ok: true, file: `skins/${file}` });
     }
 
@@ -474,12 +462,11 @@ export async function handleAdmin(req, res, url, game) {
       const buf = Buffer.from(String(data || ''), 'base64');
       const { w, h } = pngSize(buf);
       const entry = buildEnemyEntry(cfg, w, h); // valide grille + animations
-      fs.writeFileSync(path.join(ASSETS_DIR, 'enemies', `${cfg.name}.png`), buf);
-      const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      fs.writeFileSync(cheminAssetEcriture(`enemies/${cfg.name}.png`), buf);
+      const manifest = lireManifeste();
       const existed = !!manifest.enemies[cfg.name];
       manifest.enemies[cfg.name] = { image: entry.image, anims: entry.anims };
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      ecrireManifeste(manifest);
       return json(200, {
         ok: true, sprite: cfg.name, existed, cols: entry.cols,
         anims: Object.keys(entry.anims),
@@ -493,8 +480,7 @@ export async function handleAdmin(req, res, url, game) {
     // découpes (images d'animation, pièces) restent celles du manifeste.
     if ((url === '/api/admin/bibliotheque/remplacer' || url === '/api/admin/bibliotheque/dupliquer') && req.method === 'POST') {
       const { type, cle, data } = JSON.parse(await readBody(req, 16e6));
-      const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const manifest = lireManifeste();
       const [sexe, couche] = String(cle || '').split('/');
       const table = type === 'creature' ? manifest.enemies : type === 'objet' ? manifest.loot
         : type === 'personnage' ? manifest.avatar?.[sexe] : type === 'tuiles' || type === 'materiau' ? manifest.tilesets : null;
@@ -502,9 +488,10 @@ export async function handleAdmin(req, res, url, game) {
       const entree = table && Object.prototype.hasOwnProperty.call(table, nom) ? table[nom] : null;
       if (!entree) return json(404, { error: `ressource inconnue : ${cle}` });
       const images = entree.images || [entree.image];
+      // lecture : version effective (instance, sinon base) ; écriture : instance
       const fichier = (rel) => {
-        const p = path.resolve(ASSETS_DIR, rel);
-        if (!p.startsWith(ASSETS_DIR + path.sep) || !/\.png$/i.test(p)) throw new Error(`chemin d'image invalide : ${rel}`);
+        const p = /\.png$/i.test(String(rel)) && cheminAsset(rel);
+        if (!p) throw new Error(`chemin d'image invalide : ${rel}`);
         return p;
       };
       if (url.endsWith('/remplacer')) {
@@ -514,7 +501,7 @@ export async function handleAdmin(req, res, url, game) {
         if (neuf.w !== actuel.w || neuf.h !== actuel.h) {
           return json(400, { error: `dimensions différentes : ${neuf.w} × ${neuf.h} px au lieu de ${actuel.w} × ${actuel.h} px (les découpes du manifeste ne correspondraient plus)` });
         }
-        fs.writeFileSync(cible, buf);
+        fs.writeFileSync(cheminAssetEcriture(images[0]), buf);
         return json(200, { ok: true, fichier: images[0], note: 'Image remplacée. Les joueurs la verront après rechargement (F5).' });
       }
       // dupliquer : nouvelle clé « <clé>_copie[_n] », images copiées à côté
@@ -524,12 +511,12 @@ export async function handleAdmin(req, res, url, game) {
       const copier = (rel, i) => {
         const dest = rel.replace(/[^/]+\.png$/i, `${nouveau}${i ? '_' + i : ''}.png`);
         if (fs.existsSync(fichier(dest))) throw new Error(`${dest} existe déjà`);
-        fs.copyFileSync(fichier(rel), fichier(dest));
+        fs.copyFileSync(fichier(rel), cheminAssetEcriture(dest));
         return dest;
       };
       if (copie.images) copie.images = copie.images.map(copier); else copie.image = copier(copie.image, 0);
       table[nouveau] = copie;
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      ecrireManifeste(manifest);
       return json(200, { ok: true, cle: type === 'personnage' ? `${sexe}/${nouveau}` : nouveau });
     }
 
@@ -562,11 +549,8 @@ export async function handleAdmin(req, res, url, game) {
         cleanTypes[f] = (t === 'sol' || t === 'mur' || t === 'objet') ? t : (kd === 'toit' ? 'objet' : kd);
       }
       const nm = safeName(name);
-      const userDir = path.join(ASSETS_DIR, 'tilesets', 'user');
-      fs.mkdirSync(userDir, { recursive: true });
-      fs.writeFileSync(path.join(userDir, `${nm}.png`), buf);
-      const manifestPath = path.join(ASSETS_DIR, 'manifest.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      fs.writeFileSync(cheminAssetEcriture(`tilesets/user/${nm}.png`), buf);
+      const manifest = lireManifeste();
       // Le PRÉFIXE du tileset détermine sa famille côté client (reconnaissance
       // par préfixe : palette, rendu, collision, outil de tracé pour les murs).
       const tsName = kd === 'mur' ? `wall_u_${nm}` : kd === 'toit' ? `roof_u_${nm}` : kd === 'sol' ? `floor_u_${nm}` : `user_${nm}`;
@@ -582,7 +566,7 @@ export async function handleAdmin(req, res, url, game) {
       if (Array.isArray(names)) entry.names = names.map(s => String(s).slice(0, 40));
       if (kd === 'mur') entry.edgekit = true; // jeu de pièces d'ARÊTE (outil de tracé)
       manifest.tilesets[tsName] = entry;
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      ecrireManifeste(manifest);
       return json(200, {
         ok: true, tileset: tsName, frames: Object.keys(cleanTiles).length, existed,
         note: 'Rechargez le client (F5) pour voir le nouveau matériau dans la palette.',

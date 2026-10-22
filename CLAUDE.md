@@ -62,4 +62,9 @@ Adaptations pour une session IA (pas d'éditeur interactif ni d'UI GitHub) :
 - Code, commentaires et messages de commit en français.
 - `content/*.json` est éditable à chaud par l'admin : ne pas y supposer un
   format figé sans regarder `server/content.js`.
+- `content/` et `client/assets/` sont la BASE livrée. En production
+  (`T4C_DATA_DIR`), chaque instance vit sa propre version et reçoit les mises
+  à jour élément par élément : voir `docs/donnees-instance.md`. Côté serveur,
+  passer par `server/donnees.js` (`CONTENT_DIR`, `cheminAsset`...) au lieu de
+  chemins en dur vers `content/` ou `client/assets/`.
 - Les assets (`client/assets/`) sont versionnés ; `game.db*` ne l'est pas.

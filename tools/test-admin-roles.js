@@ -116,8 +116,10 @@ send(anim, {
 });
 ok('dialogues enregistrés (confirmation)',
   !!(await waitMsg(anim, m => m.t === 'info' && /Dialogues .* enregistrés/.test(m.text))));
-const saved = JSON.parse(fs.readFileSync(NPCS_PATH, 'utf8'));
-ok('npcs.json mis à jour sur disque',
+// contenu EFFECTIF servi par le serveur (en production, celui du dossier de
+// données de l'instance, pas le dépôt)
+const saved = await (await fetch(BASE + '/content/npcs.json', { cache: 'no-store' })).json();
+ok('npcs.json mis à jour (contenu servi)',
   saved.npc.merchant.dialogues?.some(d => d.keywords?.includes('testquete')));
 send(anim, { t: 'admin', cmd: 'dialogues', npcId: 'merchant', dialogues: [{ keywords: [], reponse: 'x' }] });
 ok('dialogues invalides refusés',
