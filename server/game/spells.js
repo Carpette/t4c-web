@@ -74,7 +74,7 @@ export function spellStyle(sp) {
   const entry = content.spellFormulas.get(sp.id);
   if (entry?.effects?.some(e => e.type === 'drain')) return 'drain';
   if (entry?.effects?.some(e => e.type === 'damage' && e.interval > 0)) return 'poison';
-  return sp.element || null;
+  return C.elementCanonique(sp.element);
 }
 
 // Résistances élémentaires T4C : réduction (ou amplification si faiblesse).
@@ -84,8 +84,8 @@ export function spellStyle(sp) {
 export function applyResist(target, sp, dmg) {
   if (!sp.element) return { dmg, mod: null };
   
-  let resist = 0;
-  resist = target.eff?.stats?.[`resist_${sp.element}`] || 0;
+  const resist = target.eff?.stats?.[`resist_${C.elementCanonique(sp.element)}`] || 0;
+  if (resist >= 1) return { dmg: 0, mod: 'resist' };
   const resistValue = Math.max(0.01, 1 + resist);
   return {
     dmg: Math.max(1, Math.round(dmg / resistValue)),
@@ -348,7 +348,7 @@ export function resolveCast(game, p) {
       }
     }
     p.recompute(game);
-    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: sp.element, stat: sp.buff?.stat || 'buff', fx: sp.fx });
+    game.eventNear(p, { t: 'fx', kind: 'buff', id: p.id, color: sp.color, element: C.elementCanonique(sp.element), stat: sp.buff?.stat || 'buff', fx: sp.fx });
   }
 
   p.mana -= sp.mana;

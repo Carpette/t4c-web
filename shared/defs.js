@@ -221,29 +221,29 @@ export const MOBS = {
   rat: {
     name: 'Fourmilion', level: 1, hp: 12, dmg: 2, def: 0, speed: 3.4,
     aggro: 6, leash: 16, atkRange: 1.3, atkSpeed: 1.4,
-    resist: { feu: -0.25 },
+    resist: { fire: -0.25 },
     sprite: 'antlion_small',
     drops: [['or', 0.9, 2, 5], ['potion_vie', 0.10, 1, 1], ['poignard_rouille', 0.05, 1, 1]],
   },
   serpent: {
     name: 'Fourmi de feu', level: 3, hp: 22, dmg: 3, def: 2, speed: 3.8,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.2,
-    element: 'feu', // morsure brûlante : les résistances au feu du joueur s'appliquent
-    resist: { feu: 0.75, eau: -0.5 },
+    element: 'fire', // morsure brûlante : les résistances au feu du joueur s'appliquent
+    resist: { fire: 0.75, water: -0.5 },
     sprite: 'fire_ant',
     drops: [['or', 0.9, 3, 9], ['potion_vie', 0.12, 1, 1], ['tunique', 0.08, 1, 1], ['epee_courte_rouillee', 0.05, 1, 1]],
   },
   gobelin: {
     name: 'Gobelin', level: 5, hp: 40, dmg: 5, def: 4, speed: 4.2,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.5,
-    resist: { terre: -0.5, arcane: 0.2 },
+    resist: { earth: -0.5, arcane: 0.2 },
     sprite: 'goblin',
     drops: [['or', 0.95, 5, 16], ['potion_vie', 0.15, 1, 2], ['cuir', 0.08, 1, 1], ['lame_de_gobelin', 0.025, 1, 1], ['gourdin', 0.05, 1, 1], ['capuche', 0.06, 1, 1], ['bouclier_en_bois', 0.07, 1, 1]],
   },
   squelette: {
     name: 'Squelette', level: 8, hp: 70, dmg: 8, def: 7, speed: 3.6,
     aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.7,
-    resist: { feu: -0.3, lumiere: -0.5, eau: 0.3, arcane: 0.5 }, undead: true,
+    resist: { fire: -0.3, light: -0.5, water: 0.3, arcane: 0.5 }, undead: true,
     // la planche Flare dépasse l'avatar d'une tête : ramené à taille humaine
     sprite: 'skeleton', spriteScale: 0.85,
     drops: [['or', 0.95, 10, 25], ['potion_vie', 0.15, 1, 2], ['mailles', 0.06, 1, 1], ['dague_du_crane', 0.02, 1, 1], ['dague_perceuse', 0.025, 1, 1], ['anneau_os', 0.07, 1, 1], ['casque_fer', 0.05, 1, 1]],
@@ -251,21 +251,21 @@ export const MOBS = {
   zombie: {
     name: 'Zombie', level: 10, hp: 95, dmg: 10, def: 8, speed: 2.8,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 2.0,
-    resist: { feu: -0.4, lumiere: -0.5, terre: 0.3, arcane: 0.5 }, undead: true,
+    resist: { fire: -0.4, light: -0.5, earth: 0.3, arcane: 0.5 }, undead: true,
     sprite: 'zombie',
     drops: [['or', 0.95, 12, 32], ['potion_vie', 0.18, 1, 2], ['mailles', 0.07, 1, 1], ['sceptre_drachen', 0.015, 1, 1], ['casque_fer', 0.06, 1, 1], ['anneau_os', 0.08, 1, 1]],
   },
   orc: {
     name: 'Hobgobelin', level: 12, hp: 130, dmg: 12, def: 11, speed: 4.0,
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.8,
-    resist: { air: -0.25, terre: 0.3 },
+    resist: { air: -0.25, earth: 0.3 },
     sprite: 'hobgoblin',
     drops: [['or', 0.95, 18, 45], ['potion_vie', 0.2, 1, 2], ['epee_de_fureur', 0.025, 1, 1], ['fleau_stabilite', 0.02, 1, 1], ['pourfendeur_gobelins', 0.01, 1, 1], ['arc_primitif_skraugh', 0.01, 1, 1], ['bouclier_orque', 0.06, 1, 1], ['armure_plaques', 0.008, 1, 1], ['jambieres_plaques', 0.008, 1, 1], ['casque_plaques', 0.008, 1, 1], ['gants_plaques', 0.008, 1, 1], ['bottes_plaques', 0.008, 1, 1], ['ceinture_plaques', 0.008, 1, 1]],
   },
   ogre: {
     name: 'Minotaure', level: 18, hp: 280, dmg: 18, def: 16, speed: 3.2,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.4,
-    resist: { feu: 0.3, arcane: -0.25 },
+    resist: { fire: 0.3, arcane: -0.25 },
     // sprite provisoire (planches Flare minotaure/wyvern retirées, trop
     // basse résolution) : en attente d'un modèle de l'atelier 3D
     sprite: 'goblin_elite', tint: '#7a4f2e', spriteScale: 1.7,
@@ -276,35 +276,35 @@ export const MOBS = {
   rat_caverne: {
     name: 'Rat des cavernes', level: 2, hp: 16, dmg: 2, def: 1, speed: 3.8,
     aggro: 6, leash: 16, atkRange: 1.3, atkSpeed: 1.3,
-    resist: { lumiere: -0.25 },
+    resist: { light: -0.25 },
     sprite: 'grisbon', tint: '#8a7a5e', spriteScale: 1.2,
     drops: [['or', 0.9, 2, 6], ['potion_vie', 0.08, 1, 1]],
   },
   loup: {
     name: 'Loup', level: 4, hp: 30, dmg: 4, def: 2, speed: 4.6,
     aggro: 8, leash: 20, atkRange: 1.4, atkSpeed: 1.2,
-    resist: { eau: 0.2, feu: -0.2 },
+    resist: { water: 0.2, fire: -0.2 },
     sprite: 'grisbon', tint: '#9aa4b2', spriteScale: 1.9,
     drops: [['or', 0.9, 3, 9], ['potion_vie', 0.1, 1, 1], ['amulette_loup', 0.015, 1, 1]],
   },
   sanglier: {
     name: 'Sanglier', level: 5, hp: 45, dmg: 5, def: 4, speed: 4.0,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.6,
-    resist: { terre: 0.2 },
+    resist: { earth: 0.2 },
     sprite: 'grisbon', tint: '#7a4f2e', spriteScale: 1.7,
     drops: [['or', 0.9, 4, 11], ['potion_vie', 0.12, 1, 1]],
   },
   loup_noir: {
     name: 'Loup noir', level: 7, hp: 58, dmg: 7, def: 5, speed: 4.8,
     aggro: 9, leash: 22, atkRange: 1.4, atkSpeed: 1.2,
-    resist: { eau: 0.2, lumiere: -0.25 },
+    resist: { water: 0.2, light: -0.25 },
     sprite: 'grisbon', tint: '#3c4048', spriteScale: 2.1,
     drops: [['or', 0.9, 5, 15], ['potion_vie', 0.1, 1, 1], ['amulette_loup', 0.025, 1, 1]],
   },
   ours: {
     name: 'Ours brun', level: 10, hp: 120, dmg: 10, def: 8, speed: 3.6,
     aggro: 8, leash: 22, atkRange: 1.7, atkSpeed: 2.0,
-    resist: { eau: 0.25, terre: 0.2 },
+    resist: { water: 0.25, earth: 0.2 },
     sprite: 'grisbon', spriteScale: 2.6,
     drops: [['or', 0.9, 8, 26], ['potion_vie', 0.18, 1, 2], ['amulette_loup', 0.02, 1, 1]],
   },
@@ -312,7 +312,7 @@ export const MOBS = {
     // « Poisonous Snake » niveau 10 de la Bible
     name: 'Serpent venimeux', level: 10, hp: 85, dmg: 11, def: 7, speed: 3.6,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.4,
-    resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
+    resist: { earth: 0.3, water: 0.2, fire: -0.25 },
     sprite: 'antlion_small', tint: '#5fae4f', spriteScale: 1.3, // provisoire
     drops: [['or', 0.9, 8, 24], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.06, 1, 1]],
   },
@@ -322,7 +322,7 @@ export const MOBS = {
     // « Giant Spider » niveau 4 de la Bible
     name: 'Araignée géante', level: 3, hp: 20, dmg: 3, def: 1, speed: 4.0,
     aggro: 7, leash: 18, atkRange: 1.4, atkSpeed: 1.3,
-    resist: { terre: 0.2, feu: -0.25 },
+    resist: { earth: 0.2, fire: -0.25 },
     sprite: 'antlion', tint: '#6a5a8a', spriteScale: 0.65,
     drops: [['or', 0.9, 2, 7], ['potion_vie', 0.08, 1, 1]],
   },
@@ -330,7 +330,7 @@ export const MOBS = {
     // le « t-field » près d'Evelyn — Bible : Tarantula
     name: 'Tarentule', level: 11, hp: 100, dmg: 11, def: 9, speed: 4.2,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.4,
-    resist: { terre: 0.25, eau: -0.25 },
+    resist: { earth: 0.25, water: -0.25 },
     sprite: 'antlion', tint: '#8a5430', spriteScale: 0.85,
     drops: [['or', 0.9, 9, 26], ['potion_vie', 0.12, 1, 1], ['potion_mana', 0.08, 1, 1]],
   },
@@ -338,7 +338,7 @@ export const MOBS = {
     // « Giant Wasp » niveau 12 de la Bible — frêle mais véloce
     name: 'Guêpe géante', level: 12, hp: 90, dmg: 12, def: 8, speed: 5.0,
     aggro: 9, leash: 24, atkRange: 1.4, atkSpeed: 1.1,
-    resist: { air: 0.4, terre: -0.3 },
+    resist: { air: 0.4, earth: -0.3 },
     sprite: 'antlion_small', tint: '#e0c24a', spriteScale: 1.0, // provisoire
     drops: [['or', 0.9, 9, 26], ['potion_mana', 0.1, 1, 1], ['potion_vie', 0.1, 1, 1]],
   },
@@ -346,14 +346,14 @@ export const MOBS = {
     // « Kraanian Worker » niveau 14 — le peuple insecte de Bug isle
     name: 'Ouvrier kraanien', level: 14, hp: 170, dmg: 14, def: 12, speed: 4.0,
     aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.6,
-    resist: { eau: 0.3, terre: 0.2, feu: -0.3 },
+    resist: { water: 0.3, earth: 0.2, fire: -0.3 },
     sprite: 'ice_ant', spriteScale: 0.9,
     drops: [['or', 0.95, 14, 38], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.1, 1, 1], ['baton_combat', 0.03, 1, 1]],
   },
   fourmilion_geant: {
     name: 'Fourmilion géant', level: 14, hp: 190, dmg: 14, def: 14, speed: 3.2,
     aggro: 9, leash: 22, atkRange: 1.7, atkSpeed: 1.9,
-    resist: { terre: 0.4, eau: -0.3 },
+    resist: { earth: 0.4, water: -0.3 },
     sprite: 'antlion', tint: '#c8a050', spriteScale: 1.3,
     drops: [['or', 0.95, 14, 40], ['potion_vie', 0.15, 1, 2], ['arc_en_os_du_desert', 0.015, 1, 1]],
   },
@@ -361,7 +361,7 @@ export const MOBS = {
     // « Kraanian Milipede » — le lac aux mille-pattes (Millie lake)
     name: 'Mille-pattes kraanien', level: 16, hp: 215, dmg: 16, def: 14, speed: 4.4,
     aggro: 10, leash: 26, atkRange: 1.5, atkSpeed: 1.4,
-    resist: { eau: 0.3, terre: 0.3, feu: -0.3 },
+    resist: { water: 0.3, earth: 0.3, fire: -0.3 },
     sprite: 'ice_ant', tint: '#b06ad0', spriteScale: 1.15,
     drops: [['or', 0.95, 15, 42], ['potion_vie', 0.15, 1, 2], ['potion_mana', 0.1, 1, 1]],
   },
@@ -369,7 +369,7 @@ export const MOBS = {
     // le « heavy-t » du champ de tarentules
     name: 'Tarentule géante', level: 17, hp: 250, dmg: 17, def: 14, speed: 3.8,
     aggro: 10, leash: 26, atkRange: 1.7, atkSpeed: 1.6,
-    resist: { terre: 0.3, eau: -0.25 },
+    resist: { earth: 0.3, water: -0.25 },
     sprite: 'antlion', tint: '#a03c28', spriteScale: 1.2,
     drops: [['or', 0.95, 16, 48], ['potion_mana', 0.12, 1, 1], ['potion_vie', 0.15, 1, 2], ['arc_des_arachnides', 0.008, 1, 1]],
   },
@@ -377,7 +377,7 @@ export const MOBS = {
     // « Necrospider » — au sud des skraugs verts (spot « Spiders »)
     name: 'Nécro-araignée', level: 20, hp: 320, dmg: 20, def: 16, speed: 4.0,
     aggro: 11, leash: 28, atkRange: 1.7, atkSpeed: 1.5,
-    resist: { lumiere: -0.5, feu: -0.25, arcane: 0.5, eau: 0.3 }, undead: true,
+    resist: { light: -0.5, fire: -0.25, arcane: 0.5, water: 0.3 }, undead: true,
     sprite: 'antlion', tint: '#8fd0a8', spriteScale: 1.0,
     drops: [['or', 0.95, 18, 52], ['potion_mana', 0.15, 1, 2], ['anneau_saphir', 0.04, 1, 1], ['dague_du_crane', 0.03, 1, 1]],
   },
@@ -405,7 +405,7 @@ export const MOBS = {
     // Bible : Orc Scout niveau 9
     name: 'Éclaireur orc', level: 9, hp: 80, dmg: 9, def: 7, speed: 4.4,
     aggro: 10, leash: 26, atkRange: 1.5, atkSpeed: 1.5,
-    resist: { terre: 0.2, air: -0.2 },
+    resist: { earth: 0.2, air: -0.2 },
     sprite: 'goblin_elite', tint: '#6a7a3a', spriteScale: 0.8,
     drops: [['or', 0.95, 8, 22], ['potion_vie', 0.12, 1, 1], ['arc_droit_frene', 0.05, 1, 1], ['capuche', 0.05, 1, 1]],
   },
@@ -413,7 +413,7 @@ export const MOBS = {
     // Bible : Orc Warrior niveau 12 — distinct du Hobgobelin
     name: 'Guerrier orc', level: 12, hp: 135, dmg: 12, def: 12, speed: 3.8,
     aggro: 10, leash: 26, atkRange: 1.6, atkSpeed: 1.7,
-    resist: { terre: 0.3, air: -0.25 },
+    resist: { earth: 0.3, air: -0.25 },
     sprite: 'goblin_elite', spriteScale: 0.95,
     drops: [['or', 0.95, 12, 32], ['potion_vie', 0.15, 1, 2], ['hachette_rouillee', 0.04, 1, 1], ['bouclier_orque', 0.03, 1, 1], ['gourdin_renforce', 0.03, 1, 1]],
   },
@@ -422,21 +422,21 @@ export const MOBS = {
     name: 'Chaman orc', level: 15, hp: 160, dmg: 16, def: 11, speed: 3.6,
     aggro: 11, leash: 26, atkRange: 1.8, atkSpeed: 1.8,
     element: 'air',
-    resist: { air: 0.5, arcane: 0.3, terre: -0.25 },
+    resist: { air: 0.5, arcane: 0.3, earth: -0.25 },
     sprite: 'necromancer', tint: '#5a8a4a', spriteScale: 2.2,
     drops: [['or', 0.95, 14, 40], ['potion_mana', 0.15, 1, 2], ['sceptre_fer', 0.04, 1, 1], ['sceptre_epine', 0.025, 1, 1], ['amulette_sage', 0.01, 1, 1]],
   },
   skraug_vert: {
     name: 'Skraug vert', level: 17, hp: 240, dmg: 17, def: 15, speed: 3.8,
     aggro: 11, leash: 28, atkRange: 1.6, atkSpeed: 1.8,
-    resist: { terre: 0.3, eau: 0.2, feu: -0.25 },
+    resist: { earth: 0.3, water: 0.2, fire: -0.25 },
     sprite: 'hobgoblin', tint: '#4a9a3a', spriteScale: 1.2,
     drops: [['or', 0.95, 16, 46], ['potion_vie', 0.2, 1, 2], ['fleau_stabilite', 0.02, 1, 1], ['arc_primitif_skraugh', 0.012, 1, 1]],
   },
   skraug_rouge: {
     name: 'Skraug rouge', level: 21, hp: 360, dmg: 21, def: 18, speed: 3.8,
     aggro: 11, leash: 28, atkRange: 1.6, atkSpeed: 1.8,
-    resist: { feu: 0.4, terre: 0.3, eau: -0.3 },
+    resist: { fire: 0.4, earth: 0.3, water: -0.3 },
     sprite: 'hobgoblin', tint: '#b03a2a', spriteScale: 1.3,
     drops: [['or', 0.95, 20, 58], ['potion_vie', 0.25, 1, 2], ['arc_primitif_skraugh', 0.02, 1, 1], ['bouclier_orque', 0.05, 1, 1], ['epee_de_fureur', 0.02, 1, 1]],
   },
@@ -444,7 +444,7 @@ export const MOBS = {
     // LE troll de l'île d'Orkanis
     name: 'Troll', level: 22, hp: 420, dmg: 22, def: 18, speed: 3.4,
     aggro: 11, leash: 30, atkRange: 2.0, atkSpeed: 2.2,
-    resist: { terre: 0.4, eau: 0.3, feu: -0.5 },
+    resist: { earth: 0.4, water: 0.3, fire: -0.5 },
     sprite: 'goblin_elite', tint: '#3a6a4a', spriteScale: 1.4,
     drops: [['or', 1.0, 30, 90], ['potion_vie', 0.3, 2, 3], ['gourdin_du_troll', 0.04, 1, 1], ['plates', 0.04, 1, 1], ['anneau_saphir', 0.06, 1, 1]],
   },
@@ -453,14 +453,14 @@ export const MOBS = {
   momie: {
     name: 'Momie', level: 6, hp: 50, dmg: 6, def: 5, speed: 2.6,
     aggro: 9, leash: 22, atkRange: 1.5, atkSpeed: 1.9,
-    resist: { feu: -0.5, lumiere: -0.5, eau: 0.3, arcane: 0.4 }, undead: true,
+    resist: { fire: -0.5, light: -0.5, water: 0.3, arcane: 0.4 }, undead: true,
     sprite: 'zombie', tint: '#d8c890', spriteScale: 1.0,
     drops: [['or', 0.9, 5, 14], ['potion_vie', 0.1, 1, 1], ['anneau_os', 0.06, 1, 1], ['capuche', 0.05, 1, 1], ['dague_du_crane', 0.02, 1, 1]],
   },
   goule: {
     name: 'Goule', level: 11, hp: 110, dmg: 11, def: 8, speed: 3.4,
     aggro: 10, leash: 24, atkRange: 1.5, atkSpeed: 1.6,
-    resist: { feu: -0.3, lumiere: -0.5, eau: 0.3, arcane: 0.4 }, undead: true,
+    resist: { fire: -0.3, light: -0.5, water: 0.3, arcane: 0.4 }, undead: true,
     sprite: 'zombie_dark', spriteScale: 0.95,
     drops: [['or', 0.95, 10, 28], ['potion_vie', 0.15, 1, 2], ['anneau_os', 0.07, 1, 1], ['mailles', 0.05, 1, 1], ['casque_fer', 0.04, 1, 1]],
   },
@@ -469,7 +469,7 @@ export const MOBS = {
     name: 'Liche mineure', level: 24, hp: 400, dmg: 26, def: 18, speed: 3.0,
     aggro: 12, leash: 30, atkRange: 2.2, atkSpeed: 2.0,
     element: 'arcane',
-    resist: { feu: -0.25, lumiere: -0.6, eau: 0.4, arcane: 0.7, air: 0.3 }, undead: true,
+    resist: { fire: -0.25, light: -0.6, water: 0.4, arcane: 0.7, air: 0.3 }, undead: true,
     sprite: 'skeleton_mage',
     drops: [['or', 1.0, 30, 85], ['potion_mana', 0.3, 1, 2], ['sceptre_drachen', 0.03, 1, 1], ['baton_langueur', 0.015, 1, 1], ['amulette_sage', 0.03, 1, 1], ['anneau_saphir', 0.07, 1, 1]],
   },
@@ -478,15 +478,15 @@ export const MOBS = {
   elementaire_feu: {
     name: 'Élémentaire de feu', level: 18, hp: 230, dmg: 19, def: 14, speed: 3.6,
     aggro: 11, leash: 26, atkRange: 1.8, atkSpeed: 1.6,
-    element: 'feu',
-    resist: { feu: 0.9, eau: -0.75, arcane: 0.3 },
+    element: 'fire',
+    resist: { fire: 0.9, water: -0.75, arcane: 0.3 },
     sprite: 'vesuvvio', tint: '#e07028', spriteScale: 2.5,
     drops: [['or', 0.95, 16, 46], ['potion_mana', 0.2, 1, 2], ['sceptre_drachen', 0.012, 1, 1]],
   },
   golem_pierre: {
     name: 'Golem de pierre', level: 23, hp: 460, dmg: 23, def: 26, speed: 2.4,
     aggro: 9, leash: 24, atkRange: 1.9, atkSpeed: 2.4,
-    resist: { terre: 0.6, arcane: 0.4, feu: 0.3, eau: -0.4 },
+    resist: { earth: 0.6, arcane: 0.4, fire: 0.3, water: -0.4 },
     sprite: 'hobgoblin', tint: '#7a8088', spriteScale: 2.0, // provisoire
     drops: [['or', 0.95, 25, 75], ['potion_vie', 0.2, 1, 2], ['anneau_saphir', 0.08, 1, 1], ['marteau_guerre_renforce', 0.03, 1, 1]],
   },
@@ -494,7 +494,7 @@ export const MOBS = {
     // les plaines des centaures (spot « Cents »)
     name: 'Centaure', level: 19, hp: 300, dmg: 19, def: 16, speed: 5.2,
     aggro: 12, leash: 32, atkRange: 1.8, atkSpeed: 1.6,
-    resist: { air: 0.25, terre: 0.2 },
+    resist: { air: 0.25, earth: 0.2 },
     sprite: 'hobgoblin_archer', tint: '#9a6a42', spriteScale: 1.6, // provisoire
     drops: [['or', 0.95, 18, 50], ['potion_vie', 0.2, 1, 2], ['grand_arc_frene', 0.05, 1, 1], ['arc_courbe_frene', 0.03, 1, 1], ['arc_pourfendeur_centaures', 0.01, 1, 1]],
   },

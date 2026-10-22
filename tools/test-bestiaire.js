@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
-import { PROTOCOL_VERSION, KIND, ST, mobXpReward } from '../shared/constants.js';
+import { PROTOCOL_VERSION, KIND, ST, mobXpReward, ELEMENTS } from '../shared/constants.js';
 import { decodeSnapshot, BIN_SNAPSHOT } from '../shared/protocol.js';
 import { MOBS, ITEMS } from '../shared/defs.js';
 import { SPAWN_ZONES, generateWorld } from '../shared/worldgen.js';
@@ -31,7 +31,6 @@ const ok = (name, cond) => { checks.push([name, !!cond]); console.log(cond ? '  
 console.log('— A. bestiaire statique —');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'client', 'assets', 'manifest.json'), 'utf8'));
 const zones = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'zones.json'), 'utf8')).zones;
-const ELEMENTS = ['feu', 'eau', 'terre', 'air', 'lumiere', 'arcane'];
 const NEEDED_ANIMS = ['stance', 'run', 'swing', 'die'];
 
 // 1. sprites résolus : manifest + animations indispensables + PNG sur disque

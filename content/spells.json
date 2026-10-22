@@ -11,7 +11,7 @@
       "mana": 10,
       "type": "buff",
       "color": "#ffe9a8",
-      "element": "feu",
+      "element": "fire",
       "cooldown": "max(1000, 1520 - max(0, self.level - 2) * 20)",
       "effects": [
         {
@@ -145,7 +145,7 @@
       "cast": 1.85,
       "castMin": 1,
       "color": "#ffd29a",
-      "element": "feu",
+      "element": "fire",
       "todo": true,
       "cooldown": "max(1000, 1850 - max(0, self.level - 35) * 20)"
     },
@@ -234,7 +234,7 @@
       "cast": 2,
       "castMin": 1,
       "color": "#ffd29a",
-      "element": "feu",
+      "element": "fire",
       "todo": true,
       "cooldown": "max(1000, 2000 - max(0, self.level - 50) * 20)"
     },
@@ -383,7 +383,7 @@
       "cast": 1.55,
       "castMin": 1,
       "color": "#8af8c8",
-      "element": "eau",
+      "element": "water",
       "todo": true,
       "cooldown": "max(1000, 1550 - max(0, self.level - 5) * 20)"
     },
@@ -1325,7 +1325,7 @@
       "cast": 2.19,
       "castMin": 1,
       "color": "#d8c8a8",
-      "element": "terre",
+      "element": "earth",
       "todo": true,
       "cooldown": "max(1000, 2190 - max(0, self.level - 69) * 20)"
     },

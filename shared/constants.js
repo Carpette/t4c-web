@@ -16,6 +16,15 @@ export const PICKUP_RANGE = 2.2;
 export const CHAT_MAX = 200;
 export const LOCAL_CHAT_DISTANCE_MAX = 15.0; // Rayon maximal de proximité pour le chat local
 
+// Éléments magiques : clés anglaises, comme les stats resist_* / power_* du
+// moteur. Les anciennes clés françaises (contenu historique ou édité à la
+// main) sont ramenées à la clé canonique ; 'neutre' = sans élément.
+export const ELEMENTS = ['fire', 'water', 'air', 'earth', 'light', 'dark', 'arcane'];
+const ELEMENT_ALIAS = { feu: 'fire', eau: 'water', glace: 'water', foudre: 'air', terre: 'earth', lumiere: 'light', 'lumière': 'light', tenebres: 'dark', 'ténèbres': 'dark' };
+export function elementCanonique(e) {
+  return (e && ELEMENT_ALIAS[e]) || e || null;
+}
+
 export const STATS = ['str', 'end', 'agi', 'int', 'wis'];
 export const STAT_NAMES = {
   str: 'Force', end: 'Endurance', agi: 'Agilité', int: 'Intelligence', wis: 'Sagesse',

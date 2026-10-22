@@ -7,6 +7,7 @@
  */
 
 import { content } from '../content.js';
+import { elementCanonique } from '../../shared/constants.js';
 
 export const EFFECT_TYPES = {
   DAMAGE: 'damage',
@@ -114,11 +115,15 @@ export class EntityEffects {
       return null;
     }
 
-    // Règle de cumul : Même Source
-    const existingIndex = this.active.findIndex(ae => 
-      ae.source.type === newEffect.source.type && 
+    // Règle de cumul : même source ET même effet (type + paramètre). Une
+    // source peut porter plusieurs effets distincts (Bouclier de mana : six
+    // résistances ; objet : Force et Agilité) qui ne doivent pas fusionner.
+    const existingIndex = this.active.findIndex(ae =>
+      ae.source.type === newEffect.source.type &&
       ae.source.id === newEffect.source.id &&
-      ae.source.iid === newEffect.source.iid
+      ae.source.iid === newEffect.source.iid &&
+      ae.type === newEffect.type &&
+      ae.target_parameter === newEffect.target_parameter
     );
 
     if (existingIndex !== -1) {
@@ -270,8 +275,11 @@ export class EntityEffects {
 export class EntityStats {
   constructor(entity) {
     const baseStats = entity?.stats || {};
-    const basePower = entity?.power || {};
-    const baseResist = entity?.resist || {};
+    // clés d'élément ramenées à la forme canonique (fire, water…) : une
+    // créature éditée avec les anciennes clés françaises reste prise en compte
+    const canon = (o) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [elementCanonique(k), v]));
+    const basePower = canon(entity?.power);
+    const baseResist = canon(entity?.resist);
 
     this.str = baseStats.str || 0;
     this.end = baseStats.end || 0;
