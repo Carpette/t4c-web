@@ -41,7 +41,7 @@
 
     <nav id="hotbuttons" aria-label="Fenêtres">
       <button type="button" data-panel="inventory" title="Inventaire (I)" aria-label="Inventaire (I)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-sac"/></svg></button>
-      <button type="button" data-panel="character" title="Personnage (C)" aria-label="Personnage (C)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-personnage"/></svg></button>
+      <button type="button" data-panel="character" title="Personnage (C)" :aria-label="'Personnage (C)' + (store.player.statPoints > 0 ? ', ' + store.player.statPoints + ' points à répartir' : '')"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-personnage"/></svg><span v-if="store.player.statPoints > 0" class="pastille" aria-hidden="true">{{ store.player.statPoints }}</span></button>
       <button type="button" data-panel="spells" title="Sorts (S)" aria-label="Sorts (S)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-livre"/></svg></button>
       <button type="button" data-panel="journal" title="Journal (J)" aria-label="Journal (J)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-journal"/></svg></button>
       <button type="button" data-panel="joueurs" title="Joueurs en ligne (O)" aria-label="Joueurs en ligne (O)"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#ico-groupe"/></svg></button>
