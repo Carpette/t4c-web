@@ -1,6 +1,6 @@
 <div class="barre-potions" role="toolbar" aria-label="Potions">
   <button v-for="q in potions" :key="q.kind" type="button" class="spell-slot potion-slot"
-    :class="{ empty: !q.count }" :title="q.name + ' — touche ' + q.key + (q.count ? '' : ' (aucune)')"
+    :class="{ empty: !q.count, urgente: urgente(q) }" :title="q.name + ' — touche ' + q.key + (q.count ? '' : ' (aucune)')"
     @click="boire(q.kind)">
     <img v-if="icone(q.defId)" class="item-icon" :src="icone(q.defId)" alt="" width="28" height="28">
     <span v-else v-html="potion"></span>
