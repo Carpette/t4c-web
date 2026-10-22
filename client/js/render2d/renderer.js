@@ -5,7 +5,7 @@ import { settings, ZOOM_MIN, ZOOM_MAX } from '../settings.js';
 import {
   Particles, emitFromDef, emitTrail, emitImpact, emitGround, emitHeal, emitBuff, emitCurse, emitDeath, emitShield,
 } from './particles.js';
-import { resolveTile } from './assets.js';
+import { resolveTile, imagesDuDecor } from './assets.js';
 
 export const HW = 96, HH = 48; // demi-tuile écran (tuile logique 192x96)
 // pénombre minimale des cavernes : il y fait nuit quel que soit le soleil —
@@ -61,6 +61,9 @@ export class Renderer {
     this.tint = tint;
     this.ambience = null; // le serveur repousse l'ambiance d'arrivée (message `zone`)
     this.cam = { x: world.spawnPoint.x, z: world.spawnPoint.z };
+    // tuiles et décors de la zone : chargement lancé tout de suite (à la
+    // demande sinon, avec un bref vide à l'écran)
+    this.assets.images.chargerTout?.(imagesDuDecor(this.assets, decor));
     this.props = decor.props.map(p => ({
       ...p,
       sx: (p.x - p.z) * HW,
@@ -126,7 +129,8 @@ export class Renderer {
   drawTile(id, px, py, k = 1, flip = false) {
     let r = this._tileCache.get(id);
     if (r === undefined) {
-      r = resolveTile(this.assets, id, this.grass, this.water) || null;
+      r = resolveTile(this.assets, id, this.grass, this.water);
+      if (r === undefined) return; // image en chargement : redemandée à la frame suivante
       this._tileCache.set(id, r);
     }
     if (!r) return;
