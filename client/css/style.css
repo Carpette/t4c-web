@@ -205,6 +205,13 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
   background: rgba(24,33,47,0.85); color: var(--text);
 }
 #hotbuttons button.active { background: var(--accent-deep); border-color: var(--accent); color: #fff; }
+/* pastille : points de caractéristique à répartir (bouton Personnage) */
+#hotbuttons button { position: relative; }
+.pastille {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--gold); color: #1a1208; font-size: 11px; font-weight: bold;
+  line-height: 18px; text-align: center; box-shadow: 0 0 6px rgba(216, 176, 106, 0.8);
+}
 
 .panel {
   position: fixed; right: 12px; bottom: 64px; width: 300px; max-height: 70vh; overflow-y: auto;
