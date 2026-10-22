@@ -1,0 +1,21 @@
+<div v-if="bank">
+  <h2>Coffre personnel</h2>
+  <h3 class="bank-section">Banque {{ bank.items.length }} / {{ bank.max }}</h3>
+  <p v-if="!bank.items.length" class="hint">Votre coffre est vide.</p>
+  <div v-for="it in bank.items" :key="it.iid" class="shop-row">
+    <span><span v-html="getItemIconHtml(it.defId, it.slot)"></span> {{ it.label }}</span>
+    <button @click="withdraw(it.iid)">Retirer</button>
+  </div>
+
+  <h3 class="bank-section">Inventaire</h3>
+  <p v-if="!inventory.length" class="hint">Votre inventaire est vide.</p>
+  <div v-for="it in inventory" :key="it.iid" class="shop-row">
+    <span>
+      <span v-html="getItemIconHtml(it.defId, it.slot)"></span> {{ it.label }}
+      <span v-if="isEquipped(it.iid)" class="meta">(équipé)</span>
+    </span>
+    <button :disabled="bankFull" :title="bankFull ? 'Le coffre est plein.' : ''" @click="deposit(it.iid)">Déposer</button>
+  </div>
+  <p class="hint">Les objets déposés ne pèsent plus sur votre encombrement.<br>
+  ☠ À la mort définitive, le coffre est perdu avec son propriétaire.</p>
+</div>

@@ -5,6 +5,7 @@ export class Net {
   constructor() {
     this.handlers = {};
     this.ws = null;
+    this.pending = []; // envoyés avant l'ouverture (clic sur « Connexion » pendant le chargement)
   }
   on(type, fn) { this.handlers[type] = fn; }
   emit(type, data) { this.handlers[type]?.(data); }
@@ -25,10 +26,16 @@ export class Net {
     };
     this.ws.onclose = () => this.emit('disconnected');
     this.ws.onerror = () => this.emit('disconnected');
-    return new Promise((resolve) => { this.ws.onopen = resolve; });
+    return new Promise((resolve) => {
+      this.ws.onopen = () => {
+        for (const obj of this.pending.splice(0)) this.ws.send(JSON.stringify(obj));
+        resolve();
+      };
+    });
   }
 
   send(obj) {
     if (this.ws?.readyState === 1) this.ws.send(JSON.stringify(obj));
+    else if (!this.ws || this.ws.readyState === 0) this.pending.push(obj);
   }
 }

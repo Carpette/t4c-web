@@ -48,6 +48,9 @@ export class UI {
     });
 
     globalBus.on('settings:sfx-changed', () => refreshSfx());
+    globalBus.on('settings:chat-style-changed', () => this.applyChatStyle());
+    globalBus.on('ui:floater', ({ screen, text, cls }) => this.floater(screen, text, cls));
+    globalBus.on('ui:play-sfx', (name) => playSfx(name)); // aperçu du volume dans les réglages
     globalBus.on('settings:perf-visibility-changed', () => this.applyPerfVisibility());
     globalBus.on('settings:hud-scale-changed', () => this.applyHudScale());
 
@@ -254,6 +257,7 @@ export class UI {
   // Applique TOUS les réglages qui touchent à l'interface/au rendu. Centralisé
   // ici pour être rejoué après une réinitialisation et au démarrage du HUD.
   applyLiveSettings() {
+    this.applyHudScale();
     globalBus.emit('settings:sfx-changed');
     globalBus.emit('settings:chat-style-changed');
     globalBus.emit('settings:perf-visibility-changed');
@@ -263,6 +267,16 @@ export class UI {
   applyHudScale() {
     const root = $('hud');
     if (root) root.style.setProperty('--hud-scale', String(+settings.hudScale || 1));
+  }
+
+  // Opacité et nombre de lignes du chat
+  applyChatStyle() {
+    const box = $('chat-messages');
+    if (!box) return;
+    box.style.opacity = String(Math.max(0.2, Math.min(1, +settings.chatOpacity || 0.85)));
+    // ~16 px par ligne : la hauteur max suit le nombre de lignes choisi
+    const lines = Math.max(5, Math.min(20, Math.round(+settings.chatLines || 8)));
+    box.style.maxHeight = `${lines * 1.5}em`;
   }
 
   applyPerfVisibility() {
@@ -422,8 +436,16 @@ export class UI {
     globalBus.emit('net:chat-received', { from, text, channel: channelOrKind });
   }
 
+  // chiffre flottant (dégâts, XP, soin...) au-dessus d'une entité
   floater(screen, text, cls = '') {
-    globalBus.emit('ui:floater', { screen, text, cls });
+    if (!screen?.visible || !settings.showFloaters) return;
+    const div = document.createElement('div');
+    div.className = `floater ${cls}`;
+    div.textContent = text;
+    div.style.left = `${screen.x + (Math.random() - 0.5) * 30}px`;
+    div.style.top = `${screen.y - 30}px`;
+    $('floaters').appendChild(div);
+    setTimeout(() => div.remove(), 1100);
   }
 
   showDeath(msg) {

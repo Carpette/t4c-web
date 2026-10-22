@@ -36,8 +36,14 @@ const COMPONENT_MAP = {
   spells: '#spells',
   hudbars: '#hud-bars',
   admin: '#admin-panel',
+  obelisk: '#obelisk-panel',
   // le toast d'invitation vit dans le composant party (plus de party-invite)
-  // obelisk: '#obelisk-panel',
+};
+
+// panneaux latéraux exclusifs (un seul ouvert à la fois) : nom -> id du conteneur
+const PANELS = {
+  inventory: 'inventory', character: 'character', help: 'help', spells: 'spells',
+  shop: 'shop', bank: 'bank', obelisk: 'obelisk-panel',
 };
 
 const PHASE_COMPONENTS = {
@@ -65,7 +71,6 @@ class GuiManager {
       settings: SettingsController,
       creation: CreationController,
       admin: AdminController,
-      party: PartyController,
     };
     this.ui = null;
     this.loaded = new Set();
@@ -85,6 +90,9 @@ class GuiManager {
       window.addEventListener('game:update-player', (e) => {
         this.updatePlayer(e.detail);
       });
+
+      // ouverture déclenchée par le serveur (marchand, coffre, obélisque)
+      globalBus.on('gui:open-panel', (name) => this.openPanel(name));
 
       this.setupHotbuttons();
       this.setupGameMenu();
@@ -129,33 +137,36 @@ class GuiManager {
     Object.assign(this.store.player, playerData);
   }
 
-  async togglePanel(name) {
-    // Lazy-load panel components that are not pre-loaded
-    if (name && !this.loaded.has(name)) {
-      const selector = COMPONENT_MAP[name];
-      if (selector) {
-        await this.loadComponent(name, selector);
-        this.loaded.add(name);
-      }
-    }
+  // charge le composant d'un panneau à la première ouverture
+  async ensureLoaded(name) {
+    if (!name || this.loaded.has(name)) return;
+    const selector = COMPONENT_MAP[name];
+    if (!selector) return;
+    await this.loadComponent(name, selector);
+    this.loaded.add(name);
+  }
 
-    const panels = ['inventory', 'character', 'help', 'spells', 'shop', 'bank'];
-    for (const p of panels) {
-      const el = document.getElementById(p);
+  // affiche `name` (null : aucun) et masque les autres panneaux
+  showOnly(name) {
+    for (const [p, id] of Object.entries(PANELS)) {
+      const el = document.getElementById(id);
       if (!el) continue;
-
-      const shouldShow = p === name && el.classList.contains('hidden');
+      const shouldShow = p === name;
       el.classList.toggle('hidden', !shouldShow);
-
-      if (this.store.panels[p] !== undefined) {
-        this.store.panels[p] = shouldShow;
-      }
-      
-      const btn = document.querySelector(`#hotbuttons button[data-panel="${p}"]`);
-      if (btn) {
-        btn.classList.toggle('active', shouldShow);
-      }
+      if (this.store.panels[id] !== undefined) this.store.panels[id] = shouldShow;
+      document.querySelector(`#hotbuttons button[data-panel="${p}"]`)?.classList.toggle('active', shouldShow);
     }
+  }
+
+  async openPanel(name) {
+    await this.ensureLoaded(name);
+    this.showOnly(name);
+  }
+
+  async togglePanel(name) {
+    await this.ensureLoaded(name);
+    const el = name && document.getElementById(PANELS[name]);
+    this.showOnly(el && el.classList.contains('hidden') ? name : null);
   }
 
   setupGameMenu() {

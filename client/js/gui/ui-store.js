@@ -92,16 +92,12 @@ globalBus.on('net:party-invite', (msg) => {
 
 globalBus.on('net:bank-open', (msg) => {
   uiStore.bank = msg;
-  uiStore.panels.bank = true;
-  const el = document.getElementById('bank');
-  if (el) el.classList.remove('hidden');
+  globalBus.emit('gui:open-panel', 'bank');
 });
 
 globalBus.on('net:obelisk', (msg) => {
   uiStore.obelisk = msg;
-  uiStore.panels['obelisk-panel'] = true;
-  const el = document.getElementById('obelisk-panel');
-  if (el) el.classList.remove('hidden');
+  globalBus.emit('gui:open-panel', 'obelisk');
 });
 
 globalBus.on('net:shop', (msg) => {
@@ -111,9 +107,7 @@ globalBus.on('net:shop', (msg) => {
   } else {
     uiStore.shopTab = 'items';
   }
-  uiStore.panels.shop = true;
-  const el = document.getElementById('shop');
-  if (el) el.classList.remove('hidden');
+  globalBus.emit('gui:open-panel', 'shop');
 });
 
 globalBus.on('net:chat-received', (msg) => {

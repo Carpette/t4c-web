@@ -103,7 +103,8 @@ net.on('welcome', (m) => {
   ui.selfId = m.id;
   worldTime = m.time;
   uiStore.phase = 'in-game';
-  guiManager.loadPhaseComponents('in-game');
+  // réglages à chaud (taille du HUD, style du chat, overlay perf) une fois le HUD monté
+  guiManager.loadPhaseComponents('in-game').then(() => ui.applyLiveSettings());
   globalBus.emit('net:chat-received', { from: 'sys', text: "Bienvenue. Clic pour vous déplacer, H pour l'aide. La mort est définitive…" });
 });
 net.on('perms', (m) => { uiStore.adminPerms = m.perms || []; });
