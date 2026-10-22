@@ -275,7 +275,7 @@ class EntityView2D {
         : isNpc ? '#ffe48a'
         : this.meta?.boss ? '#ffd24a'
         : (isPlayer ? (PARTY_IDS.has(this.id) ? PARTY_NAME_COLOR : '#a8d8ff') : '#ffd2a8');
-      ctx.fillText(this.meta?.boss ? '⚔ ' + name : name, px, top - 6);
+      ctx.fillText(name, px, top - 6); // boss : nom en or
     }
     // barre de vie (pas pour les PNJ)
     let barTop = top;

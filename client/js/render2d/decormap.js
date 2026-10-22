@@ -81,7 +81,7 @@ export const TILESET_PROP_FAMILIES = [
   ['flare_cave', 'cave', 'Caverne (Flare)', ['◓', '#9a8']],
   ['flare_dungeon', 'dungeon', 'Donjon (Flare)', ['▤', '#aa8']],
   ['flare_ruins', 'ruins', 'Ruines (Flare)', ['⌂', '#cb9']],
-  ['flare_snow', 'snow', 'Neige / Glace (Flare)', ['❄', '#cdf']],
+  ['flare_snow', 'snow', 'Neige / Glace (Flare)', ['*', '#cdf']],
 ];
 // type de prop -> préfixe de tileset (pour propSprites)
 export const TILESET_PROP_PREFIX = Object.fromEntries(

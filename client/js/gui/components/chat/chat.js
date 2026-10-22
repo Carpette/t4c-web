@@ -4,6 +4,7 @@
 // (localStorage), sans aucun effet pour les autres joueurs.
 import { uiStore } from '../../ui-store.js';
 import { globalBus } from '../../../event-bus.js';
+import { icone } from '../../icones.js';
 import {
   voice, initDictation, askConsent, acceptModel, refuseModel,
   resumeIfAccepted, startListening, stopListening, deleteModel,
@@ -20,6 +21,10 @@ export function ChatController() {
   return {
     state: uiStore,
     voice,
+    ico: {
+      micro: icone('micro', { taille: 14 }), reglages: icone('reglages', { taille: 14 }),
+      cadenas: icone('cadenas', { taille: 11 }), oeil: icone('oeil', { taille: 13 }), fermer: icone('fermer', { taille: 12 }),
+    },
     showChans: false, newChan: '', newPrive: false,
     chanColors: loadPrefs('t4c:chanColors', {}),
     chanHidden: loadPrefs('t4c:chanHidden', {}),   // masqués du général (défaut : visibles)
@@ -61,10 +66,10 @@ export function ChatController() {
         off: 'Dictée vocale (installation locale, ~60 Mo)',
         asking: 'Dictée vocale',
         downloading: 'Téléchargement du modèle…',
-        ready: 'Dicter (ou maintiens V)',
-        listening: 'Je t\u2019écoute… (relâche pour transcrire)',
+        ready: 'Dicter (ou maintenez V)',
+        listening: 'Écoute en cours… (relâchez pour transcrire)',
         transcribing: 'Transcription…',
-        error: 'Erreur — clique pour réessayer',
+        error: 'Erreur — cliquez pour réessayer',
       }[voice.state] || 'Dictée vocale';
     },
     acceptVoice() { acceptModel(); },

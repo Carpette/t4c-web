@@ -162,6 +162,7 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 }
 #chat-messages {
   max-height: 160px; overflow-y: auto; font-size: calc(12px * var(--hud-scale, 1)); color: #e8e8e8;
+  padding-right: 54px; /* boutons micro et canaux */
   text-shadow: 0 1px 2px #000; margin-bottom: 6px; scrollbar-width: thin;
 }
 #chat-messages .sys { color: var(--gold); font-style: italic; }
@@ -193,11 +194,11 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 .panel .hint { font-size: 10px; color: var(--text-muted); margin-top: 8px; }
 
 #paperdoll {
-  position: relative; width: 100%; height: 198px; margin-bottom: 8px;
+  position: relative; width: 100%; height: 256px; margin-bottom: 8px;
   background: radial-gradient(ellipse at center, var(--bg-2) 0%, var(--bg-deep) 100%);
   border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
 }
-#doll-canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+#doll-canvas { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); }
 .doll-slot {
   position: absolute; width: 46px; height: 46px; background: rgba(10, 14, 22, 0.85);
   border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
@@ -257,12 +258,6 @@ button.secondary:hover { background: #1c2738; border-color: var(--accent); color
 .party-hp div { height: 100%; background: linear-gradient(var(--hp), var(--hp-dark)); transition: width 0.3s; }
 #party-leave { width: 100%; margin-top: 2px; padding: 2px 0; font-size: 11px; }
 
-/* invitation de groupe reçue : encart au-dessus du chat */
-#party-invite {
-  position: fixed; bottom: 230px; left: 12px; z-index: 12; max-width: 250px;
-  background: rgba(14, 20, 30, 0.92); border: 1px solid var(--border-strong);
-  border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 13px;
-}
 
 #floaters { position: fixed; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
 .floater {
@@ -647,3 +642,124 @@ button.petit { padding: 2px 9px; font-size: 11px; }
 .joueurs-table tr.moi td:first-child { color: var(--gold); }
 .joueurs-zone { color: var(--text-muted); font-size: 11px; }
 .joueurs-groupe { display: flex; color: #6fc3ff; }
+
+/* ---- Boîte à outils admin en jeu ---- */
+.outils-bouton {
+  position: fixed; left: 340px; top: 8px; z-index: 60; width: 34px; height: 34px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 14, 22, 0.85); border-color: var(--border-strong); color: var(--gold);
+}
+.outils-bouton.active { background: var(--accent-deep); color: #fff; }
+.outils {
+  position: fixed; left: 340px; top: 48px; z-index: 60; width: 290px; max-height: 70vh; overflow-y: auto;
+  padding: 10px 12px; font-size: 12px; color: var(--text);
+  background: var(--panel-deep); border: 1px solid var(--border-strong); border-radius: 8px;
+}
+.outils-onglets { display: flex; gap: 4px; margin-bottom: 8px; }
+.outils-onglets button { flex: 1; padding: 4px 6px; font-size: 12px; background: #11161f; border-color: var(--border); }
+.outils-onglets button.active { background: var(--accent-deep); border-color: var(--accent); color: #fff; }
+.outils-placement {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; padding: 5px 8px;
+  border: 1px solid var(--border-strong); border-radius: 6px; background: rgba(176, 127, 56, 0.18);
+}
+.outils-titre { margin: 10px 0 4px; font-size: 12px; color: var(--gold); }
+.outils-titre:first-child { margin-top: 0; }
+.outils-champ {
+  display: block; width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px; color: var(--text);
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 4px;
+}
+.outils-code { font-family: ui-monospace, monospace; font-size: 11px; }
+.outils-ligne { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+.outils-ligne label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); }
+.outils-ligne button, .outils .bouton-plein { padding: 4px 10px; font-size: 12px; }
+.outils .bouton-plein { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.outils-nombre {
+  width: 46px; padding: 3px 4px; font-size: 12px; text-align: right; color: var(--text);
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 4px;
+}
+.outils-nombre.large { width: 72px; }
+.outils-message { min-height: 1.2em; margin-top: 4px; color: #9fe6a0; }
+.outils-aide { margin-top: 6px; color: var(--text-muted); }
+.outils-aide summary { cursor: pointer; }
+.outils-aide pre { font-size: 10px; white-space: pre-wrap; }
+
+/* ---- Chat ---- */
+.chat-outils { position: absolute; top: 0; right: 0; display: flex; gap: 2px; z-index: 2; }
+.chat-outil {
+  width: 24px; height: 22px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid transparent; color: var(--text-muted);
+}
+.chat-outil:hover, .chat-outil.active { background: rgba(255, 255, 255, 0.06); border-color: var(--border); color: var(--text); }
+.chat-outil.micro-ready { color: var(--gold); }
+.chat-outil.micro-listening { color: #ff5a4a; animation: pulsation 1s ease-in-out infinite; }
+.chat-progression { font-size: 10px; }
+@keyframes pulsation { 50% { opacity: 0.45; } }
+.chat-consentement { z-index: 90; background: rgba(8, 12, 20, 0.6); }
+.chat-consentement .modal-texte p { margin-bottom: 8px; }
+.chat-canaux {
+  position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px; z-index: 5;
+  max-height: 46vh; overflow-y: auto; padding: 8px 10px; font-size: 12px; color: var(--text);
+  background: rgba(10, 14, 22, 0.95); border: 1px solid var(--border); border-radius: 6px;
+}
+.chat-canaux h3 { margin: 0 0 6px; font-size: 12px; color: var(--gold); }
+.chat-canaux .hint { margin-top: 6px; }
+.chat-canal { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.chat-canal-nom { flex: 1; display: inline-flex; align-items: center; gap: 3px; }
+.chat-couleur { width: 22px; height: 18px; padding: 0; border: none; background: none; cursor: pointer; }
+.chat-visible { display: inline-flex; align-items: center; gap: 2px; color: var(--text-muted); cursor: pointer; }
+.chat-quitter { width: 20px; height: 20px; padding: 0; display: flex; align-items: center; justify-content: center; background: none; border-color: transparent; color: var(--danger-hover); }
+.chat-rejoindre { margin-top: 8px; }
+.chat-creer { display: flex; gap: 4px; align-items: center; margin-top: 8px; }
+.chat-creer input {
+  flex: 1; min-width: 0; padding: 3px 6px; font-size: 12px; color: var(--text);
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 4px;
+}
+.chat-prive { display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+.chat-dictee { border-top: 1px solid var(--border); padding-top: 6px; }
+.chat-dictee a { color: var(--gold); }
+code { font-family: ui-monospace, monospace; font-size: 0.95em; color: var(--gold); }
+
+/* ---- Groupe ---- */
+.groupe-bouton {
+  position: fixed; left: 12px; top: 92px; z-index: 10; width: 34px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 14, 22, 0.78); border-color: var(--border); color: var(--gold);
+}
+.groupe-inviter { position: fixed; left: 52px; top: 92px; width: 210px; z-index: 61; }
+.groupe-inviter input {
+  width: 100%; margin-bottom: 6px; padding: 4px 6px; font-size: 12px; color: var(--text);
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border); border-radius: 4px;
+}
+.groupe-boutons { display: flex; gap: 6px; margin-top: 6px; }
+.groupe-inviter .hint { margin-top: 8px; line-height: 1.5; }
+.groupe-boutons button { flex: 1; }
+.groupe-invitation {
+  position: fixed; bottom: 230px; left: 12px; z-index: 12; max-width: 260px; padding: 10px 12px;
+  font-size: 13px; color: var(--text); background: rgba(14, 20, 30, 0.92);
+  border: 1px solid var(--border-strong); border-radius: 6px;
+}
+.groupe-invitation b { color: var(--gold); }
+.party-row .party-name .leader { display: inline-flex; align-items: center; gap: 4px; }
+.party-row .kick { display: flex; }
+#party-panel .bouton-plein { margin-top: 4px; }
+
+/* ---- Création ---- */
+.creation-box { min-width: 360px; }
+#creation-sex { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
+#creation-left { margin: 12px 0; color: var(--gold); }
+.creation-conseil { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+
+/* ---- Sorts ---- */
+.erreur { color: #e86a6a; font-size: 12px; margin-bottom: 6px; }
+.spell-row { cursor: pointer; }
+.spell-row:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* ---- Aide (H) ---- */
+.aide { font-size: 12px; line-height: 1.5; color: var(--text); }
+.aide p { margin-bottom: 4px; }
+.aide-titre { margin: 12px 0 4px; font-size: 12px; color: var(--gold); letter-spacing: 0.5px; text-transform: uppercase; }
+.aide-touches { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; font-size: 11px; }
+.aide-touches dt { color: var(--gold); font-weight: bold; }
+.aide-touches dd { color: var(--text); }
+.aide-colonnes { grid-template-columns: max-content 1fr max-content 1fr; }
+.aide-paire { display: contents; }

@@ -7,18 +7,20 @@ import { SLOT_ICONS, icone } from '../../icones.js';
 
 const SLOTS_LIST = ['helmet', 'amulet', 'weapon', 'shield', 'gloves', 'legs', 'armor', 'belt', 'boots', 'ring', 'ring2'];
 
+// poupée : 4 emplacements par colonne autour du personnage, rangée du bas
+// pour la ceinture et les deux bagues (sous ses pieds)
 const SLOT_STYLES = {
   helmet: { top: '4px', left: '4px' },
-  amulet: { top: '4px', right: '4px' },
   weapon: { top: '54px', left: '4px' },
+  armor: { top: '104px', left: '4px' },
+  legs: { top: '154px', left: '4px' },
+  amulet: { top: '4px', right: '4px' },
   shield: { top: '54px', right: '4px' },
-  gloves: { top: '104px', left: '4px' },
-  legs: { top: '104px', right: '4px' },
-  armor: { bottom: '4px', left: '4px' },
-  belt: { bottom: '4px', left: '33%', transform: 'translateX(-50%)' },
-  boots: { bottom: '4px', left: '67%', transform: 'translateX(-50%)' },
-  ring: { bottom: '4px', right: '4px' },
-  ring2: { bottom: '54px', right: '4px' }
+  gloves: { top: '104px', right: '4px' },
+  boots: { top: '154px', right: '4px' },
+  belt: { bottom: '4px', left: '30%', transform: 'translateX(-50%)' },
+  ring: { bottom: '4px', left: '50%', transform: 'translateX(-50%)' },
+  ring2: { bottom: '4px', left: '70%', transform: 'translateX(-50%)' },
 };
 
 export function InventoryController() {

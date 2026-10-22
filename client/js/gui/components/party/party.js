@@ -5,10 +5,12 @@
 // net:party-invite) ; les commandes partent par le pont 'party:cmd' de main.js.
 import { uiStore } from '../../ui-store.js';
 import { globalBus } from '../../../event-bus.js';
+import { icone } from '../../icones.js';
 
 export function PartyController() {
   const ctrl = {
     showInvite: false, inviteName: '', inviteLeft: 30, _timer: null,
+    ico: { groupe: icone('groupe', { taille: 16 }), couronne: icone('couronne', { taille: 12 }), fermer: icone('fermer', { taille: 12 }) },
 
     get party() { return uiStore.party; },
     get invite() { return uiStore.partyInvite; },

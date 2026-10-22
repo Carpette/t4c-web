@@ -5,6 +5,7 @@
 // gestionnaire de clic du monde dans main.js.
 import { uiStore } from '../../ui-store.js';
 import { globalBus } from '../../../event-bus.js';
+import { icone } from '../../icones.js';
 import { MOBS, ITEMS } from '../../../../shared/defs.js';
 
 const TILES = [
@@ -24,6 +25,10 @@ export function AdminController() {
     tileId: 2, propType: 'tree', propScale: 1,
     npcId: '', npcs: [], dlgText: '',
     tiles: TILES, propTypes: PROP_TYPES,
+    ico: {
+      outils: icone('outils', { taille: 18 }), cible: icone('boussole', { taille: 14 }),
+      annonce: icone('annonce', { taille: 14 }), epees: icone('epees', { taille: 14 }),
+    },
 
     get perms() { return uiStore.adminPerms || []; },
     get placing() { return uiStore.adminPlace?.label || ''; },
@@ -33,11 +38,6 @@ export function AdminController() {
       if (this.open && !this.npcs.length) this.loadNpcs();
       const first = ['spawn', 'map', 'quests'].find(t => this.perms.includes(t));
       if (first && !this.perms.includes(this.tab)) this.tab = first;
-    },
-    tabStyle(t) {
-      return this.tab === t
-        ? 'flex:1;background:#6b5322;color:#fff;border:1px solid var(--gold);'
-        : 'flex:1;background:#241a0a;border:1px solid #6b5322;';
     },
 
     // ---------- invocation ----------
@@ -110,19 +110,19 @@ export function AdminController() {
         const raw = await (await fetch('/content/npcs.json')).json();
         this.npcs = Object.entries(raw.npc || {}).map(([id, n]) => ({ id, name: n.name || id }));
         if (!this.npcId && this.npcs.length) { this.npcId = this.npcs[0].id; this.loadDialogues(); }
-      } catch { this.msg = '✘ npcs.json inaccessible'; }
+      } catch { this.msg = 'Erreur : npcs.json inaccessible'; }
     },
     async loadDialogues() {
       this.msg = '';
       try {
         const raw = await (await fetch('/content/npcs.json')).json();
         this.dlgText = JSON.stringify(raw.npc?.[this.npcId]?.dialogues || [], null, 1);
-      } catch { this.msg = '✘ lecture impossible'; }
+      } catch { this.msg = 'Erreur : lecture impossible'; }
     },
     saveDialogues() {
       let dialogues;
       try { dialogues = JSON.parse(this.dlgText); }
-      catch (e) { this.msg = '✘ JSON invalide : ' + e.message; return; }
+      catch (e) { this.msg = 'JSON invalide : ' + e.message; return; }
       globalBus.emit('admin:cmd', { cmd: 'dialogues', npcId: this.npcId, dialogues });
       this.msg = '… envoyé (la confirmation arrive dans le chat)';
     },

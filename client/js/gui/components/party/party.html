@@ -1,48 +1,44 @@
 <div>
-  <!-- solo : petit bouton 👥 qui ouvre le formulaire d'invitation -->
-  <button v-if="!party && !showInvite" @click="showInvite = true" title="Former un groupe"
-    style="position:fixed;left:12px;top:100px;z-index:10;width:30px;height:30px;border-radius:6px;
-           background:rgba(10,14,22,.78);border:1px solid var(--border);color:var(--gold);">👥</button>
+  <!-- solo : bouton qui ouvre le formulaire d'invitation -->
+  <button v-if="!party && !showInvite" type="button" class="groupe-bouton" title="Former un groupe"
+    aria-label="Former un groupe" @click="showInvite = true" v-html="ico.groupe"></button>
 
   <!-- formulaire d'invitation (solo, ou chef d'un groupe non complet) -->
-  <div v-if="showInvite && (!party || (isLeader && party.members.length < 5))" class="party-box"
-    style="position:fixed;left:12px;top:100px;width:190px;z-index:11;">
+  <form v-if="showInvite && (!party || (isLeader && party.members.length < 5))" class="party-box groupe-inviter"
+    @submit.prevent="sendInvite()">
     <h3>Former un groupe</h3>
-    <input v-model="inviteName" placeholder="nom du joueur…" @keyup.enter="sendInvite()"
-      style="width:100%;margin-bottom:4px;">
-    <div style="display:flex;gap:4px;">
-      <button @click="sendInvite()" style="flex:1;">Inviter</button>
-      <button @click="showInvite = false" class="secondary" style="flex:1;">Fermer</button>
+    <input v-model="inviteName" placeholder="Nom du joueur…" aria-label="Nom du joueur à inviter">
+    <div class="groupe-boutons">
+      <button type="submit" class="petit">Inviter</button>
+      <button type="button" class="secondary petit" @click="showInvite = false">Fermer</button>
     </div>
-    <p style="font-size:10px;color:#8fa0b8;margin:6px 0 0;">Astuce : /inviter Nom fait pareil. L'expérience est partagée à portée.</p>
-  </div>
+    <p class="hint">Aussi : <code>/inviter Nom</code>, ou le panneau Joueurs (O). L'expérience est partagée à portée.</p>
+  </form>
 
-  <!-- groupé : cadres des membres (PV temps réel) -->
+  <!-- groupé : cadres des membres (PV en temps réel) -->
   <div v-if="party" class="party-box">
     <h3>Groupe ({{ party.members.length }}/5)</h3>
     <div v-for="m in party.members" :key="m.id" class="party-row">
       <div class="party-name">
         <span :class="{ leader: m.id === party.leaderId }">
-          {{ m.id === party.leaderId ? '👑 ' : '' }}{{ m.name }} <span style="color:#8fa0b8;">niv {{ m.level }}</span>
+          <span v-if="m.id === party.leaderId" v-html="ico.couronne" title="Chef du groupe"></span>
+          {{ m.name }} <span class="hint">niv {{ m.level }}</span>
         </span>
-        <button v-if="isLeader && m.id !== party.leaderId" class="kick" title="Exclure"
-          @click="kick(m)">✕</button>
+        <button v-if="isLeader && m.id !== party.leaderId" type="button" class="kick" title="Exclure"
+          :aria-label="'Exclure ' + m.name" @click="kick(m)" v-html="ico.fermer"></button>
       </div>
       <div class="party-hp"><div :style="hpStyle(m)"></div></div>
     </div>
-    <button v-if="isLeader && party.members.length < 5" @click="showInvite = true"
-      style="width:100%;margin-top:2px;padding:2px 0;font-size:11px;">+ Inviter</button>
-    <button id="party-leave" class="secondary" @click="leave()">Quitter le groupe</button>
+    <button v-if="isLeader && party.members.length < 5" type="button" class="petit bouton-plein" @click="showInvite = true">Inviter</button>
+    <button id="party-leave" type="button" class="secondary petit bouton-plein" @click="leave()">Quitter le groupe</button>
   </div>
 
   <!-- invitation reçue : encart au-dessus du chat, compte à rebours -->
-  <div v-if="invite" style="position:fixed;bottom:230px;left:12px;z-index:12;max-width:250px;
-      background:rgba(14,20,30,.92);border:1px solid var(--border-strong);border-radius:6px;
-      padding:10px 12px;color:var(--text);font-size:13px;">
-    <b style="color:var(--gold);">{{ invite.from }}</b> vous invite dans son groupe.
-    <div style="display:flex;gap:6px;margin-top:8px;">
-      <button @click="accept()" style="flex:1;">Accepter</button>
-      <button @click="decline()" class="secondary" style="flex:1;">Refuser ({{ inviteLeft }}s)</button>
+  <div v-if="invite" class="groupe-invitation" role="alertdialog" aria-label="Invitation de groupe">
+    <b>{{ invite.from }}</b> vous invite dans son groupe.
+    <div class="groupe-boutons">
+      <button type="button" class="petit" @click="accept()">Accepter</button>
+      <button type="button" class="secondary petit" @click="decline()">Refuser ({{ inviteLeft }} s)</button>
     </div>
   </div>
 </div>

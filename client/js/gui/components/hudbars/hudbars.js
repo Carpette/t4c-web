@@ -1,8 +1,10 @@
 import { uiStore } from '../../ui-store.js';
+import { icone } from '../../icones.js';
 
 export function HudBarsController() {
   return {
     state: uiStore,
+    or: icone('piece', { taille: 14, classe: 'ico-or' }),
     get s() {
       return this.state.player;
     },

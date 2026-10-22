@@ -3,7 +3,7 @@
     :class="{ empty: !q.count }" :title="q.name + ' — touche ' + q.key + (q.count ? '' : ' (aucune)')"
     @click="boire(q.kind)">
     <img v-if="icone(q.defId)" class="item-icon" :src="icone(q.defId)" alt="" width="28" height="28">
-    <span v-else>🧪</span>
+    <span v-else v-html="potion"></span>
     <span class="key">{{ q.key }}</span>
     <span class="count">{{ q.count }}</span>
   </button>

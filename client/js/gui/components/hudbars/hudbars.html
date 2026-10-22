@@ -13,5 +13,5 @@
       <span>Niv. {{ s.level }} — {{ Math.floor(xpInto) }} / {{ xpSpan }} XP</span>
     </div>
   </div>
-  <div id="gold-display">🟡 <span>{{ s.gold }}</span></div>
+  <div id="gold-display" title="Or"><span v-html="or"></span> <span>{{ s.gold }}</span></div>
 </div>
