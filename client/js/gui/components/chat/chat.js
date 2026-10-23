@@ -77,11 +77,14 @@ export function ChatController() {
     acceptVoice() { acceptModel(); },
     refuseVoice() { refuseModel(); },
     removeVoice() { deleteModel(); },
+    // appelé quand un message est AJOUTÉ au store, avant que petite-vue ne
+    // l'affiche : on défile après le rendu (sinon la nouvelle ligne reste
+    // sous le bord). Un joueur remonté lire l'historique n'est pas ramené.
     scrollToBottom() {
       const el = document.getElementById('chat-messages');
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
+      if (!el) return;
+      const enBas = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      if (enBas) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
     },
     getMessageClass(msg) {
       if (msg.from === 'sys') return 'sys';
