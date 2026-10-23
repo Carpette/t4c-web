@@ -1788,7 +1788,7 @@ export class Game {
   // bornes de taille, types de réactions en liste blanche, chaînes tronquées
   sanitizeDialogues(raw) {
     if (!Array.isArray(raw) || raw.length > 30) return null;
-    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'teleport', 'heal', 'cleanse', 'buff']);
+    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'unflag', 'chasse', 'teleport', 'heal', 'cleanse', 'buff']);
     const out = [];
     for (const d of raw) {
       if (!d || typeof d !== 'object') return null;
@@ -1804,19 +1804,21 @@ export class Game {
         if (Number.isFinite(+d.conditions.level)) c.level = Math.max(1, d.conditions.level | 0);
         if (typeof d.conditions.item === 'string' && ITEMS[d.conditions.item]) {
           c.item = d.conditions.item;
+          if (Number.isFinite(+d.conditions.n) && d.conditions.n > 1) c.n = Math.min(24, d.conditions.n | 0);
           if (d.conditions.consume) c.consume = true;
         }
         if (Number.isFinite(+d.conditions.gold)) {
           c.gold = Math.max(1, Math.min(1e7, d.conditions.gold | 0));
           if (d.conditions.consumeGold) c.consumeGold = true;
         }
+        if (typeof d.conditions.chasse === 'string') c.chasse = d.conditions.chasse.slice(0, 48);
         if (d.conditions.cursed) c.cursed = true;
         if (d.conditions.notCursed) c.notCursed = true;
         if (Object.keys(c).length) e.conditions = c;
       }
       if (Array.isArray(d.reactions)) {
         const rs = [];
-        for (const r of d.reactions.slice(0, 6)) {
+        for (const r of d.reactions.slice(0, 12)) {
           if (!r || !REACTIONS.has(r.type)) return null;
           const rr = { type: r.type };
           if (r.type === 'gold' || r.type === 'xp') rr.amount = Math.max(1, Math.min(1e7, r.amount | 0));
@@ -1825,9 +1827,14 @@ export class Game {
             rr.defId = r.defId;
             if (Number.isFinite(+r.n)) rr.n = Math.max(1, Math.min(10, r.n | 0));
           }
-          if (r.type === 'flag') {
+          if (r.type === 'flag' || r.type === 'unflag' || r.type === 'chasse') {
             if (typeof r.key !== 'string' || !r.key) return null;
             rr.key = r.key.slice(0, 48);
+          }
+          if (r.type === 'chasse') {
+            if (!MOBS[r.mob]) return null;
+            rr.mob = r.mob;
+            rr.n = Math.max(1, Math.min(500, r.n | 0));
           }
           if (r.type === 'buff') {
             if (typeof r.effect === 'string') rr.effect = r.effect.slice(0, 32);

@@ -2970,8 +2970,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   }
 
   // Construit un dialogue T4C à partir d'une étape de quête.
-  // `suivante` : l'étape d'après ; si elle exige une chasse, CETTE étape la lance
-  function buildStepDialogue(step, suivante) {
+  // `suivante` : l'étape d'après ; si elle exige une chasse, CETTE étape la lance.
+  // `rejouer` (dernière étape d'une quête répétable) : drapeaux de toutes les
+  // étapes, retirés à la fin pour que la chaîne reparte de l'étape 1
+  function buildStepDialogue(step, suivante, rejouer = null) {
     const conditions = {};
     if (step.reqFlag) conditions.flag = step.reqFlag;          // exige l'étape précédente
     if (step.reqLevel > 0) conditions.level = step.reqLevel | 0;
@@ -2989,7 +2991,9 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (step.tp && Number.isFinite(+step.tp.x) && Number.isFinite(+step.tp.z)) {
       reactions.push({ type: 'teleport', zoneId: step.tp.zoneId ?? undefined, x: +step.tp.x, z: +step.tp.z });
     }
+    for (const key of rejouer || []) reactions.push({ type: 'unflag', key });
     const dlg = { keywords: step.keywords.length ? step.keywords : ['quete'], reponse: step.reponse || '...', reactions };
+    if (rejouer) dlg.repeatable = true;
     if (Object.keys(conditions).length) dlg.conditions = conditions;
     return dlg;
   }
@@ -3107,11 +3111,11 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       const dlg = info.dlg;
       const kw = (dlg.keywords || [])[0] || '?';
       const cond = dlg.conditions?.flag ? ` exige ${shortFlag(dlg.conditions.flag)}` : '';
-      const rew = (dlg.reactions || []).filter(r => r.type !== 'flag')
+      const rew = (dlg.reactions || []).filter(r => r.type !== 'flag' && r.type !== 'unflag')
         .map(r => r.type === 'gold' ? `${r.amount} or` : r.type === 'xp' ? `${r.amount} xp` : r.type === 'item' ? `${r.n || 1}× ${r.defId}`
           : r.type === 'teleport' ? 'téléport' : r.type === 'chasse' ? `chasse ${r.n}× ${MOBS[r.mob]?.name || r.mob}` : r.type).join(', ');
       chain.append(h('span', { className: 'quest-link', textContent:
-        `${info.npcName} (« ${kw} »)${cond} → pose ${shortFlag(flag)}${rew ? ' + ' + rew : ''}` }));
+        `${info.npcName} (« ${kw} »)${cond} → pose ${shortFlag(flag)}${rew ? ' + ' + rew : ''}${(dlg.reactions || []).some(r => r.type === 'unflag') ? ' (puis la quête repart)' : ''}` }));
     });
     // coffres qui référencent un drapeau de la quête
     for (const r of q.refs.filter(r => r.kind === 'chest')) {
@@ -3152,7 +3156,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         });
       }
     }
-    questModel = { id, title: id, desc: '', steps };
+    const repeatable = !!q && [...q.flags.values()].some(info => info.dlg.repeatable);
+    questModel = { id, title: id, desc: '', steps, repeatable };
     renderQuestForm();
   }
 
@@ -3164,6 +3169,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     const descIn = h('textarea', { value: m2.desc || '', placeholder: 'description (mémo d\'édition)', style: { width: '100%', height: '36px' } });
     descIn.onchange = () => { m2.desc = descIn.value; };
     questPanel.append(h('h3', { textContent: 'Description' }), descIn);
+    const repCb = h('input', { type: 'checkbox', checked: !!m2.repeatable });
+    repCb.onchange = () => { m2.repeatable = repCb.checked; };
+    questPanel.append(h('div', { className: 'edit-row' }, h('label', { className: 'edit-check' }, repCb, ' quête répétable'),
+      h('span', { className: 'hint', textContent: ' : rendue, elle repart de l\'étape 1 (drapeaux effacés, récompenses à chaque fois)' })));
     const npcOptions = npcsList.map(n => `<option value="${n.npcId}">${n.def.name || n.npcId}</option>`).join('');
     // [['', aucun], ...] : le sélecteur filtrable accepte « aucun objet »
     const itemDefsOpt = [['', { name: '— aucun —' }], ...Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy)];
@@ -3254,9 +3263,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (m2.steps[0].killMob) { msg('La première étape ne peut pas exiger une chasse : ajoutez avant une étape où le PNJ confie la quête.'); return; }
     pushHistory();
     for (const s of m2.steps) s.flag = questFlag(m2.id, s.n);
+    const tous = m2.repeatable ? m2.steps.map(s => s.flag) : null;
     m2.steps.forEach((s, i) => {
       if (!s.npcId) return;
-      npcWriteQuestDialogue(s.npcId, s.flag, buildStepDialogue(s, m2.steps[i + 1]));
+      const dlg = buildStepDialogue(s, m2.steps[i + 1], i === m2.steps.length - 1 ? tous : null);
+      if (m2.repeatable) dlg.repeatable = true; // récompenses versées à chaque tour
+      npcWriteQuestDialogue(s.npcId, s.flag, dlg);
     });
     ordonnerEtapes(m2.id);
     refreshEditLayers();

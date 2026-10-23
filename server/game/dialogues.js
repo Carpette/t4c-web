@@ -19,6 +19,8 @@
 //       { type: 'item', defId, n? },        objets remis (posés au sol si trop lourd)
 //       { type: 'xp', amount },             expérience
 //       { type: 'flag', key },              pose un drapeau persistant (p.flags)
+//       { type: 'unflag', key },            le retire (et sa chasse en cours) :
+//                                           sert à rejouer une quête répétable
 //       { type: 'teleport', zoneId?, x, z } déplacement (zone débloquée au besoin)
 //       { type: 'chasse', key, mob, n }     lance un décompte : tuer n monstres
 //                                           `mob` (defId) ; le dialogue qui exige
@@ -146,6 +148,10 @@ function triggerDialogue(game, p, npc, dlg, index) {
       }
       case 'flag': {
         if (r.key) p.flags[String(r.key)] = true;
+        break;
+      }
+      case 'unflag': {
+        if (r.key) { delete p.flags[String(r.key)]; delete p.chasses[String(r.key)]; }
         break;
       }
       case 'teleport': {

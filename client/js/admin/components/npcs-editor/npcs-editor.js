@@ -26,6 +26,7 @@ const CONDITIONS = [
 // réactions (liste `reactions`) : champs [clé, libellé, type]
 const REACTIONS = [
   { type: 'flag', nom: 'Poser le drapeau', champs: [['key', '', 'texte']], defaut: { key: 'drapeau' } },
+  { type: 'unflag', nom: 'Retirer le drapeau', champs: [['key', '', 'texte']], defaut: { key: 'drapeau' } },
   { type: 'gold', nom: 'Donner de l’or', champs: [['amount', 'PO', 'nombre']], defaut: { amount: 10 } },
   { type: 'xp', nom: 'Donner de l’expérience', champs: [['amount', 'XP', 'nombre']], defaut: { amount: 50 } },
   { type: 'item', nom: 'Donner un objet', champs: [['defId', '', 'objet'], ['n', '×', 'nombre']], defaut: { defId: 'potion_vie', n: 1 } },
@@ -229,6 +230,7 @@ export function NpcsEditorController(api) {
         if (r.type === 'xp') effets.push(`+${r.amount} XP`);
         if (r.type === 'item') effets.push(`${this.nomObjet(r.defId)}${r.n > 1 ? ' ×' + r.n : ''}`);
         if (r.type === 'flag') { s.flags = { ...s.flags, [r.key]: true }; effets.push(`drapeau ${r.key} posé`); }
+        if (r.type === 'unflag') { const f = { ...s.flags }; delete f[r.key]; s.flags = f; effets.push(`drapeau ${r.key} retiré`); }
         if (r.type === 'teleport') effets.push(`téléporté (zone ${r.zoneId ?? 'actuelle'}, ${r.x}, ${r.z})`);
         if (r.type === 'heal') effets.push('soigné');
         if (r.type === 'cleanse') { s.maudit = false; effets.push('malédiction levée'); }
