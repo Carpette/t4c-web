@@ -1,0 +1,231 @@
+<!-- Forge, Zones : onglet Quêtes, d'après la maquette (Forge-Quetes). -->
+<div class="flex flex-col gap-3" @vue:mounted="init()">
+    <div class="cs-panel flex items-center gap-3 flex-wrap px-4 py-2.5">
+        <label for="q-zone" class="text-gray-400">Zone</label>
+        <select id="q-zone" class="cs-input w-[300px]" @change="changerZone($event.target.value)">
+            <option v-for="z in zones" :value="z.id" :selected="z.id === zone">{{ z.id }} · {{ z.name }} (niv. {{ z.levels[0] }} à {{ z.levels[1] }})</option></select>
+        <span class="text-gray-500 flex-1">Enregistré automatiquement et appliqué à chaud, comme le terrain.</span>
+    </div>
+
+    <div class="cs-panel flex flex-wrap overflow-hidden min-h-[640px]" v-if="pret">
+
+        <!-- liste des quêtes -->
+        <section aria-label="Liste des quêtes" class="flex-[1_1_250px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
+            <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
+                <div class="flex items-center gap-2">
+                    <span class="text-[15px] font-semibold">Quêtes</span>
+                    <span class="text-gray-500">{{ liste.length }}</span>
+                    <span class="flex-1"></span>
+                    <button class="cs-btn h-7" type="button" @click="nouvelle()">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Nouvelle</button>
+                </div>
+                <label for="q-filtre" class="sr-only">Filtrer les quêtes</label>
+                <input id="q-filtre" class="cs-input" v-model="filtre" placeholder="Quête, PNJ, créature">
+            </div>
+            <div class="flex-1 flex flex-col overflow-y-auto">
+                <button v-for="x in visibles" type="button" class="q-item" :class="{ on: q && x.id === q.id }" @click="ouvrir(x.id)">
+                    <span class="flex items-center gap-2 w-full">
+                        <span class="flex-1 font-medium" :class="{ 'font-semibold': q && x.id === q.id }">{{ x.titre }}</span>
+                        <span class="text-[11px] text-[#e7a55a]" v-if="problemesDe(x).length">incomplète</span>
+                    </span>
+                    <span class="text-xs text-gray-500">{{ resume(x) }}</span>
+                    <span class="q-pips"><span v-for="c in pips(x)" class="q-pip" :class="c"></span></span>
+                </button>
+                <p class="p-4 text-gray-500" v-if="!liste.length">Aucune quête dans cette zone. « Nouvelle » en crée une.</p>
+            </div>
+        </section>
+
+        <!-- édition de la quête -->
+        <section aria-label="Édition de la quête" class="flex-[999_1_520px] min-w-0 px-6 pt-4 pb-7 flex flex-col gap-4" v-if="q">
+            <div class="text-xs text-gray-500">Forge / Zones / {{ zoneDef?.name }} / Quêtes</div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="font-serif font-semibold text-[32px] leading-tight text-t4c-text-light">{{ q.titre || 'Sans nom' }}</h2>
+                <span class="cs-chip" style="background: rgba(95,185,138,.14); color: #8fd1a8" v-if="!pb.length">Valide</span>
+                <span class="cs-chip" style="background: rgba(231,165,90,.14); color: #e7a55a" v-else :title="pb.join('\n')">Incomplète</span>
+                <span class="cs-chip" v-if="q.ancienne" title="Quête écrite avant cet écran : elle sera convertie à la première retouche">ancienne forme</span>
+                <span class="flex-1"></span>
+                <button class="cs-btn" type="button" @click="dupliquer()">Dupliquer</button>
+                <details class="relative cs-menu">
+                    <summary class="cs-btn cs-icon list-none cursor-pointer" aria-label="Plus d'actions"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg></summary>
+                    <div class="absolute right-0 top-full mt-1 z-30 w-52 cs-panel p-1.5 flex flex-col gap-1 shadow-xl">
+                        <button type="button" class="cs-lien text-left px-2 py-1.5 text-red-400" @click="supprimer()">Supprimer la quête</button>
+                    </div>
+                </details>
+            </div>
+            <ul class="text-[#e7a55a] text-xs list-disc pl-5" v-if="pb.length"><li v-for="p in pb">{{ p }}</li></ul>
+
+            <div class="cs-card">
+                <div class="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 items-end">
+                    <div class="cs-field"><label class="cs-label" for="q-titre">Nom</label><input id="q-titre" class="cs-input" v-model="q.titre" @input="modifie()"></div>
+                    <div class="cs-field"><label class="cs-label" for="q-niv">Niveau minimum</label><input id="q-niv" class="cs-input font-mono" type="number" min="1" v-model.number="q.niveau" @input="modifie()"></div>
+                    <label class="flex items-center gap-2 h-8 text-gray-200" title="Rendue, elle repart de la prise : progression effacée, récompenses à chaque tour"><input type="checkbox" v-model="q.repetable" @change="modifie()">Répétable</label>
+                </div>
+                <div class="cs-field"><label class="cs-label" for="q-memo">Mémo d'édition <span class="text-gray-500 font-normal">(invisible en jeu)</span></label>
+                    <input id="q-memo" class="cs-input" v-model="q.memo" @input="modifie()" placeholder="Première quête d'Arakas, introduit le combat"></div>
+            </div>
+
+            <div class="flex flex-col">
+                <div v-for="(e, i) in q.etapes" :key="cle(e)">
+                    <div class="q-step" v-if="i > 0">
+                        <div class="q-rail"><span class="q-line"></span></div>
+                        <div class="q-inserer"><button type="button" @click="inserer(i)">+ Insérer une étape</button></div>
+                    </div>
+                    <div class="q-step">
+                        <div class="q-rail"><span class="q-num" :class="{ prise: e.type === 'prise' }">{{ numero(i) }}</span><span class="q-line" v-if="i < q.etapes.length - 1"></span></div>
+                        <div class="cs-card flex-1 min-w-0 mb-1">
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <span class="q-type" :style="{ color: couleurType(e) }">{{ estObjectif(e) ? 'Objectif' : TYPES[e.type].nom }}</span>
+                                <span class="text-xs text-gray-500" v-if="e.type === 'prise'">toujours la première étape</span>
+                                <span class="text-xs text-gray-500" v-if="e.type === 'rendu'">toujours la dernière étape</span>
+                                <span class="flex-1"></span>
+                                <div role="group" aria-label="Type d'objectif" class="cs-segs" v-if="estObjectif(e)">
+                                    <button v-for="t in OBJECTIFS" type="button" class="cs-seg h-[26px] text-xs" :class="{ on: e.type === t }" @click="changerType(i, t)">{{ TYPES[t].nom }}</button>
+                                </div>
+                                <button class="cs-btn cs-ghost cs-icon h-7" type="button" aria-label="Supprimer l'étape" v-if="estObjectif(e)" @click="retirer(i)">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                            </div>
+
+                            <!-- étapes à dialogue -->
+                            <div class="flex flex-col gap-3.5" v-if="e.type === 'prise' || e.type === 'parler' || e.type === 'rendu'">
+                                <div class="q-phrase">
+                                    <span>{{ e.type === 'rendu' ? 'Le joueur retourne voir' : 'Le joueur parle à' }}</span>
+                                    <label :for="'q-pnj-' + i" class="sr-only">PNJ</label>
+                                    <select :id="'q-pnj-' + i" class="q-inl" v-model="e.npcId" @change="modifie()">
+                                        <option v-for="n in npcs" :value="n.npcId">{{ n.name }}</option></select>
+                                    <span>en disant</span>
+                                    <span v-for="(k, j) in e.keywords" class="q-kw">{{ k }}<button type="button" :aria-label="'Retirer ' + k" @click="retirerMot(e, j)">
+                                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <label :for="'q-mot-' + i" class="sr-only">Ajouter un mot-clé</label>
+                                    <input :id="'q-mot-' + i" class="q-inl w-[120px] font-normal" placeholder="+ mot-clé" @keydown.enter.prevent="ajouterMot(e, $event)" @change="ajouterMot(e, $event)">
+                                </div>
+                                <div class="cs-field">
+                                    <label class="cs-label" :for="'q-rep-' + i">Le PNJ répond</label>
+                                    <textarea :id="'q-rep-' + i" class="cs-input h-auto py-2 leading-normal" rows="3" v-model="e.reponse" @input="modifie()"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="q-phrase" v-if="e.type === 'tuer'">
+                                <span>Le joueur tue</span>
+                                <label :for="'q-n-' + i" class="sr-only">Nombre</label>
+                                <input :id="'q-n-' + i" class="q-inl font-mono w-[64px] text-right" type="number" min="1" v-model.number="e.n" @input="modifie()">
+                                <label :for="'q-mob-' + i" class="sr-only">Créature</label>
+                                <select :id="'q-mob-' + i" class="q-inl" v-model="e.mob" @change="modifie()">
+                                    <option value="">Choisir une créature</option>
+                                    <option v-for="m in mobs" :value="m.id">{{ m.name }}</option></select>
+                                <span class="text-xs" :class="presentDansZone(e.mob) ? 'text-gray-500' : 'text-[#e7a55a]'" v-if="e.mob">
+                                    {{ presentDansZone(e.mob) ? 'présent dans ' + zoneDef?.name : 'absent de ' + zoneDef?.name }} · <a href="#creatures" class="text-amber-400 hover:underline">fiche</a></span>
+                            </div>
+                            <label class="flex items-center gap-2 text-gray-300 text-xs" v-if="e.type === 'tuer'">
+                                <input type="checkbox" v-model="e.progression" @change="modifie()">Afficher la progression au joueur (par exemple 3 / {{ e.n }})</label>
+
+                            <div class="q-phrase" v-if="e.type === 'rapporter'">
+                                <span>Le joueur rapporte</span>
+                                <label :for="'q-n-' + i" class="sr-only">Nombre</label>
+                                <input :id="'q-n-' + i" class="q-inl font-mono w-[64px] text-right" type="number" min="1" v-model.number="e.n" @input="modifie()">
+                                <label :for="'q-obj-' + i" class="sr-only">Objet</label>
+                                <select :id="'q-obj-' + i" class="q-inl" v-model="e.item" @change="modifie()">
+                                    <option value="">Choisir un objet</option>
+                                    <option v-for="o in objets" :value="o.id">{{ o.name }}</option></select>
+                                <span class="text-xs text-gray-500">repris par le PNJ de l'étape suivante</span>
+                            </div>
+
+                            <div class="q-phrase" v-if="e.type === 'lieu'">
+                                <span>Le joueur se rend à</span>
+                                <label :for="'q-lieu-' + i" class="sr-only">Nom du lieu</label>
+                                <input :id="'q-lieu-' + i" class="q-inl w-[160px]" placeholder="nom du lieu" v-model="e.nom" @input="modifie()">
+                                <span>en</span>
+                                <label :for="'q-x-' + i" class="sr-only">x</label><input :id="'q-x-' + i" class="q-inl font-mono w-[70px]" type="number" v-model.number="e.x" @input="modifie()" placeholder="x">
+                                <label :for="'q-z-' + i" class="sr-only">z</label><input :id="'q-z-' + i" class="q-inl font-mono w-[70px]" type="number" v-model.number="e.z" @input="modifie()" placeholder="z">
+                                <span>à</span>
+                                <label :for="'q-r-' + i" class="sr-only">Rayon</label><input :id="'q-r-' + i" class="q-inl font-mono w-[56px]" type="number" min="1" v-model.number="e.r" @input="modifie()">
+                                <span>cases près</span>
+                            </div>
+                            <span class="text-xs text-gray-500" v-if="e.type === 'lieu'">Coordonnées en cases : celles qu'affiche le curseur dans l'onglet Terrain.</span>
+
+                            <!-- récompenses du rendu -->
+                            <div class="cs-field" v-if="e.type === 'rendu'">
+                                <span class="cs-label">Récompenses</span>
+                                <div class="flex gap-2 flex-wrap items-center">
+                                    <span class="q-rew" v-if="e.recompenses.gold"><input type="number" min="1" class="w-[70px]" aria-label="Pièces d'or" v-model.number="e.recompenses.gold" @input="modifie()"> PO
+                                        <button type="button" aria-label="Retirer l'or" @click="retirerRecompense(e, 'gold')"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <span class="q-rew" v-if="e.recompenses.xp"><input type="number" min="1" class="w-[80px]" aria-label="Expérience" v-model.number="e.recompenses.xp" @input="modifie()"> XP
+                                        <button type="button" aria-label="Retirer l'expérience" @click="retirerRecompense(e, 'xp')"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <span class="q-rew" v-for="(it, k) in e.recompenses.items">
+                                        <input type="number" min="1" max="10" class="w-[40px]" aria-label="Quantité" v-model.number="it.n" @input="modifie()">×
+                                        <select aria-label="Objet" v-model="it.defId" @change="modifie()"><option v-for="o in objets" :value="o.id">{{ o.name }}</option></select>
+                                        <button type="button" aria-label="Retirer l'objet" @click="retirerRecompense(e, 'item', k)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <span class="q-rew" v-for="(s, k) in e.recompenses.sorts">Sort
+                                        <select aria-label="Sort" v-model="e.recompenses.sorts[k]" @change="modifie()"><option v-for="sp in sorts" :value="sp.id">{{ sp.name }}</option></select>
+                                        <button type="button" aria-label="Retirer le sort" @click="retirerRecompense(e, 'sort', k)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <span class="q-rew" v-if="e.recompenses.tp">Téléportation zone
+                                        <select aria-label="Zone" v-model.number="e.recompenses.tp.zoneId" @change="modifie()"><option v-for="z in zones" :value="z.id">{{ z.name }}</option></select>
+                                        <input type="number" class="w-[56px]" aria-label="x" v-model.number="e.recompenses.tp.x" @input="modifie()">
+                                        <input type="number" class="w-[56px]" aria-label="z" v-model.number="e.recompenses.tp.z" @input="modifie()">
+                                        <button type="button" aria-label="Retirer la téléportation" @click="retirerRecompense(e, 'tp')"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                                    <button class="cs-btn cs-ghost" type="button" v-if="!e.recompenses.gold" @click="ajouterRecompense(e, 'gold')">+ Or</button>
+                                    <button class="cs-btn cs-ghost" type="button" v-if="!e.recompenses.xp" @click="ajouterRecompense(e, 'xp')">+ XP</button>
+                                    <button class="cs-btn cs-ghost" type="button" @click="ajouterRecompense(e, 'item')">+ Objet</button>
+                                    <button class="cs-btn cs-ghost" type="button" @click="ajouterRecompense(e, 'sort')" v-if="sorts.length">+ Sort</button>
+                                    <button class="cs-btn cs-ghost" type="button" v-if="!e.recompenses.tp" @click="ajouterRecompense(e, 'tp')">+ Téléportation</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <details class="cs-panel px-4 py-3">
+                <summary class="cursor-pointer text-gray-400 font-medium">Détails techniques</summary>
+                <div class="flex flex-col gap-2 mt-2.5 text-xs text-gray-400">
+                    <div>Identifiant : <span class="font-mono text-gray-200">{{ q.id }}</span></div>
+                    <div>Drapeaux générés automatiquement : <span class="font-mono text-gray-200">{{ drapeaux.join(' → ') }}</span></div>
+                    <div>Chaque étape exige le drapeau de la précédente. Rien à saisir à la main.</div>
+                    <button type="button" class="cs-lien text-left" @click="json = !json">{{ json ? 'Masquer le JSON' : 'Voir le JSON' }}</button>
+                    <pre class="font-mono text-[11px] text-gray-300 bg-gray-950 p-3 rounded overflow-x-auto" v-if="json">{{ JSON.stringify(compile, null, 2) }}</pre>
+                </div>
+            </details>
+        </section>
+        <section class="flex-[999_1_520px] p-6 text-gray-500" v-else>Choisissez une quête, ou créez-en une.</section>
+
+        <!-- test et contexte -->
+        <aside aria-label="Test et contexte" class="flex-[1_1_300px] max-w-[350px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-4" v-if="q">
+            <div class="flex flex-col gap-2.5">
+                <span class="cs-sect p-0">Jouer la quête</span>
+                <div class="cs-panel p-2.5 flex flex-col gap-1">
+                    <div v-for="(e, i) in q.etapes" class="q-trk" :class="{ fait: statut(i) === 'fait', cours: i === etapeCourante }">
+                        <span class="q-rond"></span><span class="flex-1">{{ numero(i) }} · {{ libelleEtape(e) }}</span>
+                        <span class="font-mono text-xs">{{ progression(i) }}</span></div>
+                    <div class="flex gap-1.5 pt-1.5 px-1">
+                        <button class="cs-btn flex-1 h-[30px]" type="button" :disabled="etapeCourante < 0" @click="validerEtape()">Valider l'étape</button>
+                        <button class="cs-btn cs-ghost h-[30px]" type="button" @click="recommencer()">Recommencer</button>
+                    </div>
+                </div>
+                <div class="cs-panel p-3 flex flex-col gap-2">
+                    <div v-for="m in sim.journal" class="flex flex-col">
+                        <div class="cs-bulle moi" v-if="m.qui === 'moi'">{{ m.texte }}</div>
+                        <div class="cs-bulle" v-else-if="m.qui === 'pnj'"><span class="block text-[11px] text-amber-400 mb-0.5">{{ m.nom }}</span>{{ m.texte }}</div>
+                        <div class="text-xs text-[#a9cdf0]" v-else>{{ m.texte }}</div>
+                    </div>
+                    <div class="flex gap-1.5"><label for="q-dire" class="sr-only">Parler au PNJ</label>
+                        <input id="q-dire" class="cs-input" v-model="phrase" placeholder="Parler comme un joueur" @keydown.enter="parler()">
+                        <button class="cs-btn" type="button" @click="parler()">Envoyer</button></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <span class="cs-sect p-0">Dans le monde</span>
+                <div v-for="n in pnjDeLaQuete" class="flex justify-between px-2.5 py-2 rounded-md bg-gray-900 text-gray-200">
+                    <span>{{ n.name }}</span><span class="text-xs" :class="n.absent ? 'text-[#e7a55a]' : 'text-gray-500'">{{ n.absent ? 'absent de la zone' : zoneDef?.name + ' · ' + n.x + ', ' + n.z }}</span></div>
+                <div v-for="c in creaturesDeLaQuete" class="flex justify-between px-2.5 py-2 rounded-md bg-gray-900 text-gray-200">
+                    <span>{{ c.name }}</span><span class="text-xs" :class="c.present ? 'text-gray-500' : 'text-[#e7a55a]'">{{ c.present ? zoneDef?.name : 'absente de la zone' }}</span></div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <span class="cs-sect p-0">Joueurs en cours</span>
+                <a v-for="j in enCours" href="#joueurs" class="flex justify-between px-2.5 py-2 rounded-md bg-gray-900 text-gray-200 hover:text-t4c-text-light">
+                    <span>{{ j.nom }}</span><span class="text-xs text-gray-500">{{ j.etat }}</span></a>
+                <span class="text-xs text-gray-500" v-if="!enCours.length">Personne n'a encore commencé cette quête.</span>
+            </div>
+        </aside>
+    </div>
+</div>

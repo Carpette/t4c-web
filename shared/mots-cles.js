@@ -16,7 +16,9 @@ export function containsKeyword(text, keyword) {
 }
 
 // Première condition du dialogue qui bloque (texte lisible), ou null si toutes
-// sont remplies. `etat` décrit le joueur : { flags, level, gold,
+// sont remplies. Conditions : flag, notFlag, level, item (+ n), gold, chasse,
+// cursed, notCursed, et les listes flags[], items[{ item, n, consume }],
+// chasses[] (toutes requises). `etat` décrit le joueur : { flags, level, gold,
 // aObjet(defId, n) -> bool (au moins n exemplaires), chasse(clef) -> { tues, n } | null, maudit: (() -> bool) | null } (maudit null : inconnu).
 export function conditionBloquante(c, etat) {
   if (!c) return null;
@@ -24,10 +26,16 @@ export function conditionBloquante(c, etat) {
   if (c.notFlag && etat.flags[c.notFlag]) return `le drapeau ${c.notFlag} est posé`;
   if (c.level && etat.level < c.level) return `niveau ${c.level} requis`;
   if (c.item && !etat.aObjet(c.item, Math.max(1, c.n | 0))) return `objet ${c.item}${c.n > 1 ? ' ×' + c.n : ''} requis`;
-  if (c.chasse) {
-    const ch = etat.chasse?.(c.chasse);
-    if (!ch) return `chasse ${c.chasse} non commencée`;
-    if (ch.tues < ch.n) return `chasse ${c.chasse} : ${ch.tues}/${ch.n}`;
+  // formes multiples (objectifs d'une quête entre deux dialogues) : toutes requises
+  for (const f of Array.isArray(c.flags) ? c.flags : []) if (!etat.flags[f]) return `le drapeau ${f} n'est pas posé`;
+  for (const o of Array.isArray(c.items) ? c.items : []) {
+    if (o?.item && !etat.aObjet(o.item, Math.max(1, o.n | 0))) return `objet ${o.item}${o.n > 1 ? ' ×' + o.n : ''} requis`;
+  }
+  for (const key of [c.chasse, ...(Array.isArray(c.chasses) ? c.chasses : [])]) {
+    if (!key) continue;
+    const ch = etat.chasse?.(key);
+    if (!ch) return `chasse ${key} non commencée`;
+    if (ch.tues < ch.n) return `chasse ${key} : ${ch.tues}/${ch.n}`;
   }
   if (c.gold && etat.gold < c.gold) return `${c.gold} pièces d'or requises`;   // seuil (prélevé si consumeGold)
   if (c.cursed && !(etat.maudit && etat.maudit())) return 'réservé aux maudits';

@@ -603,6 +603,7 @@ export async function handleAdmin(req, res, url, game) {
             name: d.name, level: d.level, gold: d.gold, zoneId: d.zoneId,
             hp: d.hp, stats: d.stats, x: d.x, z: d.z,
             flags: d.flags || {}, // drapeaux de quête (dialogues de PNJ)
+            chasses: d.chasses || {}, // décomptes de quête en cours (onglet Quêtes)
           },
         };
       });

@@ -429,35 +429,35 @@ await new Promise(r => setTimeout(r, 60));
   ok('Ctrl+Z : pose de lumière annulée (section `lights` absente)', ed.getOverrides().lights === undefined);
 }
 
-// éditeur de quêtes : ouverture sans exception, génération cohérente, intégrité
+// quêtes au modèle (onglet Quêtes) : traduction en dialogues, intégrité
 ed.loadZone && await ed.loadZone(0);
 await new Promise(r => setTimeout(r, 60));
 {
-  ed.openQuestEditor();
-  ok('panneau Quêtes ouvert sans exception', failures.length === 0);
-  // pose deux PNJ custom (déclencheurs des deux étapes)
+  // pose deux PNJ custom (prise chez A, rendu chez B)
   ed.placeNpcAt(40, 40);
   ed.placeNpcAt(42, 42);
   const npcs = ed.getNpcs();
   const a = npcs.find(n => Math.floor(n.x) === 40 && Math.floor(n.z) === 40);
   const b = npcs.find(n => Math.floor(n.x) === 42 && Math.floor(n.z) === 42);
-  // construit une quête : PNJ A pose quete:t:1 sur « parle » + 100 or ;
-  // PNJ B exige quete:t:1 et pose quete:t:2 + 50 xp
-  ed.generateQuest({
-    id: 't', title: 'Test', desc: '', steps: [
-      { n: '1', flag: ed.questFlag('t', 1), npcId: a.npcId, keywords: ['parle'], reponse: 'A', reqFlag: '', reqLevel: 0, reqItem: '', consume: false, gold: 100, itemDefId: '', itemN: 1, xp: 0, tp: null },
-      { n: '2', flag: ed.questFlag('t', 2), npcId: b.npcId, keywords: ['suite'], reponse: 'B', reqFlag: ed.questFlag('t', 1), reqLevel: 0, reqItem: '', consume: false, gold: 0, itemDefId: '', itemN: 1, xp: 50, tp: null },
+  const modele = {
+    id: 't', titre: 'Test', memo: '', niveau: 1, repetable: false, etapes: [
+      { type: 'prise', npcId: a.npcId, keywords: ['parle'], reponse: 'A' },
+      { type: 'rendu', npcId: b.npcId, keywords: ['suite'], reponse: 'B', recompenses: { gold: 100, xp: 50, items: [], sorts: [], tp: null } },
     ],
-  });
+  };
+  ed.appliquerQuete(modele);
+  ok('modèle de quête appliqué sans exception', failures.length === 0);
   // les dialogues générés sont dans les overrides npcs.add des deux PNJ
   const adds = ed.getOverrides().npcs?.add || [];
   const da = adds.find(n => n.id === a.npcId)?.dialogues || [];
   const db = adds.find(n => n.id === b.npcId)?.dialogues || [];
   const setsFlag = (dlgs, f) => dlgs.some(d => (d.reactions || []).some(r => r.type === 'flag' && r.key === f));
-  ok('génération : PNJ A pose le drapeau quete:t:1 (mot-clé + or)',
-    setsFlag(da, 'quete:t:1') && da.some(d => (d.keywords || []).includes('parle') && (d.reactions || []).some(r => r.type === 'gold' && r.amount === 100)));
-  ok('génération : PNJ B exige quete:t:1, pose quete:t:2 (+xp)',
-    db.some(d => d.conditions?.flag === 'quete:t:1') && setsFlag(db, 'quete:t:2') && db.some(d => (d.reactions || []).some(r => r.type === 'xp' && r.amount === 50)));
+  ok('génération : PNJ A pose le drapeau quete:t:1 sur son mot-clé',
+    setsFlag(da, 'quete:t:1') && da.some(d => (d.keywords || []).includes('parle')));
+  ok('génération : PNJ B exige quete:t:1, pose quete:t:2 (+or, +xp)',
+    db.some(d => d.conditions?.flag === 'quete:t:1') && setsFlag(db, 'quete:t:2')
+    && db.some(d => (d.reactions || []).some(r => r.type === 'xp' && r.amount === 50) && d.reactions.some(r => r.type === 'gold' && r.amount === 100)));
+  ok('modèle rangé dans les overrides (section quests)', ed.getOverrides().quests?.t?.etapes?.length === 2);
   // scan : la quête est remontée avec ses deux étapes
   const scanned = ed.scanQuests();
   ok('scan : la quête « t » est remontée avec 2 étapes', scanned.get('t') && scanned.get('t').flags.size === 2);
@@ -475,6 +475,15 @@ await new Promise(r => setTimeout(r, 60));
   const integ2 = ed.questIntegrity('t');
   ok('intégrité : drapeau exigé par un coffre mais jamais posé = étape inatteignable',
     integ2.orphanRefs.includes('quete:t:9'));
+  // rendu déplacé chez A : l'ancien dialogue de B disparaît ; puis suppression
+  modele.etapes[1].npcId = a.npcId;
+  ed.appliquerQuete(modele);
+  const dlgsDe = (id) => (ed.getOverrides().npcs?.add || []).find(n => n.id === id)?.dialogues || [];
+  ok('ré-application : le dialogue quittant B est retiré, A porte les deux étapes',
+    !setsFlag(dlgsDe(b.npcId), 'quete:t:2') && setsFlag(dlgsDe(a.npcId), 'quete:t:2'));
+  ed.supprimerQuete('t');
+  ok('suppression : dialogues et modèle retirés',
+    !setsFlag(dlgsDe(a.npcId), 'quete:t:1') && !ed.getOverrides().quests?.t);
 }
 
 // aperçu jour/nuit : bascule l'état d'aperçu (et le rendu ne lève pas d'exception)
