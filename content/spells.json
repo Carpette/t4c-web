@@ -220,8 +220,7 @@
         }
       ],
       "fx": {
-        "self": "bouclier_epines",
-        "aura": "aura_flammes"
+        "self": "bouclier_arcane"
       }
     },
     {
