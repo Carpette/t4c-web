@@ -164,19 +164,22 @@ const b = npcs.find(n => Math.floor(n.x) === NPC_B.x && Math.floor(n.z) === NPC_
 // place un coffre verrouillé par le drapeau de l'étape 2
 ed.placeChestAt(CHEST.x, CHEST.z);
 const F1 = ed.questFlag('olin', 1), F2 = ed.questFlag('olin', 2);
-ed.generateQuest({
-  id: 'olin', title: 'Olin', desc: '', steps: [
-    { n: '1', flag: F1, npcId: a.npcId, keywords: ['mission'], reponse: 'REPONSE_A : commence par ceci.', reqFlag: '', reqLevel: 0, reqItem: '', consume: false, gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null },
-    { n: '2', flag: F2, npcId: b.npcId, keywords: ['suite'], reponse: 'REPONSE_B : bien joué, voici ta récompense.', reqFlag: F1, reqLevel: 0, reqItem: '', consume: false, gold: 120, itemDefId: '', itemN: 1, xp: 0, tp: null },
+ed.appliquerQuete({
+  id: 'olin', titre: 'Olin', memo: '', niveau: 1, repetable: false, etapes: [
+    { type: 'prise', npcId: a.npcId, keywords: ['mission'], reponse: 'REPONSE_A : commence par ceci.' },
+    { type: 'rendu', npcId: b.npcId, keywords: ['suite'], reponse: 'REPONSE_B : bien joué, voici ta récompense.',
+      recompenses: { gold: 120, xp: 0, items: [], sorts: [], tp: null } },
   ],
 });
-// quête de chasse « rats », MÊME mot-clé aux deux étapes chez A : l'étape 1
-// lance le décompte, l'étape 2 exige 2 rats tués + 2 bandages rapportés
-const R1 = ed.questFlag('rats', 1), R2 = ed.questFlag('rats', 2);
-ed.generateQuest({
-  id: 'rats', title: 'Rats', desc: '', repeatable: true, steps: [
-    { n: '1', flag: R1, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_1 : tue 2 rats.', reqFlag: '', reqLevel: 0, reqItem: '', reqItemN: 1, consume: false, killMob: '', killN: 1, gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null },
-    { n: '2', flag: R2, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_2 : merci.', reqFlag: R1, reqLevel: 0, reqItem: 'bandage', reqItemN: 2, consume: true, killMob: 'rat', killN: 2, gold: 77, itemDefId: '', itemN: 1, xp: 0, tp: null },
+// quête de chasse « rats » au modèle de l'onglet Quêtes, MÊME mot-clé à la
+// prise et au rendu chez A : 2 rats tués + 2 bandages rapportés, répétable
+ed.appliquerQuete({
+  id: 'rats', titre: 'Rats', memo: '', niveau: 1, repetable: true, etapes: [
+    { type: 'prise', npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_1 : tue 2 rats.' },
+    { type: 'tuer', mob: 'rat', n: 2, progression: true },
+    { type: 'rapporter', item: 'bandage', n: 2 },
+    { type: 'rendu', npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_2 : merci.',
+      recompenses: { gold: 77, xp: 0, items: [], sorts: [], tp: null } },
   ],
 });
 // verrouille le coffre par F2 (effet « débloquer un coffre » d'une étape)
@@ -184,6 +187,8 @@ const chestOv = (ed.getOverrides().chests ||= []);
 chestOv.push({ x: CHEST.x, z: CHEST.z, gold: [555, 555], items: [], reqFlag: F2 });
 ed.rebuildNow();
 const QUEST_OV = ed.getOverrides();
+ok('modèle : les quêtes sont rangées au modèle et relues comme telles',
+  ['olin', 'rats'].every(id => ed.quetesZone().some(q => q.id === id && !q.ancienne && q.etapes.length)));
 ok('éditeur : quête « olin » générée (2 PNJ + coffre verrouillé)',
   (QUEST_OV.npcs?.add?.length === 2) && QUEST_OV.npcs.add.some(n => (n.dialogues || []).some(d => (d.reactions || []).some(r => r.type === 'flag' && r.key === F1)))
   && QUEST_OV.chests?.some(c => c.reqFlag === F2));

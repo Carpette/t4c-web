@@ -14,6 +14,7 @@
 import { generateWorld, TILE, defaultNpcSpots, SPAWN_ZONES } from '../../../shared/worldgen.js';
 import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
+import { QUEST_RE, drapeau, compiler, depuisDialogues } from './quetes.js';
 import { buildDecor } from '../render2d/decor.js';
 import { resolveTile } from '../render2d/assets.js';
 import { PROP_TYPES, propScale, propFlip, isFlippableProp, isUserProp, propSprites, FLOOR_IDS } from '../render2d/decormap.js';
@@ -115,6 +116,12 @@ function picto(ctx, nom, x, y, r, couleur) {
 const MARKER_PICTOS = { spawn: 'drapeau', exit: 'sortie', teleport: 'etoile' };
 const MARKER_NAMES = { spawn: 'apparition', exit: 'sortie', teleport: 'téléport' };
 
+// L'éditeur de carte est le SEUL détenteur des retouches de la zone (et de
+// leur enregistrement automatique) : les autres onglets de Zones passent par
+// lui, sinon un enregistrement de l'un écraserait celui de l'autre.
+let editeurPret;
+export const editeurCarte = new Promise(r => { editeurPret = r; });
+
 export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], skills = [], musicFiles = [], musicGroups = [] }) {
   const $ = (id) => document.getElementById(id);
   const canvas = $('map-canvas');
@@ -200,6 +207,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (Array.isArray(n.ambience)) out.ambience = n.ambience; // sous-zones d'ambiance
     if (Array.isArray(n.lights)) out.lights = n.lights;   // sources de lumière
     if (Array.isArray(n.walk)) out.walk = n.walk;         // collisions forcées
+    if (n.quests && typeof n.quests === 'object') out.quests = n.quests; // modèles de quêtes
     return out;
   }
 
@@ -2894,8 +2902,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // précédente. Au chargement, on REMONTE les quêtes en scannant ces drapeaux
   // dans les dialogues (réactions/conditions) et les coffres (reqFlag).
   // ====================================================================
-  const QUEST_RE = /^quete:([^:]+):(.+)$/;
-  const questFlag = (id, n) => `quete:${id}:${n}`;
+  const questFlag = drapeau;
 
   // dialogues effectifs d'un PNJ (lecture) : custom -> def.dialogues ;
   // par défaut -> edit.dialogues sinon les dialogues de base
@@ -2969,35 +2976,6 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (o.edit) for (const k of Object.keys(o.edit)) fromArr(o.edit[k].dialogues);
   }
 
-  // Construit un dialogue T4C à partir d'une étape de quête.
-  // `suivante` : l'étape d'après ; si elle exige une chasse, CETTE étape la lance.
-  // `rejouer` (dernière étape d'une quête répétable) : drapeaux de toutes les
-  // étapes, retirés à la fin pour que la chaîne reparte de l'étape 1
-  function buildStepDialogue(step, suivante, rejouer = null) {
-    const conditions = {};
-    if (step.reqFlag) conditions.flag = step.reqFlag;          // exige l'étape précédente
-    if (step.reqLevel > 0) conditions.level = step.reqLevel | 0;
-    if (step.reqItem) {
-      conditions.item = step.reqItem;
-      if (step.reqItemN > 1) conditions.n = step.reqItemN | 0;
-      if (step.consume) conditions.consume = true;
-    }
-    if (step.killMob) conditions.chasse = step.flag;            // chasse lancée par l'étape précédente
-    const reactions = [{ type: 'flag', key: step.flag }];       // pose le drapeau d'étape
-    if (suivante?.killMob) reactions.push({ type: 'chasse', key: suivante.flag, mob: suivante.killMob, n: Math.max(1, suivante.killN | 0) });
-    if (step.gold > 0) reactions.push({ type: 'gold', amount: step.gold | 0 });
-    if (step.itemDefId) reactions.push({ type: 'item', defId: step.itemDefId, n: Math.max(1, step.itemN | 0 || 1) });
-    if (step.xp > 0) reactions.push({ type: 'xp', amount: step.xp | 0 });
-    if (step.tp && Number.isFinite(+step.tp.x) && Number.isFinite(+step.tp.z)) {
-      reactions.push({ type: 'teleport', zoneId: step.tp.zoneId ?? undefined, x: +step.tp.x, z: +step.tp.z });
-    }
-    for (const key of rejouer || []) reactions.push({ type: 'unflag', key });
-    const dlg = { keywords: step.keywords.length ? step.keywords : ['quete'], reponse: step.reponse || '...', reactions };
-    if (rejouer) dlg.repeatable = true;
-    if (Object.keys(conditions).length) dlg.conditions = conditions;
-    return dlg;
-  }
-
   // Scanne les overrides de la zone et REMONTE les quêtes (groupées par id de
   // drapeau `quete:<id>:*`). Pour chaque drapeau on note qui le POSE (réaction
   // flag d'un dialogue PNJ) et qui le REQUIERT (condition d'un dialogue, reqFlag
@@ -3039,248 +3017,52 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     return { orphanRefs, deadFlags };
   }
 
-  // ---------- panneau « Quêtes » (vue de chaîne + édition par maillon) ----------
-  const questPanel = $('quest-panel');
-  let questModel = null; // quête en cours d'édition : { id, title, desc, steps:[] }
-
-  function closeQuests() { questPanel.style.display = 'none'; questPanel.innerHTML = ''; questModel = null; markDirty(); }
-
-  function openQuestEditor() {
-    closePanel();
-    questModel = null;
-    renderQuestList();
-    questPanel.style.display = 'block';
-  }
-
-  // liste des quêtes existantes (remontées du scan) + création
-  function renderQuestList() {
-    questPanel.innerHTML = '';
-    questPanel.append(panelTitleEl('Éditeur de quêtes · zone ' + curZone, closeQuests));
-    questPanel.append(h('div', { className: 'hint', textContent:
-      'Une quête regroupe des étapes reliées par des drapeaux quete:<id>:<n>. Chaque étape : un PNJ (mot-clé) ou un coffre (verrou) → conditions → effets (drapeau, or/objet/xp, téléport). « Enregistrer la carte » applique au serveur.' }));
-    const quests = scanQuests();
-    const list = h('div');
-    if (!quests.size) list.append(h('div', { className: 'hint', textContent: 'Aucune quête dans cette zone pour l\'instant.' }));
-    for (const q of quests.values()) {
-      const integ = questIntegrity(q);
-      const card = h('div', { className: 'quest-card' });
-      card.append(h('div', { className: 'edit-row' },
-        h('b', { textContent: `Quête « ${q.id} »` }),
-        h('span', { className: 'hint', textContent: `${q.flags.size} étape(s), ${q.refs.length} référence(s)` }),
-        h('button', { textContent: 'Éditer', onclick: () => openQuestForm(q.id) })));
-      // chaîne lisible : PNJ A (mot-clé) -> pose qN -> coffre exige qN ...
-      card.append(renderChain(q));
-      // intégrité
-      if (integ.orphanRefs.length) card.append(h('div', { className: 'quest-bad', textContent:
-        'Drapeaux exigés mais jamais posés (étape inatteignable) : ' + integ.orphanRefs.join(', ') }));
-      if (integ.deadFlags.length) card.append(h('div', { className: 'quest-warn', textContent:
-        'Drapeaux posés mais jamais exigés (sans effet) : ' + integ.deadFlags.join(', ') }));
-      if (!integ.orphanRefs.length && !integ.deadFlags.length) card.append(h('div', { className: 'quest-ok', textContent: 'Intégrité : aucune incohérence détectée.' }));
-      list.append(card);
+  // ---------- quêtes au MODÈLE (onglet Forge > Zones > Quêtes) ----------
+  // Le modèle (client/js/admin/quetes.js) est rangé dans ov.quests et traduit
+  // en dialogues de PNJ à chaque modification ; l'enregistrement automatique
+  // de l'éditeur publie le tout. Les quêtes d'avant le modèle (dialogues
+  // seuls) sont reconstruites à la volée et adoptées à leur première retouche.
+  function quetesZone() {
+    const modeles = ov.quests && typeof ov.quests === 'object' ? ov.quests : {};
+    const out = Object.values(modeles).map(q => structuredClone(q));
+    for (const [id, q] of scanQuests()) {
+      if (modeles[id] || !q.flags.size) continue;
+      const reactions = [...q.flags.values()].flatMap(f => f.dlg.reactions || []);
+      out.push({ ...depuisDialogues(id, q.flags, reactions), ancienne: true });
     }
-    questPanel.append(list);
-    // création d'une nouvelle quête
-    // champs à remplir bien visibles (sans cadre, ils passaient pour une liste)
-    const champ = { border: '1px solid #4b5563', borderRadius: '4px', padding: '3px 6px', background: '#0b1220' };
-    const idIn = h('input', { placeholder: 'id (facultatif)', style: { ...champ, width: '130px' } });
-    const titleIn = h('input', { placeholder: 'titre de la quête', style: { ...champ, width: '200px' } });
-    const erreurQuete = h('div', { className: 'hint', style: { color: '#e88' } });
-    questPanel.append(h('h3', { textContent: 'Nouvelle quête' }),
-      h('div', { className: 'edit-row' }, 'id : ', idIn, ' titre : ', titleIn,
-        h('button', { textContent: '+ créer', onclick: () => {
-          // id tiré du titre s'il est vide ; accents retirés plutôt que la
-          // lettre entière (« Épée » -> epee, pas « pe »)
-          const brut = (idIn.value || '').trim() || titleIn.value.trim();
-          const id = brut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_')
-            .replace(/[^a-z0-9_]/gi, '').toLowerCase();
-          // l'erreur s'affiche DANS le panneau (la barre d'état est dessous)
-          if (!id) { erreurQuete.textContent = 'Donnez un titre ou un id de quête (lettres, chiffres).'; return; }
-          if (scanQuests().has(id)) { erreurQuete.textContent = `La quête « ${id} » existe déjà : utilisez Éditer dans la liste.`; return; }
-          questModel = { id, title: titleIn.value.trim() || id, desc: '', steps: [] };
-          renderQuestForm();
-        } })), erreurQuete);
+    return out;
   }
-
-  // affiche la chaîne d'une quête remontée du scan (maillons ordonnés par drapeau)
-  function renderChain(q) {
-    const chain = h('div', { className: 'quest-chain' });
-    const flags = [...q.flags.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
-    if (!flags.length) { chain.append(h('span', { className: 'hint', textContent: '(aucune étape posée)' })); return chain; }
-    flags.forEach(([flag, info], i) => {
-      if (i) chain.append(h('span', { className: 'quest-arrow', textContent: '→' }));
-      const dlg = info.dlg;
-      const kw = (dlg.keywords || [])[0] || '?';
-      const cond = dlg.conditions?.flag ? ` exige ${shortFlag(dlg.conditions.flag)}` : '';
-      const rew = (dlg.reactions || []).filter(r => r.type !== 'flag' && r.type !== 'unflag')
-        .map(r => r.type === 'gold' ? `${r.amount} or` : r.type === 'xp' ? `${r.amount} xp` : r.type === 'item' ? `${r.n || 1}× ${r.defId}`
-          : r.type === 'teleport' ? 'téléport' : r.type === 'chasse' ? `chasse ${r.n}× ${MOBS[r.mob]?.name || r.mob}` : r.type).join(', ');
-      chain.append(h('span', { className: 'quest-link', textContent:
-        `${info.npcName} (« ${kw} »)${cond} → pose ${shortFlag(flag)}${rew ? ' + ' + rew : ''}${(dlg.reactions || []).some(r => r.type === 'unflag') ? ' (puis la quête repart)' : ''}` }));
-    });
-    // coffres qui référencent un drapeau de la quête
-    for (const r of q.refs.filter(r => r.kind === 'chest')) {
-      chain.append(h('span', { className: 'quest-arrow', textContent: '→' }));
-      chain.append(h('span', { className: 'quest-link', textContent: `Coffre (${r.x},${r.z}) exige ${shortFlag(r.flag)}` }));
+  // retire tous les dialogues qui posent un drapeau de la quête
+  function retirerDialoguesQuete(id) {
+    const o = npcsOv();
+    const deLaQuete = (d) => (d.reactions || []).some(r => r.type === 'flag' && QUEST_RE.exec(r.key || '')?.[1] === id);
+    o.add?.forEach(a => { if (Array.isArray(a.dialogues)) a.dialogues = a.dialogues.filter(d => !deLaQuete(d)); });
+    if (o.edit) for (const k of Object.keys(o.edit)) {
+      if (Array.isArray(o.edit[k].dialogues)) o.edit[k].dialogues = o.edit[k].dialogues.filter(d => !deLaQuete(d));
     }
-    return chain;
+    refreshEditLayers(); // npcsList relit les dialogues retouchés
   }
-  const shortFlag = (f) => { const m = QUEST_RE.exec(f); return m ? `q${m[2]}` : f; };
-
-  // formulaire d'édition d'une quête (liste d'étapes éditables -> génération)
-  function openQuestForm(id) {
-    // recharge le modèle depuis le scan (chaque drapeau posé = une étape)
-    const q = scanQuests().get(id);
-    const steps = [];
-    if (q) {
-      const flags = [...q.flags.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
-      // chasses lancées par une étape : clef (drapeau de l'étape qui l'exige) -> réaction
-      const chasses = new Map();
-      for (const [, info] of flags) for (const r of info.dlg.reactions || []) if (r.type === 'chasse') chasses.set(r.key, r);
-      for (const [flag, info] of flags) {
-        const dlg = info.dlg;
-        const ch = dlg.conditions?.chasse ? chasses.get(dlg.conditions.chasse) : null;
-        const reac = dlg.reactions || [];
-        const gold = reac.find(r => r.type === 'gold');
-        const item = reac.find(r => r.type === 'item');
-        const xp = reac.find(r => r.type === 'xp');
-        const tp = reac.find(r => r.type === 'teleport');
-        const m = QUEST_RE.exec(flag);
-        steps.push({
-          n: m ? m[2] : String(steps.length + 1), flag,
-          npcId: info.npcId, keywords: dlg.keywords || [], reponse: dlg.reponse || '',
-          reqFlag: dlg.conditions?.flag || '', reqLevel: dlg.conditions?.level || 0,
-          reqItem: dlg.conditions?.item || '', reqItemN: dlg.conditions?.n || 1, consume: !!dlg.conditions?.consume,
-          killMob: ch?.mob || '', killN: ch?.n || 10,
-          gold: gold?.amount || 0, itemDefId: item?.defId || '', itemN: item?.n || 1,
-          xp: xp?.amount || 0, tp: tp ? { zoneId: tp.zoneId ?? curZone, x: tp.x, z: tp.z } : null,
-        });
-      }
-    }
-    const repeatable = !!q && [...q.flags.values()].some(info => info.dlg.repeatable);
-    questModel = { id, title: id, desc: '', steps, repeatable };
-    renderQuestForm();
-  }
-
-  function renderQuestForm() {
-    const m2 = questModel;
-    questPanel.innerHTML = '';
-    questPanel.append(panelTitleEl(`Quête « ${m2.id} »`, closeQuests));
-    questPanel.append(h('button', { textContent: '← Liste des quêtes', onclick: renderQuestList }));
-    const descIn = h('textarea', { value: m2.desc || '', placeholder: 'description (mémo d\'édition)', style: { width: '100%', height: '36px' } });
-    descIn.onchange = () => { m2.desc = descIn.value; };
-    questPanel.append(h('h3', { textContent: 'Description' }), descIn);
-    const repCb = h('input', { type: 'checkbox', checked: !!m2.repeatable });
-    repCb.onchange = () => { m2.repeatable = repCb.checked; };
-    questPanel.append(h('div', { className: 'edit-row' }, h('label', { className: 'edit-check' }, repCb, ' quête répétable'),
-      h('span', { className: 'hint', textContent: ' : rendue, elle repart de l\'étape 1 (drapeaux effacés, récompenses à chaque fois)' })));
-    const npcOptions = npcsList.map(n => `<option value="${n.npcId}">${n.def.name || n.npcId}</option>`).join('');
-    // [['', aucun], ...] : le sélecteur filtrable accepte « aucun objet »
-    const itemDefsOpt = [['', { name: '— aucun —' }], ...Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy)];
-    const stepsBox = h('div');
-    const renderSteps = () => {
-      stepsBox.innerHTML = '';
-      m2.steps.forEach((s, i) => {
-        s.flag = questFlag(m2.id, s.n || (i + 1));
-        const card = h('div', { className: 'quest-step' });
-        // déclencheur : PNJ (mot-clé). Le coffre se gère par son reqFlag dans sa fiche.
-        const npcSel = h('select', { innerHTML: npcOptions });
-        npcSel.value = s.npcId || npcsList[0]?.npcId || '';
-        npcSel.onchange = () => { s.npcId = npcSel.value; };
-        if (!s.npcId) s.npcId = npcSel.value;
-        const kwIn = h('input', { value: (s.keywords || []).join(', '), placeholder: 'mots-clés', style: { width: '160px' } });
-        kwIn.onchange = () => { s.keywords = kwIn.value.split(',').map(x => x.trim()).filter(Boolean); };
-        const repIn = h('textarea', { value: s.reponse || '', placeholder: 'réponse du PNJ', style: { width: '100%', height: '34px' } });
-        repIn.onchange = () => { s.reponse = repIn.value; };
-        // conditions
-        const reqFlagIn = h('input', { value: s.reqFlag || '', placeholder: 'drapeau requis (vide = aucun)', style: { width: '180px' } });
-        reqFlagIn.onchange = () => { s.reqFlag = reqFlagIn.value.trim(); };
-        const prevBtn = h('button', { textContent: '⟵ étape préc.', title: 'exiger le drapeau de l\'étape précédente',
-          onclick: () => { if (i > 0) { s.reqFlag = m2.steps[i - 1].flag; renderSteps(); } } });
-        const lvlIn = h('input', { type: 'number', min: '0', value: String(s.reqLevel || 0), style: { width: '54px' } });
-        lvlIn.onchange = () => { s.reqLevel = Math.max(0, lvlIn.value | 0); };
-        const itemFs = filterSelect(itemDefsOpt, s.reqItem || '', (id) => { s.reqItem = id; }, 150);
-        const itemSel = itemFs.wrap;
-        const itemNIn = h('input', { type: 'number', min: '1', value: String(s.reqItemN || 1), style: { width: '48px' } });
-        itemNIn.onchange = () => { s.reqItemN = Math.max(1, itemNIn.value | 0); };
-        // chasse : n monstres d'un type à tuer, décompte lancé par l'étape précédente
-        const mobFs = filterSelect([['', { name: '— aucun —' }], ...Object.entries(MOBS)], s.killMob || '', (id) => { s.killMob = id; }, 150);
-        const killNIn = h('input', { type: 'number', min: '1', value: String(s.killN || 10), style: { width: '54px' } });
-        killNIn.onchange = () => { s.killN = Math.max(1, killNIn.value | 0); };
-        const consumeCb = h('input', { type: 'checkbox', checked: !!s.consume });
-        consumeCb.onchange = () => { s.consume = consumeCb.checked; };
-        // effets
-        const goldIn = h('input', { type: 'number', min: '0', value: String(s.gold || 0), style: { width: '70px' } });
-        goldIn.onchange = () => { s.gold = Math.max(0, goldIn.value | 0); };
-        const rewFs = filterSelect(itemDefsOpt, s.itemDefId || '', (id) => { s.itemDefId = id; }, 150);
-        const rewSel = rewFs.wrap;
-        const rewN = h('input', { type: 'number', min: '1', value: String(s.itemN || 1), style: { width: '48px' } });
-        rewN.onchange = () => { s.itemN = Math.max(1, rewN.value | 0); };
-        const xpIn = h('input', { type: 'number', min: '0', value: String(s.xp || 0), style: { width: '70px' } });
-        xpIn.onchange = () => { s.xp = Math.max(0, xpIn.value | 0); };
-        const tpOn = h('input', { type: 'checkbox', checked: !!s.tp });
-        const tpZone = h('select', { innerHTML: zones.map(z => `<option value="${z.id}"${(s.tp?.zoneId ?? curZone) === z.id ? ' selected' : ''}>${z.id} — ${z.name}</option>`).join('') });
-        const tpX = h('input', { type: 'number', step: '0.5', value: String(s.tp?.x ?? ''), style: { width: '64px' } });
-        const tpZ = h('input', { type: 'number', step: '0.5', value: String(s.tp?.z ?? ''), style: { width: '64px' } });
-        const syncTp = () => {
-          s.tp = tpOn.checked ? { zoneId: parseInt(tpZone.value, 10), x: +tpX.value, z: +tpZ.value } : null;
-        };
-        tpOn.onchange = syncTp; tpZone.onchange = syncTp; tpX.onchange = syncTp; tpZ.onchange = syncTp;
-        card.append(
-          h('div', { className: 'edit-row' }, h('b', { textContent: `Étape ${s.n || (i + 1)} → pose ${shortFlag(s.flag)}` }),
-            h('button', { textContent: '×', title: 'Retirer', ariaLabel: 'Retirer', onclick: () => { m2.steps.splice(i, 1); renderSteps(); } })),
-          h('div', { className: 'edit-row' }, 'Déclencheur — PNJ : ', npcSel, ' mot-clé : ', kwIn),
-          repIn,
-          h('h4', { textContent: 'Conditions' }),
-          h('div', { className: 'edit-row' }, 'drapeau requis : ', reqFlagIn, prevBtn),
-          h('div', { className: 'edit-row' }, 'niveau ≥ ', lvlIn),
-          h('div', { className: 'edit-row' }, 'rapporter l\'objet : ', itemSel, ' ×', itemNIn, h('label', { className: 'edit-check' }, consumeCb, ' repris par le PNJ')),
-          h('div', { className: 'edit-row' }, 'avoir tué : ', mobFs.wrap, ' ×', killNIn,
-            h('span', { className: 'hint', textContent: i ? ' (décompte lancé par l\'étape précédente)' : ' (exige une étape précédente qui lance la chasse)' })),
-          h('h4', { textContent: 'Effets (récompenses, une seule fois sauf répétable)' }),
-          h('div', { className: 'edit-row' }, 'or ', goldIn, ' objet ', rewSel, ' ×', rewN, ' xp ', xpIn),
-          h('div', { className: 'edit-row' }, h('label', { className: 'edit-check' }, tpOn, ' téléport'), ' zone ', tpZone, ' x ', tpX, ' z ', tpZ));
-        stepsBox.append(card);
-      });
-    };
-    renderSteps();
-    questPanel.append(h('h3', { textContent: 'Étapes (chaîne)' }), stepsBox);
-    questPanel.append(h('button', { textContent: '+ étape', onclick: () => {
-      const n = m2.steps.length + 1;
-      const prev = m2.steps[m2.steps.length - 1];
-      m2.steps.push({ n: String(n), flag: questFlag(m2.id, n), npcId: npcsList[0]?.npcId || '', keywords: [], reponse: '',
-        reqFlag: prev ? prev.flag : '', reqLevel: 0, reqItem: '', reqItemN: 1, consume: false, killMob: '', killN: 10,
-        gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null });
-      renderSteps();
-    } }));
-    questPanel.append(h('div', { className: 'edit-row', style: { marginTop: '10px' } },
-      h('button', { textContent: 'Générer / mettre à jour', onclick: () => { generateQuest(m2); } }),
-      h('button', { textContent: '↩ Annuler', onclick: renderQuestList })));
-  }
-
-  // GÉNÈRE les dialogues PNJ (et leurs flags/reqFlag) à partir du modèle de quête.
-  function generateQuest(m2) {
-    if (!m2.steps.length) { msg('Ajoutez au moins une étape.'); return; }
-    if (m2.steps[0].killMob) { msg('La première étape ne peut pas exiger une chasse : ajoutez avant une étape où le PNJ confie la quête.'); return; }
+  function appliquerQuete(modele) {
+    // le modèle arrive en objet réactif (onglet Quêtes) ; ses champs « _ » sont
+    // propres à l'écran
+    const q = JSON.parse(JSON.stringify(modele, (k, v) => k.startsWith('_') ? undefined : v));
+    delete q.ancienne;
     pushHistory();
-    for (const s of m2.steps) s.flag = questFlag(m2.id, s.n);
-    const tous = m2.repeatable ? m2.steps.map(s => s.flag) : null;
-    m2.steps.forEach((s, i) => {
-      if (!s.npcId) return;
-      const dlg = buildStepDialogue(s, m2.steps[i + 1], i === m2.steps.length - 1 ? tous : null);
-      if (m2.repeatable) dlg.repeatable = true; // récompenses versées à chaque tour
-      npcWriteQuestDialogue(s.npcId, s.flag, dlg);
-    });
-    ordonnerEtapes(m2.id);
+    retirerDialoguesQuete(q.id);
+    for (const { npcId, flag, dlg } of compiler(q, curZone)) {
+      if (npcId) npcWriteQuestDialogue(npcId, flag, dlg);
+    }
+    ordonnerEtapes(q.id);
+    (ov.quests ||= {})[q.id] = q;
     refreshEditLayers();
-    msg(`Quête « ${m2.id} » générée (${m2.steps.length} étape(s)) — « Enregistrer » pour l'appliquer au serveur.`);
-    renderQuestList();
+    markDirty();
   }
-
-  // titre de panneau réutilisable avec bouton de fermeture personnalisé
-  function panelTitleEl(text, onClose) {
-    return h('div', { className: 'edit-panel-title' },
-      h('span', { textContent: text }),
-      h('button', { textContent: '×', title: 'Fermer', ariaLabel: 'Fermer', onclick: onClose }));
+  function supprimerQuete(id) {
+    pushHistory();
+    retirerDialoguesQuete(id);
+    if (ov.quests) delete ov.quests[id];
+    refreshEditLayers();
+    markDirty();
   }
 
   // ---------- barre d'outils ----------
@@ -3634,7 +3416,6 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   updateTplSaveBtn();
 
   // éditeur de quêtes : ouvre le panneau de chaîne (vue de haut niveau)
-  $('open-quests')?.addEventListener('click', openQuestEditor);
   // « Tester ici » : arme le prochain clic pour téléporter le perso connecté en jeu
   $('tp-here')?.addEventListener('click', () => {
     pendingPlace = 'teleport-test';
@@ -3736,6 +3517,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   async function loadZone(id) {
     if (ov && nonEnregistre()) await enregistrer(); // la zone quittée d'abord
     curZone = id;
+    if ($('map-zone')) $('map-zone').value = String(id); // changement venu de l'onglet Quêtes
     msg('Génération de la carte…');
     await new Promise(r => setTimeout(r, 20));
     const def = zones.find(z => z.id === id);
@@ -3747,7 +3529,6 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       spawnZones: w.spawnZones || null, npcSpots: w.npcSpots || null, village: w.village,
     };
     closePanel();
-    closeQuests();
     pendingPlace = null;
     try { ov = normalizeOv(await api(`/api/admin/overrides/${id}`)); } catch { ov = emptyOv(); }
     ovEnregistre = ovVu = JSON.stringify(ov); ovEchec = null;
@@ -3766,7 +3547,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   pollPlayers();
 
   // poignées pour les tests headless (et le débogage console)
-  return {
+  const apiEditeur = {
     getOverrides: () => ov,
     getView: () => view,
     loadZone,
@@ -3820,10 +3601,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     setDayPreview: (v) => { dayPreview = v; markDirty(); },
     getDayPreview: () => dayPreview,
     // éditeur de quêtes (vue de haut niveau au-dessus des dialogues + flags)
-    openQuestEditor,
     scanQuests: () => scanQuests(),
     questIntegrity: (id) => { const q = scanQuests().get(id); return q ? questIntegrity(q) : null; },
-    generateQuest,           // génère/met à jour les dialogues d'une quête (modèle d'étapes)
+    // quêtes au modèle (onglet Quêtes)
+    quetesZone, appliquerQuete, supprimerQuete,
+    zoneCourante: () => curZone,
+    zones: () => zones,
     questFlag,
   };
+  editeurPret(apiEditeur); // l'onglet Quêtes pilote le même état de zone
+  return apiEditeur;
 }

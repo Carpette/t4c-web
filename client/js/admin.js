@@ -24,6 +24,7 @@ import { ObjetsController } from './admin/components/objets/objets.js';
 import { PantheonController } from './admin/components/pantheon/pantheon.js';
 import { MapEditorController } from './admin/components/map-editor/map-editor.js';
 import { ZonePropsController } from './admin/components/zone-props/zone-props.js';
+import { QuetesController } from './admin/components/quetes/quetes.js';
 import { MondeCarteController } from './admin/components/monde-carte/monde-carte.js';
 import { BibliothequeController } from './admin/components/bibliotheque/bibliotheque.js';
 import { PublicationController } from './admin/components/publication/publication.js';
@@ -94,6 +95,7 @@ async function enter(name) {
   guiManagerAdmin.registerController('objets', ObjetsController);
   guiManagerAdmin.registerController('map-editor', MapEditorController);
   guiManagerAdmin.registerController('zone-props', ZonePropsController);
+  guiManagerAdmin.registerController('quetes', QuetesController);
   guiManagerAdmin.registerController('monde-carte', MondeCarteController);
   guiManagerAdmin.registerController('bibliotheque', BibliothequeController);
   guiManagerAdmin.registerController('publication', PublicationController);
@@ -104,6 +106,7 @@ async function enter(name) {
     { name: 'page', selector: '#page' },
     { name: 'map-editor', selector: '#tab-map' },
     { name: 'zone-props', selector: '#tab-zone-props' },
+    { name: 'quetes', selector: '#tab-quetes' },
     { name: 'monde-carte', selector: '#tab-monde-carte' },
     { name: 'bibliotheque', selector: '#tab-bibliotheque' },
     { name: 'publication', selector: '#tab-publication' },

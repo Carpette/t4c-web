@@ -19,7 +19,7 @@ import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
 import * as spells from './spells.js';
 import { EFFECT_TYPES } from './effects.js';
-import { handleNpcKeywords, rootKeywordsHint, compterChasse } from './dialogues.js';
+import { handleNpcKeywords, rootKeywordsHint, compterChasse, verifierLieux } from './dialogues.js';
 
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
@@ -1788,7 +1788,7 @@ export class Game {
   // bornes de taille, types de réactions en liste blanche, chaînes tronquées
   sanitizeDialogues(raw) {
     if (!Array.isArray(raw) || raw.length > 30) return null;
-    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'unflag', 'chasse', 'teleport', 'heal', 'cleanse', 'buff']);
+    const REACTIONS = new Set(['gold', 'item', 'xp', 'flag', 'unflag', 'chasse', 'lieu', 'sort', 'teleport', 'heal', 'cleanse', 'buff']);
     const out = [];
     for (const d of raw) {
       if (!d || typeof d !== 'object') return null;
@@ -1812,6 +1812,14 @@ export class Game {
           if (d.conditions.consumeGold) c.consumeGold = true;
         }
         if (typeof d.conditions.chasse === 'string') c.chasse = d.conditions.chasse.slice(0, 48);
+        const cles = (l) => Array.isArray(l) ? l.filter(k => typeof k === 'string' && k).map(k => k.slice(0, 48)).slice(0, 12) : [];
+        if (cles(d.conditions.flags).length) c.flags = cles(d.conditions.flags);
+        if (cles(d.conditions.chasses).length) c.chasses = cles(d.conditions.chasses);
+        if (Array.isArray(d.conditions.items)) {
+          const items = d.conditions.items.filter(o => o && ITEMS[o.item]).slice(0, 8)
+            .map(o => ({ item: o.item, n: Math.max(1, Math.min(24, o.n | 0 || 1)), ...(o.consume ? { consume: true } : {}) }));
+          if (items.length) c.items = items;
+        }
         if (d.conditions.cursed) c.cursed = true;
         if (d.conditions.notCursed) c.notCursed = true;
         if (Object.keys(c).length) e.conditions = c;
@@ -1827,7 +1835,7 @@ export class Game {
             rr.defId = r.defId;
             if (Number.isFinite(+r.n)) rr.n = Math.max(1, Math.min(10, r.n | 0));
           }
-          if (r.type === 'flag' || r.type === 'unflag' || r.type === 'chasse') {
+          if (r.type === 'flag' || r.type === 'unflag' || r.type === 'chasse' || r.type === 'lieu') {
             if (typeof r.key !== 'string' || !r.key) return null;
             rr.key = r.key.slice(0, 48);
           }
@@ -1835,6 +1843,17 @@ export class Game {
             if (!MOBS[r.mob]) return null;
             rr.mob = r.mob;
             rr.n = Math.max(1, Math.min(500, r.n | 0));
+            if (r.silencieux) rr.silencieux = true;
+          }
+          if (r.type === 'lieu') {
+            rr.x = +r.x; rr.z = +r.z; rr.r = Math.max(1, Math.min(50, +r.r || 3));
+            if (!Number.isFinite(rr.x) || !Number.isFinite(rr.z)) return null;
+            if (Number.isFinite(+r.zoneId)) rr.zoneId = r.zoneId | 0;
+            if (typeof r.nom === 'string') rr.nom = r.nom.slice(0, 48);
+          }
+          if (r.type === 'sort') {
+            if (!content.spellById[r.spellId]) return null;
+            rr.spellId = r.spellId;
           }
           if (r.type === 'buff') {
             if (typeof r.effect === 'string') rr.effect = r.effect.slice(0, 32);
@@ -2582,6 +2601,8 @@ export class Game {
 
     // points spéciaux 'exit'/'teleport' : un joueur qui marche dessus est téléporté
     for (const p of this.players.values()) this.checkMarkerTriggers(p);
+    // objectifs de quête « se rendre à » (deux fois par seconde suffit)
+    if (this.tickCount % 5 === 0) for (const p of this.players.values()) verifierLieux(this, p);
 
     // sous-zones musicales : bascule à hystérésis pendant les déplacements
     // (cadence réduite ; les déplacements significatifs suffisent largement)

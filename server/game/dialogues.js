@@ -13,6 +13,8 @@
 //       level: n,                           niveau minimal
 //       item: 'defId', n?, consume?: true,  objet requis, n exemplaires (consommés si demandé)
 //       chasse: 'clef',                     chasse terminée (monstres tués, cf. réaction chasse)
+//       flags: [...], chasses: [...],       listes : toutes requises
+//       items: [{ item, n, consume }],      plusieurs objets à rapporter
 //     },
 //     reactions?: [                       effets appliqués au déclenchement :
 //       { type: 'gold', amount },           pièces d'or
@@ -21,6 +23,10 @@
 //       { type: 'flag', key },              pose un drapeau persistant (p.flags)
 //       { type: 'unflag', key },            le retire (et sa chasse en cours) :
 //                                           sert à rejouer une quête répétable
+//       { type: 'lieu', key, zoneId, x, z, r, nom? }  objectif « se rendre à » :
+//                                           le drapeau `key` se pose quand le
+//                                           joueur arrive à moins de r cases
+//       { type: 'sort', spellId }           enseigne un sort (récompense)
 //       { type: 'teleport', zoneId?, x, z } déplacement (zone débloquée au besoin)
 //       { type: 'chasse', key, mob, n }     lance un décompte : tuer n monstres
 //                                           `mob` (defId) ; le dialogue qui exige
@@ -35,6 +41,7 @@
 // drapeaux et les téléportations, eux, rejouent à chaque déclenchement.
 import * as C from '../../shared/constants.js';
 import { ITEMS, MOBS } from '../../shared/defs.js';
+import { content } from '../content.js';
 
 const nomMob = (id) => MOBS[id]?.name || id;
 import { makeItem, itemLabel, itemWeight, inventoryWeight } from './items.js';
@@ -75,6 +82,24 @@ export function handleNpcKeywords(game, p, text) {
   return false;
 }
 
+// n exemplaires d'un objet remis au PNJ (les non équipés d'abord : on garde
+// l'arme en main)
+function reprendre(game, p, defId, n) {
+  const equipes = new Set(Object.values(p.equip));
+  const remis = p.inventory.filter(it => it.defId === defId)
+    .sort((a, b) => equipes.has(a.iid) - equipes.has(b.iid))
+    .slice(0, Math.max(1, n | 0));
+  for (const item of remis) {
+    for (const [slot, iid] of Object.entries(p.equip)) {
+      if (iid === item.iid) delete p.equip[slot];
+    }
+    p.inventory.splice(p.inventory.indexOf(item), 1);
+  }
+  if (!remis.length) return;
+  p.recompute(game);
+  game.send(p, { t: 'info', text: `Remis : ${itemLabel(remis[0])}${remis.length > 1 ? ' ×' + remis.length : ''}` });
+}
+
 function triggerDialogue(game, p, npc, dlg, index) {
   // objet exigé ET consommé par la condition (offrande, clé, preuve...)
   // services payants (prêtre, péages…) : l'or n'est prélevé que si l'entrée
@@ -83,25 +108,11 @@ function triggerDialogue(game, p, npc, dlg, index) {
     p.gold -= dlg.conditions.gold;
     game.send(p, { t: 'loot', text: `-${dlg.conditions.gold} or` });
   }
-  if (dlg.conditions?.item && dlg.conditions.consume) {
-    // n exemplaires remis (les non équipés d'abord : on garde l'arme en main)
-    const equipes = new Set(Object.values(p.equip));
-    const remis = p.inventory.filter(it => it.defId === dlg.conditions.item)
-      .sort((a, b) => equipes.has(a.iid) - equipes.has(b.iid))
-      .slice(0, Math.max(1, dlg.conditions.n | 0));
-    for (const item of remis) {
-      for (const [slot, iid] of Object.entries(p.equip)) {
-        if (iid === item.iid) delete p.equip[slot];
-      }
-      p.inventory.splice(p.inventory.indexOf(item), 1);
-    }
-    if (remis.length) {
-      p.recompute(game);
-      game.send(p, { t: 'info', text: `Remis : ${itemLabel(remis[0])}${remis.length > 1 ? ' ×' + remis.length : ''}` });
-    }
-  }
-  // chasse accomplie : le décompte est clos (une nouvelle chasse le relancera)
-  if (dlg.conditions?.chasse && p.chasses) delete p.chasses[dlg.conditions.chasse];
+  const c = dlg.conditions;
+  if (c?.item && c.consume) reprendre(game, p, c.item, c.n);
+  for (const o of Array.isArray(c?.items) ? c.items : []) if (o?.item && o.consume) reprendre(game, p, o.item, o.n);
+  // chasses accomplies : décomptes clos (une nouvelle chasse les relancera)
+  for (const key of [c?.chasse, ...(Array.isArray(c?.chasses) ? c.chasses : [])]) if (key) delete p.chasses[key];
 
   // la réplique : bulle au-dessus du PNJ + chat local pour les joueurs proches
   const reponse = String(dlg.reponse || '...');
@@ -151,7 +162,25 @@ function triggerDialogue(game, p, npc, dlg, index) {
         break;
       }
       case 'unflag': {
-        if (r.key) { delete p.flags[String(r.key)]; delete p.chasses[String(r.key)]; }
+        const k = String(r.key || '');
+        if (k) { delete p.flags[k]; delete p.chasses[k]; delete p.lieux[k]; }
+        break;
+      }
+      case 'lieu': {
+        // déjà atteint (drapeau posé) : rien à suivre
+        if (r.key && !p.flags[r.key]) {
+          p.lieux[r.key] = { zoneId: r.zoneId ?? p.zi.zoneId, x: +r.x, z: +r.z, r: Math.max(1, +r.r || 3), nom: r.nom || '' };
+          if (r.nom) game.send(p, { t: 'info', text: `Objectif : se rendre à ${r.nom}` });
+        }
+        break;
+      }
+      case 'sort': {
+        const sp = content.spellById[r.spellId];
+        if (rewardsAllowed && sp && !p.spells.includes(sp.id)) {
+          p.spells.push(sp.id);
+          rewarded = true;
+          game.send(p, { t: 'loot', text: `Sort appris : ${sp.name}` });
+        }
         break;
       }
       case 'teleport': {
@@ -164,7 +193,8 @@ function triggerDialogue(game, p, npc, dlg, index) {
         // ni une chasse déjà rendue (drapeau de l'étape qui l'exige posé)
         if (r.key && r.mob && !p.chasses[r.key] && !p.flags[r.key]) {
           p.chasses[r.key] = { mob: String(r.mob), n, tues: 0 };
-          game.send(p, { t: 'info', text: `Chasse : ${nomMob(r.mob)} 0/${n}` });
+          if (r.silencieux) p.chasses[r.key].silencieux = true;
+          else game.send(p, { t: 'info', text: `Chasse : ${nomMob(r.mob)} 0/${n}` });
         }
         break;
       }
@@ -208,9 +238,21 @@ export function compterChasse(game, p, mob) {
   for (const ch of Object.values(p.chasses || {})) {
     if (ch.mob !== mob.defId || ch.tues >= ch.n) continue;
     ch.tues++;
+    if (ch.silencieux && ch.tues < ch.n) continue; // progression masquée : seule la fin s'annonce
     game.send(p, { t: 'info', text: ch.tues >= ch.n
       ? `Chasse terminée : ${nomMob(ch.mob)} ${ch.tues}/${ch.n}. Retournez voir le commanditaire.`
       : `Chasse : ${nomMob(ch.mob)} ${ch.tues}/${ch.n}` });
+  }
+}
+
+// Objectifs « se rendre à » : appelé à cadence réduite par la boucle de jeu
+export function verifierLieux(game, p) {
+  if (p.dead || p.zi.isTrial || p.zi.isCave) return;
+  for (const [key, l] of Object.entries(p.lieux || {})) {
+    if (l.zoneId !== p.zi.zoneId || Math.hypot(p.x - l.x, p.z - l.z) > l.r) continue;
+    delete p.lieux[key];
+    p.flags[key] = true;
+    game.send(p, { t: 'info', text: `Objectif atteint${l.nom ? ' : ' + l.nom : ''}.` });
   }
 }
 
