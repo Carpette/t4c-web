@@ -1,4 +1,4 @@
-<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-clip" @vue:mounted="init()">
     <!-- liste par famille -->
     <section aria-label="Liste des effets" data-col="effets-liste" data-bord="droite" class="flex-[1_1_240px] max-w-[280px] border-r border-gray-800 bg-gray-950 flex flex-col">
         <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
@@ -204,7 +204,9 @@
     </section>
 
     <!-- aperçu et usages -->
-    <aside aria-label="Aperçu et usages" data-col="effets-contexte" data-bord="gauche" class="flex-[1_1_320px] max-w-[380px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && !galerie">
+    <aside aria-label="Aperçu et usages" data-col="effets-contexte" data-bord="gauche" class="flex-[1_1_320px] max-w-[380px] border-l border-gray-800 bg-gray-950 p-4" v-if="fiche && !galerie">
+        <!-- l'aperçu suit le défilement : on voit l'effet en réglant les champs du bas -->
+        <div class="sticky top-4 flex flex-col gap-5">
         <div class="flex flex-col gap-2">
             <span class="cs-sect p-0">Aperçu à l’échelle du jeu</span>
             <canvas id="pe-apercu" width="340" height="280" class="rounded-lg border border-gray-800 w-full"></canvas>
@@ -228,6 +230,7 @@
             <a v-for="s in utilisePar" class="flex justify-between gap-2" href="#sorts"><span>{{ s.name }}</span><span class="text-gray-500">{{ s.role }}</span></a>
             <span class="flex justify-between gap-2" v-if="usageJeu"><span>{{ usageJeu }}</span><span class="text-gray-500">jeu</span></span>
             <span class="text-gray-500" v-if="!utilisePar.length && !usageJeu">Aucun sort ne l’utilise. Un effet persistant s’assigne comme « Aura » dans l’écran Sorts.</span>
+        </div>
         </div>
     </aside>
 </div>
