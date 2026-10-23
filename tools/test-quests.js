@@ -174,7 +174,7 @@ ed.generateQuest({
 // lance le décompte, l'étape 2 exige 2 rats tués + 2 bandages rapportés
 const R1 = ed.questFlag('rats', 1), R2 = ed.questFlag('rats', 2);
 ed.generateQuest({
-  id: 'rats', title: 'Rats', desc: '', steps: [
+  id: 'rats', title: 'Rats', desc: '', repeatable: true, steps: [
     { n: '1', flag: R1, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_1 : tue 2 rats.', reqFlag: '', reqLevel: 0, reqItem: '', reqItemN: 1, consume: false, killMob: '', killN: 1, gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null },
     { n: '2', flag: R2, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_2 : merci.', reqFlag: R1, reqLevel: 0, reqItem: 'bandage', reqItemN: 2, consume: true, killMob: 'rat', killN: 2, gold: 77, itemDefId: '', itemN: 1, xp: 0, tp: null },
   ],
@@ -342,8 +342,26 @@ ok('chasse : l\'étape 2 répond une fois la chasse faite et les objets en poche
 await A.waitFor(() => A.self.gold === goldR + 77, 3000);
 ok('chasse : récompense versée et 2 bandages repris',
   A.self.gold === goldR + 77 && !A.self.inventory.some(it => it.defId === 'bandage'));
+// quête répétable : rendue, elle repart de l'étape 1 (nouveau décompte)
+const nInfos = infos.length;
 const q3 = await sayAndListen(A, 'rats', a.def.name);
-ok('chasse : la quête rendue ne relance pas de décompte', !!q3 && !infos.slice(-1)[0]?.includes('0/2'));
+ok('répétable : la quête rendue repart de l\'étape 1', !!q3?.text.includes('RATS_1') && infos.slice(nInfos).some(t => /0\/2/.test(t)));
+for (let k = 0; k < 2; k++) {
+  A.send({ t: 'admin', cmd: 'spawn', defId: 'rat', n: 1, x: A.me().x + 1, z: A.me().z });
+  await sleep(300);
+  A.send({ t: 'admin', cmd: 'smite' });
+  await sleep(300);
+}
+A.drops.clear();
+A.send({ t: 'admin', cmd: 'give', defId: 'bandage', n: 2 });
+await A.waitFor(() => A.drops.size >= 2, 3000);
+for (const id of [...A.drops.keys()]) { A.send({ t: 'pickup', id }); await sleep(250); }
+await A.waitFor(() => A.self.inventory.filter(it => it.defId === 'bandage').length >= 2, 3000);
+await sleep(800);
+const goldR2 = A.self.gold;
+const q4 = await sayAndListen(A, 'rats', a.def.name);
+await A.waitFor(() => A.self.gold === goldR2 + 77, 3000);
+ok('répétable : 2e tour rendu, récompense versée à nouveau', !!q4?.text.includes('RATS_2') && A.self.gold === goldR2 + 77);
 
 // ---------- restauration ----------
 await api('/api/admin/overrides/0', 'PUT', before);
