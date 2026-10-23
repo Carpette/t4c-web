@@ -3,11 +3,11 @@
 // traduit en dialogues de PNJ. Les retouches passent par l'éditeur de carte
 // (seul détenteur des retouches de la zone), qui les enregistre tout seul.
 import { MOBS, ITEMS } from '../../../../shared/defs.js';
-import { containsKeyword, conditionBloquante } from '../../../../shared/mots-cles.js';
+import { containsKeyword, conditionBloquante, choisirReponse, remplirPhrase, VARIABLES_PHRASE } from '../../../../shared/mots-cles.js';
 import { editeurCarte } from '../../editor.js';
 import { copie, norm } from '../../forge.js';
 import {
-  TYPES, OBJECTIFS, aDialogue, compiler, problemes, nouvelleQuete, etapeVide, idDepuisTitre, drapeau,
+  TYPES, OBJECTIFS, MOMENTS, relanceVide, aDialogue, compiler, problemes, nouvelleQuete, etapeVide, idDepuisTitre, drapeau,
 } from '../../quetes.js';
 
 const RETARD_APPLICATION = 400; // ms sans frappe avant de traduire en dialogues
@@ -15,7 +15,8 @@ let sequence = 0;
 
 export function QuetesController(api) {
   let ed = null, minuteur = null;
-  const simVide = () => ({ flags: {}, chasses: {}, objets: {}, journal: [] });
+  const simVide = () => ({ flags: {}, chasses: {}, objets: {}, visites: 0, journal: [] });
+  let saisie = null; // dernière phrase de relance touchée : { r, k } (insertion de variable)
 
   return {
     zones: [], zone: null, liste: [], courante: null, q: null, filtre: '',
@@ -24,7 +25,7 @@ export function QuetesController(api) {
     mobs: Object.entries(MOBS).map(([id, m]) => ({ id, name: m.name || id })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
     objets: Object.entries(ITEMS).filter(([, d]) => d.slot !== 'gold' && !d.legacy)
       .map(([id, d]) => ({ id, name: d.name || id })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-    TYPES, OBJECTIFS,
+    TYPES, OBJECTIFS, MOMENTS, VARIABLES: VARIABLES_PHRASE,
 
     async init() {
       try { this.sorts = ((await api('/api/admin/content/spells')).spells || []).map(s => ({ id: s.id, name: s.name || s.id })); } catch { /* sorts indisponibles */ }
@@ -158,6 +159,26 @@ export function QuetesController(api) {
     },
     presentDansZone(mob) { return !!this.zoneDef?.mobs?.includes(mob); },
 
+    // ---------- relances (répliques hors étapes) ----------
+    get relances() { return this.q?.relances || []; },
+    ajouterRelance() {
+      (this.q.relances ||= []).push(relanceVide(this.q.etapes[0]?.npcId || this.npcs[0]?.npcId || ''));
+      this.modifie();
+    },
+    retirerRelance(i) { this.q.relances.splice(i, 1); this.modifie(); },
+    ajouterPhrase(r) { r.phrases.push(''); this.modifie(); },
+    retirerPhrase(r, k) { r.phrases.splice(k, 1); if (!r.phrases.length) r.phrases.push(''); this.modifie(); },
+    retenir(r, k) { saisie = { r, k }; },
+    // variable cliquée : insérée dans la dernière phrase touchée (sinon la première)
+    insererVariable(r, v) {
+      const k = saisie?.r === r ? saisie.k : 0;
+      const el = document.getElementById(`q-ph-${this.relances.indexOf(r)}-${k}`);
+      const t = r.phrases[k] || '', pos = el?.selectionStart ?? t.length;
+      r.phrases[k] = t.slice(0, pos) + `{${v}}` + t.slice(el?.selectionEnd ?? pos);
+      this.modifie();
+      requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(pos + v.length + 2, pos + v.length + 2); });
+    },
+
     // ---------- récompenses ----------
     ajouterRecompense(e, sorte) {
       const rc = e.recompenses;
@@ -254,6 +275,10 @@ export function QuetesController(api) {
       if (e.type === 'rapporter') { this.sim.objets[e.item] = Math.max(this.sim.objets[e.item] || 0, e.n); this.sim.journal.push({ qui: 'note', texte: `Ramassé : ${ITEMS[e.item]?.name || e.item} ×${e.n}` }); }
       if (e.type === 'lieu') { this.sim.flags[key] = true; this.sim.journal.push({ qui: 'note', texte: `Arrivé : ${e.nom || `${e.x}, ${e.z}`}` }); }
     },
+    tuerUn(i) {
+      const c = this.sim.chasses[this.cleEtape(i)];
+      if (c && c.tues < c.n) c.tues++;
+    },
     parler() { const t = this.phrase.trim(); this.phrase = ''; if (t) this.dire(t); },
     // même règle que le serveur : le premier dialogue (le plus avancé d'abord)
     // dont le mot-clé et les conditions passent répond
@@ -266,15 +291,33 @@ export function QuetesController(api) {
         chasse: (key) => s.chasses[key] || null,
       };
       let bloque = null;
-      for (const { npcId, dlg } of [...this.compile].reverse()) {
+      // ordre du serveur : étapes (la plus avancée d'abord), puis relances
+      const etapes = this.compile.filter(c => !c.dlg.relance).reverse(), relances = this.compile.filter(c => c.dlg.relance);
+      for (const { npcId, dlg } of [...etapes, ...relances]) {
         if (!dlg.keywords.some(k => containsKeyword(texte, k))) continue;
         const raison = conditionBloquante(dlg.conditions, etat);
         if (raison) { bloque ||= `${this.nomPnj(npcId)} ne répond pas encore : ${raison}.`; continue; }
-        s.journal.push({ qui: 'pnj', nom: this.nomPnj(npcId), texte: dlg.reponse });
+        if (dlg.relance) s.visites++;
+        s.journal.push({ qui: 'pnj', nom: this.nomPnj(npcId), texte: remplirPhrase(choisirReponse(dlg), this.variablesSim(npcId, dlg)) });
         this.appliquerSim(dlg);
         return;
       }
       s.journal.push({ qui: 'note', texte: bloque || 'Aucun mot-clé reconnu.' });
+    },
+    // mêmes variables que le serveur (dialogues.js, variablesPhrase), sur l'état simulé
+    variablesSim(npcId, dlg) {
+      const s = this.sim;
+      const chasses = Object.values(s.chasses);
+      const ch = chasses.find(c => c.tues < c.n) || chasses[chasses.length - 1];
+      const objets = (dlg.suivi?.items || []).map(o => ({ ...o, possede: s.objets[o.item] || 0 }));
+      const ob = objets.find(o => o.possede < o.n) || objets[objets.length - 1];
+      const lieu = this.q.etapes.find((e, i) => e.type === 'lieu' && !this.statut(i));
+      return {
+        joueur: 'Testeur', pnj: this.nomPnj(npcId), niveau: this.q.niveau || 1, or: 0,
+        tues: ch?.tues ?? 0, total: ch?.n ?? 0, reste: ch ? Math.max(0, ch.n - ch.tues) : 0, monstre: ch ? (MOBS[ch.mob]?.name || ch.mob) : '',
+        objet: ob ? (ITEMS[ob.item]?.name || ob.item) : '', possede: ob?.possede ?? 0, requis: ob?.n ?? 0, manque: ob ? Math.max(0, ob.n - ob.possede) : 0,
+        lieu: lieu?.nom || '', visites: s.visites, moment: 'matin',
+      };
     },
     appliquerSim(dlg) {
       const s = this.sim, c = dlg.conditions || {}, notes = [];
@@ -283,7 +326,7 @@ export function QuetesController(api) {
       for (const r of dlg.reactions) {
         if (r.type === 'flag') s.flags[r.key] = true;
         if (r.type === 'unflag') { delete s.flags[r.key]; delete s.chasses[r.key]; }
-        if (r.type === 'chasse' && !s.chasses[r.key]) { s.chasses[r.key] = { tues: 0, n: r.n }; notes.push(`Objectif : tuer ${r.n} ${MOBS[r.mob]?.name || r.mob}`); }
+        if (r.type === 'chasse' && !s.chasses[r.key]) { s.chasses[r.key] = { tues: 0, n: r.n, mob: r.mob }; notes.push(`Objectif : tuer ${r.n} ${MOBS[r.mob]?.name || r.mob}`); }
         if (r.type === 'lieu') notes.push(`Objectif : se rendre à ${r.nom || `${r.x}, ${r.z}`}`);
         if (r.type === 'gold') notes.push(`+${r.amount} PO`);
         if (r.type === 'xp') notes.push(`+${r.amount} XP`);

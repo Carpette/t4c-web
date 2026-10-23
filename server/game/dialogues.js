@@ -33,6 +33,11 @@
 //                                           conditions.chasse = key le clôt
 //     ],
 //     repeatable?: true,                  les récompenses redeviennent disponibles
+//     reponses?: ["...", "..."],          répliques tirées au hasard (au lieu de reponse)
+//     quete?: 'id',                       quête du dialogue : ses variables {tues},
+//                                         {reste}, {lieu}... (shared/mots-cles.js)
+//     relance?: true,                     relance de quête : compte les {visites}
+//     suivi?: { items: [{ item, n }] },   objets à rapporter, pour {objet}, {manque}...
 //   }, ...]
 //
 // Garde-fou anti-farm : les réactions à récompense (gold/item/xp) d'un dialogue
@@ -45,7 +50,7 @@ import { content } from '../content.js';
 
 const nomMob = (id) => MOBS[id]?.name || id;
 import { makeItem, itemLabel, itemWeight, inventoryWeight } from './items.js';
-import { normalize, containsKeyword, conditionBloquante, rootKeywordsHint } from '../../shared/mots-cles.js';
+import { normalize, containsKeyword, conditionBloquante, rootKeywordsHint, choisirReponse, remplirPhrase, momentDuJour } from '../../shared/mots-cles.js';
 
 export { normalize, containsKeyword, rootKeywordsHint };
 
@@ -82,6 +87,29 @@ export function handleNpcKeywords(game, p, text) {
   return false;
 }
 
+// Valeurs des variables d'une réplique pour ce joueur. Celles d'une quête
+// (chasse, objet, lieu) suivent l'objectif en cours : le premier inachevé.
+function variablesPhrase(game, p, npc, dlg) {
+  const pref = dlg.quete ? `quete:${dlg.quete}:` : null;
+  const deLaQuete = (o) => pref ? Object.entries(o || {}).filter(([k]) => k.startsWith(pref)).map(([, v]) => v) : [];
+  const chasses = deLaQuete(p.chasses);
+  const ch = chasses.find(c => c.tues < c.n) || chasses[chasses.length - 1];
+  const lieu = deLaQuete(p.lieux)[0];
+  const compte = (id) => p.inventory.filter(it => it.defId === id).length;
+  const objets = (dlg.suivi?.items || []).map(o => ({ ...o, possede: compte(o.item) }));
+  const ob = objets.find(o => o.possede < o.n) || objets[objets.length - 1];
+  return {
+    joueur: p.name, pnj: npc.def?.name || '', niveau: p.level, or: p.gold,
+    tues: ch?.tues ?? 0, total: ch?.n ?? 0, reste: ch ? Math.max(0, ch.n - ch.tues) : 0,
+    monstre: ch ? nomMob(ch.mob) : '',
+    objet: ob ? (ITEMS[ob.item]?.name || ob.item) : '', possede: ob?.possede ?? 0, requis: ob?.n ?? 0,
+    manque: ob ? Math.max(0, ob.n - ob.possede) : 0,
+    lieu: lieu?.nom || '',
+    visites: dlg.quete ? (p.compteurs[`visites:${dlg.quete}`] | 0) : 0,
+    moment: momentDuJour((game.worldTime % C.DAY_LENGTH) / C.DAY_LENGTH),
+  };
+}
+
 // n exemplaires d'un objet remis au PNJ (les non équipés d'abord : on garde
 // l'arme en main)
 function reprendre(game, p, defId, n) {
@@ -114,8 +142,13 @@ function triggerDialogue(game, p, npc, dlg, index) {
   // chasses accomplies : décomptes clos (une nouvelle chasse les relancera)
   for (const key of [c?.chasse, ...(Array.isArray(c?.chasses) ? c.chasses : [])]) if (key) delete p.chasses[key];
 
+  // relance de quête : une visite de plus (avant le calcul de {visites})
+  if (dlg.relance && dlg.quete) {
+    const k = `visites:${dlg.quete}`;
+    p.compteurs[k] = (p.compteurs[k] | 0) + 1;
+  }
   // la réplique : bulle au-dessus du PNJ + chat local pour les joueurs proches
-  const reponse = String(dlg.reponse || '...');
+  const reponse = remplirPhrase(choisirReponse(dlg), variablesPhrase(game, p, npc, dlg));
   game.eventNear(npc, { t: 'say', id: npc.id, text: reponse, npc: true });
   game.sendLocalChat(npc, reponse);
 

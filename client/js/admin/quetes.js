@@ -11,7 +11,10 @@
 //       { type: 'parler',    npcId, keywords: [], reponse },
 //       { type: 'rendu',     npcId, keywords: [], reponse,       toujours la dernière
 //         recompenses: { gold, xp, items: [{ defId, n }], sorts: [id], tp: { zoneId, x, z } | null } },
-//   ] }
+//   ],
+//   relances: [                                                 répliques hors étapes
+//       { moment: 'avant'|'pendant'|'apres', npcId, keywords: [], phrases: [] } ] }
+//   (phrases tirées au hasard, variables {reste}, {visites}... : shared/mots-cles.js)
 //
 // Traduction : chaque étape À DIALOGUE (prise, parler, rendu) pose le drapeau
 // `quete:<id>:<k>` (k = 1, 2...) et exige celui du dialogue précédent. Les
@@ -31,6 +34,10 @@ export const TYPES = {
   rendu: { nom: 'Rendu de quête', dialogue: true },
 };
 export const OBJECTIFS = ['tuer', 'rapporter', 'lieu', 'parler'];
+export const MOMENTS = [
+  ['avant', 'Avant la quête'], ['pendant', 'Pendant la quête'], ['apres', 'Quête rendue'],
+];
+export const relanceVide = (npcId) => ({ moment: 'pendant', npcId, keywords: [], phrases: [''] });
 export const aDialogue = (e) => !!TYPES[e?.type]?.dialogue;
 
 export function nouvelleQuete(id, titre, npcId) {
@@ -64,6 +71,10 @@ export function compiler(q, zoneId) {
   const out = [];
   const dialogues = [];          // indices des étapes à dialogue
   q.etapes.forEach((e, i) => { if (aDialogue(e)) dialogues.push(i); });
+  const relances = (q.relances || []).filter(r => r.npcId && r.keywords?.length && r.phrases?.some(t => String(t).trim()));
+  const pendant = relances.some(r => r.moment === 'pendant');
+  // objets à rapporter, pour les variables {objet}, {manque}...
+  const suivi = q.etapes.filter(e => e.type === 'rapporter' && e.item).map(e => ({ item: e.item, n: Math.max(1, e.n | 0) }));
   const cles = [];               // tout ce qu'une quête répétable doit effacer
   q.etapes.forEach((e, i) => {
     if (e.type === 'tuer' || e.type === 'lieu') cles.push(cleObjectif(q.id, i));
@@ -78,8 +89,10 @@ export function compiler(q, zoneId) {
     else {
       if (q.niveau > 1) conditions.level = q.niveau | 0;
       // rendue (et non répétable), la quête ne se reprend plus : sans cela,
-      // redire le mot-clé relancerait ses chasses
-      if (!q.repetable) conditions.notFlag = drapeau(q.id, dialogues.length);
+      // redire le mot-clé relancerait ses chasses. Avec des relances « pendant »,
+      // la prise ne se rejoue pas non plus en cours de quête : la relance répond
+      if (pendant) conditions.notFlag = flag;
+      else if (!q.repetable) conditions.notFlag = drapeau(q.id, dialogues.length);
     }
     // objectifs depuis le dialogue précédent : exigés ici
     const debut = k > 0 ? dialogues[k - 1] + 1 : 0;
@@ -123,11 +136,26 @@ export function compiler(q, zoneId) {
     // quête répétable : rendue, elle efface sa progression et repart de zéro
     if (q.repetable && k === dialogues.length - 1) for (const key of cles) reactions.push({ type: 'unflag', key });
 
-    const dlg = { keywords: e.keywords?.length ? [...e.keywords] : ['quete'], reponse: e.reponse || '...', reactions };
+    const dlg = { keywords: e.keywords?.length ? [...e.keywords] : ['quete'], reponse: e.reponse || '...', reactions, quete: q.id };
     if (Object.keys(conditions).length) dlg.conditions = conditions;
     if (q.repetable) dlg.repeatable = true;
+    if (suivi.length) dlg.suivi = { items: suivi };
     out.push({ npcId: e.npcId, flag, dlg });
   });
+
+  // relances : rangées APRÈS les étapes chez le PNJ, elles ne répondent que
+  // si aucune étape ne le fait (mêmes mots-clés possibles)
+  const premier = drapeau(q.id, 1), dernier = drapeau(q.id, dialogues.length);
+  for (const r of relances) {
+    const phrases = r.phrases.map(t => String(t).trim()).filter(Boolean);
+    const conditions = r.moment === 'avant' ? { notFlag: premier }
+      : r.moment === 'apres' ? { flag: dernier }
+      : { flag: premier, notFlag: dernier };
+    const dlg = { keywords: [...r.keywords], reponse: phrases[0], reactions: [], conditions, quete: q.id, relance: true };
+    if (phrases.length > 1) dlg.reponses = phrases;
+    if (suivi.length) dlg.suivi = { items: suivi };
+    out.push({ npcId: r.npcId, flag: null, dlg });
+  }
   return out;
 }
 
@@ -150,6 +178,13 @@ export function problemes(q, ctx) {
     if (e.type === 'lieu' && !(Number.isFinite(+e.x) && Number.isFinite(+e.z))) p.push(`${n} : lieu sans coordonnées.`);
     for (const it of e.recompenses?.items || []) if (!ctx.items[it.defId]) p.push(`${n} : objet de récompense à choisir.`);
     for (const s of e.recompenses?.sorts || []) if (!ctx.sorts[s]) p.push(`${n} : sort de récompense inconnu.`);
+  });
+  (q.relances || []).forEach((r, i) => {
+    const n = `Relance ${i + 1}`;
+    if (!r.npcId || !ctx.npcs.has(r.npcId)) p.push(`${n} : PNJ absent de la zone.`);
+    if (!r.keywords?.length) p.push(`${n} : aucun mot-clé.`);
+    if (!r.phrases?.some(t => String(t).trim())) p.push(`${n} : aucune phrase.`);
+    if (r.moment === 'apres' && q.repetable) p.push(`${n} : une quête répétable repart à zéro une fois rendue, « Quête rendue » ne s'affiche jamais.`);
   });
   return p;
 }

@@ -58,3 +58,43 @@ export function rootKeywordsHint(def) {
   if (!roots.length) return null;
   return `(Parlez-moi de ${roots.slice(0, HINT_KEYWORDS_MAX).map(k => `« ${k} »`).join(', ')}.)`;
 }
+
+// ---- Répliques : phrases au hasard et variables ----
+// Un dialogue peut porter plusieurs répliques (`reponses`), tirées au hasard ;
+// sinon `reponse`. Les variables {nom} sont remplacées par leur valeur pour le
+// joueur qui parle (calculées par le serveur, ou le simulateur de l'admin).
+export const VARIABLES_PHRASE = [
+  ['joueur', 'nom du personnage'],
+  ['pnj', 'nom du PNJ qui parle'],
+  ['niveau', 'niveau du personnage'],
+  ['or', 'pièces d’or du personnage'],
+  ['tues', 'monstres déjà tués (chasse en cours)'],
+  ['total', 'monstres à tuer (chasse en cours)'],
+  ['reste', 'monstres qui restent à tuer'],
+  ['monstre', 'créature chassée'],
+  ['objet', 'objet à rapporter'],
+  ['possede', 'exemplaires de cet objet sur le personnage'],
+  ['requis', 'exemplaires demandés'],
+  ['manque', 'exemplaires qui manquent'],
+  ['lieu', 'lieu où se rendre'],
+  ['visites', 'fois où le joueur est venu en parler'],
+  ['moment', 'moment de la journée (matin, après-midi, soir, nuit)'],
+];
+
+export function choisirReponse(dlg, rnd = Math.random) {
+  const l = (Array.isArray(dlg?.reponses) ? dlg.reponses : []).filter(s => String(s || '').trim());
+  return l.length ? l[Math.floor(rnd() * l.length) % l.length] : String(dlg?.reponse || '...');
+}
+
+// variable inconnue laissée telle quelle : une coquille se voit en test
+export function remplirPhrase(texte, vars) {
+  return String(texte).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k] ?? '') : m));
+}
+
+// fraction du cycle jour/nuit (0 = minuit, 0,25 = lever, 0,5 = midi, 0,75 = coucher)
+export function momentDuJour(frac) {
+  if (frac >= 0.22 && frac < 0.4) return 'matin';
+  if (frac >= 0.4 && frac < 0.62) return 'après-midi';
+  if (frac >= 0.62 && frac < 0.8) return 'soir';
+  return 'nuit';
+}
