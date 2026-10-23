@@ -207,7 +207,7 @@ export function emitGround(P, element, x, z, radius = 3) {
 
 // Halo doux montant (soins / lumière)
 export function emitHeal(P, x, z) {
-  const st = FX_STYLES.lumiere;
+  const st = FX_STYLES.light;
   for (let i = 0, n = densify(10); i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = 0.3 + Math.random() * 0.6;
     P.spawn({
