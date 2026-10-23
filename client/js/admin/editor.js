@@ -2988,14 +2988,21 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     // création d'une nouvelle quête
     const idIn = h('input', { placeholder: 'id (ex : olin)', style: { width: '120px' } });
     const titleIn = h('input', { placeholder: 'titre', style: { width: '180px' } });
+    const erreurQuete = h('div', { className: 'hint', style: { color: '#e88' } });
     questPanel.append(h('h3', { textContent: 'Nouvelle quête' }),
       h('div', { className: 'edit-row' }, 'id : ', idIn, ' titre : ', titleIn,
         h('button', { textContent: '+ créer', onclick: () => {
-          const id = (idIn.value || '').trim().replace(/[^a-z0-9_]/gi, '').toLowerCase();
-          if (!id) { msg('Donnez un id de quête (lettres/chiffres).'); return; }
+          // id tiré du titre s'il est vide ; accents retirés plutôt que la
+          // lettre entière (« Épée » -> epee, pas « pe »)
+          const brut = (idIn.value || '').trim() || titleIn.value.trim();
+          const id = brut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/gi, '').toLowerCase();
+          // l'erreur s'affiche DANS le panneau (la barre d'état est dessous)
+          if (!id) { erreurQuete.textContent = 'Donnez un titre ou un id de quête (lettres, chiffres).'; return; }
+          if (scanQuests().has(id)) { erreurQuete.textContent = `La quête « ${id} » existe déjà : utilisez Éditer dans la liste.`; return; }
           questModel = { id, title: titleIn.value.trim() || id, desc: '', steps: [] };
           renderQuestForm();
-        } })));
+        } })), erreurQuete);
   }
 
   // affiche la chaîne d'une quête remontée du scan (maillons ordonnés par drapeau)
