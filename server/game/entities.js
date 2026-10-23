@@ -623,15 +623,20 @@ export class Player extends Character {
 
     // régénération
     if (now - this.lastCombat > 5 || this.eff.buffRegen) {
-      const oldHp = this.hp, oldMana = this.mana;
       const inCombat = now - this.lastCombat <= 5;
       if (!inCombat) {
         this.hp = Math.min(this.eff.maxHp, this.hp + C.hpRegenPerSec(this.eff.stats) * (1 + (this.skillFx?.hpRegenMul || 0)) * dt);
         this.mana = Math.min(this.eff.maxMana, this.mana + C.manaRegenPerSec(this.eff.stats) * (1 + (this.skillFx?.manaRegenMul || 0)) * dt);
       }
       if (this.eff.buffRegen) this.hp = Math.min(this.eff.maxHp, this.hp + this.eff.buffRegen * dt);
-      if ((Math.floor(this.hp) !== Math.floor(oldHp) || Math.floor(this.mana) !== Math.floor(oldMana)) && game.tickCount % 10 === 0) {
-        game.send(this, { t: 'vitals', hp: Math.round(this.hp), mana: Math.round(this.mana) });
+      // envoi deux fois par seconde si la valeur AFFICHÉE a changé depuis le
+      // dernier envoi (comparer au tick précédent ratait des secondes entières :
+      // à 3 PV/s pile, la partie fractionnaire ne bouge plus et la barre du
+      // client restait figée jusqu'au prochain coup reçu)
+      const hpR = Math.round(this.hp), manaR = Math.round(this.mana);
+      if ((hpR !== this.hpEnvoye || manaR !== this.manaEnvoye) && game.tickCount % 5 === 0) {
+        game.send(this, { t: 'vitals', hp: hpR, mana: manaR });
+        this.hpEnvoye = hpR; this.manaEnvoye = manaR;
       }
     }
     this.atkCd = Math.max(0, this.atkCd - dt);
