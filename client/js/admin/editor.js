@@ -3508,18 +3508,41 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     } catch (e) { msg(e.message, true); }
   }
 
-  $('save-map').onclick = async () => {
-    try {
-      await api(`/api/admin/overrides/${curZone}`, 'PUT', ov);
-      msg('Enregistré et appliqué au serveur.');
-    } catch (e) { msg(e.message, true); }
-  };
+  // ---------- enregistrement automatique ----------
+  // Comme le reste de la Forge, la carte s'applique en direct : une retouche
+  // restée stable 1,5 s part au serveur (historique de la Publication, donc
+  // annulable). Avant, il fallait cliquer « Enregistrer » : une maison posée
+  // sans ce clic restait dans le navigateur, absente des versions marquées
+  // et perdue au redémarrage.
+  let ovEnregistre = null, ovVu = null, ovEchec = null, enCours = null;
+  async function enregistrer() {
+    const json = JSON.stringify(ov);
+    if (json === ovEnregistre || json === ovEchec) return;
+    const zone = curZone;
+    await enCours; // une écriture à la fois, dans l'ordre
+    enCours = (async () => {
+      try {
+        await api(`/api/admin/overrides/${zone}`, 'PUT', JSON.parse(json));
+        ovEnregistre = json; ovEchec = null;
+        msg('Enregistré et appliqué au serveur.');
+      } catch (e) { ovEchec = json; msg(`Non enregistré : ${e.message}`, true); }
+    })();
+    await enCours;
+  }
+  const nonEnregistre = () => ovEnregistre != null && JSON.stringify(ov) !== ovEnregistre;
+  setInterval(() => {
+    const json = JSON.stringify(ov);
+    if (json !== ovEnregistre && json === ovVu) enregistrer(); // stable depuis le dernier passage
+    ovVu = json;
+  }, 1500);
+  window.addEventListener('beforeunload', (e) => { if (nonEnregistre()) { enregistrer(); e.preventDefault(); } });
+  $('save-map').onclick = () => enregistrer();
   $('reset-map').onclick = async () => {
     if (!confirm('Effacer toutes les modifications de cette zone ?')) return;
     pushHistory(); // la réinitialisation reste annulable localement (puis Enregistrer)
     ov = emptyOv();
     rebuildTileIndex();
-    try { await api(`/api/admin/overrides/${curZone}`, 'PUT', ov); } catch (e) { msg(e.message, true); }
+    await enregistrer();
     rebuild();
   };
   $('export-map').onclick = () => {
@@ -3570,6 +3593,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
 
   // ---------- chargement de zone ----------
   async function loadZone(id) {
+    if (ov && nonEnregistre()) await enregistrer(); // la zone quittée d'abord
     curZone = id;
     msg('Génération de la carte…');
     await new Promise(r => setTimeout(r, 20));
@@ -3585,6 +3609,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     closeQuests();
     pendingPlace = null;
     try { ov = normalizeOv(await api(`/api/admin/overrides/${id}`)); } catch { ov = emptyOv(); }
+    ovEnregistre = ovVu = JSON.stringify(ov); ovEchec = null;
     history = []; redoStack = [];
     rebuildTileIndex();
     rebuild();
