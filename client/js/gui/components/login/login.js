@@ -7,7 +7,7 @@ export function LoginController() {
     state: uiStore,
     username: '',
     password: '',
-    error: '',
+    error: '', // saisie incomplète ; les erreurs du serveur passent par uiStore.erreurConnexion
 
     init() {
       // In a real scenario, you might want to focus the username input
@@ -37,11 +37,15 @@ export function LoginController() {
 
     clearError() {
       this.error = '';
+      uiStore.erreurConnexion = '';
     }
   };
 
+  // erreur du serveur ou raison d'une déconnexion : dans le store réactif
+  // (modifier `ctrl` directement ne passe pas par la réactivité de petite-vue,
+  // et l'écran peut être monté avant que le message n'arrive)
   globalBus.on('gui:login-error', (text) => {
-    ctrl.error = text;
+    uiStore.erreurConnexion = text;
   });
 
   return ctrl;
