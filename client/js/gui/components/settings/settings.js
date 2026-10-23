@@ -1,6 +1,7 @@
 import { SETTING_DEFS, SETTING_CHOICES, SETTING_SLIDERS, settings, setSetting, resetSettings, sliderMeta } from '../../../settings.js';
 import { globalBus } from '../../../event-bus.js';
 import { refreshMusic } from '../../../music.js';
+import { ACTIONS_MANETTE, boutonsDe, nomBouton, assigner, capturerBouton, boutonsParDefaut } from '../../../manette.js';
 
 export function SettingsController() {
   const SETTINGS_LAYOUT = {
@@ -95,6 +96,32 @@ export function SettingsController() {
           else if (choiceByKey[key]) renderChoice(choiceByKey[key]);
         }
       }
+
+      // manette : un bouton par action ; clic puis appui sur le bouton voulu
+      addSection('Manette');
+      const aide = document.createElement('p');
+      aide.className = 'hint';
+      aide.textContent = 'Stick gauche : se déplacer. Cliquez sur une action puis appuyez sur le bouton de la manette à lui donner. '
+        + 'Steam Deck : lancez le navigateur depuis Steam (jeu non-Steam) avec une disposition manette.';
+      div.appendChild(aide);
+      for (const [action, label] of ACTIONS_MANETTE) {
+        const bt = document.createElement('button');
+        bt.type = 'button';
+        bt.className = 'secondary setting-manette';
+        bt.textContent = boutonsDe(action).map(nomBouton).join(', ') || 'Aucun';
+        bt.onclick = (e) => {
+          e.preventDefault();
+          bt.textContent = 'Appuyez sur un bouton…';
+          capturerBouton((i) => { assigner(action, i); this.render(); });
+        };
+        addRow(label, bt);
+      }
+      const defaut = document.createElement('button');
+      defaut.type = 'button';
+      defaut.className = 'secondary';
+      defaut.textContent = 'Boutons de la manette par défaut';
+      defaut.onclick = () => { boutonsParDefaut(); this.render(); };
+      div.appendChild(defaut);
     },
 
     reset() {
