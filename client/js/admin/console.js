@@ -81,7 +81,32 @@ export const consoleEtat = reactive({
   enAttente: null,      // modifications depuis la dernière version (Publication)
   enLigne: null,        // joueurs connectés (/api/admin/players), null = inconnu
   serveurOk: true,
+  // enregistrement côté serveur, montré dans l'en-tête : écritures en vol,
+  // retouche locale pas encore partie (carte, quêtes), dernier succès / échec
+  sauvegarde: { envois: 0, attente: false, heure: null, erreur: null },
 });
+
+// Toute écriture de la console (PUT, POST, DELETE) passe par ici : l'en-tête
+// sait ainsi si le serveur a bien reçu la dernière modification.
+export async function suivreEcriture(promesse) {
+  const s = consoleEtat.sauvegarde;
+  s.envois++;
+  try {
+    const r = await promesse;
+    s.heure = new Date(); s.erreur = null;
+    return r;
+  } catch (e) {
+    s.erreur = e.message || String(e);
+    throw e;
+  } finally { s.envois--; }
+}
+// retouche faite dans le navigateur, que l'enregistrement automatique enverra ;
+// chaque écran signale la sienne (`source`), l'en-tête montre leur union
+const attentes = new Set();
+export function signalerAttente(source, oui) {
+  if (oui) attentes.add(source); else attentes.delete(source);
+  if (consoleEtat.sauvegarde.attente !== attentes.size > 0) consoleEtat.sauvegarde.attente = attentes.size > 0;
+}
 
 // meilleur niveau du compte sur les droits de l'écran : 0 aucun, 1 lecture, 2 édition
 export const niveauEcran = (e) => {

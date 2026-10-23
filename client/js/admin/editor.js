@@ -15,6 +15,7 @@ import { generateWorld, TILE, defaultNpcSpots, SPAWN_ZONES } from '../../../shar
 import { MOBS, ITEMS } from '../../../shared/defs.js';
 import { applyOverrides } from '../../../shared/overrides.js';
 import { QUEST_RE, drapeau, compiler, depuisDialogues } from './quetes.js';
+import { signalerAttente } from './console.js';
 import { buildDecor } from '../render2d/decor.js';
 import { resolveTile } from '../render2d/assets.js';
 import { PROP_TYPES, propScale, propFlip, isFlippableProp, isUserProp, propSprites, FLOOR_IDS } from '../render2d/decormap.js';
@@ -3446,6 +3447,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       try {
         await api(`/api/admin/overrides/${zone}`, 'PUT', JSON.parse(json));
         ovEnregistre = json; ovEchec = null;
+        signalerAttente('carte', JSON.stringify(ov) !== json);
         msg('Enregistré et appliqué au serveur.');
       } catch (e) { ovEchec = json; msg(`Non enregistré : ${e.message}`, true); }
     })();
@@ -3454,6 +3456,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   const nonEnregistre = () => ovEnregistre != null && JSON.stringify(ov) !== ovEnregistre;
   setInterval(() => {
     const json = JSON.stringify(ov);
+    signalerAttente('carte', json !== ovEnregistre); // indicateur d'enregistrement de l'en-tête
     if (json !== ovEnregistre && json === ovVu) enregistrer(); // stable depuis le dernier passage
     ovVu = json;
   }, 1500);

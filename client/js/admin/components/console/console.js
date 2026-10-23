@@ -18,6 +18,16 @@ function surligner(nom, q) {
 export function ConsoleController(api) {
   let minuteurAvis = 0;
   return {
+    // indicateur d'enregistrement : échec > envoi > attente > enregistré
+    get sauvegarde() {
+      const s = consoleEtat.sauvegarde;
+      const h = s.heure && s.heure.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (s.erreur && !s.envois) return { etat: 'echec', texte: 'Non enregistré', detail: `Échec de l'enregistrement : ${s.erreur}. Il sera retenté à la prochaine modification.` };
+      if (s.envois) return { etat: 'envoi', texte: 'Enregistrement…', detail: 'Envoi au serveur en cours.' };
+      if (s.attente) return { etat: 'attente', texte: 'Modifié', detail: 'Modification enregistrée automatiquement dans un instant.' };
+      if (h) return { etat: 'ok', texte: 'Enregistré', detail: `Dernier enregistrement sur le serveur à ${h}.` };
+      return { etat: 'ok', texte: 'À jour', detail: 'Aucune modification en attente.' };
+    },
     etat: consoleEtat,
     // espaces où le compte a au moins un écran (un animateur ne voit pas la Forge)
     get espaces() { return ESPACES.filter(s => ECRANS.some(e => e.espace === s.id && !e.bientot && peutVoir(e))); },

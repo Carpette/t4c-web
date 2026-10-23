@@ -5,6 +5,7 @@
 import { MOBS, ITEMS } from '../../../../shared/defs.js';
 import { containsKeyword, conditionBloquante, choisirReponse, remplirPhrase, VARIABLES_PHRASE } from '../../../../shared/mots-cles.js';
 import { editeurCarte } from '../../editor.js';
+import { signalerAttente } from '../../console.js';
 import { copie, norm } from '../../forge.js';
 import {
   TYPES, OBJECTIFS, MOMENTS, relanceVide, aDialogue, compiler, problemes, nouvelleQuete, etapeVide, idDepuisTitre, drapeau,
@@ -121,12 +122,15 @@ export function QuetesController(api) {
       const i = this.liste.findIndex(x => x.id === this.q.id);
       if (i >= 0) this.liste[i] = copie(this.q);
       clearTimeout(minuteur);
+      signalerAttente('quetes', true);
       minuteur = setTimeout(() => this.appliquerMaintenant(), RETARD_APPLICATION);
     },
     appliquerMaintenant() {
       if (!minuteur || !this.q) return;
       clearTimeout(minuteur); minuteur = null;
       ed.appliquerQuete(this.q);
+      signalerAttente('quetes', false);
+      signalerAttente('carte', true); // la carte l'enverra à son prochain passage
       delete this.q.ancienne;
     },
 

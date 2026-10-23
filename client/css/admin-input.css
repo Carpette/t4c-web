@@ -301,3 +301,14 @@ body.cs-lecture #console-main .cs-danger { display: none; }
 .q-rond { width: 18px; height: 18px; border-radius: 9px; border: 2px solid #3a3f49; flex: none; }
 .q-trk.fait .q-rond { background: #5fb98a; border-color: #5fb98a; }
 .q-trk.cours .q-rond { border-color: #6aa6e0; }
+
+/* indicateur d'enregistrement serveur (en-tête de la console) */
+.cs-sauve { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px;
+  font-size: 12px; font-weight: 500; background: #1a1c21; color: var(--color-gray-400); white-space: nowrap; }
+.cs-sauve.ok svg { color: #5fb98a; }
+.cs-sauve.envoi { color: var(--color-gray-200); }
+.cs-sauve.attente { color: var(--color-amber-400); }
+.cs-sauve.echec { background: rgba(224, 113, 95, .14); color: #e0715f; }
+.cs-tourne { animation: cs-tourne 0.9s linear infinite; }
+@keyframes cs-tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cs-tourne { animation: none; } }
