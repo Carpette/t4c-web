@@ -233,6 +233,44 @@
           "category": "systeme"
         }
       ]
+    },
+    {
+      "id": "coup_critique",
+      "name": "Coup critique",
+      "max": 100,
+      "level": 35,
+      "req": {
+        "str": 70,
+        "int": 30
+      },
+      "desc": "Chaque attaque physique a une chance de porter un coup critique, plus puissant. +0,1 % de chance de critique par point.",
+      "effects": [
+        {
+          "type": "stats_boost",
+          "target_parameter": "crit",
+          "formula": "pts * 0.001",
+          "duration": "Infinity",
+          "category": "systeme"
+        }
+      ]
+    },
+    {
+      "id": "premiers_soins",
+      "name": "Premiers soins",
+      "max": 100,
+      "level": 12,
+      "req": {
+        "int": 20,
+        "wis": 20
+      },
+      "desc": "Panse ses blessures avec un bandage du sac (touche B). Les chances de réussite et le soin croissent avec les points ; un échec aggrave la blessure.",
+      "soins": {
+        "reussite": "min(0.95, 0.4 + pts * 0.0055)",
+        "soin": "10 + pts * 0.6",
+        "aggravation": "2 + rand(0, 3)",
+        "delai": 3
+      },
+      "effects": []
     }
   ]
 }

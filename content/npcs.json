@@ -145,6 +145,14 @@
         "parade": {
           "learnCost": 180,
           "trainCost": 15
+        },
+        "premiers_soins": {
+          "learnCost": 200,
+          "trainCost": 6
+        },
+        "coup_critique": {
+          "learnCost": 50,
+          "trainCost": 50
         }
       }
     },

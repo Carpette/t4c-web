@@ -11,6 +11,7 @@ export const ACTIONS_MANETTE = [
   ['echap', 'Annuler / fermer / menu'],
   ['potionVie', 'Potion de vie'],
   ['potionMana', 'Potion de mana'],
+  ['bandage', 'Premiers soins (bandage)'],
   ['sort1', 'Sort 1'], ['sort2', 'Sort 2'], ['sort3', 'Sort 3'], ['sort4', 'Sort 4'],
   ['sort5', 'Sort 5'], ['sort6', 'Sort 6'], ['sort7', 'Sort 7'], ['sort8', 'Sort 8'],
   ['inventaire', 'Inventaire'],
