@@ -84,7 +84,7 @@
             <div class="flex flex-col">
                 <div v-for="(c, i) in fiche.couches" :key="i" class="flex items-center gap-2 px-2 py-1.5 rounded-md" :class="i === couche ? 'bg-[#23262c]' : ''">
                     <button type="button" class="flex-1 min-w-0 flex items-center gap-2 text-left bg-transparent border-0 p-0 h-auto" :aria-pressed="i === couche" @click="couche = i">
-                        <span class="flex gap-0.5 flex-none"><span v-for="col in (c.colors || []).slice(0, 3)" class="w-2.5 h-2.5 rounded-full" :style="{ background: col }"></span></span>
+                        <span class="flex gap-0.5 flex-none"><span v-for="col in (c.colors || []).slice(0, 3)" class="w-2.5 h-2.5 rounded-full" :class="{ 'ring-1 ring-white/70': col === COULEUR_SORT }" :style="{ background: pastille(col) }" :title="col === COULEUR_SORT ? 'Couleur du sort' : col"></span></span>
                         <span class="truncate" :class="c.masque ? 'text-gray-500 line-through' : 'text-gray-200'">{{ nomCouche(c) }}</span>
                         <span class="text-xs text-gray-500" v-if="c.delai">+{{ c.delai }} s</span>
                     </button>
@@ -159,14 +159,17 @@
                     <select id="pe-fus" class="cs-input" :value="L.fusion || 'additif'" @change="L.fusion = $event.target.value"><option v-for="f in FUSIONS" :value="f[0]">{{ f[1] }}</option></select></div>
             </div>
             <div class="flex flex-wrap gap-2 items-center">
-                <span v-for="(c, i) in L.colors" class="cs-cond font-mono">
-                    <input type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="c" @input="couleur(i, $event.target.value)" :aria-label="'Couleur ' + (i + 1)" />{{ c.toUpperCase() }}
-                    <button type="button" class="cs-x" :aria-label="'Retirer ' + c" @click="retirerCouleur(i)" :disabled="L.colors.length < 2">×</button>
+                <span v-for="(c, i) in L.colors" class="cs-cond" :class="c === COULEUR_SORT ? '' : 'font-mono'">
+                    <span v-if="c === COULEUR_SORT" class="w-6 h-6 rounded ring-1 ring-white/70" :style="{ background: teinteApercu }" title="Remplacée en jeu par la couleur du sort"></span>
+                    <input v-else type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="c" @input="couleur(i, $event.target.value)" :aria-label="'Couleur ' + (i + 1)" />{{ c === COULEUR_SORT ? 'Couleur du sort' : c.toUpperCase() }}
+                    <button type="button" class="cs-x" :aria-label="'Retirer ' + (c === COULEUR_SORT ? 'la couleur du sort' : c)" @click="retirerCouleur(i)" :disabled="L.colors.length < 2">×</button>
                 </span>
                 <button type="button" class="cs-btn" @click="ajouterCouleur()">Couleur</button>
+                <button type="button" class="cs-btn" @click="ajouterCouleurSort()" :disabled="aCouleurSort" title="Une couleur remplacée en jeu par celle du sort qui joue l’effet">Couleur du sort</button>
                 <label class="flex items-center gap-2 text-gray-300 ml-2"><input type="checkbox" :checked="!!L.degrade" @change="L.degrade = $event.target.checked" /> Dégradé au fil de la vie</label>
             </div>
-            <p class="text-xs text-gray-500">{{ L.degrade ? 'Chaque particule passe par les couleurs dans l’ordre.' : 'Chaque particule prend une de ces couleurs au hasard.' }}</p>
+            <p class="text-xs text-gray-500">{{ L.degrade ? 'Chaque particule passe par les couleurs dans l’ordre.' : 'Chaque particule prend une de ces couleurs au hasard.' }}
+                <span v-if="aCouleurSort">« Couleur du sort » prend la couleur réglée dans la fiche du sort (sans couleur de sort : la première autre couleur).</span></p>
         </div>
 
         <!-- couche choisie : primitive -->
@@ -192,8 +195,9 @@
                     <input id="pe-pr1" class="cs-input font-mono" type="number" min="0" max="20" step="0.1" placeholder="1" :value="L.radiusEnd" @change="nombre('radiusEnd', $event.target.value)" /></div>
                 <div class="cs-field"><label class="cs-label" for="pe-pfus">Lumière</label>
                     <select id="pe-pfus" class="cs-input" :value="L.fusion || 'additif'" @change="L.fusion = $event.target.value"><option v-for="f in FUSIONS" :value="f[0]">{{ f[1] }}</option></select></div>
-                <div class="cs-field"><label class="cs-label" for="pe-pcol">Couleur</label>
-                    <span class="cs-cond font-mono self-start"><input id="pe-pcol" type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="L.colors[0]" @input="couleur(0, $event.target.value)" />{{ L.colors[0].toUpperCase() }}</span></div>
+                <div class="cs-field"><label class="cs-label" for="pe-pcol">{{ aCouleurSort ? 'Couleur si le sort n’en a pas' : 'Couleur' }}</label>
+                    <span class="cs-cond font-mono self-start"><input id="pe-pcol" type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="fixe()" @input="couleur(aCouleurSort ? 1 : 0, $event.target.value)" />{{ fixe().toUpperCase() }}</span>
+                    <label class="flex items-center gap-2 text-gray-300"><input type="checkbox" :checked="aCouleurSort" @change="basculerCouleurSort($event.target.checked)" /> Couleur du sort</label></div>
             </div>
         </div>
 
@@ -213,6 +217,10 @@
             <div class="flex gap-2 items-center flex-wrap">
                 <button type="button" class="cs-btn" @click="declencher()">{{ persistant ? 'Relancer' : 'Rejouer' }}</button>
                 <label class="flex items-center gap-2 text-gray-300"><input type="checkbox" v-model="enMouvement" /> Personnage en mouvement</label>
+            </div>
+            <div class="flex items-center gap-2" v-if="effetACouleurSort">
+                <input id="pe-teinte" type="color" class="w-8 h-7 bg-transparent border border-gray-700 rounded cursor-pointer" v-model="teinteApercu" />
+                <label for="pe-teinte" class="text-gray-300">Couleur du sort pour l’aperçu</label>
             </div>
             <label class="cs-label" for="pe-fond">Fond de l’aperçu</label>
             <select id="pe-fond" class="cs-input" v-model="fond"><option v-for="f in FONDS" :value="f[0]">{{ f[1] }}</option></select>

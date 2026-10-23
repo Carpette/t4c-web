@@ -144,7 +144,8 @@
                         <option v-if="fiche.element && !ELEMENTS.some(x => x[0] === fiche.element)" :value="fiche.element">{{ fiche.element }}</option></select></div>
                 <div class="cs-field"><label class="cs-label" for="sp-col">Couleur</label>
                     <div class="flex gap-2"><input id="sp-col" type="color" class="h-8 w-12 bg-transparent border border-gray-700 rounded" :value="fiche.color || '#ffffff'" @input="fiche.color = $event.target.value; rejouer()" />
-                    <input class="cs-input font-mono" :value="fiche.color" @change="fiche.color = $event.target.value; rejouer()" aria-label="Couleur hexadécimale" /></div></div>
+                    <input class="cs-input font-mono" :value="fiche.color" @change="fiche.color = $event.target.value; rejouer()" aria-label="Couleur hexadécimale" /></div>
+                    <span class="text-xs text-gray-500">Colore le halo du projectile, l’éclair et le cercle de zone, ainsi que l’entrée « Couleur du sort » des effets ci-dessous. Leurs autres couleurs se règlent dans Effets visuels.</span></div>
                 <div class="cs-field" v-for="e in emplacementsFx"><label class="cs-label" :for="'sp-fx-' + e[0]">{{ e[1] }}</label>
                     <select :id="'sp-fx-' + e[0]" class="cs-input" :value="fiche.fx?.[e[0]] || ''" @change="fixerFx(e[0], $event.target.value)">
                         <option value="">par défaut (élément)</option>

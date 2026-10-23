@@ -2736,9 +2736,10 @@ export class Game {
       const fx = sp ? sp.fx?.aura : ae.aura;
       if (!fx || !content.particlesById?.[fx]) continue;
       m ||= new Map();
-      if (!(m.get(fx) >= ae.ends_at)) m.set(fx, ae.ends_at);
+      // [fin, couleur du sort] : la couleur teinte les couches « couleur du sort »
+      if (!(m.get(fx)?.[0] >= ae.ends_at)) m.set(fx, [ae.ends_at, sp?.color || null]);
     }
-    return m && [...m].map(([fx, fin]) => [fx, Math.round(fin - now)]);
+    return m && [...m].map(([fx, [fin, couleur]]) => (couleur ? [fx, Math.round(fin - now), couleur] : [fx, Math.round(fin - now)]));
   }
   majAuras() {
     for (const zi of this.zones.values()) {
@@ -2746,7 +2747,7 @@ export class Game {
       for (const e of zi.entities.values()) {
         if (!e.effects && !e._auras) continue;
         const liste = e.dead ? null : this.aurasDe(e);
-        const cle = liste ? liste.map(a => a[0]).sort().join(',') : '';
+        const cle = liste ? liste.map(a => a[0] + (a[2] || '')).sort().join(',') : '';
         if (cle === (e._auras || '')) continue;
         e._auras = cle;
         this.eventNear(e, { t: 'aura', id: e.id, list: liste || [] });

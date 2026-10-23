@@ -38,6 +38,17 @@ const rgb = (hex) => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+// « Couleur du sort » : l'entrée COULEUR_SORT d'une liste de couleurs est
+// remplacée par la couleur du sort qui joue l'effet (les autres restent) ;
+// sans sort coloré, elle prend la première autre couleur de la couche.
+export const COULEUR_SORT = 'sort';
+function couleursDe(L, teinte) {
+  const c = L.colors?.length ? L.colors : ['#ffffff'];
+  if (!c.includes(COULEUR_SORT)) return c;
+  const repli = teinte || c.find(x => x !== COULEUR_SORT) || '#ffffff';
+  return c.map(x => (x === COULEUR_SORT ? repli : x));
+}
 const cache = new Map();
 function toile(n) {
   const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n });
@@ -298,13 +309,13 @@ export class Particles {
 
 // ---------- émission d'une couche de particules ----------
 // (bx, bz) : centre (monde, ou local si ancre) ; n : nombre de particules
-function emettre(P, L, n, bx, bz, ancre, rayon) {
+function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
   if (n <= 0) return;
   const radius = rayon ?? (+L.radius || 0.1);
   const size = +L.size || 2, gravity = +L.gravity || 0, speed = L.speed != null ? +L.speed : 1, life = +L.life || 0.5;
   const drag = L.drag ?? 0.98;
   const cx = bx + (+L.offsetX || 0), cz = bz + (+L.offsetZ || 0), offH = +L.offsetH || 0;
-  const colors = L.colors?.length ? L.colors : ['#ffffff'];
+  const colors = couleursDe(L, teinte);
   const forme = L.forme || 'net';
   const sprs = forme === 'etincelle' ? null : colors.map(c => sprite(forme, c));
   const deg = !!L.degrade && colors.length > 1;
@@ -370,11 +381,11 @@ function emettre(P, L, n, bx, bz, ancre, rayon) {
 }
 
 const TYPES_PRIM = { bulle: 1, anneau: 2, lueur: 3 };
-function poserPrimitive(P, L, bx, bz, ancre, ponctuel, rayon) {
+function poserPrimitive(P, L, bx, bz, ancre, ponctuel, rayon, teinte) {
   return P.primitive({
     type: TYPES_PRIM[L.type], ancre, x: bx + (+L.offsetX || 0), z: bz + (+L.offsetZ || 0), h: +L.offsetH || 0,
     r: rayon ?? (+L.radius || 0.5), r1: ponctuel ? (L.radiusEnd ?? 1) : 1,
-    couleur: L.colors?.[0] || '#ffffff', opa: L.opacite ?? 0.8, fusion: L.fusion,
+    couleur: couleursDe(L, teinte)[0], opa: L.opacite ?? 0.8, fusion: L.fusion,
     life: ponctuel ? (+L.life || 0.6) : Infinity, pulse: +L.pulse || 0, freq: +L.freq || 1,
   });
 }
@@ -394,20 +405,20 @@ function avancerInstance(P, ins, dt) {
       ins.fait[i] = true;
       if (prim) {
         if (fac > 0) {
-          const pr = poserPrimitive(P, L, ins.bx, ins.bz, ins.ancre, !ins.persistant, ins.rayon);
+          const pr = poserPrimitive(P, L, ins.bx, ins.bz, ins.ancre, !ins.persistant, ins.rayon, ins.teinte);
           if (ins.persistant) ins.prims.push({ pr, pid: pr.pid });
         }
       }
       else if (!ins.persistant) {
         const b = Math.round(+L.burst || 0);
-        emettre(P, L, ins.raw ? b : densify(b), ins.bx, ins.bz, ins.ancre, ins.rayon);
+        emettre(P, L, ins.raw ? b : densify(b), ins.bx, ins.bz, ins.ancre, ins.rayon, ins.teinte);
       }
     }
     if (!prim && ins.t <= d + ins.duree) {
       ins.acc[i] = (ins.acc[i] || 0) + (+L.rate || 0) * dt * fac;
       const n = ins.acc[i] | 0;
       ins.acc[i] -= n;
-      emettre(P, L, n, ins.bx, ins.bz, ins.ancre, ins.rayon);
+      emettre(P, L, n, ins.bx, ins.bz, ins.ancre, ins.rayon, ins.teinte);
     }
   });
   // primitives d'un persistant joué ponctuellement : fondu à la fin
@@ -420,7 +431,7 @@ export function jouerEffet(P, def, x, z, opts = {}) {
   if (!eff?.couches.length) return;
   const persistant = eff.mode === 'persistant';
   const ins = {
-    eff, persistant, raw: !!opts.raw, ancre: opts.ancre || null, rayon: opts.rayon,
+    eff, persistant, raw: !!opts.raw, ancre: opts.ancre || null, rayon: opts.rayon, teinte: opts.teinte || null,
     bx: opts.ancre ? 0 : x, bz: opts.ancre ? 0 : z,
     t: 0, duree: persistant ? 1.5 : eff.duree, acc: [], fait: [], prims: [],
   };
@@ -429,6 +440,7 @@ export function jouerEffet(P, def, x, z, opts = {}) {
   P.instances.push(ins);
 }
 
+// opts.teinte : couleur du sort, appliquée aux couches réglées sur « couleur du sort ».
 // Persistant : appelé à chaque image par son hôte (aura, traînée, zone) avec
 // un état propre à cet hôte ; arreterEffet() fait disparaître ses primitives.
 // Un effet ponctuel entretenu ainsi est rejoué en boucle.
@@ -458,13 +470,13 @@ export function entretenirEffet(P, def, etat, x, z, dt, opts = {}) {
         if (opts.rayon != null) tenue.pr.r = opts.rayon;
         return;
       }
-      if (densite() > 0 || opts.raw) { const pr = poserPrimitive(P, L, bx, bz, ancre, false, opts.rayon); etat.prims[i] = { pr, pid: pr.pid }; }
+      if (densite() > 0 || opts.raw) { const pr = poserPrimitive(P, L, bx, bz, ancre, false, opts.rayon, opts.teinte); etat.prims[i] = { pr, pid: pr.pid }; }
       return;
     }
     etat.acc[i] = (etat.acc[i] || 0) + (+L.rate || 0) * dt * fac;
     const n = etat.acc[i] | 0;
     etat.acc[i] -= n;
-    emettre(P, L, n, bx, bz, ancre, opts.rayon);
+    emettre(P, L, n, bx, bz, ancre, opts.rayon, opts.teinte);
   });
 }
 export function arreterEffet(P, etat) {

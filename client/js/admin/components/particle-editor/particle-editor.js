@@ -8,7 +8,7 @@
 // particules, et primitives à un seul tracé (bulle, anneau au sol, lueur),
 // bien moins coûteuses que des centaines de particules.
 import {
-  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES,
+  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES, COULEUR_SORT,
 } from '../../../render2d/particles.js';
 import { copie, norm } from '../../forge.js';
 
@@ -89,6 +89,7 @@ export function ParticleEditorController(api) {
     SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES,
     effets: [], sorts: [], q: '', courant: null, fiche: null, nouveau: false, galerie: false,
     couche: 0, enMouvement: false, fond: 'sombre', message: '', erreur: false, vivants: 0,
+    COULEUR_SORT, teinteApercu: '#ff5a2a', // couleur de sort essayée dans l'aperçu
 
     famille(id) {
       const f = FAMILLES.find(([p]) => id.startsWith(p));
@@ -195,8 +196,17 @@ export function ParticleEditorController(api) {
       cible[k] = n;
     },
     couleur(i, v) { this.L.colors[i] = v; },
-    ajouterCouleur() { this.L.colors = [...(this.L.colors || []), this.L.colors?.at(-1) || '#ffffff']; },
+    // dernière couleur fixe de la couche (l'entrée « couleur du sort » n'en est pas une)
+    fixe(L = this.L) { return [...(L.colors || [])].reverse().find(c => c !== COULEUR_SORT) || '#ffffff'; },
+    ajouterCouleur() { this.L.colors = [...(this.L.colors || []), this.fixe()]; },
     retirerCouleur(i) { if (this.L.colors.length > 1) this.L.colors.splice(i, 1); },
+    // « Couleur du sort » : remplacée en jeu par la couleur du sort qui joue l'effet
+    get aCouleurSort() { return !!this.L?.colors?.includes(COULEUR_SORT); },
+    get effetACouleurSort() { return !!this.fiche?.couches.some(c => c.colors?.includes(COULEUR_SORT)); },
+    ajouterCouleurSort() { if (!this.aCouleurSort) this.L.colors = [...(this.L.colors || []), COULEUR_SORT]; },
+    // primitive (une couleur) : [sort, couleur de repli si le sort n'en a pas] <-> [couleur fixe]
+    basculerCouleurSort(oui) { this.L.colors = oui ? [COULEUR_SORT, this.fixe()] : [this.fixe()]; },
+    pastille(c) { return c === COULEUR_SORT ? this.teinteApercu : c; },
 
     // ---------- aperçu ----------
     demarrer() {
@@ -216,7 +226,7 @@ export function ParticleEditorController(api) {
     declencher() {
       if (!anim || !this.fiche) return;
       if (this.persistant) { this.demarrer(); return; }
-      jouerEffet(anim.P, this.fiche, 0, 0, { raw: true, frais: true, ancre: anim.cible });
+      jouerEffet(anim.P, this.fiche, 0, 0, { raw: true, frais: true, ancre: anim.cible, teinte: this.teinteApercu });
     },
     image(now) {
       const a = anim;
@@ -231,9 +241,9 @@ export function ParticleEditorController(api) {
       a.cible.x = this.enMouvement ? Math.sin(a.t * 0.9) * 1.4 : 0;
       a.cible.z = this.enMouvement ? -Math.sin(a.t * 0.9) * 1.4 : 0;
       // réglage modifié : les primitives en place sont recréées avec les nouvelles valeurs
-      const sig = JSON.stringify(this.fiche);
+      const sig = JSON.stringify(this.fiche) + this.teinteApercu;
       if (sig !== a.sig) { a.sig = sig; arreterEffet(a.P, a.etat); a.etat = {}; }
-      if (this.persistant) entretenirEffet(a.P, this.fiche, a.etat, 0, 0, dt, { raw: true, frais: true, ancre: a.cible });
+      if (this.persistant) entretenirEffet(a.P, this.fiche, a.etat, 0, 0, dt, { raw: true, frais: true, ancre: a.cible, teinte: this.teinteApercu });
       else if (a.t >= a.prochain) {
         this.declencher();
         const vie = Math.max(0.3, ...this.fiche.couches.map(c => (+c.delai || 0) + (+c.life || 0.6)));

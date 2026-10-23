@@ -218,24 +218,24 @@ export function SpellsEditorController(api) {
         const vol = 0.6;
         if (a.t < vol) {
           const x = L + (C - L) * (a.t / vol);
-          if (def('trail')) entretenirEffet(a.P, def('trail'), a.etats.trail ||= {}, x, 0, dt, { raw: true }); else emitTrail(a.P, el, x, 0);
+          if (def('trail')) entretenirEffet(a.P, def('trail'), a.etats.trail ||= {}, x, 0, dt, { raw: true, teinte: f.color }); else emitTrail(a.P, el, x, 0);
         } else if (!a.impact) {
           a.impact = true;
-          if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true }); else emitImpact(a.P, el, C, 0);
+          if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true, teinte: f.color }); else emitImpact(a.P, el, C, 0);
         }
       } else if (t === 'aoe') {
-        if (def('ground')) { if (a.t < 1.6) entretenirEffet(a.P, def('ground'), a.etats.ground ||= {}, C, 0, dt, { raw: true, rayon: Math.min(3, f.radius || 2) }); }
+        if (def('ground')) { if (a.t < 1.6) entretenirEffet(a.P, def('ground'), a.etats.ground ||= {}, C, 0, dt, { raw: true, teinte: f.color, rayon: Math.min(3, f.radius || 2) }); }
         else if (a.sol < 6 && a.t > a.sol * 0.15) { a.sol++; emitGround(a.P, el, C, 0, Math.min(3, f.radius || 2)); }
-        if (!a.impact) { a.impact = true; if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true }); }
+        if (!a.impact) { a.impact = true; if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true, teinte: f.color }); }
       } else if (!a.impact) {
         a.impact = true;
         const cible = t === 'buff' || t === 'heal' ? L : C;
-        if (def('self')) jouerEffet(a.P, def('self'), cible, 0, { raw: true });
+        if (def('self')) jouerEffet(a.P, def('self'), cible, 0, { raw: true, teinte: f.color });
         else if (t === 'heal') emitHeal(a.P, cible, 0);
         else emitBuff(a.P, cible, 0, f.color);
       }
       // aura : entretenue sur la cible du sort une fois lancé
-      if (def('aura') && a.impact) entretenirEffet(a.P, def('aura'), a.etats.aura ||= {}, t === 'buff' || t === 'heal' || !t ? L : C, 0, dt, { raw: true });
+      if (def('aura') && a.impact) entretenirEffet(a.P, def('aura'), a.etats.aura ||= {}, t === 'buff' || t === 'heal' || !t ? L : C, 0, dt, { raw: true, teinte: f.color });
       if (a.t > (def('aura') ? 3.2 : 2.2)) this.rejouer();
       a.P.update(dt);
       const { g, cv } = a, k = cv.width / 9;

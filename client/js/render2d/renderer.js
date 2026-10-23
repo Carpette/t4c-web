@@ -94,7 +94,7 @@ export class Renderer {
   // avec la vue de l'entité (ancre), l'effet la suit pendant qu'il se joue.
   fxAt(kind, x, z, color, fx, ancre = null) {
     const def = this.fxDef(fx?.self);
-    if (def) { jouerEffet(this.particles, def, x, z, { ancre }); return; }
+    if (def) { jouerEffet(this.particles, def, x, z, { ancre, teinte: color }); return; }
     if (kind === 'heal') emitHeal(this.particles, x, z);
     else if (kind === 'buff') emitBuff(this.particles, x, z, color);
     else if (kind === 'shield') emitShield(this.particles, x, z, color);
@@ -107,9 +107,9 @@ export class Renderer {
   // remplace les précédentes, celles qui disparaissent s'estompent.
   poserAuras(id, liste) {
     const avant = this.auras.get(id), apres = new Map(), now = performance.now();
-    for (const [fx, ms] of liste || []) {
+    for (const [fx, ms, couleur] of liste || []) {
       if (!this.fxDef(fx)) continue;
-      apres.set(fx, { fin: now + ms + 500, etat: avant?.get(fx)?.etat || {} });
+      apres.set(fx, { fin: now + ms + 500, teinte: couleur || null, etat: avant?.get(fx)?.etat || {} });
     }
     if (avant) for (const [fx, a] of avant) if (!apres.has(fx)) arreterEffet(this.particles, a.etat);
     if (apres.size) this.auras.set(id, apres); else this.auras.delete(id);
@@ -122,7 +122,7 @@ export class Renderer {
       for (const [fx, a] of m) {
         if (!v || now > a.fin) { arreterEffet(this.particles, a.etat); m.delete(fx); continue; }
         if (!enVue(v)) { arreterEffet(this.particles, a.etat); continue; }
-        entretenirEffet(this.particles, this.fxDef(fx), a.etat, 0, 0, dt, { ancre: v });
+        entretenirEffet(this.particles, this.fxDef(fx), a.etat, 0, 0, dt, { ancre: v, teinte: a.teinte });
       }
       if (!m.size) this.auras.delete(id);
     }
@@ -420,7 +420,7 @@ export class Renderer {
         // l'impact d'un projectile éclate en gerbe à l'arrivée
         if (f.type === 'proj' || f.type === 'zap') {
           const idef = this.fxDef(f.fx?.impact);
-          if (idef) jouerEffet(this.particles, idef, f.x1, f.z1);
+          if (idef) jouerEffet(this.particles, idef, f.x1, f.z1, { teinte: f.color });
           else if (f.type === 'proj') emitImpact(this.particles, f.element, f.x1, f.z1);
         }
         continue;
@@ -436,7 +436,7 @@ export class Renderer {
         // traînée de particules à la position courante de la tête
         const wx = f.x0 + (f.x1 - f.x0) * t, wz = f.z0 + (f.z1 - f.z0) * t;
         const tdef = this.fxDef(f.fx?.trail);
-        if (tdef) entretenirEffet(this.particles, tdef, f._etat ||= {}, wx, wz, fdt);
+        if (tdef) entretenirEffet(this.particles, tdef, f._etat ||= {}, wx, wz, fdt, { teinte: f.color });
         else emitTrail(this.particles, f.element, wx, wz);
         ctx.globalCompositeOperation = 'lighter';
         const g = ctx.createRadialGradient(px, py, 0, px, py, 14 * s);
@@ -471,14 +471,14 @@ export class Renderer {
         if (!f._sparked) {
           f._sparked = true;
           const zdef = this.fxDef(f.fx?.impact);
-          if (zdef) jouerEffet(this.particles, zdef, f.x1, f.z1);
+          if (zdef) jouerEffet(this.particles, zdef, f.x1, f.z1, { teinte: f.color });
           else emitImpact(this.particles, 'air', f.x1, f.z1);
         }
       } else if (f.type === 'aoe') {
         const gdef = this.fxDef(f.fx?.ground);
         if (gdef) {
           // émission CONTINUE pendant toute la durée de la zone, au rayon du sort
-          entretenirEffet(this.particles, gdef, f._etat ||= {}, f.x, f.z, fdt, { rayon: f.radius || undefined });
+          entretenirEffet(this.particles, gdef, f._etat ||= {}, f.x, f.z, fdt, { rayon: f.radius || undefined, teinte: f.color });
         } else if (!f._burst) { f._burst = true; emitGround(this.particles, f.element, f.x, f.z, f.radius || 3); }
         const c = this.w2s(f.x, f.z);
         const r = (f.radius || 3) * HW * s * Math.min(1, t * 1.6);
