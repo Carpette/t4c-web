@@ -41,7 +41,14 @@ function compileSpellFormulas() {
 function compileSkillFormulas() {
   content.skillFormulas = new Map();
   for (const sk of content.skills) {
-    const entry = { effects: [] };
+    const entry = { effects: [], soins: null };
+    // compétence active (Premiers soins) : chances, soin et aggravation
+    if (sk.soins) {
+      try {
+        entry.soins = { reussite: engine.compile(String(sk.soins.reussite)), soin: engine.compile(String(sk.soins.soin)),
+          aggravation: engine.compile(String(sk.soins.aggravation ?? 0)), delai: +sk.soins.delai || 3 };
+      } catch (e) { console.warn(`compétence ${sk.id} : expression de soins invalide ignorée (${e.message})`); }
+    }
     const effectsList = sk.effects || [];
     for (const ef of effectsList) {
       if (typeof ef.formula !== 'string') continue;

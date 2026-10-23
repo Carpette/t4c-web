@@ -219,6 +219,13 @@ export class UI {
     });
   }
 
+  // bandage du sac -> Premiers soins (le serveur vérifie la compétence)
+  utiliserBandage() {
+    const it = (this.self?.inventory || []).find(i => ITEMS[i.defId]?.bandage);
+    if (!it) { this.addChat('sys', 'Aucun bandage dans le sac.'); return; }
+    this.net.send({ t: 'use', iid: it.iid });
+  }
+
   usePotion(kind) {
     const it = this.potionOf(kind);
     if (!it) { this.addChat('sys', `Plus de potion de ${kind}.`); return; }

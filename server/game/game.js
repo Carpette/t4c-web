@@ -1129,6 +1129,7 @@ export class Game {
         if (i < 0) return;
         const st = itemStats(p.inventory[i]);
         if (ITEMS[p.inventory[i].defId].slot !== 'use') return;
+        if (ITEMS[p.inventory[i].defId].bandage) { this.premiersSoins(p, i); return; }
         // Malédiction : les potions de vie n'ont plus aucun effet (non consommées)
         if (st.heal && this.isCursed(p)) {
           this.send(p, { t: 'info', text: 'Une malédiction pèse sur vous : la potion reste sans effet.' });
@@ -2219,6 +2220,32 @@ export class Game {
       p.skillPoints -= n;
       p.skills[sk.id] = cur + n;
       p.recompute(this);
+    }
+    this.sendSelf(p);
+  }
+
+  // Premiers soins (First Aid de T4C) : un bandage du sac, consommé à chaque
+  // tentative ; réussite = soin, échec = blessure aggravée. Chances, soin et
+  // délai viennent de content/skills.json (modifiables dans la Forge).
+  premiersSoins(p, i) {
+    const pts = p.skills.premiers_soins;
+    const f = content.skillFormulas.get('premiers_soins')?.soins;
+    if (pts == null || !f) { this.send(p, { t: 'info', text: 'Vous ne savez pas donner les premiers soins : un entraîneur enseigne cette compétence.' }); return; }
+    const now = this.now();
+    if ((p.soinsPret || 0) > now) { this.send(p, { t: 'info', text: 'Vous pansez encore votre blessure…' }); return; }
+    if (p.hp >= p.eff.maxHp) { this.send(p, { t: 'info', text: 'Vous n\'êtes pas blessé.' }); return; }
+    p.inventory.splice(i, 1);
+    p.soinsPret = now + f.delai;
+    const pts1 = p.eff.stats?.skills?.premiers_soins ?? pts; // boosts temporaires compris
+    if (Math.random() < f.reussite.evaluate({ pts: pts1 })) {
+      const soin = Math.max(1, Math.round(f.soin.evaluate({ pts: pts1 })));
+      p.hp = Math.min(p.eff.maxHp, p.hp + soin);
+      this.eventNear(p, { t: 'fx', kind: 'heal', id: p.id });
+      this.send(p, { t: 'loot', text: `Premiers soins : +${soin} PV` });
+    } else {
+      const perte = Math.max(0, Math.round(f.aggravation.evaluate({ pts: pts1 })));
+      p.hp = Math.max(1, p.hp - perte); // un pansement raté ne tue pas
+      this.send(p, { t: 'info', text: `Le bandage glisse : la blessure s'aggrave (-${perte} PV).` });
     }
     this.sendSelf(p);
   }

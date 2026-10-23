@@ -186,6 +186,8 @@ export const ITEMS = {
   // ================= Consommables =================
   potion_vie:   { name: 'Potion de vie',        slot: 'use', zone: 0, heal: 20, weight: 0.5, loot: 'hp_potion', price: 10 },
   potion_mana:  { name: 'Potion de mana',       slot: 'use', zone: 0, mana: 50, weight: 0.5, loot: 'mp_potion', price: 15 },
+  // T4C : First Aid exige un bandage dans le sac (consommé à chaque tentative)
+  bandage:      { name: 'Bandage',              slot: 'use', zone: 0, bandage: true, weight: 0.2, loot: 'clothes', price: 3 },
 
   // ================= Divers =================
   or:           { name: "Pièces d'or",          slot: 'gold', weight: 0, loot: 'coins25', price: 1 },

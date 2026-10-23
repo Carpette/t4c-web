@@ -727,6 +727,7 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 'n') basculerMiniCarte();
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
+  else if (k === 'b') ui.utiliserBandage();
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
   else if (ev.key === 'Escape') echap();
 });
@@ -772,6 +773,7 @@ const actionsManette = {
   echap: () => echap(),
   potionVie: () => ui.usePotion('vie'),
   potionMana: () => ui.usePotion('mana'),
+  bandage: () => ui.utiliserBandage(),
   inventaire: () => guiManager.togglePanel('inventory'),
   personnage: () => guiManager.togglePanel('character'),
   carte: () => basculerMiniCarte(),
