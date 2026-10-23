@@ -8,7 +8,7 @@
 // particules, et primitives à un seul tracé (bulle, anneau au sol, lueur),
 // bien moins coûteuses que des centaines de particules.
 import {
-  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES, SOLIDES, COULEUR_SORT,
+  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES, SOLIDES, COULEUR_SORT, REPARTITIONS, tirageTaille,
 } from '../../../render2d/particles.js';
 import { copie, norm } from '../../forge.js';
 
@@ -70,12 +70,12 @@ const MODELES = [
   { cle: 'etincelles', nom: 'Gerbe d’étincelles', desc: 'Jaillissement qui retombe', id: 'imp_', mode: 'ponctuel', duree: 0.6, couches: [
     P({ offsetH: 60, speed: 2.5, rate: 60, burst: 10, life: 0.7, gravity: 300, forme: 'etincelle', size: 1.5, colors: ['#fff4c8', '#ffd24a'] })] },
   { cle: 'eboulis', nom: 'Éboulis', desc: 'Cailloux projetés qui rebondissent, nuage de poussière', id: 'imp_', mode: 'ponctuel', couches: [
-    P({ movement: 'fontaine', offsetH: 10, speed: 1.4, burst: 14, rate: 0, life: 1.4, gravity: 520, drag: 0.99, size: 8, forme: 'roche', fusion: 'normal', alpha: 'constant',
+    P({ movement: 'fontaine', offsetH: 10, speed: 1.4, burst: 14, rate: 0, life: 1.4, gravity: 520, drag: 0.99, tailleMin: 3, size: 11, repartition: 'petits', forme: 'roche', fusion: 'normal', alpha: 'constant',
       colors: ['#7a6a58', '#8f8070', '#5e5248'], sol: 'rebondit', rebond: 0.35, rotation: 1.5 }),
     P({ spawn: 'boule', radius: 0.25, offsetH: 15, speed: 0.5, burst: 8, rate: 0, life: 1.2, size: 7, sizeEnd: 2.5, forme: 'fumee', fusion: 'normal', alpha: 'entree', opacite: 0.6,
       colors: ['#8a7a68', '#a09080'] })] },
   { cle: 'glace', nom: 'Éclats de glace', desc: 'Cristaux qui volent et se posent au sol', id: 'imp_', mode: 'ponctuel', couches: [
-    P({ movement: 'fontaine', offsetH: 30, speed: 1.8, burst: 16, rate: 0, life: 1.2, gravity: 450, size: 6, forme: 'eclat', fusion: 'normal', alpha: 'constant',
+    P({ movement: 'fontaine', offsetH: 30, speed: 1.8, burst: 16, rate: 0, life: 1.2, gravity: 450, tailleMin: 3, size: 8, repartition: 'petits', forme: 'eclat', fusion: 'normal', alpha: 'constant',
       colors: ['#bfeaff', '#8fd0ff', '#e8f8ff'], sol: 'pose', rotation: 2 }),
     { type: 'lueur', radius: 0.5, offsetH: 30, life: 0.3, radiusEnd: 1.5, opacite: 0.7, colors: ['#bfeaff'], fusion: 'additif' }] },
   { cle: 'charge', nom: 'Implosion (charge)', desc: 'Énergie aspirée puis libérée', id: 'event_', mode: 'ponctuel', duree: 0.8, couches: [
@@ -96,7 +96,7 @@ export function ParticleEditorController(api) {
   let fichier = null, reference = null, anim = null;
 
   return {
-    SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES, SOLS,
+    SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES, SOLS, REPARTITIONS,
     solide: (f) => SOLIDES.has(f), // pas de Set dans la portée : petite-vue ne sait pas le rendre réactif
     effets: [], sorts: [], q: '', courant: null, fiche: null, nouveau: false, galerie: false,
     couche: 0, enMouvement: false, fond: 'sombre', message: '', erreur: false, vivants: 0,
@@ -120,10 +120,11 @@ export function ParticleEditorController(api) {
     get sale() { return this.nouveau || (!!this.fiche && JSON.stringify(this.fiche) !== JSON.stringify(reference)); },
     get utilisePar() {
       const id = this.courant, out = [];
+      if (this.nouveau) return out; // effet pas encore enregistré : courant désigne encore l'effet précédent
       for (const s of this.sorts) for (const [k, v] of Object.entries(s.fx || {})) if (v === id) out.push({ id: s.id, name: s.name, role: { trail: 'traînée', impact: 'impact', ground: 'zone au sol', self: 'sur la cible', aura: 'aura' }[k] || k });
       return out;
     },
-    get usageJeu() { return USAGES_JEU[this.courant] || ''; },
+    get usageJeu() { return this.nouveau ? '' : USAGES_JEU[this.courant] || ''; },
     get couleurFond() { return FONDS.find(f => f[0] === this.fond)[2]; },
     get persistant() { return this.fiche?.mode === 'persistant'; },
     get L() { return this.fiche?.couches[this.couche] || null; },
@@ -215,6 +216,15 @@ export function ParticleEditorController(api) {
         L.fusion = 'normal'; L.alpha = 'constant'; L.sol ??= 'rebondit'; L.rebond ??= 0.4;
         if (!(+L.gravity > 0)) L.gravity = 500;
       } else if (!SOLIDES.has(v) && avant) { L.fusion = 'additif'; L.alpha = 'fondu'; }
+    },
+    // taille variable : plage [tailleMin, size] et répartition
+    get tailleVariable() { const m = this.L?.tailleMin; return m != null && m !== '' && +m !== +this.L.size; },
+    // histogramme de la répartition (16 barres, hauteurs 0..1) par tirage
+    get histoTaille() {
+      const rep = this.L?.repartition, b = new Array(16).fill(0);
+      for (let i = 0; i < 4000; i++) b[Math.min(15, (tirageTaille(rep) * 16) | 0)]++;
+      const max = Math.max(...b);
+      return b.map(v => v / max);
     },
     couleur(i, v) { this.L.colors[i] = v; },
     // dernière couleur fixe de la couche (l'entrée « couleur du sort » n'en est pas une)

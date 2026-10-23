@@ -155,8 +155,6 @@
                     <select id="pe-forme" class="cs-input" :value="L.forme || 'net'" @change="choisirForme($event.target.value)"><option v-for="f in FORMES" :value="f[0]">{{ f[1] }}</option></select></div>
                 <div class="cs-field"><label class="cs-label" for="pe-rot">Rotation (tours/s)</label>
                     <input id="pe-rot" class="cs-input font-mono" type="number" min="0" max="10" step="0.1" :placeholder="solide(L.forme) ? '1.5' : '0'" :value="L.rotation" @change="nombre('rotation', $event.target.value)" /></div>
-                <div class="cs-field"><label class="cs-label" for="pe-size">Taille (px)</label>
-                    <input id="pe-size" class="cs-input font-mono" type="number" min="0.5" max="40" step="0.5" :value="L.size" @change="nombre('size', $event.target.value)" /></div>
                 <div class="cs-field"><label class="cs-label" for="pe-size1">Taille finale (×)</label>
                     <input id="pe-size1" class="cs-input font-mono" type="number" min="0" max="10" step="0.1" placeholder="auto" :value="L.sizeEnd" @change="nombre('sizeEnd', $event.target.value)" /></div>
                 <div class="cs-field"><label class="cs-label" for="pe-opa">Opacité</label>
@@ -165,6 +163,22 @@
                     <select id="pe-alpha" class="cs-input" :value="L.alpha || 'fondu'" @change="L.alpha = $event.target.value"><option v-for="a in ALPHAS" :value="a[0]">{{ a[1] }}</option></select></div>
                 <div class="cs-field"><label class="cs-label" for="pe-fus">Lumière</label>
                     <select id="pe-fus" class="cs-input" :value="L.fusion || 'additif'" @change="L.fusion = $event.target.value"><option v-for="f in FUSIONS" :value="f[0]">{{ f[1] }}</option></select></div>
+            </div>
+            <!-- taille : plage min..max et répartition, avec son histogramme -->
+            <div class="flex flex-wrap gap-x-6 gap-y-3 items-end">
+                <div class="cs-field"><span class="cs-label">Taille (px)</span>
+                    <div class="flex items-center gap-2">
+                        <input class="cs-input font-mono w-20" type="number" min="0.5" max="40" step="0.5" :placeholder="L.size" :value="L.tailleMin" @change="nombre('tailleMin', $event.target.value)" aria-label="Taille minimale" title="Vide : toutes à la taille maximale" />
+                        <span class="text-gray-400">à</span>
+                        <input class="cs-input font-mono w-20" type="number" min="0.5" max="40" step="0.5" :value="L.size" @change="nombre('size', $event.target.value)" aria-label="Taille maximale" />
+                    </div></div>
+                <div class="cs-field" v-if="tailleVariable"><span class="cs-label">Répartition</span>
+                    <div class="cs-segs self-start"><button v-for="r in REPARTITIONS" type="button" class="cs-seg" :class="{ on: (L.repartition || 'uniforme') === r[0] }" @click="L.repartition = r[0]">{{ r[1] }}</button></div></div>
+                <div class="flex flex-col gap-1" v-if="tailleVariable" aria-hidden="true">
+                    <div class="flex items-end gap-px h-9 w-40"><span v-for="v in histoTaille" class="flex-1 bg-amber-400/70 rounded-t-sm" :style="{ height: Math.max(4, v * 100) + '%' }"></span></div>
+                    <div class="flex justify-between text-[11px] text-gray-500 font-mono w-40"><span>{{ Math.min(+L.tailleMin, +L.size) }} px</span><span>{{ Math.max(+L.tailleMin, +L.size) }} px</span></div>
+                </div>
+                <span class="text-xs text-gray-500 basis-full" v-if="!tailleVariable">Minimum vide : toutes les particules ont la même taille. Renseigné : des tailles variées (gros et petits débris).</span>
             </div>
             <div class="flex flex-wrap gap-2 items-center">
                 <span v-for="(c, i) in L.colors" class="cs-cond" :class="c === COULEUR_SORT ? '' : 'font-mono'">

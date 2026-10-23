@@ -354,6 +354,17 @@ export class Particles {
   }
 }
 
+// Taille variable : chaque particule tire une taille entre L.tailleMin et
+// L.size, répartie selon L.repartition (fraction 0 = min, 1 = max).
+export const REPARTITIONS = [['uniforme', 'Uniforme'], ['petits', 'Surtout petits'], ['moyens', 'Surtout moyens'], ['gros', 'Surtout gros']];
+export function tirageTaille(rep) {
+  const u = Math.random();
+  if (rep === 'petits') return u * u;
+  if (rep === 'gros') return 1 - (1 - u) ** 2;
+  if (rep === 'moyens') return (u + Math.random() + Math.random()) / 3;
+  return u;
+}
+
 // ---------- émission d'une couche de particules ----------
 // (bx, bz) : centre (monde, ou local si ancre) ; n : nombre de particules
 function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
@@ -361,6 +372,7 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
   const radius = rayon ?? (+L.radius || 0.1);
   const size = +L.size || 2, gravity = +L.gravity || 0, speed = L.speed != null ? +L.speed : 1, life = +L.life || 0.5;
   const drag = L.drag ?? 0.98;
+  const tMin = L.tailleMin != null && L.tailleMin !== '' ? +L.tailleMin : size, ecart = size - tMin;
   const cx = bx + (+L.offsetX || 0), cz = bz + (+L.offsetZ || 0), offH = +L.offsetH || 0;
   const colors = couleursDe(L, teinte);
   const forme = L.forme || 'net';
@@ -399,7 +411,8 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
     }
     const o = {
       ancre, x: px, z: pz, h: ph, vx: 0, vz: 0, vh: 0, g: gravity,
-      life: life * (0.8 + Math.random() * 0.4), size, drag,
+      life: life * (0.8 + Math.random() * 0.4), drag,
+      size: ecart ? Math.max(0.5, tMin + ecart * tirageTaille(L.repartition)) : size,
       forme, fusion: L.fusion, alpha: L.alpha, opa: L.opacite ?? 1,
       size1: L.sizeEnd ?? (nouveau ? 1 : -1),
       sprs, deg, si: (Math.random() * (sprs ? sprs.length : 1)) | 0,
