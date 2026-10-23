@@ -17,13 +17,18 @@ export function containsKeyword(text, keyword) {
 
 // Première condition du dialogue qui bloque (texte lisible), ou null si toutes
 // sont remplies. `etat` décrit le joueur : { flags, level, gold,
-// aObjet(defId) -> bool, maudit: (() -> bool) | null } (maudit null : inconnu).
+// aObjet(defId, n) -> bool (au moins n exemplaires), chasse(clef) -> { tues, n } | null, maudit: (() -> bool) | null } (maudit null : inconnu).
 export function conditionBloquante(c, etat) {
   if (!c) return null;
   if (c.flag && !etat.flags[c.flag]) return `le drapeau ${c.flag} n'est pas posé`;
   if (c.notFlag && etat.flags[c.notFlag]) return `le drapeau ${c.notFlag} est posé`;
   if (c.level && etat.level < c.level) return `niveau ${c.level} requis`;
-  if (c.item && !etat.aObjet(c.item)) return `objet ${c.item} requis`;
+  if (c.item && !etat.aObjet(c.item, Math.max(1, c.n | 0))) return `objet ${c.item}${c.n > 1 ? ' ×' + c.n : ''} requis`;
+  if (c.chasse) {
+    const ch = etat.chasse?.(c.chasse);
+    if (!ch) return `chasse ${c.chasse} non commencée`;
+    if (ch.tues < ch.n) return `chasse ${c.chasse} : ${ch.tues}/${ch.n}`;
+  }
   if (c.gold && etat.gold < c.gold) return `${c.gold} pièces d'or requises`;   // seuil (prélevé si consumeGold)
   if (c.cursed && !(etat.maudit && etat.maudit())) return 'réservé aux maudits';
   if (c.notCursed && etat.maudit && etat.maudit()) return 'refusé aux maudits';

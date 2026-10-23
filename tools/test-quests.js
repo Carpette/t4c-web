@@ -170,6 +170,15 @@ ed.generateQuest({
     { n: '2', flag: F2, npcId: b.npcId, keywords: ['suite'], reponse: 'REPONSE_B : bien joué, voici ta récompense.', reqFlag: F1, reqLevel: 0, reqItem: '', consume: false, gold: 120, itemDefId: '', itemN: 1, xp: 0, tp: null },
   ],
 });
+// quête de chasse « rats », MÊME mot-clé aux deux étapes chez A : l'étape 1
+// lance le décompte, l'étape 2 exige 2 rats tués + 2 bandages rapportés
+const R1 = ed.questFlag('rats', 1), R2 = ed.questFlag('rats', 2);
+ed.generateQuest({
+  id: 'rats', title: 'Rats', desc: '', steps: [
+    { n: '1', flag: R1, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_1 : tue 2 rats.', reqFlag: '', reqLevel: 0, reqItem: '', reqItemN: 1, consume: false, killMob: '', killN: 1, gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null },
+    { n: '2', flag: R2, npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_2 : merci.', reqFlag: R1, reqLevel: 0, reqItem: 'bandage', reqItemN: 2, consume: true, killMob: 'rat', killN: 2, gold: 77, itemDefId: '', itemN: 1, xp: 0, tp: null },
+  ],
+});
 // verrouille le coffre par F2 (effet « débloquer un coffre » d'une étape)
 const chestOv = (ed.getOverrides().chests ||= []);
 chestOv.push({ x: CHEST.x, z: CHEST.z, gold: [555, 555], items: [], reqFlag: F2 });
@@ -301,6 +310,40 @@ await A.waitFor(() => { const me = A.me(); return me && Math.hypot(me.x - (CHEST
 A.send({ t: 'interact', prop: 'chest', x: CHEST.x + 0.5, z: CHEST.z + 0.5 });
 await A.waitFor(() => A.drops.size >= 1, 4000);
 ok('coffre déverrouillé après l\'étape 2 : butin déposé', A.drops.size >= 1);
+
+// --- quête de chasse : 2 rats + 2 bandages rapportés ---
+const infos = [];
+A.ws.on('message', (raw, bin) => { if (!bin) { const m = JSON.parse(raw.toString()); if (m.t === 'info') infos.push(m.text); } });
+A.send({ t: 'admin', cmd: 'goto', x: spawn.x, z: spawn.z });
+await sleep(400);
+const q1 = await sayAndListen(A, 'Des rats ?', a.def.name);
+ok('chasse : l\'étape 1 confie la quête', !!q1?.text.includes('RATS_1'));
+ok('chasse : décompte annoncé (0/2)', infos.some(t => /Chasse : .* 0\/2/.test(t)));
+const q1b = await sayAndListen(A, 'rats', a.def.name);
+ok('chasse : avant les rats, l\'étape 2 reste fermée', !!q1b?.text.includes('RATS_1'));
+for (let k = 0; k < 2; k++) {
+  A.send({ t: 'admin', cmd: 'spawn', defId: 'rat', n: 1, x: A.me().x + 1, z: A.me().z });
+  await sleep(300);
+  A.send({ t: 'admin', cmd: 'smite' });
+  await sleep(300);
+}
+ok('chasse : 2 rats comptés (2/2)', infos.some(t => /terminée.*2\/2/.test(t)));
+const q2a = await sayAndListen(A, 'rats', a.def.name);
+ok('chasse : sans les 2 bandages, pas de récompense', !!q2a?.text.includes('RATS_1'));
+A.drops.clear();
+A.send({ t: 'admin', cmd: 'give', defId: 'bandage', n: 2 });
+await A.waitFor(() => A.drops.size >= 2, 3000);
+for (const id of [...A.drops.keys()]) { A.send({ t: 'pickup', id }); await sleep(250); }
+await A.waitFor(() => A.self.inventory.filter(it => it.defId === 'bandage').length >= 2, 3000);
+await sleep(800); // ramassages en vol (l'or lâché par les rats compris)
+const goldR = A.self.gold;
+const q2 = await sayAndListen(A, 'rats', a.def.name);
+ok('chasse : l\'étape 2 répond une fois la chasse faite et les objets en poche', !!q2?.text.includes('RATS_2'));
+await A.waitFor(() => A.self.gold === goldR + 77, 3000);
+ok('chasse : récompense versée et 2 bandages repris',
+  A.self.gold === goldR + 77 && !A.self.inventory.some(it => it.defId === 'bandage'));
+const q3 = await sayAndListen(A, 'rats', a.def.name);
+ok('chasse : la quête rendue ne relance pas de décompte', !!q3 && !infos.slice(-1)[0]?.includes('0/2'));
 
 // ---------- restauration ----------
 await api('/api/admin/overrides/0', 'PUT', before);
