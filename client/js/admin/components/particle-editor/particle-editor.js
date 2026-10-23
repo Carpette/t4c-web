@@ -19,6 +19,12 @@ const FAMILLES = [
   ['malefice_', 'Maléfices'], ['event_', 'Événements'],
 ];
 const HISTORIQUES = ['Effets historiques', /_(trail|impact)$/];
+// familles repliées dans la liste (préférence de ce navigateur)
+const CLE_REPLIES = 't4c.effets.replies';
+function repliesSauves() {
+  try { const v = JSON.parse(localStorage.getItem(CLE_REPLIES)); if (Array.isArray(v)) return v; } catch { /* stockage indisponible */ }
+  return [];
+}
 const SPAWNS = [
   ['point', 'Point'], ['ring', 'Anneau au sol'], ['circle', 'Disque au sol'], ['coquille', 'Sphère (surface)'],
   ['boule', 'Sphère (volume)'], ['colonne', 'Colonne'], ['sphere', 'Sphère aplatie (ancienne)'],
@@ -104,6 +110,7 @@ export function ParticleEditorController(api) {
   return {
     SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES, SOLS, REPARTITIONS,
     solide: (f) => SOLIDES.has(f), // pas de Set dans la portée : petite-vue ne sait pas le rendre réactif
+    replies: repliesSauves(),
     effets: [], sorts: [], q: '', courant: null, fiche: null, nouveau: false, galerie: false,
     couche: 0, enMouvement: false, fond: 'sombre', message: '', erreur: false, vivants: 0,
     COULEUR_SORT, teinteApercu: '#ff5a2a', // couleur de sort essayée dans l'aperçu
@@ -123,6 +130,16 @@ export function ParticleEditorController(api) {
       const ordre = [...FAMILLES.map(f => f[1]), HISTORIQUES[0], 'Divers'];
       return [...g].sort((a, b) => ordre.indexOf(a[0]) - ordre.indexOf(b[0])).map(([nom, effets]) => ({ nom, effets }));
     },
+    // une famille repliée garde visible l'effet ouvert ; un filtre déplie tout
+    replie(nom) { return !this.q.trim() && this.replies.includes(nom); },
+    visibles(g) { return this.replie(g.nom) ? g.effets.filter(e => e.id === this.courant && !this.nouveau) : g.effets; },
+    basculerFamille(nom) {
+      this.replies = this.replies.includes(nom) ? this.replies.filter(n => n !== nom) : [...this.replies, nom];
+      this.sauverReplies();
+    },
+    get toutReplie() { return this.groupes.every(g => this.replies.includes(g.nom)); },
+    basculerTout() { this.replies = this.toutReplie ? [] : this.groupes.map(g => g.nom); this.sauverReplies(); },
+    sauverReplies() { try { localStorage.setItem(CLE_REPLIES, JSON.stringify(this.replies)); } catch { /* préférence de session */ } },
     get sale() { return this.nouveau || (!!this.fiche && JSON.stringify(this.fiche) !== JSON.stringify(reference)); },
     get utilisePar() {
       const id = this.courant, out = [];

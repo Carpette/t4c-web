@@ -11,11 +11,15 @@
             </div>
             <label for="pe-q" class="sr-only">Filtrer les effets</label>
             <input id="pe-q" class="cs-input" v-model="q" placeholder="Filtrer les effets" />
+            <button type="button" class="cs-lien self-end text-xs" v-if="!q.trim() && groupes.length > 1" @click="basculerTout()">{{ toutReplie ? 'Tout déplier' : 'Tout replier' }}</button>
         </div>
         <div class="flex-1 overflow-y-auto max-h-[70vh] pb-2">
             <div v-for="g in groupes" class="contents">
-                <div class="cs-sect">{{ g.nom }}</div>
-                <button v-for="e in g.effets" type="button" class="cs-item min-h-[38px]" :class="{ on: e.id === courant && !nouveau && !galerie }" @click="ouvrir(e.id)">
+                <button type="button" class="cs-sect flex items-center gap-1.5 w-full text-left !bg-transparent !border-0 !shadow-none !rounded-none !h-auto hover:!text-gray-200" :aria-expanded="!replie(g.nom)" @click="basculerFamille(g.nom)" :disabled="!!q.trim()">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" class="transition-transform" :class="{ '-rotate-90': replie(g.nom) }"><path d="M2 3.5l3 3 3-3"></path></svg>
+                    <span class="flex-1">{{ g.nom }}</span><span class="font-mono normal-case tracking-normal text-gray-600">{{ g.effets.length }}</span>
+                </button>
+                <button v-for="e in visibles(g)" type="button" class="cs-item min-h-[38px]" :class="{ on: e.id === courant && !nouveau && !galerie }" @click="ouvrir(e.id)">
                     <span class="cs-mod" :class="{ invisible: !(e.id === courant && sale && !nouveau) }" title="Modifié, non enregistré"></span>
                     <span class="flex-1 min-w-0 text-left truncate">{{ e.name }}</span>
                     <span class="text-[11px] text-gray-500" v-if="e.mode === 'persistant' || (!e.mode && /_trail$|^proj_|^sol_|_stream$/.test(e.id))" title="Effet persistant">persistant</span>
