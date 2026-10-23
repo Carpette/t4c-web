@@ -21,6 +21,7 @@ import { MiniCarte } from './gui/minicarte.js';
 import { BUFFS } from './gui/components/buffs/buffs.js';
 import { playMusic } from './music.js';
 import { play as playSfx, playCast, playImpact } from './sfx.js';
+import { tickManette, boutonsDe, nomBouton } from './manette.js';
 
 const INTERP_DELAY = 0.15;
 
@@ -464,15 +465,18 @@ function drawAimCursor(now) {
 }
 
 function sendMoveDirFromArrows() {
-  // écran -> carte : haut = (-1,-1), droite = (1,-1), bas = (1,1), gauche = (-1,1)
   let sx = 0, sy = 0;
   if (arrows.has('ArrowUp')) sy -= 1;
   if (arrows.has('ArrowDown')) sy += 1;
   if (arrows.has('ArrowLeft')) sx -= 1;
   if (arrows.has('ArrowRight')) sx += 1;
+  envoyerDirEcran(sx, sy);
+}
+// direction ÉCRAN (flèches, stick de manette) -> déplacement sur la carte :
+// haut = (-1,-1), droite = (1,-1), bas = (1,1), gauche = (-1,1)
+function envoyerDirEcran(sx, sy) {
   if (!sx && !sy) { net.send({ t: 'movedir', x: 0, z: 0 }); return; }
-  const mx = sx + sy, mz = sy - sx; // conversion iso écran -> monde
-  net.send({ t: 'movedir', x: mx, z: mz });
+  net.send({ t: 'movedir', x: sx + sy, z: sy - sx });
 }
 
 function dirToCursor() {
@@ -724,14 +728,67 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 'p') ui.usePotion('vie');
   else if (k === 'm') ui.usePotion('mana');
   else if (ev.key === 'Enter') { ev.preventDefault(); ui.focusChat(); }
-  else if (ev.key === 'Escape') {
-    // priorité : annuler la visée > fermer les panneaux > menu (reprendre/quitter)
-    if (aimSpell) { cancelAim(); return; }
-    if (ui.menuOpen()) { ui.hideMenu(); return; }
-    if (ui.anyPanelOpen()) { guiManager.togglePanel(null); return; }
-    if (selfId != null) ui.showMenu();
-  }
+  else if (ev.key === 'Escape') echap();
 });
+
+// priorité : annuler la visée > fermer les panneaux > menu (reprendre/quitter)
+function echap() {
+  if (aimSpell) { cancelAim(); return; }
+  if (ui.menuOpen()) { ui.hideMenu(); return; }
+  if (ui.anyPanelOpen()) { guiManager.togglePanel(null); return; }
+  if (selfId != null) ui.showMenu();
+}
+
+// ---------- Manette ----------
+// sort de la touche n de la barre (1 à 8) ; à la manette pas de visée à la
+// souris : la cible en cours, sinon le monstre le plus proche (qui devient
+// la cible), une zone sur la cible ou à ses pieds, un soin sur soi
+function sortManette(n) {
+  const spellId = ui.hotkeys[String(n)];
+  if (selfId == null || !spellId || !(ui.self?.spells || []).includes(spellId)) return;
+  const sp = ui.spellDef(spellId);
+  if (!sp) return;
+  cancelAim(); cancelAuto();
+  if (sp.centered || (sp.type !== 'bolt' && sp.type !== 'aoe')) { castSpellAt(spellId, {}); return; }
+  let v = targetId != null ? em.get(targetId) : null;
+  if (!validSpellTarget(sp, v)) {
+    const me = em.get(selfId);
+    v = [...em.views.values()].filter(e => e.kind === KIND.MOB && !e.isDead?.() && Math.hypot(e.x - me.x, e.z - me.z) < 14)
+      .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
+  }
+  if (sp.type === 'bolt') {
+    if (!v) { ui.addChat('sys', 'Aucune cible à portée.'); return; }
+    targetId = v.id; updateTargetFrame();
+    castSpellAt(spellId, { target: v.id });
+  } else {
+    const c = v || em.get(selfId);
+    castSpellAt(spellId, { x: c.x, z: c.z });
+  }
+}
+const actionsManette = {
+  attaquer: () => attaquerSuivant(1),
+  ciblePrecedente: () => attaquerSuivant(-1),
+  ramasser: () => ramasserProche(),
+  echap: () => echap(),
+  potionVie: () => ui.usePotion('vie'),
+  potionMana: () => ui.usePotion('mana'),
+  inventaire: () => guiManager.togglePanel('inventory'),
+  personnage: () => guiManager.togglePanel('character'),
+  carte: () => basculerMiniCarte(),
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(n => [`sort${n}`, () => sortManette(n)])),
+};
+// la manette a la main dès qu'elle sert : elle quitte la saisie du chat
+// (restée active après un message, elle bloquerait stick et boutons)
+const manetteActive = () => {
+  if (selfId == null || uiStore.dialogue) return false;
+  if (ui.isTyping()) document.activeElement?.blur?.();
+  return true;
+};
+function annoncerManette() {
+  const b = (a) => boutonsDe(a).map(nomBouton)[0] || '—';
+  ui.addChat('sys', `Manette détectée : ${b('attaquer')} attaque, ${b('ramasser')} ramasse, ${b('echap')} annule, croix = sorts 1 à 4. `
+    + 'Boutons modifiables dans Paramètres > Manette.');
+}
 
 window.addEventListener('keyup', (ev) => {
   if (ev.key === 'Control') { combatMode = false; ui.setCombatMode(false); }
@@ -839,6 +896,8 @@ function frame() {
   revoirSurvol(now);
   processHover();
   if (frameN % 6 === 0) tickAutoCast();
+  tickManette(actionsManette, (sx, sy) => { if (sx || sy) cancelAuto(); envoyerDirEcran(sx, sy); },
+    manetteActive, annoncerManette);
   if (frameN % 6 === 0 && uiStore.miniCarte && uiStore.phase === 'in-game') miniCarte.dessiner(em, selfId, renderer.props);
   if (++frameN % 20 === 0) { updateTargetFrame(); ui.tickCooldowns(); updatePerfOverlay(); }
 }
