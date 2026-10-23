@@ -154,7 +154,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   let pendingTiles = []; // cases peintes pendant le trait, avant reconstruction
   let rebuildTimer = null;
   let dirty = true;      // une frame doit être redessinée
-  let mode = 'paint';    // paint | erase | move | fill | select
+  let mode = 'paint';    // paint | erase | move | fill | select | wall | collision
   let palTool = { kind: 'tile', tile: TILE.GRASS }; // sélection de la palette
   let brushSize = 1;
   let hover = null;      // position monde sous le curseur (continue)
@@ -171,6 +171,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // calques d'édition « Camps », « PNJ », « Musique », « Coffres », « Points », « Ambiance », « Lumières »
   let showCamps = false, showNpcs = false, showMusic = false, showChests = false, showMarkers = false;
   let showAmbience = false, showLights = false;
+  let showCollisions = false; // calque « Collisions » (cases bloquées en rouge)
   let pendingPlace = null;            // 'camp'|'npc'|'music'|'chest'|'marker'|'ambience'|'light'|'teleport-test'
   let campsList = [], npcsList = [];  // listes effectives (overrides ou défauts du worldgen)
   let musicList = [];                 // sous-zones musicales (overrides `music`)
@@ -198,6 +199,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     if (Array.isArray(n.markers)) out.markers = n.markers; // points spéciaux
     if (Array.isArray(n.ambience)) out.ambience = n.ambience; // sous-zones d'ambiance
     if (Array.isArray(n.lights)) out.lights = n.lights;   // sources de lumière
+    if (Array.isArray(n.walk)) out.walk = n.walk;         // collisions forcées
     return out;
   }
 
@@ -1980,6 +1982,48 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     const loot = chestLootAt(ox, oz);
     if (loot) { loot.x = tx; loot.z = tz; }
   }
+  // ---------- calque « Collisions » : cases infranchissables ----------
+  // Rouge : bloquée (terrain, décor ou forçage) ; liseré plein : forçage
+  // posé à la main (section `walk`), vert : case libérée de force.
+  function drawCollisions() {
+    if ((!showCollisions && mode !== 'collision') || !world) return;
+    if (view.z < 3) return; // trop dézoomé : illisible et coûteux
+    const N = world.size;
+    const coins = [s2w(0, 0), s2w(W(), 0), s2w(0, H()), s2w(W(), H())];
+    const x0 = Math.max(0, Math.floor(Math.min(...coins.map(c => c.x))) - 1), x1 = Math.min(N - 1, Math.ceil(Math.max(...coins.map(c => c.x))) + 1);
+    const z0 = Math.max(0, Math.floor(Math.min(...coins.map(c => c.z))) - 1), z1 = Math.min(N - 1, Math.ceil(Math.max(...coins.map(c => c.z))) + 1);
+    const losange = (x, z) => {
+      const a = w2s(x, z), b = w2s(x + 1, z), c = w2s(x + 1, z + 1), d = w2s(x, z + 1);
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath();
+    };
+    ctx.beginPath();
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (!world.walk[z * N + x]) losange(x, z);
+    ctx.fillStyle = 'rgba(255, 60, 60, 0.38)';
+    ctx.fill();
+    const forces = Array.isArray(ov.walk) ? ov.walk : [];
+    for (const val of [0, 1]) {
+      ctx.beginPath();
+      for (const [x, z, w] of forces) if ((w ? 1 : 0) === val && x >= x0 && x <= x1 && z >= z0 && z <= z1) losange(x, z);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = val ? '#5fe08a' : '#ff5050';
+      ctx.stroke();
+    }
+  }
+  // pose d'une collision forcée (pinceau du calque) : effet immédiat sur la
+  // vue, monde reconstruit au relâchement
+  function poserCollision(tx, tz, val) {
+    const N = world.size, r = Math.floor((brushSize - 1) / 2);
+    if (!Array.isArray(ov.walk)) ov.walk = [];
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      const x = tx + dx, z = tz + dz;
+      if (x < 0 || z < 0 || x >= N || z >= N) continue;
+      const i = ov.walk.findIndex(([X, Z]) => X === x && Z === z);
+      if (i >= 0) ov.walk[i][2] = val; else ov.walk.push([x, z, val]);
+      world.walk[z * N + x] = val;
+    }
+    markDirty();
+  }
+
   function drawChests() {
     if (!showChests) return;
     const r = Math.max(6, view.z * 0.45);
@@ -2280,6 +2324,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     ctx.drawImage(fond, 0, 0);
     drawSelection();
     drawOverlays();
+    drawCollisions();
     majCurseur();
     drawCamps();
     drawNpcs();
@@ -2646,6 +2691,15 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       wallDrawTo(wpt);
       return;
     }
+    // pinceau du calque Collisions : le premier clic décide (case bloquée ->
+    // libérer, case libre -> bloquer), le glissé applique la même valeur
+    if (mode === 'collision') {
+      pushHistory();
+      const val = world.walk[tz * N + tx] ? 0 : 1;
+      gesture = { mode: 'collision', val };
+      poserCollision(tx, tz, val);
+      return;
+    }
     // pot de peinture : remplissage par contiguïté (Maj+clic : toute la zone)
     if (mode === 'fill') { floodFill(tx, tz, e.shiftKey); return; }
     // outil sélection : glisser pour définir la région à copier
@@ -2712,6 +2766,9 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       anchorView(gesture.w0.x, gesture.w0.z, px, py); // le point saisi suit le curseur
     } else if (gesture?.mode === 'paint') {
       paintCells(Math.floor(hover.x), Math.floor(hover.z));
+    } else if (gesture?.mode === 'collision') {
+      const tx = Math.floor(hover.x), tz = Math.floor(hover.z);
+      if (tx >= 0 && tz >= 0 && tx < world.size && tz < world.size) poserCollision(tx, tz, gesture.val);
     } else if (gesture?.mode === 'wallDraw') {
       wallDrawTo(hover);
     } else if (gesture?.mode === 'campMove' || gesture?.mode === 'campResize' || gesture?.mode === 'npcMove') {
@@ -2747,6 +2804,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       scheduleRebuild();
     } else if (gesture.mode === 'wallDraw') {
       finishWallDraw(gesture);
+    } else if (gesture.mode === 'collision') {
+      rebuild(); // décors et terrain recalculés avec les forçages
     } else if (gesture.mode === 'moveProp' && hover) {
       const tx = Math.floor(hover.x), tz = Math.floor(hover.z), N = world.size;
       if (tx >= 0 && tz >= 0 && tx < N && tz < N) {
@@ -3213,6 +3272,17 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     pendingPlace = 'ambience';
     msg('Glissez sur la carte pour dessiner la zone d\'ambiance (teinte/obscurité ; passable en cercle dans la fiche).');
   });
+  $('layer-collisions')?.addEventListener('change', () => {
+    showCollisions = $('layer-collisions').checked;
+    if (!showCollisions && mode === 'collision') setMode('paint');
+    markDirty();
+  });
+  $('add-collision')?.addEventListener('click', () => {
+    $('layer-collisions').checked = true; showCollisions = true;
+    if (mode === 'collision') { setMode('paint'); msg(''); return; }
+    setMode('collision');
+    msg('Collisions : cliquez ou glissez sur une case bloquée pour la libérer, sur une case libre pour la bloquer (taille du pinceau prise en compte). Choisissez un autre outil pour terminer.');
+  });
   $('add-light')?.addEventListener('click', () => {
     $('layer-lights').checked = true; showLights = true;
     pendingPlace = 'light';
@@ -3271,6 +3341,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     { key: 'music',    icon: svg('<path d="M6 12V3.5l7-1.5V10.5"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="11.5" cy="10.5" r="1.8"/>'), name: 'Zones musicales', cb: 'layer-music', add: 'add-music' },
     { key: 'ambience', icon: svg('<path d="M2 6h9a2 2 0 1 0-2-2M2 9.5h11.5a2 2 0 1 1-2 2M2 13h6"/>'), name: 'Ambiance', cb: 'layer-ambience', add: 'add-ambience' },
     { key: 'lights',   icon: svg('<path d="M6 12.5h4M6.5 14.5h3M5.2 9.6A4 4 0 1 1 10.8 9.6c-.5.5-.8 1.1-.8 1.9H6c0-.8-.3-1.4-.8-1.9z"/>'), name: 'Lumières', cb: 'layer-lights', add: 'add-light' },
+    { key: 'collisions', icon: svg('<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M2.5 2.5l11 11M13.5 2.5l-11 11"/>'), name: 'Collisions', cb: 'layer-collisions', add: 'add-collision' },
   ];
   const OEIL = svg('<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>');
   const OEIL_BARRE = svg('<path d="M2 2l12 12M6.6 4c.5-.3 1-.5 1.4-.5 4 0 6.5 4.5 6.5 4.5a12 12 0 0 1-1.9 2.4M4.1 5.3A12 12 0 0 0 1.5 8S4 12.5 8 12.5c1 0 1.9-.3 2.7-.7"/>');

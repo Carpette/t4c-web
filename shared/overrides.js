@@ -53,6 +53,9 @@
 //     pousse un message `ambience` { tint, darkness } (bascule à hystérésis,
 //     cf. AMBIENCE_ZONE_HYSTERESIS) ; le client applique l'effet dans le rendu.
 //     ABSENTE : seul le cycle jour/nuit s'applique (comportement actuel).
+//   walk — COLLISIONS forcées case par case (calque « Collisions » de
+//     l'éditeur) : [[x, z, 0|1], ...] (0 = bloquée, 1 = praticable). Appliquées
+//     en DERNIER : elles priment sur le terrain et les décors.
 import { TILE } from './worldgen.js';
 
 const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obelisk', 'trialgate', 'bank', 'cave', 'wall', 'fence', 'ruin']);
@@ -63,6 +66,14 @@ const BLOCKING_PROPS = new Set(['tree', 'rock', 'house', 'well', 'grave', 'obeli
 // franchissables plus tard.
 const isBlockingProp = (type) => BLOCKING_PROPS.has(type) || (typeof type === 'string' && type.startsWith('wall_'));
 const HOUSE_SIZE = { w: 5, d: 4 };
+// cases couvertes par un décor du monde généré : une maison (w×d, centrée sur
+// x/z comme dans worldgen) ou sa seule case
+function empreinte(p) {
+  if (!(p.w > 0 && p.d > 0)) return [[Math.floor(p.x), Math.floor(p.z)]];
+  const x0 = Math.round(p.x - p.w / 2), z0 = Math.round(p.z - p.d / 2), out = [];
+  for (let dz = 0; dz < p.d; dz++) for (let dx = 0; dx < p.w; dx++) out.push([x0 + dx, z0 + dz]);
+  return out;
+}
 
 export function applyOverrides(world, ov) {
   if (!ov) return world;
@@ -76,16 +87,29 @@ export function applyOverrides(world, ov) {
     world.walk[idx(x, z)] = (t === TILE.WATER || t === TILE.ROCK) ? 0 : 1;
   }
 
-  // 2. décors supprimés (et case rendue praticable)
+  // 2. décors supprimés : TOUTE leur emprise redevient praticable (une maison
+  // bloque w×d cases : ne libérer que la case centrale laissait des murs
+  // invisibles), sauf les cases encore couvertes par un décor bloquant restant
+  const liberees = [];
   for (const [x, z] of ov.props?.remove || []) {
     for (let i = world.props.length - 1; i >= 0; i--) {
       const p = world.props[i];
       if (Math.hypot(p.x - x - 0.5, p.z - z - 0.5) < 1.0) {
         world.props.splice(i, 1);
-        const tx = Math.floor(p.x), tz = Math.floor(p.z);
-        const t = world.tile[idx(tx, tz)];
-        if (t !== TILE.WATER && t !== TILE.ROCK) world.walk[idx(tx, tz)] = 1;
+        liberees.push(...empreinte(p));
       }
+    }
+  }
+  if (liberees.length) {
+    const couvertes = new Set();
+    for (const p of world.props) {
+      if (p.edge || !isBlockingProp(p.type)) continue;
+      for (const [X, Z] of empreinte(p)) couvertes.add(Z * N + X);
+    }
+    for (const [X, Z] of liberees) {
+      if (X < 0 || Z < 0 || X >= N || Z >= N || couvertes.has(idx(X, Z))) continue;
+      const t = world.tile[idx(X, Z)];
+      if (t !== TILE.WATER && t !== TILE.ROCK) world.walk[idx(X, Z)] = 1;
     }
   }
 
@@ -123,7 +147,13 @@ export function applyOverrides(world, ov) {
     }
   }
 
-  // 4. sources de lumière posées (overrides `lights`) : attachées au monde pour
+  // 4. collisions forcées par l'éditeur (priment sur tout le reste)
+  for (const [x, z, w] of Array.isArray(ov.walk) ? ov.walk : []) {
+    if (!(x >= 0 && z >= 0 && x < N && z < N)) continue;
+    world.walk[idx(x | 0, z | 0)] = w ? 1 : 0;
+  }
+
+  // 5. sources de lumière posées (overrides `lights`) : attachées au monde pour
   // que buildDecor (client) les fusionne aux lumières des décors. Validées :
   // coordonnées finies + rayon > 0 ; couleur/scintillement optionnels.
   if (Array.isArray(ov.lights)) {
