@@ -607,7 +607,7 @@ function processHover() {
         : v.kind === KIND.DROP ? '#d8d8d8' : '#8ac8ff',
     };
     const label = v.kind === KIND.DROP
-      ? (v.meta.gold ? `${v.meta.gold} pièces d'or` : `${ITEMS[v.meta.defId]?.name || 'Objet'} (clic pour ramasser)`)
+      ? (v.meta.gold ? `${v.meta.gold} pièces d'or` : `${ITEMS[v.meta.defId]?.name || 'Objet'} (clic ou Espace pour ramasser)`)
       : v.kind === KIND.NPC ? `${v.meta.name} (clic pour parler)`
       : `${v.meta.name} [niv. ${v.level || v.meta.level}]`;
     ui.showTooltip(label);
@@ -670,6 +670,12 @@ window.addEventListener('keydown', (ev) => {
     attaquerSuivant(ev.shiftKey ? -1 : 1);
     return;
   }
+  // Espace : ramasser l'objet au sol le plus proche (le personnage y va)
+  if (ev.key === ' ' && !ev.ctrlKey && !ev.altKey && !ui.anyPanelOpen()) {
+    ev.preventDefault();
+    if (!ev.repeat) ramasserProche();
+    return;
+  }
   if (ev.key.startsWith('Arrow')) {
     ev.preventDefault();
     cancelAuto();
@@ -727,6 +733,24 @@ function attaquerSuivant(sens) {
   targetId = v.id;
   net.send({ t: 'attack', id: v.id });
   updateTargetFrame();
+}
+
+// objet au sol le plus proche, à courte portée : le butin du combat qu'on
+// vient de livrer, pas celui de l'autre bout de l'écran
+const PORTEE_RAMASSAGE = 5;
+function ramasserProche() {
+  const me = em.get(selfId);
+  if (!me) return;
+  let proche = null, dMin = PORTEE_RAMASSAGE;
+  for (const v of em.views.values()) {
+    if (v.kind !== KIND.DROP) continue;
+    const d = Math.hypot(v.x - me.x, v.z - me.z);
+    if (d <= dMin) { dMin = d; proche = v; }
+  }
+  if (!proche) { ui.addChat('sys', 'Rien à ramasser à proximité.'); return; }
+  cancelAuto();
+  net.send({ t: 'pickup', id: proche.id });
+  renderer.marquerDestination(proche.x, proche.z);
 }
 
 function updateTargetFrame() {
