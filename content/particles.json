@@ -1,5 +1,5 @@
 {
-  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration. Familles par préfixe : proj_ (traînée de projectile, émission continue), imp_ (impact, burst), sol_ (zone au sol, émission continue pendant l'AoE), soin_/bouclier_/buff_ (soutien au lanceur ou à la cible), malefice_ (débuffs), event_ (événements de jeu). Les 14 presets historiques (feu_trail, …) sont conservés tels quels.",
+  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration. Familles par préfixe : aura_ (effet persistant accroché à un personnage tant que le sort agit), proj_ (traînée de projectile, émission continue), imp_ (impact, burst), sol_ (zone au sol, émission continue pendant l'AoE), soin_/bouclier_/buff_ (soutien au lanceur ou à la cible), malefice_ (débuffs), event_ (événements de jeu). Les 14 presets historiques (feu_trail, …) sont conservés tels quels.",
   "particles": [
     {
       "id": "feu_trail",
@@ -1219,6 +1219,296 @@
       "speed": 1.4,
       "life": 1.1,
       "drag": 0.97
+    },
+    {
+      "id": "aura_bulle_glace",
+      "name": "Aura : bulle de glace",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#8fd0ff"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#bfe6ff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#8fd0ff"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_bulle_arcane",
+      "name": "Aura : bulle arcanique",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#b070ff"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#e0b8ff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#b070ff"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_bulle_sacree",
+      "name": "Aura : bulle sacrée",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#ffd27a"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#fff4c8",
+            "#ffffff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#ffd27a"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_flammes",
+      "name": "Aura : flammes",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "upward",
+          "radius": 0.35,
+          "colors": [
+            "#ffd24a",
+            "#ff8a2a",
+            "#c0300a"
+          ],
+          "size": 5,
+          "sizeEnd": 0.3,
+          "speed": 4,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.8,
+          "rate": 36,
+          "burst": 20,
+          "forme": "doux",
+          "fusion": "additif",
+          "alpha": "fondu",
+          "opacite": 1,
+          "degrade": true
+        },
+        {
+          "type": "lueur",
+          "radius": 0.4,
+          "offsetH": 20,
+          "colors": [
+            "#ff7a20"
+          ],
+          "opacite": 0.35,
+          "pulse": 0.4,
+          "freq": 2,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_arcs",
+      "name": "Aura : arcs électriques",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#e8f070"
+          ],
+          "opacite": 0.35,
+          "pulse": 0.6,
+          "freq": 3,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#f4f8a0"
+          ],
+          "size": 1.5,
+          "sizeEnd": 1,
+          "speed": 2.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.25,
+          "rate": 30,
+          "burst": 20,
+          "forme": "etincelle",
+          "fusion": "additif",
+          "alpha": "scintille",
+          "opacite": 1,
+          "offsetH": 50
+        }
+      ]
+    },
+    {
+      "id": "aura_pierre",
+      "name": "Aura : peau de pierre",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "anneau",
+          "radius": 0.5,
+          "offsetH": 0,
+          "colors": [
+            "#b89868"
+          ],
+          "opacite": 0.55,
+          "pulse": 0.1,
+          "freq": 0.5,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "colonne",
+          "movement": "immobile",
+          "radius": 0.35,
+          "colors": [
+            "#8a6a48",
+            "#b89868",
+            "#d8c8a8"
+          ],
+          "size": 3,
+          "sizeEnd": 0.6,
+          "speed": 1,
+          "gravity": 0,
+          "drag": 1,
+          "life": 1.2,
+          "rate": 10,
+          "burst": 20,
+          "forme": "net",
+          "fusion": "normal",
+          "alpha": "entree",
+          "opacite": 0.8,
+          "hauteur": 90
+        }
+      ]
     }
   ]
 }

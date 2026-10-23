@@ -220,7 +220,8 @@
         }
       ],
       "fx": {
-        "self": "bouclier_epines"
+        "self": "bouclier_epines",
+        "aura": "aura_flammes"
       }
     },
     {
@@ -536,7 +537,10 @@
           "duration": 120,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "aura": "aura_bulle_sacree"
+      }
     },
     {
       "id": "eclair_de_glace",
@@ -643,7 +647,10 @@
           "duration": 120,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "aura": "aura_bulle_arcane"
+      }
     },
     {
       "id": "resistance_au_feu",
@@ -820,7 +827,8 @@
         }
       ],
       "fx": {
-        "self": "bouclier_arcane"
+        "self": "bouclier_arcane",
+        "aura": "aura_bulle_glace"
       }
     },
     {
@@ -1046,7 +1054,10 @@
           "category": "magique",
           "element": "air"
         }
-      ]
+      ],
+      "fx": {
+        "aura": "aura_arcs"
+      }
     },
     {
       "id": "invisibilite",
@@ -1168,7 +1179,8 @@
         }
       ],
       "fx": {
-        "self": "bouclier_epines"
+        "self": "bouclier_epines",
+        "aura": "aura_bulle_sacree"
       }
     },
     {
@@ -1259,7 +1271,10 @@
           "duration": 300,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "aura": "aura_pierre"
+      }
     },
     {
       "id": "seisme",
@@ -1472,7 +1487,10 @@
           "duration": 60,
           "category": "magique"
         }
-      ]
+      ],
+      "fx": {
+        "aura": "aura_bulle_sacree"
+      }
     },
     {
       "id": "guerison",
