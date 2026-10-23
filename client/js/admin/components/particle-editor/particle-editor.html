@@ -6,7 +6,7 @@
                 <span class="text-[15px] font-semibold">Effets visuels</span>
                 <span class="text-gray-500">{{ effets.length }}</span>
                 <div class="flex-1"></div>
-                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouvel effet" title="Nouvel effet (copie de l’effet ouvert)" @click="dupliquer()" :disabled="!fiche || nouveau">
+                <button type="button" class="cs-btn cs-icon h-7 w-7" aria-label="Nouvel effet" title="Nouvel effet (à partir d’un modèle)" @click="ouvrirGalerie()">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"></path></svg></button>
             </div>
             <label for="pe-q" class="sr-only">Filtrer les effets</label>
@@ -15,17 +15,34 @@
         <div class="flex-1 overflow-y-auto max-h-[70vh] pb-2">
             <div v-for="g in groupes" class="contents">
                 <div class="cs-sect">{{ g.nom }}</div>
-                <button v-for="e in g.effets" type="button" class="cs-item min-h-[38px]" :class="{ on: e.id === courant && !nouveau }" @click="ouvrir(e.id)">
+                <button v-for="e in g.effets" type="button" class="cs-item min-h-[38px]" :class="{ on: e.id === courant && !nouveau && !galerie }" @click="ouvrir(e.id)">
                     <span class="cs-mod" :class="{ invisible: !(e.id === courant && sale && !nouveau) }" title="Modifié, non enregistré"></span>
-                    <span class="flex gap-0.5 flex-none"><span v-for="c in (e.colors || []).slice(0, 3)" class="w-2 h-2 rounded-full" :style="{ background: c }"></span></span>
                     <span class="flex-1 min-w-0 text-left truncate">{{ e.name }}</span>
+                    <span class="text-[11px] text-gray-500" v-if="e.mode === 'persistant' || (!e.mode && /_trail$|^proj_|^sol_|_stream$/.test(e.id))" title="Effet persistant">persistant</span>
                 </button>
             </div>
         </div>
     </section>
 
+    <!-- galerie de modèles (nouvel effet) -->
+    <section aria-label="Nouvel effet" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="galerie">
+        <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light flex-1">Nouvel effet</h2>
+            <button type="button" class="cs-btn" @click="dupliquer(); galerie = false" v-if="fiche && !nouveau">Copier l’effet ouvert</button>
+            <button type="button" class="cs-btn" @click="galerie = false">Fermer</button>
+        </div>
+        <p class="text-gray-400">Partez d’un modèle, puis réglez ses couches. Tout reste modifiable.</p>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
+            <button v-for="m in MODELES" type="button" class="cs-card text-left hover:border-amber-400/60 cursor-pointer" @click="partirDe(m)">
+                <span class="font-semibold text-gray-100">{{ m.nom }}</span>
+                <span class="text-[13px] text-gray-400">{{ m.desc }}</span>
+                <span class="text-xs text-gray-500">{{ m.mode === 'persistant' ? 'Persistant' : 'Ponctuel' }} · {{ m.couches.length }} couche{{ m.couches.length > 1 ? 's' : '' }}</span>
+            </button>
+        </div>
+    </section>
+
     <!-- fiche -->
-    <section aria-label="Édition de l’effet" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche">
+    <section aria-label="Édition de l’effet" class="flex-[999_1_360px] min-w-0 p-5 flex flex-col gap-4" v-if="fiche && !galerie">
         <div class="flex items-center gap-3 flex-wrap">
             <div class="flex-1 min-w-[200px]">
                 <h2 class="font-serif font-semibold text-[28px] leading-tight text-t4c-text-light">{{ fiche.name || 'Sans nom' }}</h2>
@@ -46,43 +63,137 @@
         </div>
 
         <div class="cs-card">
-            <h3>Émission</h3>
-            <div class="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
-                <div class="cs-field"><label class="cs-label" for="pe-sp">Forme d’apparition</label>
-                    <select id="pe-sp" class="cs-input" v-model="fiche.spawn"><option v-for="s in SPAWNS" :value="s[0]">{{ s[1] }}</option></select></div>
-                <div class="cs-field"><label class="cs-label" for="pe-mv">Mouvement</label>
-                    <select id="pe-mv" class="cs-input" v-model="fiche.movement"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
-                <div class="cs-field"><label class="cs-label" for="pe-r">Rayon (cases)</label>
-                    <input id="pe-r" class="cs-input font-mono" type="number" min="0" step="0.05" :value="fiche.radius" @change="nombre('radius', $event.target.value)" /></div>
-                <div class="cs-field"><label class="cs-label" for="pe-ox">Décalage X (cases)</label>
-                    <input id="pe-ox" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="fiche.offsetX" @change="nombre('offsetX', $event.target.value)" /></div>
-                <div class="cs-field"><label class="cs-label" for="pe-oz">Décalage Z (cases)</label>
-                    <input id="pe-oz" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="fiche.offsetZ" @change="nombre('offsetZ', $event.target.value)" /></div>
-                <div class="cs-field"><label class="cs-label" for="pe-oh">Décalage hauteur (px)</label>
-                    <input id="pe-oh" class="cs-input font-mono" type="number" step="1" placeholder="0" :value="fiche.offsetH" @change="nombre('offsetH', $event.target.value)" /></div>
+            <h3>Type d’effet</h3>
+            <div role="group" aria-label="Type d’effet" class="cs-segs self-start">
+                <button type="button" class="cs-seg" :class="{ on: !persistant }" :aria-pressed="!persistant" @click="fixerMode('ponctuel')">Ponctuel</button>
+                <button type="button" class="cs-seg" :class="{ on: persistant }" :aria-pressed="persistant" @click="fixerMode('persistant')">Persistant</button>
             </div>
+            <p class="text-[13px] text-gray-400" v-if="!persistant">Joué une fois : impact, soin, explosion, événement. Chaque couche lâche sa gerbe, et peut continuer d’émettre pendant la durée ci-dessous.</p>
+            <p class="text-[13px] text-gray-400" v-else>Entretenu tant que sa source dure : aura d’un sort actif (il suit le personnage), traînée de projectile, zone au sol. Les couches émettent en continu.</p>
+            <div class="cs-field max-w-[260px]" v-if="!persistant"><label class="cs-label" for="pe-duree">Durée d’émission (s, 0 = une seule gerbe)</label>
+                <input id="pe-duree" class="cs-input font-mono" type="number" min="0" max="10" step="0.1" :value="fiche.duree || 0" @change="nombre('duree', $event.target.value, fiche)" /></div>
         </div>
 
         <div class="cs-card">
-            <h3>Physique</h3>
-            <div class="flex flex-col gap-2.5">
-                <div v-for="p in PHYSIQUE" class="grid grid-cols-[150px_minmax(0,1fr)_76px] gap-3 items-center">
-                    <label class="text-gray-300" :for="'pe-' + p[0]">{{ p[1] }}</label>
-                    <input :id="'pe-' + p[0]" type="range" :min="p[2]" :max="p[3]" :step="p[4]" :value="fiche[p[0]] ?? 0" @input="nombre(p[0], $event.target.value)" />
-                    <input class="cs-input font-mono h-7" type="number" :step="p[4]" :value="fiche[p[0]]" @change="nombre(p[0], $event.target.value)" :aria-label="p[1]" />
+            <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="flex-1">Couches</h3>
+                <span class="text-xs text-gray-500">Ajouter :</span>
+                <button v-for="t in TYPES_COUCHE" type="button" class="cs-btn h-7" @click="ajouterCouche(t[0])">{{ t[1] }}</button>
+            </div>
+            <p class="text-xs text-gray-500">Les couches se superposent. Une bulle, un anneau ou une lueur ne coûtent qu’un tracé, à préférer aux nuées de particules.</p>
+            <div class="flex flex-col">
+                <div v-for="(c, i) in fiche.couches" :key="i" class="flex items-center gap-2 px-2 py-1.5 rounded-md" :class="i === couche ? 'bg-[#23262c]' : ''">
+                    <button type="button" class="flex-1 min-w-0 flex items-center gap-2 text-left bg-transparent border-0 p-0 h-auto" :aria-pressed="i === couche" @click="couche = i">
+                        <span class="flex gap-0.5 flex-none"><span v-for="col in (c.colors || []).slice(0, 3)" class="w-2.5 h-2.5 rounded-full" :style="{ background: col }"></span></span>
+                        <span class="truncate" :class="c.masque ? 'text-gray-500 line-through' : 'text-gray-200'">{{ nomCouche(c) }}</span>
+                        <span class="text-xs text-gray-500" v-if="c.delai">+{{ c.delai }} s</span>
+                    </button>
+                    <button type="button" class="cs-btn cs-ghost cs-icon h-7" @click="basculerMasque(i)" :aria-label="c.masque ? 'Réafficher la couche' : 'Masquer la couche'" :title="c.masque ? 'Réafficher la couche' : 'Masquer la couche (aperçu et jeu)'">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/><path v-if="c.masque" d="M2 2l12 12"/></svg></button>
+                    <button type="button" class="cs-btn cs-ghost cs-icon h-7" aria-label="Monter" @click="deplacerCouche(i, -1)" :disabled="i === 0">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+                    <button type="button" class="cs-btn cs-ghost cs-icon h-7" aria-label="Descendre" @click="deplacerCouche(i, 1)" :disabled="i === fiche.couches.length - 1">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>
+                    <button type="button" class="cs-btn cs-ghost cs-icon h-7" aria-label="Dupliquer la couche" title="Dupliquer la couche" @click="dupliquerCouche(i)">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>
+                    <button type="button" class="cs-btn cs-ghost cs-icon h-7" aria-label="Retirer la couche" @click="retirerCouche(i)">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
                 </div>
             </div>
         </div>
 
-        <div class="cs-card">
-            <h3>Couleurs</h3>
-            <p class="text-xs text-gray-500">Chaque particule prend une de ces couleurs au hasard.</p>
+        <!-- couche choisie : particules -->
+        <div class="cs-card" v-if="L && estParticules">
+            <h3>{{ nomCouche(L) }}</h3>
+            <p class="text-xs text-gray-500" v-if="L.ancien">Couche convertie de l’ancien format : hauteurs et tailles gardent leur comportement d’origine.</p>
+            <span class="cs-label">Apparition</span>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-sp">Forme d’apparition</label>
+                    <select id="pe-sp" class="cs-input" v-model="L.spawn"><option v-for="s in SPAWNS" :value="s[0]">{{ s[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-r">Rayon (cases)</label>
+                    <input id="pe-r" class="cs-input font-mono" type="number" min="0" step="0.05" :value="L.radius" @change="nombre('radius', $event.target.value)" /></div>
+                <div class="cs-field" v-if="L.spawn === 'colonne'"><label class="cs-label" for="pe-hc">Hauteur de colonne (px)</label>
+                    <input id="pe-hc" class="cs-input font-mono" type="number" min="0" step="5" placeholder="60" :value="L.hauteur" @change="nombre('hauteur', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-oh">Hauteur (px, torse ≈ 50)</label>
+                    <input id="pe-oh" class="cs-input font-mono" type="number" step="1" placeholder="0" :value="L.offsetH" @change="nombre('offsetH', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-ox">Décalage X (cases)</label>
+                    <input id="pe-ox" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="L.offsetX" @change="nombre('offsetX', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-oz">Décalage Z (cases)</label>
+                    <input id="pe-oz" class="cs-input font-mono" type="number" step="0.1" placeholder="0" :value="L.offsetZ" @change="nombre('offsetZ', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-del">Délai (s)</label>
+                    <input id="pe-del" class="cs-input font-mono" type="number" min="0" step="0.05" placeholder="0" :value="L.delai" @change="nombre('delai', $event.target.value)" /></div>
+            </div>
+
+            <span class="cs-label mt-1">Quantité</span>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
+                <div class="cs-field" v-if="!persistant"><label class="cs-label" for="pe-burst">Gerbe : particules d’un coup</label>
+                    <input id="pe-burst" class="cs-input font-mono" type="number" min="0" max="200" step="1" :value="L.burst" @change="nombre('burst', $event.target.value)" /></div>
+                <div class="cs-field" v-if="persistant || fiche.duree"><label class="cs-label" for="pe-rate">Débit (particules par seconde)</label>
+                    <input id="pe-rate" class="cs-input font-mono" type="number" min="0" max="400" step="1" :value="L.rate" @change="nombre('rate', $event.target.value)" /></div>
+            </div>
+
+            <span class="cs-label mt-1">Mouvement</span>
+            <div class="cs-field max-w-[300px]"><label class="sr-only" for="pe-mv">Mouvement</label>
+                <select id="pe-mv" class="cs-input" v-model="L.movement"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
+            <div class="flex flex-col gap-2.5">
+                <div v-for="p in PHYSIQUE" class="grid grid-cols-[150px_minmax(0,1fr)_76px] gap-3 items-center">
+                    <label class="text-gray-300" :for="'pe-' + p[0]">{{ p[1] }}</label>
+                    <input :id="'pe-' + p[0]" type="range" :min="p[2]" :max="p[3]" :step="p[4]" :value="L[p[0]] ?? 0" @input="nombre(p[0], $event.target.value)" />
+                    <input class="cs-input font-mono h-7" type="number" :step="p[4]" :value="L[p[0]]" @change="nombre(p[0], $event.target.value)" :aria-label="p[1]" />
+                </div>
+            </div>
+
+            <span class="cs-label mt-1">Apparence</span>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-forme">Forme</label>
+                    <select id="pe-forme" class="cs-input" :value="L.forme || 'net'" @change="L.forme = $event.target.value"><option v-for="f in FORMES" :value="f[0]">{{ f[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-size">Taille (px)</label>
+                    <input id="pe-size" class="cs-input font-mono" type="number" min="0.5" max="40" step="0.5" :value="L.size" @change="nombre('size', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-size1">Taille finale (×)</label>
+                    <input id="pe-size1" class="cs-input font-mono" type="number" min="0" max="10" step="0.1" placeholder="auto" :value="L.sizeEnd" @change="nombre('sizeEnd', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-opa">Opacité</label>
+                    <input id="pe-opa" class="cs-input font-mono" type="number" min="0" max="1" step="0.05" placeholder="1" :value="L.opacite" @change="nombre('opacite', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-alpha">Évolution de l’opacité</label>
+                    <select id="pe-alpha" class="cs-input" :value="L.alpha || 'fondu'" @change="L.alpha = $event.target.value"><option v-for="a in ALPHAS" :value="a[0]">{{ a[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-fus">Lumière</label>
+                    <select id="pe-fus" class="cs-input" :value="L.fusion || 'additif'" @change="L.fusion = $event.target.value"><option v-for="f in FUSIONS" :value="f[0]">{{ f[1] }}</option></select></div>
+            </div>
             <div class="flex flex-wrap gap-2 items-center">
-                <span v-for="(c, i) in fiche.colors" class="cs-cond font-mono">
+                <span v-for="(c, i) in L.colors" class="cs-cond font-mono">
                     <input type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="c" @input="couleur(i, $event.target.value)" :aria-label="'Couleur ' + (i + 1)" />{{ c.toUpperCase() }}
-                    <button type="button" class="cs-x" :aria-label="'Retirer ' + c" @click="retirerCouleur(i)" :disabled="fiche.colors.length < 2">×</button>
+                    <button type="button" class="cs-x" :aria-label="'Retirer ' + c" @click="retirerCouleur(i)" :disabled="L.colors.length < 2">×</button>
                 </span>
                 <button type="button" class="cs-btn" @click="ajouterCouleur()">Couleur</button>
+                <label class="flex items-center gap-2 text-gray-300 ml-2"><input type="checkbox" :checked="!!L.degrade" @change="L.degrade = $event.target.checked" /> Dégradé au fil de la vie</label>
+            </div>
+            <p class="text-xs text-gray-500">{{ L.degrade ? 'Chaque particule passe par les couleurs dans l’ordre.' : 'Chaque particule prend une de ces couleurs au hasard.' }}</p>
+        </div>
+
+        <!-- couche choisie : primitive -->
+        <div class="cs-card" v-if="L && !estParticules">
+            <h3>{{ nomCouche(L) }}</h3>
+            <p class="text-xs text-gray-500">{{ L.type === 'bulle' ? 'Sphère translucide, centrée à la hauteur choisie : un bouclier autour du personnage.' : L.type === 'anneau' ? 'Cercle lumineux posé au sol.' : 'Halo de lumière diffuse.' }}</p>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-pr">Rayon (cases)</label>
+                    <input id="pe-pr" class="cs-input font-mono" type="number" min="0.05" step="0.05" :value="L.radius" @change="nombre('radius', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-ph">Hauteur (px, torse ≈ 50)</label>
+                    <input id="pe-ph" class="cs-input font-mono" type="number" step="1" placeholder="0" :value="L.offsetH" @change="nombre('offsetH', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-popa">Opacité</label>
+                    <input id="pe-popa" class="cs-input font-mono" type="number" min="0" max="1" step="0.05" :value="L.opacite" @change="nombre('opacite', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-pul">Pulsation (0 à 1)</label>
+                    <input id="pe-pul" class="cs-input font-mono" type="number" min="0" max="1" step="0.05" placeholder="0" :value="L.pulse" @change="nombre('pulse', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-freq">Battements par seconde</label>
+                    <input id="pe-freq" class="cs-input font-mono" type="number" min="0.1" max="10" step="0.1" placeholder="1" :value="L.freq" @change="nombre('freq', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-pdel">Délai (s)</label>
+                    <input id="pe-pdel" class="cs-input font-mono" type="number" min="0" step="0.05" placeholder="0" :value="L.delai" @change="nombre('delai', $event.target.value)" /></div>
+                <div class="cs-field" v-if="!persistant"><label class="cs-label" for="pe-plife">Durée (s)</label>
+                    <input id="pe-plife" class="cs-input font-mono" type="number" min="0.05" step="0.05" :value="L.life" @change="nombre('life', $event.target.value)" /></div>
+                <div class="cs-field" v-if="!persistant"><label class="cs-label" for="pe-pr1">Rayon final (×, onde)</label>
+                    <input id="pe-pr1" class="cs-input font-mono" type="number" min="0" max="20" step="0.1" placeholder="1" :value="L.radiusEnd" @change="nombre('radiusEnd', $event.target.value)" /></div>
+                <div class="cs-field"><label class="cs-label" for="pe-pfus">Lumière</label>
+                    <select id="pe-pfus" class="cs-input" :value="L.fusion || 'additif'" @change="L.fusion = $event.target.value"><option v-for="f in FUSIONS" :value="f[0]">{{ f[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-pcol">Couleur</label>
+                    <span class="cs-cond font-mono self-start"><input id="pe-pcol" type="color" class="w-6 h-6 bg-transparent border-0 p-0 cursor-pointer" :value="L.colors[0]" @input="couleur(0, $event.target.value)" />{{ L.colors[0].toUpperCase() }}</span></div>
             </div>
         </div>
 
@@ -93,25 +204,30 @@
     </section>
 
     <!-- aperçu et usages -->
-    <aside aria-label="Aperçu et usages" data-col="effets-contexte" data-bord="gauche" class="flex-[1_1_300px] max-w-[340px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+    <aside aria-label="Aperçu et usages" data-col="effets-contexte" data-bord="gauche" class="flex-[1_1_320px] max-w-[380px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche && !galerie">
         <div class="flex flex-col gap-2">
-            <span class="cs-sect p-0">Aperçu en direct</span>
-            <canvas id="pe-apercu" width="300" height="220" class="rounded-lg border border-gray-800 w-full"></canvas>
+            <span class="cs-sect p-0">Aperçu à l’échelle du jeu</span>
+            <canvas id="pe-apercu" width="340" height="280" class="rounded-lg border border-gray-800 w-full"></canvas>
             <div class="flex gap-2 items-center flex-wrap">
-                <button type="button" class="cs-btn" @click="declencher()">Déclencher</button>
-                <div class="cs-segs" role="group" aria-label="Mode d’émission">
-                    <button type="button" class="cs-seg" :class="{ on: boucle }" @click="boucle = true" title="Émission continue, comme une traînée ou une zone">Continu</button>
-                    <button type="button" class="cs-seg" :class="{ on: !boucle }" @click="boucle = false" title="Une gerbe répétée, comme un impact">Gerbe</button>
-                </div>
+                <button type="button" class="cs-btn" @click="declencher()">{{ persistant ? 'Relancer' : 'Rejouer' }}</button>
+                <label class="flex items-center gap-2 text-gray-300"><input type="checkbox" v-model="enMouvement" /> Personnage en mouvement</label>
             </div>
             <label class="cs-label" for="pe-fond">Fond de l’aperçu</label>
             <select id="pe-fond" class="cs-input" v-model="fond"><option v-for="f in FONDS" :value="f[0]">{{ f[1] }}</option></select>
         </div>
         <div class="flex flex-col gap-1.5">
+            <span class="cs-sect p-0">Coût en jeu</span>
+            <div class="text-[13px] text-gray-300">{{ vivants }} particule{{ vivants > 1 ? 's' : '' }} à l’écran maintenant<span v-if="cout.primitives"> · {{ cout.primitives }} tracé{{ cout.primitives > 1 ? 's' : '' }}</span></div>
+            <div class="text-[13px]" :class="cout.niveau === 'ok' ? 'text-green-400' : cout.niveau === 'lourd' ? 'text-amber-300' : 'text-red-400'">
+                {{ persistant ? 'Sur 15 joueurs à la fois' : 'Joué par 15 joueurs à la fois' }} : ≈ {{ cout.foule }} particules
+                ({{ cout.niveau === 'ok' ? 'léger' : cout.niveau === 'lourd' ? 'lourd' : 'trop lourd' }})</div>
+            <p class="text-xs text-gray-500">Réserve du jeu : 1 600 particules. Au-delà de 60 % d’occupation, les effets persistants ralentissent d’eux-mêmes. Pour alléger : moins de débit, des vies plus courtes, ou une bulle / une lueur à la place d’une nuée.</p>
+        </div>
+        <div class="flex flex-col gap-1.5">
             <span class="cs-sect p-0">Utilisé par</span>
             <a v-for="s in utilisePar" class="flex justify-between gap-2" href="#sorts"><span>{{ s.name }}</span><span class="text-gray-500">{{ s.role }}</span></a>
             <span class="flex justify-between gap-2" v-if="usageJeu"><span>{{ usageJeu }}</span><span class="text-gray-500">jeu</span></span>
-            <span class="text-gray-500" v-if="!utilisePar.length && !usageJeu">Aucun sort ne l’utilise.</span>
+            <span class="text-gray-500" v-if="!utilisePar.length && !usageJeu">Aucun sort ne l’utilise. Un effet persistant s’assigne comme « Aura » dans l’écran Sorts.</span>
         </div>
     </aside>
 </div>

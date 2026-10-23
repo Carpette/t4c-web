@@ -186,7 +186,9 @@ net.on('self', (m) => {
   globalBus.emit('net:self-update', m);
 });
 net.on('vitals', (m) => globalBus.emit('net:vitals', m));
-net.on('meta', (m) => { for (const meta of m.list) em.addMeta(meta); });
+net.on('meta', (m) => {
+  for (const meta of m.list) { em.addMeta(meta); if (meta.auras) renderer.poserAuras(meta.id, meta.auras); }
+});
 net.on('chat', (m) => globalBus.emit('net:chat-received', m));
 net.on('info', (m) => globalBus.emit('net:chat-received', { from: 'sys', text: m.text }));
 net.on('loot', (m) => {
@@ -261,18 +263,21 @@ net.on('events', (m) => {
     } else if (ev.t === 'fx') {
       const v = em.get(ev.id);
       if (!v) continue;
-      renderer.fxAt(ev.kind, v.x, v.z, ev.color, ev.fx);
+      renderer.fxAt(ev.kind, v.x, v.z, ev.color, ev.fx, v);
       if (ev.kind === 'levelup') { triggerFloater(headPos(v), 'NIVEAU SUPÉRIEUR !', 'crit'); if (ev.id === selfId) playSfx('levelup'); }
       if (ev.kind === 'heal') { triggerFloater(headPos(v), '+ soin', 'heal'); if (ev.id === selfId) playSfx('soin'); }
       if (ev.kind === 'buff') {
         // buffs DÉFENSIFS : bulle de protection éphémère autour de la cible
         const DEFENSIFS = /^(def|resistAll|resist_|sanctuaire|retort)/;
-        if (ev.stat && DEFENSIFS.test(ev.stat)) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff', ev.fx);
+        // (sauf si le sort a son propre effet : il l'a déjà joué, ou son aura le montre)
+        if (ev.stat && DEFENSIFS.test(ev.stat) && !ev.fx?.self && !ev.fx?.aura) renderer.fxAt('shield', v.x, v.z, ev.color || '#9ad4ff', null, v);
         triggerFloater(headPos(v), BUFFS[ev.stat]?.[1] || 'renforcé', 'heal');
         if (ev.id === selfId) playSfx('buff');
       }
       if (ev.kind === 'curse') { triggerFloater(headPos(v), 'maudit', 'miss'); playSfx('malediction'); }
       if (ev.kind === 'die') playSfx('mort');
+    } else if (ev.t === 'aura') {
+      renderer.poserAuras(ev.id, ev.list);
     } else if (ev.t === 'look') {
       em.get(ev.id)?.setLook(ev.look);
     } else if (ev.t === 'say') {
