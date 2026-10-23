@@ -3045,8 +3045,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     }
     questPanel.append(list);
     // création d'une nouvelle quête
-    const idIn = h('input', { placeholder: 'id (ex : olin)', style: { width: '120px' } });
-    const titleIn = h('input', { placeholder: 'titre', style: { width: '180px' } });
+    // champs à remplir bien visibles (sans cadre, ils passaient pour une liste)
+    const champ = { border: '1px solid #4b5563', borderRadius: '4px', padding: '3px 6px', background: '#0b1220' };
+    const idIn = h('input', { placeholder: 'id (facultatif)', style: { ...champ, width: '130px' } });
+    const titleIn = h('input', { placeholder: 'titre de la quête', style: { ...champ, width: '200px' } });
     const erreurQuete = h('div', { className: 'hint', style: { color: '#e88' } });
     questPanel.append(h('h3', { textContent: 'Nouvelle quête' }),
       h('div', { className: 'edit-row' }, 'id : ', idIn, ' titre : ', titleIn,
