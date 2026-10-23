@@ -431,6 +431,8 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
       vh = speed * 45 * (0.7 + Math.random() * 0.6);
     } else if (mv === 'upward') {
       vh = speed * 15 * (0.8 + Math.random() * 0.4);
+    } else if (mv === 'downward') { // chute depuis la hauteur d'apparition, accélérée par la gravité
+      vh = -speed * 15 * (0.8 + Math.random() * 0.4);
     } else if (mv === 'orbit') { // ancien : départ tangent
       const f = speed * 1.5;
       vx = Math.cos(angle + Math.PI / 2) * f; vz = Math.sin(angle + Math.PI / 2) * f;

@@ -134,7 +134,7 @@
 
             <span class="cs-label mt-1">Mouvement</span>
             <div class="cs-field max-w-[300px]"><label class="sr-only" for="pe-mv">Mouvement</label>
-                <select id="pe-mv" class="cs-input" v-model="L.movement"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
+                <select id="pe-mv" class="cs-input" :value="L.movement" @change="choisirMouvement($event.target.value)"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
             <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
                 <div class="cs-field"><label class="cs-label" for="pe-sol">Au contact du sol</label>
                     <select id="pe-sol" class="cs-input" :value="L.sol || 'traverse'" @change="L.sol = $event.target.value"><option v-for="o in SOLS" :value="o[0]">{{ o[1] }}</option></select></div>

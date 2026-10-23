@@ -24,7 +24,7 @@ const SPAWNS = [
   ['boule', 'Sphère (volume)'], ['colonne', 'Colonne'], ['sphere', 'Sphère aplatie (ancienne)'],
 ];
 const MOUVEMENTS = [
-  ['outward', 'Dispersion vers l’extérieur'], ['upward', 'Vers le haut'], ['orbite', 'Rotation autour du centre'],
+  ['outward', 'Dispersion vers l’extérieur'], ['upward', 'Vers le haut'], ['downward', 'Chute (vers le bas)'], ['orbite', 'Rotation autour du centre'],
   ['fontaine', 'Jaillissement (gerbe en cloche)'], ['spirale', 'Spirale montante'], ['aspiration', 'Aspiration vers le centre'], ['random', 'Aléatoire'],
   ['immobile', 'Immobile'], ['orbit', 'Départ tangent (ancien)'],
 ];
@@ -74,6 +74,12 @@ const MODELES = [
       colors: ['#7a6a58', '#8f8070', '#5e5248'], sol: 'rebondit', rebond: 0.35, rotation: 1.5 }),
     P({ spawn: 'boule', radius: 0.25, offsetH: 15, speed: 0.5, burst: 8, rate: 0, life: 1.2, size: 7, sizeEnd: 2.5, forme: 'fumee', fusion: 'normal', alpha: 'entree', opacite: 0.6,
       colors: ['#8a7a68', '#a09080'] })] },
+  { cle: 'pluie_pierres', nom: 'Pluie de pierres', desc: 'Pierres qui tombent du ciel sur la zone et rebondissent', id: 'sol_', mode: 'ponctuel', duree: 1.2, couches: [
+    P({ spawn: 'circle', radius: 1, movement: 'downward', offsetH: 160, speed: 2, burst: 0, rate: 30, life: 1.4, gravity: 400, drag: 1,
+      tailleMin: 4, size: 12, repartition: 'petits', forme: 'roche', fusion: 'normal', alpha: 'constant',
+      colors: ['#7a6a58', '#8f8070', '#5e5248'], sol: 'rebondit', rebond: 0.3, rotation: 1 }),
+    P({ spawn: 'circle', radius: 1, offsetH: 4, movement: 'outward', speed: 0.4, burst: 0, rate: 12, life: 0.9, size: 9, sizeEnd: 2, forme: 'fumee', fusion: 'normal', alpha: 'entree', opacite: 0.5,
+      colors: ['#8a7a68', '#a09080'], delai: 0.3 })] },
   { cle: 'glace', nom: 'Éclats de glace', desc: 'Cristaux qui volent et se posent au sol', id: 'imp_', mode: 'ponctuel', couches: [
     P({ movement: 'fontaine', offsetH: 30, speed: 1.8, burst: 16, rate: 0, life: 1.2, gravity: 450, tailleMin: 3, size: 8, repartition: 'petits', forme: 'eclat', fusion: 'normal', alpha: 'constant',
       colors: ['#bfeaff', '#8fd0ff', '#e8f8ff'], sol: 'pose', rotation: 2 }),
@@ -225,6 +231,13 @@ export function ParticleEditorController(api) {
       for (let i = 0; i < 4000; i++) b[Math.min(15, (tirageTaille(rep) * 16) | 0)]++;
       const max = Math.max(...b);
       return b.map(v => v / max);
+    },
+    // une chute part d'en haut : sans hauteur réglée, on place l'apparition au-dessus de la tête
+    choisirMouvement(v) {
+      const L = this.L;
+      L.movement = v;
+      if (v === 'downward' && !(+L.offsetH > 60)) L.offsetH = 140;
+      if (v === 'downward' && L.sol == null && SOLIDES.has(L.forme)) L.sol = 'rebondit';
     },
     couleur(i, v) { this.L.colors[i] = v; },
     // dernière couleur fixe de la couche (l'entrée « couleur du sort » n'en est pas une)
