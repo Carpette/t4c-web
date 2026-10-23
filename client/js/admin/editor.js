@@ -3035,7 +3035,7 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // retire tous les dialogues qui posent un drapeau de la quête
   function retirerDialoguesQuete(id) {
     const o = npcsOv();
-    const deLaQuete = (d) => (d.reactions || []).some(r => r.type === 'flag' && QUEST_RE.exec(r.key || '')?.[1] === id);
+    const deLaQuete = (d) => d.quete === id || (d.reactions || []).some(r => r.type === 'flag' && QUEST_RE.exec(r.key || '')?.[1] === id);
     o.add?.forEach(a => { if (Array.isArray(a.dialogues)) a.dialogues = a.dialogues.filter(d => !deLaQuete(d)); });
     if (o.edit) for (const k of Object.keys(o.edit)) {
       if (Array.isArray(o.edit[k].dialogues)) o.edit[k].dialogues = o.edit[k].dialogues.filter(d => !deLaQuete(d));

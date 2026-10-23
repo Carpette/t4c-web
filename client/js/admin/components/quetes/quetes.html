@@ -174,6 +174,47 @@
                 </div>
             </div>
 
+            <!-- relances : le PNJ hors des étapes (où en est le joueur, ambiance) -->
+            <div class="cs-card">
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <h3 class="flex-1">Le PNJ en dehors des étapes</h3>
+                    <button class="cs-btn" type="button" @click="ajouterRelance()">+ Relance</button>
+                </div>
+                <p class="text-xs text-gray-500">Ce que répond un PNJ quand le joueur revient lui en parler : où il en est, un rappel, un mot d’encouragement. Une phrase est tirée au hasard parmi celles proposées ; une étape de la quête a toujours la priorité.</p>
+                <div v-for="(r, i) in relances" :key="i" class="flex flex-col gap-2.5 border-t border-gray-800 pt-3">
+                    <div class="q-phrase">
+                        <div role="group" aria-label="Moment" class="cs-segs">
+                            <button v-for="m in MOMENTS" type="button" class="cs-seg h-[26px] text-xs" :class="{ on: r.moment === m[0] }" @click="r.moment = m[0]; modifie()">{{ m[1] }}</button>
+                        </div>
+                        <span class="flex-1"></span>
+                        <button class="cs-btn cs-ghost cs-icon h-7" type="button" aria-label="Supprimer la relance" @click="retirerRelance(i)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                    </div>
+                    <div class="q-phrase">
+                        <span>Le joueur parle à</span>
+                        <label :for="'q-rpnj-' + i" class="sr-only">PNJ</label>
+                        <select :id="'q-rpnj-' + i" class="q-inl" v-model="r.npcId" @change="modifie()"><option v-for="n in npcs" :value="n.npcId">{{ n.name }}</option></select>
+                        <span>en disant</span>
+                        <span v-for="(k, j) in r.keywords" class="q-kw">{{ k }}<button type="button" :aria-label="'Retirer ' + k" @click="retirerMot(r, j)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></span>
+                        <label :for="'q-rmot-' + i" class="sr-only">Ajouter un mot-clé</label>
+                        <input :id="'q-rmot-' + i" class="q-inl w-[120px] font-normal" placeholder="+ mot-clé" @keydown.enter.prevent="ajouterMot(r, $event)" @change="ajouterMot(r, $event)">
+                    </div>
+                    <span class="cs-label">Le PNJ répond, au hasard</span>
+                    <div v-for="(t, k) in r.phrases" class="flex gap-2 items-center">
+                        <label :for="'q-ph-' + i + '-' + k" class="sr-only">Phrase {{ k + 1 }}</label>
+                        <input :id="'q-ph-' + i + '-' + k" class="cs-input" v-model="r.phrases[k]" @input="modifie()" @focus="retenir(r, k)" @click="retenir(r, k)" @keyup="retenir(r, k)"
+                            :placeholder="k === 0 ? 'Encore {reste} {monstre} à abattre, {joueur} !' : 'une autre façon de le dire'">
+                        <button class="cs-btn cs-ghost cs-icon h-8 flex-none" type="button" aria-label="Retirer la phrase" @click="retirerPhrase(r, k)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 items-center">
+                        <button class="cs-btn cs-ghost h-7" type="button" @click="ajouterPhrase(r)">+ Phrase</button>
+                        <span class="text-xs text-gray-500 ml-2">Insérer :</span>
+                        <button v-for="v in VARIABLES" type="button" class="cs-chip font-mono hover:text-t4c-text-light" :title="v[1]" @click="insererVariable(r, v[0])">{{ '{' + v[0] + '}' }}</button>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500" v-if="!relances.length">Aucune relance : hors des étapes, le PNJ ne répond rien sur cette quête.</p>
+                <p class="text-xs text-gray-500">Les variables marchent aussi dans les réponses des étapes. Survolez-en une pour son sens.</p>
+            </div>
+
             <details class="cs-panel px-4 py-3">
                 <summary class="cursor-pointer text-gray-400 font-medium">Détails techniques</summary>
                 <div class="flex flex-col gap-2 mt-2.5 text-xs text-gray-400">
@@ -194,7 +235,8 @@
                 <div class="cs-panel p-2.5 flex flex-col gap-1">
                     <div v-for="(e, i) in q.etapes" class="q-trk" :class="{ fait: statut(i) === 'fait', cours: i === etapeCourante }">
                         <span class="q-rond"></span><span class="flex-1">{{ numero(i) }} · {{ libelleEtape(e) }}</span>
-                        <span class="font-mono text-xs">{{ progression(i) }}</span></div>
+                        <span class="font-mono text-xs">{{ progression(i) }}</span>
+                        <button type="button" class="cs-btn cs-ghost h-6 px-2 text-xs" v-if="e.type === 'tuer' && i === etapeCourante && progression(i)" @click="tuerUn(i)" title="Simuler une créature tuée">+1</button></div>
                     <div class="flex gap-1.5 pt-1.5 px-1">
                         <button class="cs-btn flex-1 h-[30px]" type="button" :disabled="etapeCourante < 0" @click="validerEtape()">Valider l'étape</button>
                         <button class="cs-btn cs-ghost h-[30px]" type="button" @click="recommencer()">Recommencer</button>

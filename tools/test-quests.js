@@ -181,6 +181,8 @@ ed.appliquerQuete({
     { type: 'rendu', npcId: a.npcId, keywords: ['rats'], reponse: 'RATS_2 : merci.',
       recompenses: { gold: 77, xp: 0, items: [], sorts: [], tp: null } },
   ],
+  relances: [{ moment: 'pendant', npcId: a.npcId, keywords: ['rats'],
+    phrases: ['RELANCE reste={reste} monstre={monstre} manque={manque} visites={visites}'] }],
 });
 // verrouille le coffre par F2 (effet « débloquer un coffre » d'une étape)
 const chestOv = (ed.getOverrides().chests ||= []);
@@ -325,7 +327,8 @@ const q1 = await sayAndListen(A, 'Des rats ?', a.def.name);
 ok('chasse : l\'étape 1 confie la quête', !!q1?.text.includes('RATS_1'));
 ok('chasse : décompte annoncé (0/2)', infos.some(t => /Chasse : .* 0\/2/.test(t)));
 const q1b = await sayAndListen(A, 'rats', a.def.name);
-ok('chasse : avant les rats, l\'étape 2 reste fermée', !!q1b?.text.includes('RATS_1'));
+ok(`relance : avant les rats, la relance répond avec ses variables (${q1b?.text})`,
+  !!q1b?.text.includes('RELANCE reste=2') && q1b.text.includes('manque=2') && q1b.text.includes('visites=1'));
 for (let k = 0; k < 2; k++) {
   A.send({ t: 'admin', cmd: 'spawn', defId: 'rat', n: 1, x: A.me().x + 1, z: A.me().z });
   await sleep(300);
@@ -334,7 +337,8 @@ for (let k = 0; k < 2; k++) {
 }
 ok('chasse : 2 rats comptés (2/2)', infos.some(t => /terminée.*2\/2/.test(t)));
 const q2a = await sayAndListen(A, 'rats', a.def.name);
-ok('chasse : sans les 2 bandages, pas de récompense', !!q2a?.text.includes('RATS_1'));
+ok(`chasse : sans les 2 bandages, pas de récompense, la relance compte (${q2a?.text})`,
+  !!q2a?.text.includes('reste=0') && q2a.text.includes('visites=2'));
 A.drops.clear();
 A.send({ t: 'admin', cmd: 'give', defId: 'bandage', n: 2 });
 await A.waitFor(() => A.drops.size >= 2, 3000);

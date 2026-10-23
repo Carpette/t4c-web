@@ -1794,7 +1794,7 @@ export class Game {
       if (!d || typeof d !== 'object') return null;
       const keywords = (Array.isArray(d.keywords) ? d.keywords : [])
         .map(k => String(k).slice(0, 32)).filter(Boolean).slice(0, 8);
-      const reponse = String(d.reponse || '').slice(0, 500);
+      const reponse = String(d.reponse || (Array.isArray(d.reponses) ? d.reponses[0] : '') || '').slice(0, 500);
       if (!keywords.length || !reponse) return null;
       const e = { keywords, reponse };
       if (d.conditions && typeof d.conditions === 'object') {
@@ -1870,6 +1870,16 @@ export class Game {
         if (rs.length) e.reactions = rs;
       }
       if (d.repeatable === true) e.repeatable = true;
+      if (Array.isArray(d.reponses)) {
+        const l = d.reponses.map(r => String(r || '').slice(0, 500)).filter(Boolean).slice(0, 12);
+        if (l.length) e.reponses = l;
+      }
+      if (typeof d.quete === 'string') e.quete = d.quete.slice(0, 40);
+      if (d.relance === true) e.relance = true;
+      if (Array.isArray(d.suivi?.items)) {
+        const items = d.suivi.items.filter(o => o && ITEMS[o.item]).slice(0, 8).map(o => ({ item: o.item, n: Math.max(1, o.n | 0) }));
+        if (items.length) e.suivi = { items };
+      }
       out.push(e);
     }
     return out;

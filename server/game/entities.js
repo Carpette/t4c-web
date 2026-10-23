@@ -335,6 +335,8 @@ export class Player extends Character {
     this.chasses = data.chasses || {};
     // objectifs « se rendre à » en cours : clef -> { zoneId, x, z, r, nom }
     this.lieux = data.lieux || {};
+    // compteurs des répliques (visites:<quête> = relances demandées)
+    this.compteurs = data.compteurs || {};
     this.moveDir = null;
     this.attackTarget = null;
     this.party = null;
@@ -596,7 +598,7 @@ export class Player extends Character {
       hpAcc: this.hpAcc, manaAcc: this.manaAcc,
       spells: this.spells, skills: this.skills, unlocked: this.unlocked,
       flags: this.flags,
-      chasses: this.chasses, lieux: this.lieux,
+      chasses: this.chasses, lieux: this.lieux, compteurs: this.compteurs,
       channels: this.channels,
       sex: this.sex,
       zoneId: this.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
@@ -619,7 +621,7 @@ export class Player extends Character {
     this.inventory = data.inventory; this.equip = data.equip;
     this.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     this.spells = []; this.skills = {}; this.unlocked = [0];
-    this.flags = {}; this.chasses = {}; this.lieux = {}; this.spellCds = {}; this.casting = null;
+    this.flags = {}; this.chasses = {}; this.lieux = {}; this.compteurs = {}; this.spellCds = {}; this.casting = null;
     this.curseUntil = 0;
     this.recompute(game);
     this.hp = this.eff.maxHp; this.mana = this.eff.maxMana;
