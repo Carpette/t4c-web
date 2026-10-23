@@ -24,8 +24,9 @@ export class Net {
       try { msg = JSON.parse(ev.data); } catch { return; }
       this.emit(msg.t, msg);
     };
-    this.ws.onclose = () => this.emit('disconnected');
-    this.ws.onerror = () => this.emit('disconnected');
+    // une seule annonce, avec la raison donnée par le serveur s'il y en a une
+    // (connecté ailleurs, expulsé, arrêt...) ; onerror précède toujours onclose
+    this.ws.onclose = (ev) => this.emit('disconnected', { code: ev.code, raison: ev.reason });
     return new Promise((resolve) => {
       this.ws.onopen = () => {
         for (const obj of this.pending.splice(0)) this.ws.send(JSON.stringify(obj));
