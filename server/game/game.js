@@ -19,7 +19,7 @@ import { ZoneInstance, walkableNear } from './zone.js';
 import { Player, Mob, NPC, Drop } from './entities.js';
 import * as spells from './spells.js';
 import { EFFECT_TYPES } from './effects.js';
-import { handleNpcKeywords, rootKeywordsHint } from './dialogues.js';
+import { handleNpcKeywords, rootKeywordsHint, compterChasse } from './dialogues.js';
 
 // voile sombre des cavernes (la pénombre elle-même est rendue côté client)
 const CAVE_TINT = 'rgba(18, 14, 34, 0.22)';
@@ -2318,6 +2318,8 @@ export class Game {
     // l'XP a déjà été versée COUP PAR COUP (applyDamage) : rien à la mort
     if (killer.kind === C.KIND.PLAYER) {
       if (killer.attackTarget === m.id) killer.attackTarget = null;
+      // chasses de quête : le tueur et son groupe à portée
+      for (const r of this.xpRecipients(killer)) compterChasse(this, r, m);
       const zid = m.zi.zoneId;
       for (const payload of rollDrops(m.def, Math.random, zid, killer.skillFx?.loot || 0)) {
         this.spawnDrop(m.zi, m.x, m.z, payload);

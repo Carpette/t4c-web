@@ -2933,6 +2933,30 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       Array.isArray(d.reactions) && d.reactions.some(r => r.type === 'flag' && r.key === setFlag));
     if (i >= 0) target.dialogues[i] = dlg; else target.dialogues.push(dlg);
   }
+  // Le serveur prend le PREMIER dialogue dont mot-clé et conditions passent :
+  // chez un même PNJ, les étapes d'une quête sont rangées de la plus avancée à
+  // la première (sinon, avec le même mot-clé, l'étape 1 répondrait toujours et
+  // l'étape « rapporter » ne serait jamais atteinte). Les autres dialogues
+  // gardent leur place.
+  function ordonnerEtapes(questId) {
+    const o = npcsOv();
+    const etape = (d) => {
+      for (const r of d.reactions || []) {
+        const m = r.type === 'flag' && QUEST_RE.exec(r.key);
+        if (m && m[1] === questId) return parseInt(m[2], 10) || 0;
+      }
+      return null;
+    };
+    const ranger = (arr) => {
+      if (!Array.isArray(arr)) return;
+      const places = [];
+      arr.forEach((d, i) => { if (etape(d) != null) places.push(i); });
+      const tries = places.map(i => arr[i]).sort((a, b) => etape(b) - etape(a));
+      places.forEach((i, k) => { arr[i] = tries[k]; });
+    };
+    o.add?.forEach(a => ranger(a.dialogues));
+    if (o.edit) for (const k of Object.keys(o.edit)) ranger(o.edit[k].dialogues);
+  }
   // retire le dialogue d'un PNJ qui pose un drapeau donné (suppression d'étape)
   function npcRemoveQuestDialogue(npcId, setFlag) {
     const o = npcsOv();
@@ -2946,12 +2970,19 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   }
 
   // Construit un dialogue T4C à partir d'une étape de quête.
-  function buildStepDialogue(step) {
+  // `suivante` : l'étape d'après ; si elle exige une chasse, CETTE étape la lance
+  function buildStepDialogue(step, suivante) {
     const conditions = {};
     if (step.reqFlag) conditions.flag = step.reqFlag;          // exige l'étape précédente
     if (step.reqLevel > 0) conditions.level = step.reqLevel | 0;
-    if (step.reqItem) { conditions.item = step.reqItem; if (step.consume) conditions.consume = true; }
+    if (step.reqItem) {
+      conditions.item = step.reqItem;
+      if (step.reqItemN > 1) conditions.n = step.reqItemN | 0;
+      if (step.consume) conditions.consume = true;
+    }
+    if (step.killMob) conditions.chasse = step.flag;            // chasse lancée par l'étape précédente
     const reactions = [{ type: 'flag', key: step.flag }];       // pose le drapeau d'étape
+    if (suivante?.killMob) reactions.push({ type: 'chasse', key: suivante.flag, mob: suivante.killMob, n: Math.max(1, suivante.killN | 0) });
     if (step.gold > 0) reactions.push({ type: 'gold', amount: step.gold | 0 });
     if (step.itemDefId) reactions.push({ type: 'item', defId: step.itemDefId, n: Math.max(1, step.itemN | 0 || 1) });
     if (step.xp > 0) reactions.push({ type: 'xp', amount: step.xp | 0 });
@@ -3077,7 +3108,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       const kw = (dlg.keywords || [])[0] || '?';
       const cond = dlg.conditions?.flag ? ` exige ${shortFlag(dlg.conditions.flag)}` : '';
       const rew = (dlg.reactions || []).filter(r => r.type !== 'flag')
-        .map(r => r.type === 'gold' ? `${r.amount} or` : r.type === 'xp' ? `${r.amount} xp` : r.type === 'item' ? `${r.n || 1}× ${r.defId}` : r.type === 'teleport' ? 'téléport' : r.type).join(', ');
+        .map(r => r.type === 'gold' ? `${r.amount} or` : r.type === 'xp' ? `${r.amount} xp` : r.type === 'item' ? `${r.n || 1}× ${r.defId}`
+          : r.type === 'teleport' ? 'téléport' : r.type === 'chasse' ? `chasse ${r.n}× ${MOBS[r.mob]?.name || r.mob}` : r.type).join(', ');
       chain.append(h('span', { className: 'quest-link', textContent:
         `${info.npcName} (« ${kw} »)${cond} → pose ${shortFlag(flag)}${rew ? ' + ' + rew : ''}` }));
     });
@@ -3097,8 +3129,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
     const steps = [];
     if (q) {
       const flags = [...q.flags.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+      // chasses lancées par une étape : clef (drapeau de l'étape qui l'exige) -> réaction
+      const chasses = new Map();
+      for (const [, info] of flags) for (const r of info.dlg.reactions || []) if (r.type === 'chasse') chasses.set(r.key, r);
       for (const [flag, info] of flags) {
         const dlg = info.dlg;
+        const ch = dlg.conditions?.chasse ? chasses.get(dlg.conditions.chasse) : null;
         const reac = dlg.reactions || [];
         const gold = reac.find(r => r.type === 'gold');
         const item = reac.find(r => r.type === 'item');
@@ -3109,7 +3145,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
           n: m ? m[2] : String(steps.length + 1), flag,
           npcId: info.npcId, keywords: dlg.keywords || [], reponse: dlg.reponse || '',
           reqFlag: dlg.conditions?.flag || '', reqLevel: dlg.conditions?.level || 0,
-          reqItem: dlg.conditions?.item || '', consume: !!dlg.conditions?.consume,
+          reqItem: dlg.conditions?.item || '', reqItemN: dlg.conditions?.n || 1, consume: !!dlg.conditions?.consume,
+          killMob: ch?.mob || '', killN: ch?.n || 10,
           gold: gold?.amount || 0, itemDefId: item?.defId || '', itemN: item?.n || 1,
           xp: xp?.amount || 0, tp: tp ? { zoneId: tp.zoneId ?? curZone, x: tp.x, z: tp.z } : null,
         });
@@ -3154,6 +3191,12 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
         lvlIn.onchange = () => { s.reqLevel = Math.max(0, lvlIn.value | 0); };
         const itemFs = filterSelect(itemDefsOpt, s.reqItem || '', (id) => { s.reqItem = id; }, 150);
         const itemSel = itemFs.wrap;
+        const itemNIn = h('input', { type: 'number', min: '1', value: String(s.reqItemN || 1), style: { width: '48px' } });
+        itemNIn.onchange = () => { s.reqItemN = Math.max(1, itemNIn.value | 0); };
+        // chasse : n monstres d'un type à tuer, décompte lancé par l'étape précédente
+        const mobFs = filterSelect([['', { name: '— aucun —' }], ...Object.entries(MOBS)], s.killMob || '', (id) => { s.killMob = id; }, 150);
+        const killNIn = h('input', { type: 'number', min: '1', value: String(s.killN || 10), style: { width: '54px' } });
+        killNIn.onchange = () => { s.killN = Math.max(1, killNIn.value | 0); };
         const consumeCb = h('input', { type: 'checkbox', checked: !!s.consume });
         consumeCb.onchange = () => { s.consume = consumeCb.checked; };
         // effets
@@ -3180,7 +3223,10 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
           repIn,
           h('h4', { textContent: 'Conditions' }),
           h('div', { className: 'edit-row' }, 'drapeau requis : ', reqFlagIn, prevBtn),
-          h('div', { className: 'edit-row' }, 'niveau ≥ ', lvlIn, ' objet : ', itemSel, h('label', { className: 'edit-check' }, consumeCb, ' consommé')),
+          h('div', { className: 'edit-row' }, 'niveau ≥ ', lvlIn),
+          h('div', { className: 'edit-row' }, 'rapporter l\'objet : ', itemSel, ' ×', itemNIn, h('label', { className: 'edit-check' }, consumeCb, ' repris par le PNJ')),
+          h('div', { className: 'edit-row' }, 'avoir tué : ', mobFs.wrap, ' ×', killNIn,
+            h('span', { className: 'hint', textContent: i ? ' (décompte lancé par l\'étape précédente)' : ' (exige une étape précédente qui lance la chasse)' })),
           h('h4', { textContent: 'Effets (récompenses, une seule fois sauf répétable)' }),
           h('div', { className: 'edit-row' }, 'or ', goldIn, ' objet ', rewSel, ' ×', rewN, ' xp ', xpIn),
           h('div', { className: 'edit-row' }, h('label', { className: 'edit-check' }, tpOn, ' téléport'), ' zone ', tpZone, ' x ', tpX, ' z ', tpZ));
@@ -3193,7 +3239,8 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
       const n = m2.steps.length + 1;
       const prev = m2.steps[m2.steps.length - 1];
       m2.steps.push({ n: String(n), flag: questFlag(m2.id, n), npcId: npcsList[0]?.npcId || '', keywords: [], reponse: '',
-        reqFlag: prev ? prev.flag : '', reqLevel: 0, reqItem: '', consume: false, gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null });
+        reqFlag: prev ? prev.flag : '', reqLevel: 0, reqItem: '', reqItemN: 1, consume: false, killMob: '', killN: 10,
+        gold: 0, itemDefId: '', itemN: 1, xp: 0, tp: null });
       renderSteps();
     } }));
     questPanel.append(h('div', { className: 'edit-row', style: { marginTop: '10px' } },
@@ -3204,12 +3251,14 @@ export async function initMapEditor({ api, zones, npcDefs = {}, spells = [], ski
   // GÉNÈRE les dialogues PNJ (et leurs flags/reqFlag) à partir du modèle de quête.
   function generateQuest(m2) {
     if (!m2.steps.length) { msg('Ajoutez au moins une étape.'); return; }
+    if (m2.steps[0].killMob) { msg('La première étape ne peut pas exiger une chasse : ajoutez avant une étape où le PNJ confie la quête.'); return; }
     pushHistory();
-    for (const s of m2.steps) {
-      s.flag = questFlag(m2.id, s.n);
-      if (!s.npcId) continue;
-      npcWriteQuestDialogue(s.npcId, s.flag, buildStepDialogue(s));
-    }
+    for (const s of m2.steps) s.flag = questFlag(m2.id, s.n);
+    m2.steps.forEach((s, i) => {
+      if (!s.npcId) return;
+      npcWriteQuestDialogue(s.npcId, s.flag, buildStepDialogue(s, m2.steps[i + 1]));
+    });
+    ordonnerEtapes(m2.id);
     refreshEditLayers();
     msg(`Quête « ${m2.id} » générée (${m2.steps.length} étape(s)) — « Enregistrer » pour l'appliquer au serveur.`);
     renderQuestList();

@@ -11,7 +11,8 @@
 //       flag: 'clef',                       drapeau du personnage requis
 //       notFlag: 'clef',                    drapeau ABSENT requis
 //       level: n,                           niveau minimal
-//       item: 'defId', consume?: true,      objet requis (consommé si demandé)
+//       item: 'defId', n?, consume?: true,  objet requis, n exemplaires (consommés si demandé)
+//       chasse: 'clef',                     chasse terminée (monstres tués, cf. réaction chasse)
 //     },
 //     reactions?: [                       effets appliqués au déclenchement :
 //       { type: 'gold', amount },           pièces d'or
@@ -19,6 +20,9 @@
 //       { type: 'xp', amount },             expérience
 //       { type: 'flag', key },              pose un drapeau persistant (p.flags)
 //       { type: 'teleport', zoneId?, x, z } déplacement (zone débloquée au besoin)
+//       { type: 'chasse', key, mob, n }     lance un décompte : tuer n monstres
+//                                           `mob` (defId) ; le dialogue qui exige
+//                                           conditions.chasse = key le clôt
 //     ],
 //     repeatable?: true,                  les récompenses redeviennent disponibles
 //   }, ...]
@@ -28,7 +32,9 @@
 // `dlg:<npcId>:<index>` — sauf `repeatable: true` explicite. La réplique, les
 // drapeaux et les téléportations, eux, rejouent à chaque déclenchement.
 import * as C from '../../shared/constants.js';
-import { ITEMS } from '../../shared/defs.js';
+import { ITEMS, MOBS } from '../../shared/defs.js';
+
+const nomMob = (id) => MOBS[id]?.name || id;
 import { makeItem, itemLabel, itemWeight, inventoryWeight } from './items.js';
 import { normalize, containsKeyword, conditionBloquante, rootKeywordsHint } from '../../shared/mots-cles.js';
 
@@ -43,7 +49,8 @@ function conditionsMet(p, dlg, game) {
     flags: p.flags,
     level: p.level,
     gold: p.gold,
-    aObjet: (defId) => p.inventory.some(it => it.defId === defId),
+    aObjet: (defId, n = 1) => p.inventory.filter(it => it.defId === defId).length >= n,
+    chasse: (key) => p.chasses?.[key] || null,
     maudit: game ? () => game.isCursed(p) : null,
   });
 }
@@ -75,17 +82,24 @@ function triggerDialogue(game, p, npc, dlg, index) {
     game.send(p, { t: 'loot', text: `-${dlg.conditions.gold} or` });
   }
   if (dlg.conditions?.item && dlg.conditions.consume) {
-    const i = p.inventory.findIndex(it => it.defId === dlg.conditions.item);
-    if (i >= 0) {
-      const item = p.inventory[i];
+    // n exemplaires remis (les non équipés d'abord : on garde l'arme en main)
+    const equipes = new Set(Object.values(p.equip));
+    const remis = p.inventory.filter(it => it.defId === dlg.conditions.item)
+      .sort((a, b) => equipes.has(a.iid) - equipes.has(b.iid))
+      .slice(0, Math.max(1, dlg.conditions.n | 0));
+    for (const item of remis) {
       for (const [slot, iid] of Object.entries(p.equip)) {
         if (iid === item.iid) delete p.equip[slot];
       }
-      p.inventory.splice(i, 1);
+      p.inventory.splice(p.inventory.indexOf(item), 1);
+    }
+    if (remis.length) {
       p.recompute(game);
-      game.send(p, { t: 'info', text: `Remis : ${itemLabel(item)}` });
+      game.send(p, { t: 'info', text: `Remis : ${itemLabel(remis[0])}${remis.length > 1 ? ' ×' + remis.length : ''}` });
     }
   }
+  // chasse accomplie : le décompte est clos (une nouvelle chasse le relancera)
+  if (dlg.conditions?.chasse && p.chasses) delete p.chasses[dlg.conditions.chasse];
 
   // la réplique : bulle au-dessus du PNJ + chat local pour les joueurs proches
   const reponse = String(dlg.reponse || '...');
@@ -138,6 +152,16 @@ function triggerDialogue(game, p, npc, dlg, index) {
         applyTeleport(game, p, r);
         break;
       }
+      case 'chasse': {
+        // relancer une chasse en cours ne remet pas son compteur à zéro
+        const n = Math.max(1, r.n | 0);
+        // ni une chasse déjà rendue (drapeau de l'étape qui l'exige posé)
+        if (r.key && r.mob && !p.chasses[r.key] && !p.flags[r.key]) {
+          p.chasses[r.key] = { mob: String(r.mob), n, tues: 0 };
+          game.send(p, { t: 'info', text: `Chasse : ${nomMob(r.mob)} 0/${n}` });
+        }
+        break;
+      }
       // ---- services (prêtre) : pas des récompenses, rejouables à volonté ----
       case 'heal': {
         // soin complet — la malédiction bloque TOUT soin : l'entrée de contenu
@@ -171,6 +195,17 @@ function triggerDialogue(game, p, npc, dlg, index) {
   }
   if (rewarded) p.flags[onceKey] = true;
   game.sendSelf(p);
+}
+
+// Un monstre vient de mourir : avance les chasses de quête des joueurs crédités
+export function compterChasse(game, p, mob) {
+  for (const ch of Object.values(p.chasses || {})) {
+    if (ch.mob !== mob.defId || ch.tues >= ch.n) continue;
+    ch.tues++;
+    game.send(p, { t: 'info', text: ch.tues >= ch.n
+      ? `Chasse terminée : ${nomMob(ch.mob)} ${ch.tues}/${ch.n}. Retournez voir le commanditaire.`
+      : `Chasse : ${nomMob(ch.mob)} ${ch.tues}/${ch.n}` });
+  }
 }
 
 // Téléportation scénarisée : vers une autre zone (débloquée au passage — le

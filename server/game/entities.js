@@ -331,6 +331,8 @@ export class Player extends Character {
     // drapeaux persistants posés par les dialogues de PNJ (quêtes, accès,
     // récompenses déjà versées `dlg:<npc>:<index>`) — clef -> true
     this.flags = data.flags || {};
+    // chasses de quête en cours : clef -> { mob, n, tues } (cf. dialogues.js)
+    this.chasses = data.chasses || {};
     this.moveDir = null;
     this.attackTarget = null;
     this.party = null;
@@ -592,6 +594,7 @@ export class Player extends Character {
       hpAcc: this.hpAcc, manaAcc: this.manaAcc,
       spells: this.spells, skills: this.skills, unlocked: this.unlocked,
       flags: this.flags,
+      chasses: this.chasses,
       channels: this.channels,
       sex: this.sex,
       zoneId: this.zi.zoneId, // pour une Épreuve, c'est la zone d'origine
@@ -614,7 +617,7 @@ export class Player extends Character {
     this.inventory = data.inventory; this.equip = data.equip;
     this.bank = data.bank || []; // la banque de l'ancien personnage est perdue (permadeath)
     this.spells = []; this.skills = {}; this.unlocked = [0];
-    this.flags = {}; this.spellCds = {}; this.casting = null;
+    this.flags = {}; this.chasses = {}; this.spellCds = {}; this.casting = null;
     this.curseUntil = 0;
     this.recompute(game);
     this.hp = this.eff.maxHp; this.mana = this.eff.maxMana;
