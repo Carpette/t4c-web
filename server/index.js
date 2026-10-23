@@ -150,7 +150,13 @@ wss.on('connection', (ws) => {
     try { game.onMessage(player, msg); } catch (e) { console.error('onMessage', e); }
   });
 
-  ws.on('close', () => { if (player) game.removePlayer(player); });
+  ws.on('close', (code, raison) => {
+    if (!player) return;
+    // trace des départs non demandés (onglet fermé = 1001) : 1006 = connexion
+    // coupée sans fermeture, 1009 = message trop gros (maxPayload)
+    if (code !== 1000 && code !== 1001) console.log(`[déconnexion] ${player.name} : code ${code}${raison?.length ? ' ' + raison : ''}`);
+    game.removePlayer(player);
+  });
   ws.on('error', () => {});
 });
 

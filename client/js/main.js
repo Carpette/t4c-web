@@ -275,7 +275,8 @@ net.on('events', (m) => {
     }
   }
 });
-net.on('disconnected', () => ui.addChat('sys', 'Déconnecté du serveur. Rechargez la page.'));
+net.on('disconnected', (m) => ui.addChat('sys',
+  `Déconnecté du serveur${m?.raison ? ` (${m.raison})` : m?.code ? ` (code ${m.code})` : ''}. Rechargez la page.`));
 
 // ---------- Mesure de latence (ping) ----------
 // Aller-retour WebSocket périodique : on envoie {t:'ping', ts}, le serveur

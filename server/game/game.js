@@ -453,6 +453,7 @@ export class Game {
     this.maybeDestroyTrial(p.zi);
     this.players.delete(p.id);
     this.broadcastChat('sys', `${p.name} quitte le monde.`);
+    if (reason) console.log(`[déconnexion] ${p.name} : ${reason}`);
     try { p.ws.close(1000, reason || 'bye'); } catch {}
   }
 
