@@ -8,7 +8,7 @@
 // particules, et primitives à un seul tracé (bulle, anneau au sol, lueur),
 // bien moins coûteuses que des centaines de particules.
 import {
-  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES, COULEUR_SORT,
+  Particles, jouerEffet, entretenirEffet, arreterEffet, coucheDepuisAncien, modeParDefaut, coutEffet, FORMES, SOLIDES, COULEUR_SORT,
 } from '../../../render2d/particles.js';
 import { copie, norm } from '../../forge.js';
 
@@ -25,14 +25,15 @@ const SPAWNS = [
 ];
 const MOUVEMENTS = [
   ['outward', 'Dispersion vers l’extérieur'], ['upward', 'Vers le haut'], ['orbite', 'Rotation autour du centre'],
-  ['spirale', 'Spirale montante'], ['aspiration', 'Aspiration vers le centre'], ['random', 'Aléatoire'],
+  ['fontaine', 'Jaillissement (gerbe en cloche)'], ['spirale', 'Spirale montante'], ['aspiration', 'Aspiration vers le centre'], ['random', 'Aléatoire'],
   ['immobile', 'Immobile'], ['orbit', 'Départ tangent (ancien)'],
 ];
 const ALPHAS = [['fondu', 'Fondu progressif'], ['entree', 'Apparition puis fondu'], ['scintille', 'Scintillement'], ['constant', 'Constante']];
 const FUSIONS = [['additif', 'Lumineuse (additive)'], ['normal', 'Opaque (fumée, ombres)']];
+const SOLS = [['traverse', 'Le traverse (lumière)'], ['pose', 'S’y pose'], ['rebondit', 'Rebondit']];
 const TYPES_COUCHE = [['particules', 'Particules'], ['bulle', 'Bulle'], ['anneau', 'Anneau au sol'], ['lueur', 'Lueur']];
 const PHYSIQUE = [
-  ['speed', 'Vitesse (cases/s)', 0, 8, 0.1], ['gravity', 'Gravité (px/s²)', -300, 300, 1],
+  ['speed', 'Vitesse (cases/s)', 0, 8, 0.1], ['gravity', 'Gravité (px/s²)', -300, 800, 5],
   ['drag', 'Frottement', 0.8, 1, 0.01], ['life', 'Durée de vie (s)', 0.05, 4, 0.05],
 ];
 const FONDS = [['sombre', 'Sombre', '#0b0c0f'], ['herbe', 'Herbe', '#24361f'], ['paves', 'Pavés de nuit', '#262830']];
@@ -68,6 +69,15 @@ const MODELES = [
     P({ spawn: 'ring', speed: 4, burst: 30, rate: 0, life: 0.5, size: 2, colors: ['#e8f4ff'] })] },
   { cle: 'etincelles', nom: 'Gerbe d’étincelles', desc: 'Jaillissement qui retombe', id: 'imp_', mode: 'ponctuel', duree: 0.6, couches: [
     P({ offsetH: 60, speed: 2.5, rate: 60, burst: 10, life: 0.7, gravity: 300, forme: 'etincelle', size: 1.5, colors: ['#fff4c8', '#ffd24a'] })] },
+  { cle: 'eboulis', nom: 'Éboulis', desc: 'Cailloux projetés qui rebondissent, nuage de poussière', id: 'imp_', mode: 'ponctuel', couches: [
+    P({ movement: 'fontaine', offsetH: 10, speed: 1.4, burst: 14, rate: 0, life: 1.4, gravity: 520, drag: 0.99, size: 8, forme: 'roche', fusion: 'normal', alpha: 'constant',
+      colors: ['#7a6a58', '#8f8070', '#5e5248'], sol: 'rebondit', rebond: 0.35, rotation: 1.5 }),
+    P({ spawn: 'boule', radius: 0.25, offsetH: 15, speed: 0.5, burst: 8, rate: 0, life: 1.2, size: 7, sizeEnd: 2.5, forme: 'fumee', fusion: 'normal', alpha: 'entree', opacite: 0.6,
+      colors: ['#8a7a68', '#a09080'] })] },
+  { cle: 'glace', nom: 'Éclats de glace', desc: 'Cristaux qui volent et se posent au sol', id: 'imp_', mode: 'ponctuel', couches: [
+    P({ movement: 'fontaine', offsetH: 30, speed: 1.8, burst: 16, rate: 0, life: 1.2, gravity: 450, size: 6, forme: 'eclat', fusion: 'normal', alpha: 'constant',
+      colors: ['#bfeaff', '#8fd0ff', '#e8f8ff'], sol: 'pose', rotation: 2 }),
+    { type: 'lueur', radius: 0.5, offsetH: 30, life: 0.3, radiusEnd: 1.5, opacite: 0.7, colors: ['#bfeaff'], fusion: 'additif' }] },
   { cle: 'charge', nom: 'Implosion (charge)', desc: 'Énergie aspirée puis libérée', id: 'event_', mode: 'ponctuel', duree: 0.8, couches: [
     P({ spawn: 'coquille', radius: 0.8, offsetH: 50, movement: 'aspiration', rate: 60, burst: 0, life: 0.6, size: 3, sizeEnd: 0.3, colors: ['#d070ff', '#ffffff'], alpha: 'entree' }),
     { type: 'lueur', radius: 0.25, offsetH: 50, life: 1, radiusEnd: 2, opacite: 0.8, colors: ['#c060ff'], fusion: 'additif', delai: 0.6 }] },
@@ -86,7 +96,8 @@ export function ParticleEditorController(api) {
   let fichier = null, reference = null, anim = null;
 
   return {
-    SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES,
+    SPAWNS, MOUVEMENTS, PHYSIQUE, FONDS, FORMES, ALPHAS, FUSIONS, TYPES_COUCHE, MODELES, SOLS,
+    solide: (f) => SOLIDES.has(f), // pas de Set dans la portée : petite-vue ne sait pas le rendre réactif
     effets: [], sorts: [], q: '', courant: null, fiche: null, nouveau: false, galerie: false,
     couche: 0, enMouvement: false, fond: 'sombre', message: '', erreur: false, vivants: 0,
     COULEUR_SORT, teinteApercu: '#ff5a2a', // couleur de sort essayée dans l'aperçu
@@ -194,6 +205,16 @@ export function ParticleEditorController(api) {
       const n = +String(v).replace(',', '.');
       if (v === '' || !Number.isFinite(n)) { delete cible[k]; return; }
       cible[k] = n;
+    },
+    // une forme matérielle (roche, éclat) part avec les réglages d'un débris :
+    // opaque, sans fondu, qui tournoie et rebondit (tout reste modifiable)
+    choisirForme(v) {
+      const L = this.L, avant = SOLIDES.has(L.forme);
+      L.forme = v;
+      if (SOLIDES.has(v) && !avant) {
+        L.fusion = 'normal'; L.alpha = 'constant'; L.sol ??= 'rebondit'; L.rebond ??= 0.4;
+        if (!(+L.gravity > 0)) L.gravity = 500;
+      } else if (!SOLIDES.has(v) && avant) { L.fusion = 'additif'; L.alpha = 'fondu'; }
     },
     couleur(i, v) { this.L.colors[i] = v; },
     // dernière couleur fixe de la couche (l'entrée « couleur du sort » n'en est pas une)

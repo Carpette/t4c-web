@@ -135,6 +135,12 @@
             <span class="cs-label mt-1">Mouvement</span>
             <div class="cs-field max-w-[300px]"><label class="sr-only" for="pe-mv">Mouvement</label>
                 <select id="pe-mv" class="cs-input" v-model="L.movement"><option v-for="m in MOUVEMENTS" :value="m[0]">{{ m[1] }}</option></select></div>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
+                <div class="cs-field"><label class="cs-label" for="pe-sol">Au contact du sol</label>
+                    <select id="pe-sol" class="cs-input" :value="L.sol || 'traverse'" @change="L.sol = $event.target.value"><option v-for="o in SOLS" :value="o[0]">{{ o[1] }}</option></select></div>
+                <div class="cs-field" v-if="L.sol === 'rebondit'"><label class="cs-label" for="pe-reb">Élasticité (0 à 1)</label>
+                    <input id="pe-reb" class="cs-input font-mono" type="number" min="0.05" max="0.95" step="0.05" placeholder="0.4" :value="L.rebond" @change="nombre('rebond', $event.target.value)" /></div>
+            </div>
             <div class="flex flex-col gap-2.5">
                 <div v-for="p in PHYSIQUE" class="grid grid-cols-[150px_minmax(0,1fr)_76px] gap-3 items-center">
                     <label class="text-gray-300" :for="'pe-' + p[0]">{{ p[1] }}</label>
@@ -146,7 +152,9 @@
             <span class="cs-label mt-1">Apparence</span>
             <div class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
                 <div class="cs-field"><label class="cs-label" for="pe-forme">Forme</label>
-                    <select id="pe-forme" class="cs-input" :value="L.forme || 'net'" @change="L.forme = $event.target.value"><option v-for="f in FORMES" :value="f[0]">{{ f[1] }}</option></select></div>
+                    <select id="pe-forme" class="cs-input" :value="L.forme || 'net'" @change="choisirForme($event.target.value)"><option v-for="f in FORMES" :value="f[0]">{{ f[1] }}</option></select></div>
+                <div class="cs-field"><label class="cs-label" for="pe-rot">Rotation (tours/s)</label>
+                    <input id="pe-rot" class="cs-input font-mono" type="number" min="0" max="10" step="0.1" :placeholder="solide(L.forme) ? '1.5' : '0'" :value="L.rotation" @change="nombre('rotation', $event.target.value)" /></div>
                 <div class="cs-field"><label class="cs-label" for="pe-size">Taille (px)</label>
                     <input id="pe-size" class="cs-input font-mono" type="number" min="0.5" max="40" step="0.5" :value="L.size" @change="nombre('size', $event.target.value)" /></div>
                 <div class="cs-field"><label class="cs-label" for="pe-size1">Taille finale (×)</label>

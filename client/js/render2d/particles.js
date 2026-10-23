@@ -55,9 +55,15 @@ function toile(n) {
   return [cv, cv.getContext('2d')];
 }
 // formes de particule (32 px) et de primitive (128 px), une par couleur
-export const FORMES = [['doux', 'Lueur douce'], ['net', 'Disque net'], ['etincelle', 'Étincelle (traînée)'], ['etoile', 'Étoile'], ['anneau', 'Anneau'], ['fumee', 'Fumée']];
-function sprite(forme, couleur) {
-  const cle = forme + couleur;
+export const FORMES = [['doux', 'Lueur douce'], ['net', 'Disque net'], ['etincelle', 'Étincelle (traînée)'], ['etoile', 'Étoile'], ['anneau', 'Anneau'], ['fumee', 'Fumée'],
+  ['roche', 'Roche (débris)'], ['eclat', 'Éclat (cristal, verre)']];
+// formes matérielles : opaques, ombrées, orientées au hasard (3 variantes chacune)
+export const SOLIDES = new Set(['roche', 'eclat']);
+const VARIANTES = 3;
+const melange = (c, d, k) => [0, 1, 2].map(i => Math.round(c[i] + (d[i] - c[i]) * k));
+const hexa = (c) => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+function sprite(forme, couleur, variante = 0) {
+  const cle = forme + couleur + variante;
   let cv = cache.get(cle);
   if (cv) return cv;
   const c = rgb(couleur);
@@ -85,6 +91,29 @@ function sprite(forme, couleur) {
     h.addColorStop(0, 'rgba(255,255,255,0.45)'); h.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = h; g.fillRect(0, 0, N, N);
   } else if (forme === 'sol') radial(0, [[0, 0], [0.7, 0], [0.86, 1], [1, 0]]);
+  else if (forme === 'roche' || forme === 'eclat') {
+    // polygone ombré : lumière en haut à gauche, ombre en bas à droite, contour sombre
+    let pts;
+    if (forme === 'roche') {
+      const n = 6 + variante, graine = (k) => Math.abs(Math.sin(k * 12.9898 + variante * 78.233) * 43758.5453) % 1;
+      pts = Array.from({ length: n }, (_, k) => {
+        const a = (k / n) * Math.PI * 2 + graine(k) * 0.5, r = m * (0.62 + graine(k + 9) * 0.3);
+        return [m + Math.cos(a) * r, m + Math.sin(a) * r * 0.85];
+      });
+    } else {
+      const l = 0.32 + variante * 0.08;
+      pts = [[m, 1], [m + m * l, m - 2], [m, N - 1], [m - m * l, m + 2]];
+    }
+    const trace = () => { g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); };
+    const lin = g.createLinearGradient(4, 4, N - 4, N - 4);
+    lin.addColorStop(0, hexa(melange(c, [255, 255, 255], forme === 'eclat' ? 0.55 : 0.3)));
+    lin.addColorStop(0.5, hexa(c));
+    lin.addColorStop(1, hexa(melange(c, [0, 0, 0], 0.5)));
+    trace(); g.fillStyle = lin; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = hexa(melange(c, [0, 0, 0], 0.65)); g.stroke();
+    g.strokeStyle = forme === 'eclat' ? 'rgba(255,255,255,0.8)' : rgba(melange(c, [255, 255, 255], 0.5), 0.6); // arête claire
+    g.lineWidth = 1; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); g.lineTo(m, m); g.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]); g.stroke();
+  }
   cache.set(cle, cv);
   return cv;
 }
@@ -136,6 +165,7 @@ export class Particles {
         age: 0, life: 1, size: 3, size1: -1, grow: 0, drag: 1, alpha: 0, opa: 1, add: true, etin: false,
         sprs: null, si: 0, deg: false, col: '#fff', k: 1,
         orb: false, cx: 0, cz: 0, ang: 0, rad: 0, w: 0, vr: 0,
+        rot: 0, vrot: 0, tourne: false, reb: -1,
       });
     }
     this.prims = [];
@@ -177,7 +207,11 @@ export class Particles {
     q.etin = o.forme === 'etincelle';
     q.sprs = o.sprs || null; q.deg = !!o.deg; q.si = o.si || 0;
     if (!q.sprs) { q.sprs = [sprite(o.forme && o.forme !== 'etincelle' ? o.forme : 'net', q.col)]; q.si = 0; }
-    q.k = o.forme && o.forme !== 'net' && o.forme !== 'etincelle' ? 1.6 : 1;
+    q.k = SOLIDES.has(o.forme) ? 1.25 : o.forme && o.forme !== 'net' && o.forme !== 'etincelle' ? 1.6 : 1;
+    // rotation (débris qui tournoient) et sol : -1 traverse, 0 se pose, > 0 rebondit
+    q.rot = o.rot || 0; q.vrot = o.vrot || 0;
+    q.tourne = !!q.vrot || SOLIDES.has(o.forme);
+    q.reb = o.reb ?? -1;
     q.add = o.fusion !== 'normal';
     q.alpha = o.alpha === 'entree' ? 1 : o.alpha === 'scintille' ? 2 : o.alpha === 'constant' ? 3 : 0;
     q.opa = o.opa ?? 1;
@@ -229,6 +263,12 @@ export class Particles {
       }
       q.h += q.vh * dt;
       q.vh -= q.g * dt;
+      if (q.vrot) q.rot += q.vrot * dt;
+      if (q.reb >= 0 && q.h <= 0 && q.vh < 0) {
+        q.h = 0;
+        if (q.reb > 0 && -q.vh > 40) { q.vh = -q.vh * q.reb; q.vx *= 0.6; q.vz *= 0.6; q.vrot *= 0.6; }
+        else { q.vh = 0; q.g = 0; q.vx = 0; q.vz = 0; q.vrot = 0; q.drag = 1; } // posé au sol
+      }
     }
     this.actifs = n;
     for (const pr of this.prims) {
@@ -247,6 +287,7 @@ export class Particles {
     const xx = kx.x - ox, xy = kx.y - oy, zx = kz.x - ox, zy = kz.y - oy;
     const hws = xx * RAC2; // rayon écran d'une sphère d'une case (cf. emettre : V)
     ctx.save();
+    const B = ctx.getTransform(); // repère de base, recomposé pour les formes tournées
     for (let passe = 0; passe < 2; passe++) {
       const add = passe === 1;
       ctx.globalCompositeOperation = add ? 'lighter' : 'source-over';
@@ -299,7 +340,13 @@ export class Particles {
         }
         const spr = q.deg ? q.sprs[Math.min(q.sprs.length - 1, (t * q.sprs.length) | 0)] : q.sprs[q.si];
         const d = r * q.k; // les formes douces paraissent plus petites qu'un disque net
-        ctx.drawImage(spr, sx - d, sy - d, d * 2, d * 2);
+        if (q.tourne) {
+          const c = Math.cos(q.rot), sn = Math.sin(q.rot);
+          ctx.setTransform(B.a * c + B.c * sn, B.b * c + B.d * sn, B.c * c - B.a * sn, B.d * c - B.b * sn,
+            B.a * sx + B.c * sy + B.e, B.b * sx + B.d * sy + B.f);
+          ctx.drawImage(spr, -d, -d, d * 2, d * 2);
+          ctx.setTransform(B);
+        } else ctx.drawImage(spr, sx - d, sy - d, d * 2, d * 2);
       }
     }
     ctx.globalAlpha = 1;
@@ -317,8 +364,13 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
   const cx = bx + (+L.offsetX || 0), cz = bz + (+L.offsetZ || 0), offH = +L.offsetH || 0;
   const colors = couleursDe(L, teinte);
   const forme = L.forme || 'net';
-  const sprs = forme === 'etincelle' ? null : colors.map(c => sprite(forme, c));
-  const deg = !!L.degrade && colors.length > 1;
+  const solide = SOLIDES.has(forme);
+  const sprs = forme === 'etincelle' ? null
+    : solide ? colors.flatMap(c => Array.from({ length: VARIANTES }, (_, v) => sprite(forme, c, v)))
+    : colors.map(c => sprite(forme, c));
+  const deg = !!L.degrade && colors.length > 1 && !solide;
+  const tours = (L.rotation ?? (solide ? 1.5 : 0)) * Math.PI * 2; // vitesse de rotation max (rad/s)
+  const reb = L.sol === 'rebondit' ? Math.max(0.05, Math.min(0.95, +L.rebond || 0.4)) : L.sol === 'pose' ? 0 : -1;
   const nouveau = !L.ancien;
   const haut = +L.hauteur || 60;
   const V = radius * RAC2 * HW; // demi-hauteur écran d'une sphère de ce rayon
@@ -350,7 +402,8 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
       life: life * (0.8 + Math.random() * 0.4), size, drag,
       forme, fusion: L.fusion, alpha: L.alpha, opa: L.opacite ?? 1,
       size1: L.sizeEnd ?? (nouveau ? 1 : -1),
-      sprs, deg, si: (Math.random() * colors.length) | 0,
+      sprs, deg, si: (Math.random() * (sprs ? sprs.length : 1)) | 0,
+      rot: Math.random() * Math.PI * 2, vrot: tours ? (Math.random() * 2 - 1) * tours : 0, reb,
       color: colors[(Math.random() * colors.length) | 0],
     };
     if (mv === 'outward') {
@@ -358,6 +411,11 @@ function emettre(P, L, n, bx, bz, ancre, rayon, teinte) {
       const f = speed * (0.8 + Math.random() * 0.4) * 1.5;
       if (nouveau && dh) { vx = dx * f; vz = dz * f; vh = dh * f * RAC2 * HW; }
       else { vx = Math.cos(a) * f; vz = Math.sin(a) * f; if (L.spawn === 'sphere') vh = Math.sin((Math.random() - 0.5) * Math.PI) * f; }
+    } else if (mv === 'fontaine') { // jaillissement : gerbe en cloche, à freiner par la gravité
+      const a = (!L.spawn || L.spawn === 'point') ? Math.random() * Math.PI * 2 : angle;
+      const f = speed * (0.4 + Math.random() * 0.8);
+      vx = Math.cos(a) * f; vz = Math.sin(a) * f;
+      vh = speed * 45 * (0.7 + Math.random() * 0.6);
     } else if (mv === 'upward') {
       vh = speed * 15 * (0.8 + Math.random() * 0.4);
     } else if (mv === 'orbit') { // ancien : départ tangent
