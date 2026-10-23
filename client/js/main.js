@@ -96,8 +96,36 @@ function fatal(text) {
   guiManager.loadPhaseComponents('login');
   globalBus.emit('gui:login-error', text);
 }
-window.addEventListener('error', (e) => fatal(`Erreur du client : ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
-window.addEventListener('unhandledrejection', (e) => fatal(`Erreur du client : ${e.reason?.message || e.reason}`));
+// Fin de session (connexion perdue, ou erreur du client en jeu) : l'état du
+// jeu en mémoire n'est plus fiable et la connexion ne sert plus. On affiche
+// la raison, on attend que le serveur réponde (redémarrage...), puis on
+// recharge la page : retour PROPRE à l'écran de connexion, raison rappelée.
+const CLE_DECONNEXION = 't4c:deconnexion';
+let sortieEnCours = false;
+async function retourConnexion(texte) {
+  if (sortieEnCours) return;
+  sortieEnCours = true;
+  fatal(`${texte} Retour à l'écran de connexion…`);
+  try { sessionStorage.setItem(CLE_DECONNEXION, texte); } catch { /* stockage indisponible */ }
+  for (;;) {
+    try { if ((await fetch('/api/version', { cache: 'no-store' })).ok) break; } catch { /* serveur absent */ }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  location.reload();
+}
+// en jeu, une erreur du client ferme la session (le serveur sauvegarde) ;
+// avant d'entrer en jeu, l'écran de connexion suffit
+function erreurClient(texte) {
+  if (selfId != null && net.ws?.readyState === 1) { retourConnexion(texte); net.ws.close(); }
+  else fatal(texte);
+}
+window.addEventListener('error', (e) => erreurClient(`Erreur du client : ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
+window.addEventListener('unhandledrejection', (e) => erreurClient(`Erreur du client : ${e.reason?.message || e.reason}`));
+// raison de la session précédente (après le rechargement)
+try {
+  const raison = sessionStorage.getItem(CLE_DECONNEXION);
+  if (raison) { sessionStorage.removeItem(CLE_DECONNEXION); fatal(raison); }
+} catch { /* stockage indisponible */ }
 
 // ---------- Réseau ----------
 net.on('auth_error', (m) => fatal(m.error));
@@ -275,8 +303,11 @@ net.on('events', (m) => {
     }
   }
 });
-net.on('disconnected', (m) => ui.addChat('sys',
-  `Déconnecté du serveur${m?.raison ? ` (${m.raison})` : m?.code ? ` (code ${m.code})` : ''}. Rechargez la page.`));
+// 1006 : connexion coupée sans fermeture (serveur arrêté, réseau, veille)
+net.on('disconnected', (m) => retourConnexion(m?.raison && m.raison !== 'bye'
+  ? `Déconnecté du serveur : ${m.raison}.`
+  : m?.code === 1006 ? 'Connexion au serveur perdue (serveur arrêté ou réseau coupé).'
+  : `Déconnecté du serveur${m?.code && m.code !== 1000 ? ` (code ${m.code})` : ''}.`));
 
 // ---------- Mesure de latence (ping) ----------
 // Aller-retour WebSocket périodique : on envoie {t:'ping', ts}, le serveur

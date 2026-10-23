@@ -26,6 +26,6 @@
     <button @click="login()">Connexion</button>
     <button @click="register()" class="secondary">Créer un compte</button>
   </div>
-  <p id="login-error" v-show="error">{{ error }}</p>
+  <p id="login-error" v-show="error || state.erreurConnexion">{{ error || state.erreurConnexion }}</p>
 </div>
 <div id="game-version" title="Version déployée" v-scope>{{ state.version?.label }}</div>
