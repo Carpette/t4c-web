@@ -31,6 +31,9 @@ export const STAT_NAMES = {
 };
 export const BASE_STATS = { str: 12, end: 12, agi: 12, int: 10, wis: 10 };
 export const POINTS_PER_LEVEL = 5;
+// T4C : chaque niveau donne aussi 15 points de compétence, dépensés chez les
+// entraîneurs (1 point de compétence par point entraîné, plus le prix en or)
+export const SKILL_POINTS_PER_LEVEL = 15;
 
 // Création de personnage façon T4C : points à répartir par le joueur
 export const CREATION = { base: 8, pool: 30, max: 25 };

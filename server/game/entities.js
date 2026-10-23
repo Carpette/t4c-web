@@ -322,6 +322,11 @@ export class Player extends Character {
     this.spells = data.spells || [];
     // migration : l'ancien format (tableau d'ids) est abandonné -> {id: points}
     this.skills = (data.skills && !Array.isArray(data.skills)) ? data.skills : {};
+    // migration : personnages d'avant les points de compétence -> ceux de
+    // leurs niveaux passés, moins les points déjà entraînés (apprendre une
+    // compétence donnait son premier point, qui ne compte pas)
+    this.skillPoints = data.skillPoints ?? Math.max(0, C.SKILL_POINTS_PER_LEVEL * ((data.level || 1) - 1)
+      - Object.entries(this.skills).reduce((n, [id, pts]) => n + Math.max(0, pts - (content.skillById[id]?.innate ? 0 : 1)), 0));
     this.unlocked = data.unlocked || [0];
     // drapeaux persistants posés par les dialogues de PNJ (quêtes, accès,
     // récompenses déjà versées `dlg:<npc>:<index>`) — clef -> true
@@ -553,6 +558,7 @@ export class Player extends Character {
     while (this.level < C.MAX_LEVEL && this.xp >= C.xpForLevel(this.level + 1)) {
       this.level++;
       this.statPoints += C.POINTS_PER_LEVEL;
+      this.skillPoints += C.SKILL_POINTS_PER_LEVEL;
       // gains de PV/mana figés au passage de niveau, selon les stats DU MOMENT
       // (équipement compris) — fidèle à T4C
       this.hpAcc += C.hpGainPerLevel(this.eff.stats);
@@ -579,7 +585,7 @@ export class Player extends Character {
     // coordonnées de la grotte n'auraient aucun sens sur la carte de l'île
     const pos = this.zi.isCave ? this.zi.returnTo : this;
     return {
-      name: this.name, level: this.level, xp: this.xp, statPoints: this.statPoints,
+      name: this.name, level: this.level, xp: this.xp, statPoints: this.statPoints, skillPoints: this.skillPoints,
       stats: this.stats, hp: this.hp, mana: this.mana, x: pos.x, z: pos.z,
       gold: this.gold, inventory: this.inventory, equip: this.equip,
       bank: this.bank,
@@ -600,7 +606,7 @@ export class Player extends Character {
     this.sex = data.sex;
     db.saveCharacter(this.accountId, data);
     this.permadead = false; this.dead = false; this.state = C.ST.IDLE;
-    this.level = 1; this.xp = 0; this.statPoints = 0;
+    this.level = 1; this.xp = 0; this.statPoints = 0; this.skillPoints = 0;
     this.stats = { ...data.stats };
     this.hpAcc = C.maxHp(this.stats, 1);
     this.manaAcc = C.maxMana(this.stats, 1);

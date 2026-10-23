@@ -306,7 +306,7 @@ export function newCharacterData(name, spawn, stats = null, sex = 'male') {
   return {
     name,
     sex: sex === 'female' ? 'female' : 'male',
-    level: 1, xp: 0, statPoints: 0,
+    level: 1, xp: 0, statPoints: 0, skillPoints: 0,
     stats: stats ? { ...stats } : { ...BASE_STATS },
     hp: null, mana: null, // null => max au premier chargement
     x: spawn.x, z: spawn.z,
