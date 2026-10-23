@@ -7,6 +7,7 @@ import { GuiManagerAdmin } from './admin/gui-manager-admin.js';
 import { chargerSurcharges } from './surcharges.js';
 import { activerColonnes } from './admin/colonnes.js';
 import { ConsoleController } from './admin/components/console/console.js';
+import { suivreEcriture } from './admin/console.js';
 import { PageController } from './admin/components/page/page.js';
 import { ContentController } from './admin/components/content/content.js';
 import { SpellsEditorController } from './admin/components/spells-editor/spells-editor.js';
@@ -32,7 +33,9 @@ import { PublicationController } from './admin/components/publication/publicatio
 const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem('t4c_admin_token') || null;
 
-const api = async (url, method = 'GET', body = null) => {
+const api = (url, method = 'GET', body = null) =>
+  method === 'GET' ? appel(url, method, body) : suivreEcriture(appel(url, method, body));
+const appel = async (url, method, body) => {
   const r = await fetch(url, {
     method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

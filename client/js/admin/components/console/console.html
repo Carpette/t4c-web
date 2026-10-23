@@ -14,6 +14,13 @@
         <span class="cs-kbd">Ctrl K</span>
     </button>
     <div class="flex-1"></div>
+    <span role="status" aria-live="polite" class="cs-sauve" :class="sauvegarde.etat" :title="sauvegarde.detail">
+        <svg v-if="sauvegarde.etat === 'ok'" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>
+        <svg v-if="sauvegarde.etat === 'envoi'" class="cs-tourne" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 2a6 6 0 1 1-6 6"/></svg>
+        <svg v-if="sauvegarde.etat === 'attente'" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="3.5"/></svg>
+        <svg v-if="sauvegarde.etat === 'echec'" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3v6M8 12v.5"/></svg>
+        {{ sauvegarde.texte }}
+    </span>
     <span class="inline-flex items-center gap-2 text-gray-300" v-if="etat.enLigne !== null || !etat.serveurOk">
         <span class="w-2 h-2 rounded-full" :class="etat.serveurOk ? 'bg-[#5fb98a]' : 'bg-[#e0715f]'"></span>
         {{ etat.serveurOk ? 'Serveur en ligne · ' + pluriel(etat.enLigne.length, 'joueur') : 'Serveur injoignable' }}
