@@ -901,15 +901,25 @@ export async function handleAdmin(req, res, url, game) {
       if (url === '/api/admin/publication/compte' && req.method === 'GET') {
         return json(200, { n: db.compterModificationsApres(db.jusquaDerniereVersion()) });
       }
+      // une modification telle que l'écran la montre : changements champ par champ
+      const presenter = (m) => {
+        const a = lireJson(m.avant), b = lireJson(m.apres), diffs = differences(a, b, 60);
+        return {
+          id: m.id, t: m.t, auteur: m.auteur, fichier: m.fichier, libelle: libelle(m.fichier), note: m.note, nb: diffs.length,
+          lignes: diffs.slice(0, 30).map(d => ({ ...decrire(d, a, b), avant: resume(d.avant), apres: resume(d.apres) })),
+        };
+      };
+      // contenu d'une version passée : ses modifications, comme à sa publication
+      const mVer = url.match(/^\/api\/admin\/publication\/version\/(\d+)$/);
+      if (mVer && req.method === 'GET') {
+        const v = db.getVersion(mVer[1] | 0);
+        if (!v) return json(404, { error: 'Version inconnue' });
+        const toutes = db.modificationsDeVersion(v);
+        return json(200, { version: v, total: toutes.length, modifications: toutes.slice(-200).reverse().map(presenter) });
+      }
       if (url === '/api/admin/publication' && req.method === 'GET') {
         const depuis = db.jusquaDerniereVersion();
-        const modifications = db.modificationsApres(depuis).slice(-200).reverse().map(m => {
-          const a = lireJson(m.avant), b = lireJson(m.apres), diffs = differences(a, b, 60);
-          return {
-            id: m.id, t: m.t, auteur: m.auteur, fichier: m.fichier, libelle: libelle(m.fichier), note: m.note, nb: diffs.length,
-            lignes: diffs.slice(0, 30).map(d => ({ ...decrire(d, a, b), avant: resume(d.avant), apres: resume(d.apres) })),
-          };
-        });
+        const modifications = db.modificationsApres(depuis).slice(-200).reverse().map(presenter);
         return json(200, {
           modifications, versions: db.listVersions(), enLigne: game.players.size,
           production: process.env.NODE_ENV === 'production', arret: game.arretPrevu || null,

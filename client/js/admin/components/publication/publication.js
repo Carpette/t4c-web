@@ -24,10 +24,15 @@ export function PublicationController(api) {
     DELAIS,
     modifications: [], versions: [], enLigne: 0, production: false, arret: null,
     note: '', delai: 300, chargement: true, message: '', erreur: false, ouvertes: [],
+    vue: null, modsVersion: [], totalVersion: 0, // version passée affichée (clic dans l'historique)
 
+    // modifications montrées : celles d'une version choisie, sinon celles en cours
+    // pour le gabarit : jamais nul, petite-vue réévalue un instant après la sortie
+    get vueV() { return this.vue || { id: 0, t: 0, auteur: '', note: '' }; },
+    get affichees() { return this.vue ? this.modsVersion : this.modifications; },
     get domaines() {
       const out = DOMAINES.map(([nom]) => ({ nom, mods: [] }));
-      for (const m of this.modifications) out[DOMAINES.findIndex(([, f]) => f(m.fichier))].mods.push(m);
+      for (const m of this.affichees) out[DOMAINES.findIndex(([, f]) => f(m.fichier))].mods.push(m);
       return out.filter(d => d.mods.length);
     },
     get prochaine() { return (this.versions[0]?.id || 0) + 1; },
@@ -52,6 +57,16 @@ export function PublicationController(api) {
       } catch (e) { this.dire(e.message, true); }
       this.chargement = false;
     },
+    async voirVersion(v) {
+      if (this.vue?.id === v.id) { this.vue = null; return; }
+      try {
+        const d = await api(`/api/admin/publication/version/${v.id}`);
+        Object.assign(this, { vue: d.version, modsVersion: d.modifications, totalVersion: d.total, ouvertes: [] });
+        // l'historique est en bas de colonne : remonter au contenu affiché
+        document.querySelector('#tab-publication section')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } catch (e) { this.dire(e.message, true); }
+    },
+    retourEnCours() { this.vue = null; },
     async annuler(m) {
       if (!confirm(`Défaire cette modification de ${this.nomFichier(m)} (${m.auteur}, ${this.ilya(m.t)}) ? Elle est retirée du jeu à chaud.`)) return;
       try {

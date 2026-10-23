@@ -312,3 +312,8 @@ body.cs-lecture #console-main .cs-danger { display: none; }
 .cs-tourne { animation: cs-tourne 0.9s linear infinite; }
 @keyframes cs-tourne { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .cs-tourne { animation: none; } }
+
+/* Publication : ligne de version cliquable (historique) */
+.pub-version { display: block; height: auto; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
+.pub-version:hover { background: transparent; }
+.pub-version:hover .font-semibold { color: var(--color-amber-400); }
