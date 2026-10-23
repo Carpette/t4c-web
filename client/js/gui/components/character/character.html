@@ -67,6 +67,7 @@
   <table class="fiche-table">
     <thead><tr><th colspan="2">Compétences</th><th>Points</th></tr></thead>
     <tbody>
+      <tr><td colspan="3" class="hint">Points de compétence à dépenser chez un entraîneur : <b>{{ s.skillPoints || 0 }}</b></td></tr>
       <tr v-for="sk in competences" :title="sk.desc">
         <td colspan="2">{{ sk.name }}</td><td>{{ sk.pts }}<span class="fiche-max" v-if="sk.max < 9999"> / {{ sk.max }}</span></td>
       </tr>

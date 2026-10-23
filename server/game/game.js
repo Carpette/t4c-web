@@ -702,7 +702,7 @@ export class Game {
       t: 'self',
       level: p.level, xp: p.xp,
       xpCur: C.xpForLevel(p.level), xpNext: C.xpForLevel(p.level + 1),
-      statPoints: p.statPoints, stats: p.stats, eff: p.eff.stats,
+      statPoints: p.statPoints, skillPoints: p.skillPoints, stats: p.stats, eff: p.eff.stats,
       hp: Math.round(p.hp), maxHp: p.eff.maxHp,
       mana: Math.round(p.mana), maxMana: p.eff.maxMana,
       enc: C.enc(p.stats),
@@ -1503,6 +1503,7 @@ export class Game {
         }
         if (Number.isFinite(+msg.gold)) p.gold = Math.max(0, msg.gold | 0);
         if (Number.isFinite(+msg.statPoints)) p.statPoints = Math.max(0, msg.statPoints | 0);
+        if (Number.isFinite(+msg.skillPoints)) p.skillPoints = Math.max(0, msg.skillPoints | 0);
         p.recompute(this);
         p.hp = p.eff.maxHp; p.mana = p.eff.maxMana;
         this.sendSelf(p);
@@ -2194,7 +2195,9 @@ export class Game {
       p.recompute(this);
       this.send(p, { t: 'loot', text: `Compétence apprise : ${sk.name}` });
     } else if (msg.kind === 'train') {
-      // entraînement : +1 point, payé en or (système T4C)
+      // entraînement T4C : chaque point coûte un point de compétence (gagnés
+      // au passage de niveau) et le prix en or de l'entraîneur ; `n` points
+      // d'un coup (Maj+clic), bornés par les points, l'or et le maximum
       const npc = this.nearbyNpc(p, n => n.def.teachesSkills && n.def.teachesSkills[msg.id] !== undefined);
       if (!npc) {
         this.send(p, { t: 'info', text: 'Personne ici ne peut vous entraîner.' });
@@ -2209,9 +2212,12 @@ export class Game {
       if (req !== true) { this.send(p, { t: 'info', text: req }); return; }
       const costInfo = npc.def.teachesSkills[msg.id];
       const price = Math.max(1, Math.round(costInfo.trainCost * disc));
+      if (p.skillPoints < 1) { this.send(p, { t: 'info', text: 'Aucun point de compétence : vous en gagnez 15 à chaque niveau.' }); return; }
       if (p.gold < price) { this.send(p, { t: 'info', text: 'Or insuffisant.' }); return; }
-      p.gold -= price;
-      p.skills[sk.id] = cur + 1;
+      const n = Math.max(1, Math.min(msg.n | 0 || 1, p.skillPoints, sk.max - cur, Math.floor(p.gold / price)));
+      p.gold -= price * n;
+      p.skillPoints -= n;
+      p.skills[sk.id] = cur + n;
       p.recompute(this);
     }
     this.sendSelf(p);

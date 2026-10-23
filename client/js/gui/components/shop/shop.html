@@ -37,18 +37,19 @@
 
     <div v-if="state.shopTab === 'skills'">
       <p v-if="!shop.skills.length" class="hint">Aucune compétence enseignée ici.</p>
+      <p v-else class="hint">Points de compétence : <b class="points">{{ s.skillPoints || 0 }}</b> (15 par niveau). Chaque point entraîné en coûte un, plus l'or ; Maj+clic : 10 points d'un coup.</p>
       <div v-for="sk in shop.skills" class="shop-row" :class="{ inaccessible: !sk.known && !sk.reqMet }">
         <span class="shop-libelle">
           <span class="shop-icone" v-html="etoile"></span>
-          <span>{{ sk.name }} <b class="points">{{ sk.pts }}</b>/{{ sk.max >= 9999 ? '∞' : sk.max }}
+          <span>{{ sk.name }} <b class="points">{{ pts(sk) }}</b>/{{ sk.max >= 9999 ? '∞' : sk.max }}
             <span class="meta">{{ sk.desc }}</span><span class="meta">Requis : {{ sk.reqText }}</span></span>
         </span>
         <button v-if="!sk.known" type="button" :disabled="!sk.reqMet || s.gold < sk.learnCost" :class="{ 'trop-cher': s.gold < sk.learnCost }"
           :title="!sk.reqMet ? 'Prérequis non remplis' : s.gold < sk.learnCost ? 'Il vous manque ' + (sk.learnCost - s.gold) + ' pièces d\'or' : ''" @click="buySkill(sk.id)">
           Apprendre {{ sk.learnCost }} <span v-html="or"></span>
         </button>
-        <button v-else-if="sk.pts < sk.max" type="button" :disabled="!sk.reqMet || s.gold < sk.trainCost" :class="{ 'trop-cher': s.gold < sk.trainCost }"
-          :title="!sk.reqMet ? 'Prérequis non remplis' : s.gold < sk.trainCost ? 'Il vous manque ' + (sk.trainCost - s.gold) + ' pièces d\'or' : ''" @click="trainSkill(sk.id)">
+        <button v-else-if="pts(sk) < sk.max" type="button" :disabled="!sk.reqMet || s.gold < sk.trainCost || !s.skillPoints" :class="{ 'trop-cher': s.gold < sk.trainCost }"
+          :title="!sk.reqMet ? 'Prérequis non remplis' : !s.skillPoints ? 'Aucun point de compétence (15 par niveau)' : s.gold < sk.trainCost ? 'Il vous manque ' + (sk.trainCost - s.gold) + ' pièces d\'or' : 'Maj+clic : 10 points'" @click="trainSkill(sk.id, $event.shiftKey ? 10 : 1)">
           +1 pt · {{ sk.trainCost }} <span v-html="or"></span>
         </button>
         <button v-else type="button" disabled>Maximum</button>

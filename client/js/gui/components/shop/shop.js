@@ -65,9 +65,12 @@ export function ShopController() {
     buySkill(id) {
       globalBus.emit('ui:send-packet', { t: 'buy', kind: 'skill', id });
     },
-    trainSkill(id) {
-      globalBus.emit('ui:send-packet', { t: 'buy', kind: 'train', id });
+    trainSkill(id, n = 1) {
+      globalBus.emit('ui:send-packet', { t: 'buy', kind: 'train', id, n });
     },
+    // points à jour après un entraînement (la liste de la boutique est figée
+    // à l'ouverture, la fiche du joueur suit chaque achat)
+    pts(sk) { return this.s.skills?.[sk.id] ?? sk.pts; },
     // vendre un objet équipé se confirme (perte de l'équipement porté)
     async sellItem(it) {
       if (this.isEquipped(it.iid) && !await demander({

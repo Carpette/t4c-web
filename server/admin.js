@@ -10,7 +10,7 @@ import * as db from './db.js';
 import { content, saveContentFile, validerSurcharges, validerZones, consignerEcriture, journaliserEcritures } from './content.js';
 import { buildEnemyEntry, pngSize } from './enemy-import.js';
 import { src3dDisponible, listerModeles } from './src3d.js';
-import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
+import { xpForLevel, maxHp, maxMana, POINTS_PER_LEVEL, SKILL_POINTS_PER_LEVEL, MAX_LEVEL, KIND } from '../shared/constants.js';
 import { DROITS, OPTIONS, LECTURE, EDITION, niveau, aConsole, inclus, permsDe, accesDe, nettoyerProfil } from '../shared/acces.js';
 import { differences, annulerDifferences, decrire, resume } from '../shared/diff.js';
 import { CONTENT_DIR, cheminAsset, cheminAssetEcriture, listerAssets, lireManifeste, ecrireManifeste } from './donnees.js';
@@ -620,7 +620,7 @@ export async function handleAdmin(req, res, url, game) {
         const patch = JSON.parse(await readBody(req));
         const data = db.loadCharacter(accountId);
         if (!data) return json(404, { error: 'Pas de personnage' });
-        for (const k of ['gold', 'zoneId', 'statPoints', 'x', 'z']) {
+        for (const k of ['gold', 'zoneId', 'statPoints', 'skillPoints', 'x', 'z']) {
           if (patch[k] != null && Number.isFinite(+patch[k])) data[k] = +patch[k];
         }
         if (patch.stats) for (const s of Object.keys(data.stats)) {
@@ -635,6 +635,9 @@ export async function handleAdmin(req, res, url, game) {
           data.xp = xpForLevel(newLevel);
           if (patch.statPoints == null) {
             data.statPoints = Math.max(0, (data.statPoints || 0) + POINTS_PER_LEVEL * (newLevel - oldLevel));
+          }
+          if (patch.skillPoints == null && data.skillPoints != null) {
+            data.skillPoints = Math.max(0, data.skillPoints + SKILL_POINTS_PER_LEVEL * (newLevel - oldLevel));
           }
           data.hpAcc = maxHp(data.stats, newLevel);
           data.manaAcc = maxMana(data.stats, newLevel);
