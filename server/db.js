@@ -244,6 +244,11 @@ export function getVersion(id) {
 export function creerVersion(auteur, note, jusqua) {
   return Number(db.prepare('INSERT INTO versions (t, auteur, note, jusqua) VALUES (?, ?, ?, ?)').run(Date.now(), auteur, note, jusqua).lastInsertRowid);
 }
+// modifications couvertes par une version : après la précédente, jusqu'à la sienne
+export function modificationsDeVersion(v) {
+  const debut = db.prepare('SELECT COALESCE(MAX(jusqua), 0) AS n FROM versions WHERE id < ?').get(v.id).n;
+  return db.prepare('SELECT * FROM modifications WHERE id > ? AND id <= ? ORDER BY id').all(debut, v.jusqua);
+}
 export function jusquaDerniereVersion() {
   return db.prepare('SELECT COALESCE(MAX(jusqua), 0) AS n FROM versions').get().n;
 }
