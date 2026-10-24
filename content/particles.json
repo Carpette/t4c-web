@@ -1,5 +1,5 @@
 {
-  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration. Familles par préfixe : proj_ (traînée de projectile, émission continue), imp_ (impact, burst), sol_ (zone au sol, émission continue pendant l'AoE), soin_/bouclier_/buff_ (soutien au lanceur ou à la cible), malefice_ (débuffs), event_ (événements de jeu). Les 14 presets historiques (feu_trail, …) sont conservés tels quels.",
+  "_note": "Bibliothèque d'effets visuels paramétriques (particules). Modifiez-les ou créez-en de nouveaux live depuis l'administration. Familles par préfixe : aura_ (effet persistant accroché à un personnage tant que le sort agit), proj_ (traînée de projectile, émission continue), imp_ (impact, burst), sol_ (zone au sol, émission continue pendant l'AoE), soin_/bouclier_/buff_ (soutien au lanceur ou à la cible), malefice_ (débuffs), event_ (événements de jeu). Les 14 presets historiques (feu_trail, …) sont conservés tels quels.",
   "particles": [
     {
       "id": "feu_trail",
@@ -156,10 +156,10 @@
         "#ffe9a8",
         "#ffffff"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 2,
       "gravity": -60,
-      "speed": 1.0,
+      "speed": 1,
       "life": 0.4,
       "drag": 0.98
     },
@@ -174,10 +174,10 @@
         "#ffe9a8",
         "#ffffff"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 14,
       "gravity": 140,
-      "speed": 1.0,
+      "speed": 1,
       "life": 0.5,
       "drag": 0.96
     },
@@ -192,7 +192,7 @@
         "#7a2090",
         "#d070d0"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 2,
       "gravity": -35,
       "speed": 1.4,
@@ -210,7 +210,7 @@
         "#7a2090",
         "#d070d0"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 14,
       "gravity": 140,
       "speed": 1.4,
@@ -232,7 +232,7 @@
       "gravity": 0,
       "speed": 0.35,
       "life": 0.75,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "soin_stream",
@@ -247,9 +247,9 @@
       "size": 2.6,
       "density": 10,
       "gravity": -35,
-      "speed": 0.0,
+      "speed": 0,
       "life": 0.9,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "proj_feu",
@@ -298,12 +298,12 @@
         "#aee6ff",
         "#ffffff"
       ],
-      "size": 2.0,
+      "size": 2,
       "density": 2,
       "gravity": 0,
       "speed": 3.2,
       "life": 0.18,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "proj_eau",
@@ -337,7 +337,7 @@
       "size": 1.8,
       "density": 2,
       "gravity": 0,
-      "speed": 2.0,
+      "speed": 2,
       "life": 0.35,
       "drag": 0.97
     },
@@ -355,7 +355,7 @@
       "size": 3.2,
       "density": 2,
       "gravity": 180,
-      "speed": 1.0,
+      "speed": 1,
       "life": 0.6,
       "drag": 0.99
     },
@@ -424,7 +424,7 @@
         "#3f8f2f",
         "#a8e08a"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 2,
       "gravity": 45,
       "speed": 0.8,
@@ -514,12 +514,12 @@
         "#aee6ff",
         "#ffffff"
       ],
-      "size": 2.0,
+      "size": 2,
       "density": 18,
       "gravity": 0,
-      "speed": 4.0,
+      "speed": 4,
       "life": 0.22,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "imp_eau",
@@ -532,7 +532,7 @@
         "#7fb8e8",
         "#bfe2ff"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 15,
       "gravity": 180,
       "speed": 1.8,
@@ -553,7 +553,7 @@
       "size": 1.8,
       "density": 14,
       "gravity": 0,
-      "speed": 3.0,
+      "speed": 3,
       "life": 0.4,
       "drag": 0.94
     },
@@ -571,7 +571,7 @@
       "size": 3.6,
       "density": 16,
       "gravity": 300,
-      "speed": 2.0,
+      "speed": 2,
       "life": 0.7,
       "drag": 0.99
     },
@@ -607,7 +607,7 @@
       "size": 4.2,
       "density": 12,
       "gravity": -25,
-      "speed": 1.0,
+      "speed": 1,
       "life": 0.8,
       "drag": 0.93
     },
@@ -688,7 +688,7 @@
       "name": "Sol · Cercle runique",
       "spawn": "ring",
       "movement": "orbit",
-      "radius": 1.0,
+      "radius": 1,
       "colors": [
         "#fff2c0",
         "#ffe08a",
@@ -699,7 +699,7 @@
       "gravity": -8,
       "speed": 0.9,
       "life": 0.7,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "sol_nova_givre",
@@ -730,12 +730,12 @@
         "#7fb8e8",
         "#bfe2ff"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 7,
       "gravity": 260,
-      "speed": 3.0,
+      "speed": 3,
       "life": 0.9,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "sol_pluie_feu",
@@ -761,7 +761,7 @@
       "name": "Sol · Nuage toxique",
       "spawn": "circle",
       "movement": "random",
-      "radius": 1.0,
+      "radius": 1,
       "colors": [
         "#62c94a",
         "#3f8f2f",
@@ -815,7 +815,7 @@
       "name": "Sol · Voile d’ombre",
       "spawn": "circle",
       "movement": "random",
-      "radius": 1.0,
+      "radius": 1,
       "colors": [
         "#3a2a55",
         "#5a3a80",
@@ -842,7 +842,7 @@
       "size": 2.4,
       "density": 4,
       "gravity": 30,
-      "speed": 1.0,
+      "speed": 1,
       "life": 0.9,
       "drag": 0.97
     },
@@ -893,7 +893,7 @@
         "#e8ffe9",
         "#ffd24a"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 7,
       "gravity": 20,
       "speed": 1.6,
@@ -910,66 +910,178 @@
         "#9fe6a0",
         "#5fbf70"
       ],
-      "size": 2.0,
+      "size": 2,
       "density": 3,
       "gravity": -18,
-      "speed": 1.0,
+      "speed": 1,
       "life": 1.2,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "bouclier_arcane",
       "name": "Bouclier · Arcane",
-      "spawn": "sphere",
-      "movement": "orbit",
-      "radius": 0.55,
-      "colors": [
-        "#b06aff",
-        "#7a3aff",
-        "#e0c0ff"
-      ],
-      "size": 2.2,
-      "density": 4,
-      "gravity": 0,
-      "speed": 1.4,
-      "life": 0.7,
-      "drag": 1.0
+      "mode": "ponctuel",
+      "couches": [
+        {
+          "type": "particules",
+          "ancien": true,
+          "spawn": "sphere",
+          "movement": "orbit",
+          "radius": 0.55,
+          "offsetX": 0,
+          "offsetZ": 0,
+          "offsetH": 0,
+          "colors": [
+            "#b06aff",
+            "#7a3aff",
+            "#e0c0ff"
+          ],
+          "size": 2.2,
+          "gravity": 0,
+          "speed": 1.4,
+          "life": 0.7,
+          "drag": 1,
+          "rate": 240,
+          "burst": 25,
+          "forme": "net",
+          "fusion": "additif",
+          "alpha": "fondu"
+        },
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 40,
+          "colors": [
+            "#b06aff"
+          ],
+          "opacite": 0.7,
+          "pulse": 0,
+          "freq": 1,
+          "fusion": "additif",
+          "life": 0.6,
+          "radiusEnd": 1
+        }
+      ]
     },
     {
       "id": "bouclier_sacre",
       "name": "Bouclier · Sacré",
-      "spawn": "ring",
-      "movement": "upward",
-      "radius": 0.5,
-      "colors": [
-        "#ffe9b0",
-        "#ffd24a",
-        "#fff8e0"
-      ],
-      "size": 2.4,
-      "density": 4,
-      "gravity": 35,
-      "speed": 1.1,
-      "life": 0.8,
-      "drag": 0.97
+      "mode": "ponctuel",
+      "couches": [
+        {
+          "type": "particules",
+          "ancien": true,
+          "spawn": "ring",
+          "movement": "upward",
+          "radius": 0.5,
+          "offsetX": 0,
+          "offsetZ": 0,
+          "offsetH": 0,
+          "colors": [
+            "#ffe9b0",
+            "#ffd24a",
+            "#fff8e0"
+          ],
+          "size": 2.4,
+          "gravity": 35,
+          "speed": 1.1,
+          "life": 0.8,
+          "drag": 0.97,
+          "rate": 240,
+          "burst": 25,
+          "forme": "net",
+          "fusion": "additif",
+          "alpha": "fondu"
+        },
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 40,
+          "colors": [
+            "#ffe9b0"
+          ],
+          "opacite": 0.7,
+          "pulse": 0,
+          "freq": 1,
+          "fusion": "additif",
+          "life": 0.6,
+          "radiusEnd": 1
+        },
+        {
+          "type": "anneau",
+          "radius": 0.5,
+          "offsetH": 0,
+          "colors": [
+            "#ffe9b0"
+          ],
+          "opacite": 0.7,
+          "pulse": 0,
+          "freq": 1,
+          "fusion": "additif",
+          "life": 0.6,
+          "radiusEnd": 1
+        }
+      ]
     },
     {
       "id": "bouclier_epines",
       "name": "Bouclier · Épines",
-      "spawn": "sphere",
-      "movement": "random",
-      "radius": 0.5,
-      "colors": [
-        "#8a6a42",
-        "#62c94a",
-        "#4a3a20"
-      ],
-      "size": 2.4,
-      "density": 4,
-      "gravity": 0,
-      "speed": 0.9,
-      "life": 0.6,
-      "drag": 0.97
+      "mode": "ponctuel",
+      "couches": [
+        {
+          "type": "particules",
+          "ancien": true,
+          "spawn": "sphere",
+          "movement": "random",
+          "radius": 0.5,
+          "offsetX": 0,
+          "offsetZ": 0,
+          "offsetH": 0,
+          "colors": [
+            "#8a6a42",
+            "#62c94a",
+            "#4a3a20"
+          ],
+          "size": 2.4,
+          "gravity": 0,
+          "speed": 0.9,
+          "life": 0.6,
+          "drag": 0.97,
+          "rate": 240,
+          "burst": 25,
+          "forme": "net",
+          "fusion": "additif",
+          "alpha": "fondu"
+        },
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 40,
+          "colors": [
+            "#8a6a42"
+          ],
+          "opacite": 0.7,
+          "pulse": 0,
+          "freq": 1,
+          "fusion": "additif",
+          "life": 0.6,
+          "radiusEnd": 1
+        },
+        {
+          "type": "lueur",
+          "radius": 0.5,
+          "offsetH": 40,
+          "colors": [
+            "#8a6a42"
+          ],
+          "opacite": 0.7,
+          "pulse": 0,
+          "freq": 1,
+          "fusion": "additif",
+          "life": 0.6,
+          "radiusEnd": 1
+        }
+      ]
     },
     {
       "id": "buff_force",
@@ -1002,9 +1114,9 @@
       "size": 1.8,
       "density": 5,
       "gravity": 0,
-      "speed": 3.0,
+      "speed": 3,
       "life": 0.4,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "buff_esprit",
@@ -1035,7 +1147,7 @@
         "#ffd24a",
         "#ffffff"
       ],
-      "size": 2.0,
+      "size": 2,
       "density": 3,
       "gravity": -10,
       "speed": 0.8,
@@ -1052,7 +1164,7 @@
         "#5a3a80",
         "#3a2a55"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 4,
       "gravity": 90,
       "speed": 0.5,
@@ -1074,7 +1186,7 @@
       "density": 3,
       "gravity": 70,
       "speed": 0.5,
-      "life": 1.0,
+      "life": 1,
       "drag": 0.97
     },
     {
@@ -1115,20 +1227,34 @@
     {
       "id": "event_levelup",
       "name": "Événement · Niveau supérieur",
-      "spawn": "circle",
-      "movement": "upward",
-      "radius": 0.4,
-      "colors": [
-        "#ffd24a",
-        "#fff2c0",
-        "#ffffff"
-      ],
-      "size": 3.0,
-      "density": 9,
-      "gravity": 60,
-      "speed": 2.6,
-      "life": 1.0,
-      "drag": 0.97
+      "mode": "ponctuel",
+      "couches": [
+        {
+          "type": "particules",
+          "ancien": true,
+          "spawn": "circle",
+          "movement": "upward",
+          "radius": 0.4,
+          "offsetX": 0,
+          "offsetZ": 0,
+          "offsetH": 0,
+          "colors": [
+            "#ffd24a",
+            "#fff2c0",
+            "#ffffff"
+          ],
+          "size": 3,
+          "gravity": 60,
+          "speed": 8,
+          "life": 1,
+          "drag": 0.97,
+          "rate": 540,
+          "burst": 27,
+          "forme": "net",
+          "fusion": "additif",
+          "alpha": "fondu"
+        }
+      ]
     },
     {
       "id": "event_teleport",
@@ -1146,7 +1272,7 @@
       "gravity": -40,
       "speed": 2.8,
       "life": 0.5,
-      "drag": 1.0
+      "drag": 1
     },
     {
       "id": "event_invocation",
@@ -1162,7 +1288,7 @@
       "size": 2.8,
       "density": 7,
       "gravity": 90,
-      "speed": 2.0,
+      "speed": 2,
       "life": 0.8,
       "drag": 0.97
     },
@@ -1198,7 +1324,7 @@
       "size": 2.2,
       "density": 8,
       "gravity": 180,
-      "speed": 2.0,
+      "speed": 2,
       "life": 0.7,
       "drag": 0.97
     },
@@ -1213,12 +1339,366 @@
         "#ffe9b0",
         "#ffffff"
       ],
-      "size": 3.0,
+      "size": 3,
       "density": 8,
       "gravity": 15,
       "speed": 1.4,
       "life": 1.1,
       "drag": 0.97
+    },
+    {
+      "id": "aura_bulle_glace",
+      "name": "Aura : bulle de glace",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#8fd0ff"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#bfe6ff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#8fd0ff"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_bulle_arcane",
+      "name": "Aura : bulle arcanique",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#b070ff"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#e0b8ff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#b070ff"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_bulle_sacree",
+      "name": "Aura : bulle sacrée",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#ffd27a"
+          ],
+          "opacite": 0.65,
+          "pulse": 0.3,
+          "freq": 0.8,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#fff4c8",
+            "#ffffff"
+          ],
+          "size": 2.5,
+          "sizeEnd": 0.5,
+          "speed": 0.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 22,
+          "burst": 20,
+          "forme": "etoile",
+          "fusion": "additif",
+          "alpha": "entree",
+          "opacite": 1,
+          "offsetH": 50
+        },
+        {
+          "type": "anneau",
+          "radius": 0.55,
+          "offsetH": 0,
+          "colors": [
+            "#ffd27a"
+          ],
+          "opacite": 0.45,
+          "pulse": 0.2,
+          "freq": 0.8,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_flammes",
+      "name": "Aura : flammes",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "upward",
+          "radius": 0.35,
+          "colors": [
+            "#ffd24a",
+            "#ff8a2a",
+            "#c0300a"
+          ],
+          "size": 5,
+          "sizeEnd": 0.3,
+          "speed": 4,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.8,
+          "rate": 36,
+          "burst": 20,
+          "forme": "doux",
+          "fusion": "additif",
+          "alpha": "fondu",
+          "opacite": 1,
+          "degrade": true
+        },
+        {
+          "type": "lueur",
+          "radius": 0.4,
+          "offsetH": 20,
+          "colors": [
+            "#ff7a20"
+          ],
+          "opacite": 0.35,
+          "pulse": 0.4,
+          "freq": 2,
+          "fusion": "additif"
+        }
+      ]
+    },
+    {
+      "id": "aura_arcs",
+      "name": "Aura : arcs électriques",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "bulle",
+          "radius": 0.5,
+          "offsetH": 50,
+          "colors": [
+            "#e8f070"
+          ],
+          "opacite": 0.35,
+          "pulse": 0.6,
+          "freq": 3,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "coquille",
+          "movement": "orbite",
+          "radius": 0.5,
+          "colors": [
+            "#ffffff",
+            "#f4f8a0"
+          ],
+          "size": 1.5,
+          "sizeEnd": 1,
+          "speed": 2.5,
+          "gravity": 0,
+          "drag": 1,
+          "life": 0.25,
+          "rate": 30,
+          "burst": 20,
+          "forme": "etincelle",
+          "fusion": "additif",
+          "alpha": "scintille",
+          "opacite": 1,
+          "offsetH": 50
+        }
+      ]
+    },
+    {
+      "id": "aura_pierre",
+      "name": "Aura : peau de pierre",
+      "mode": "persistant",
+      "couches": [
+        {
+          "type": "anneau",
+          "radius": 0.5,
+          "offsetH": 0,
+          "colors": [
+            "#b89868"
+          ],
+          "opacite": 0.55,
+          "pulse": 0.1,
+          "freq": 0.5,
+          "fusion": "additif"
+        },
+        {
+          "type": "particules",
+          "spawn": "colonne",
+          "movement": "immobile",
+          "radius": 0.35,
+          "colors": [
+            "#8a6a48",
+            "#b89868",
+            "#d8c8a8"
+          ],
+          "size": 3,
+          "sizeEnd": 0.6,
+          "speed": 1,
+          "gravity": 0,
+          "drag": 1,
+          "life": 1.2,
+          "rate": 10,
+          "burst": 20,
+          "forme": "net",
+          "fusion": "normal",
+          "alpha": "entree",
+          "opacite": 0.8,
+          "hauteur": 90
+        }
+      ]
+    },
+    {
+      "id": "sol_pluie_pierres",
+      "name": "Pluie de pierres",
+      "mode": "ponctuel",
+      "duree": 1.2,
+      "couches": [
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "downward",
+          "radius": 1,
+          "colors": [
+            "#7a6a58",
+            "#8f8070",
+            "#5e5248"
+          ],
+          "size": 20,
+          "sizeEnd": 1,
+          "speed": 2,
+          "gravity": 800,
+          "drag": 1,
+          "life": 1.4,
+          "rate": 30,
+          "burst": 0,
+          "forme": "roche",
+          "fusion": "normal",
+          "alpha": "constant",
+          "opacite": 1,
+          "offsetH": 160,
+          "tailleMin": 4,
+          "repartition": "petits",
+          "sol": "rebondit",
+          "rebond": 0.3,
+          "rotation": 1
+        },
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "outward",
+          "radius": 1,
+          "colors": [
+            "#8a7a68",
+            "#a09080"
+          ],
+          "size": 9,
+          "sizeEnd": 2,
+          "speed": 0.4,
+          "gravity": 500,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 12,
+          "burst": 0,
+          "forme": "roche",
+          "fusion": "normal",
+          "alpha": "constant",
+          "opacite": 0.5,
+          "offsetH": 4,
+          "delai": 0.8,
+          "sol": "rebondit",
+          "rebond": 0.4,
+          "masque": true
+        }
+      ]
     }
   ]
 }

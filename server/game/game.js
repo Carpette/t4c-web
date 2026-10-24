@@ -2613,6 +2613,8 @@ export class Game {
     for (const p of this.players.values()) this.checkMarkerTriggers(p);
     // objectifs de quête « se rendre à » (deux fois par seconde suffit)
     if (this.tickCount % 5 === 0) for (const p of this.players.values()) verifierLieux(this, p);
+    // auras visibles (effets persistants des sorts actifs), même cadence
+    if (this.tickCount % 5 === 2) this.majAuras();
 
     // sous-zones musicales : bascule à hystérésis pendant les déplacements
     // (cadence réduite ; les déplacements significatifs suffisent largement)
@@ -2717,12 +2719,48 @@ export class Game {
     return true;
   }
 
+  // ---------- Auras : effets visuels persistants des sorts actifs ----------
+  // Une aura (fx.aura d'un sort) se montre tant qu'un effet de ce sort est
+  // actif sur l'entité. Calculées deux fois par seconde depuis les effets
+  // actifs (expiration, dissipation, mort comprises) ; seul un CHANGEMENT est
+  // diffusé aux joueurs proches, les nouveaux venus les reçoivent dans `meta`.
+  aurasDe(e) {
+    const actifs = e.effects?.active;
+    if (!actifs?.length) return null;
+    const now = this.now() * 1000;
+    let m = null;
+    for (const ae of actifs) {
+      if (ae.ends_at === Infinity || ae.ends_at <= now) continue;
+      // sort encore connu : son aura actuelle (modifiable dans la Forge)
+      const sp = ae.source?.type === 'spell' ? content.spellById?.[ae.source.id] : null;
+      const fx = sp ? sp.fx?.aura : ae.aura;
+      if (!fx || !content.particlesById?.[fx]) continue;
+      m ||= new Map();
+      // [fin, couleur du sort] : la couleur teinte les couches « couleur du sort »
+      if (!(m.get(fx)?.[0] >= ae.ends_at)) m.set(fx, [ae.ends_at, sp?.color || null]);
+    }
+    return m && [...m].map(([fx, [fin, couleur]]) => (couleur ? [fx, Math.round(fin - now), couleur] : [fx, Math.round(fin - now)]));
+  }
+  majAuras() {
+    for (const zi of this.zones.values()) {
+      if (!zi.players) continue;
+      for (const e of zi.entities.values()) {
+        if (!e.effects && !e._auras) continue;
+        const liste = e.dead ? null : this.aurasDe(e);
+        const cle = liste ? liste.map(a => a[0] + (a[2] || '')).sort().join(',') : '';
+        if (cle === (e._auras || '')) continue;
+        e._auras = cle;
+        this.eventNear(e, { t: 'aura', id: e.id, list: liste || [] });
+      }
+    }
+  }
+
   metaFor(e) {
     if (e.kind === C.KIND.PLAYER) {
-      return { id: e.id, kind: e.kind, name: e.name, level: e.level, look: e.look };
+      return { id: e.id, kind: e.kind, name: e.name, level: e.level, look: e.look, auras: this.aurasDe(e) || undefined };
     }
     if (e.kind === C.KIND.MOB) {
-      return { id: e.id, kind: e.kind, defId: e.defId, name: e.isBoss ? e.bossName : e.def.name, level: e.level, boss: e.isBoss || undefined };
+      return { id: e.id, kind: e.kind, defId: e.defId, name: e.isBoss ? e.bossName : e.def.name, level: e.level, boss: e.isBoss || undefined, auras: this.aurasDe(e) || undefined };
     }
     if (e.kind === C.KIND.NPC) {
       return { id: e.id, kind: e.kind, npcId: e.npcId, name: e.name, look: e.look, level: 0 };

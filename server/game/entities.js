@@ -172,7 +172,9 @@ export class Character extends Entity {
 
     const maxHpVal = this.eff?.maxHp || this.maxHp || 100;
     this.hp = Math.min(maxHpVal, this.hp + healAmount);
-    game.eventNear(this, { t: 'fx', kind: 'heal', id: this.id, fx: ae.fx });
+    // couleur du sort : teinte les couches d'effet réglées sur « couleur du sort »
+    const color = ae.source?.type === 'spell' ? content.spellById?.[ae.source.id]?.color : undefined;
+    game.eventNear(this, { t: 'fx', kind: 'heal', id: this.id, color, fx: ae.fx });
     if (this.kind === C.KIND.PLAYER) {
       game.send(this, { t: 'vitals', hp: Math.round(this.hp), mana: Math.round(this.mana) });
     }

@@ -1,4 +1,4 @@
-<div class="cs-panel flex flex-wrap min-h-[640px] overflow-hidden" @vue:mounted="init()">
+<div class="cs-panel flex flex-wrap min-h-[640px] overflow-clip" @vue:mounted="init()">
     <!-- liste -->
     <section aria-label="Liste des sorts" data-col="sorts-liste" data-bord="droite" class="flex-[1_1_260px] max-w-[300px] border-r border-gray-800 bg-gray-950 flex flex-col">
         <div class="p-3.5 flex flex-col gap-2.5 border-b border-gray-800">
@@ -144,7 +144,8 @@
                         <option v-if="fiche.element && !ELEMENTS.some(x => x[0] === fiche.element)" :value="fiche.element">{{ fiche.element }}</option></select></div>
                 <div class="cs-field"><label class="cs-label" for="sp-col">Couleur</label>
                     <div class="flex gap-2"><input id="sp-col" type="color" class="h-8 w-12 bg-transparent border border-gray-700 rounded" :value="fiche.color || '#ffffff'" @input="fiche.color = $event.target.value; rejouer()" />
-                    <input class="cs-input font-mono" :value="fiche.color" @change="fiche.color = $event.target.value; rejouer()" aria-label="Couleur hexadécimale" /></div></div>
+                    <input class="cs-input font-mono" :value="fiche.color" @change="fiche.color = $event.target.value; rejouer()" aria-label="Couleur hexadécimale" /></div>
+                    <span class="text-xs text-gray-500">Colore le halo du projectile, l’éclair et le cercle de zone, ainsi que l’entrée « Couleur du sort » des effets ci-dessous. Leurs autres couleurs se règlent dans Effets visuels.</span></div>
                 <div class="cs-field" v-for="e in emplacementsFx"><label class="cs-label" :for="'sp-fx-' + e[0]">{{ e[1] }}</label>
                     <select :id="'sp-fx-' + e[0]" class="cs-input" :value="fiche.fx?.[e[0]] || ''" @change="fixerFx(e[0], $event.target.value)">
                         <option value="">par défaut (élément)</option>
@@ -160,7 +161,9 @@
     </section>
 
     <!-- aperçu et contexte -->
-    <aside aria-label="Aperçu et contexte" data-col="sorts-contexte" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4 flex flex-col gap-5" v-if="fiche">
+    <aside aria-label="Aperçu et contexte" data-col="sorts-contexte" data-bord="gauche" class="flex-[1_1_280px] max-w-[320px] border-l border-gray-800 bg-gray-950 p-4" v-if="fiche">
+        <!-- l'aperçu suit le défilement : on voit le sort en réglant les champs du bas -->
+        <div class="sticky top-4 flex flex-col gap-5">
         <div class="flex flex-col gap-2">
             <div class="flex items-center"><span class="cs-sect p-0 flex-1">Aperçu en jeu</span><button type="button" class="cs-btn h-7" @click="rejouer()">Rejouer</button></div>
             <canvas id="sp-apercu" width="288" height="170" class="rounded-lg bg-[#0b0c0f] border border-gray-800 w-full"></canvas>
@@ -186,6 +189,7 @@
         <div class="flex flex-col gap-1.5" v-if="requisPar.length">
             <span class="cs-sect p-0">Requis pour</span>
             <button v-for="s in requisPar" type="button" class="cs-lien text-left text-[13px]" @click="ouvrir(s.id)">{{ s.name }}</button>
+        </div>
         </div>
     </aside>
 </div>

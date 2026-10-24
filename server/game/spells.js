@@ -221,7 +221,7 @@ export function resolveCast(game, p) {
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         target.curseUntil = now + duration;
-        game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id, fx: sp.fx });
+        game.eventNear(target, { t: 'fx', kind: 'curse', id: target.id, color: sp.color, fx: sp.fx });
         if (target.kind === C.KIND.PLAYER) {
           game.send(target, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(target);
@@ -275,7 +275,7 @@ export function resolveCast(game, p) {
         if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         e.curseUntil = now + duration;
-        game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id, fx: sp.fx });
+        game.eventNear(e, { t: 'fx', kind: 'curse', id: e.id, color: sp.color, fx: sp.fx });
         if (e.kind === C.KIND.PLAYER) {
           game.send(e, { t: 'info', text: `${p.name} vous a maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(e);
@@ -318,7 +318,7 @@ export function resolveCast(game, p) {
       if (eff.type === 'curse' || eff.kind === 'curse') {
         const duration = (eff.duration !== undefined ? eff.duration : (sp.duration !== undefined ? sp.duration : 0));
         p.curseUntil = now + duration;
-        game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id, fx: sp.fx });
+        game.eventNear(p, { t: 'fx', kind: 'curse', id: p.id, color: sp.color, fx: sp.fx });
         if (p.kind === C.KIND.PLAYER) {
           game.send(p, { t: 'info', text: `Vous vous êtes maudit : aucun soin ne peut plus vous atteindre !` });
           game.sendSelf(p);

@@ -47,13 +47,7 @@
         "liche_mineure",
         "ogre"
       ],
-      "boss": {
-        "defId": "ogre",
-        "name": "Gro'Mak, Fléau du Pont",
-        "x": 298,
-        "z": 249,
-        "respawnMs": 7200000
-      }
+      "boss": null
     },
     {
       "id": 1,

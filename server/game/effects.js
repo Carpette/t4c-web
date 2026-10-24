@@ -78,6 +78,8 @@ export class ActiveEffect {
     this.damageType = effectDef.damageType || null;
     this.damageCategory = effectDef.damageCategory || null;
     this.drain_ratio = effectDef.drain_ratio !== undefined ? effectDef.drain_ratio : null;
+    // effet visuel persistant montré tant que l'effet dure (fx.aura du sort)
+    this.aura = effectDef.fx?.aura || null;
   }
 
   /**

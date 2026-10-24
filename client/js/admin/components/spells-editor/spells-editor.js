@@ -3,7 +3,7 @@
 // champs d'effet…) sont conservés tels quels à l'enregistrement.
 // Enregistre content/spells.json entier (même route que la vue Tableau) et
 // prévient l'autre vue par l'événement t4c:contenu.
-import { Particles, emitFromDef, emitTrail, emitImpact, emitGround, emitHeal, emitBuff } from '../../../render2d/particles.js';
+import { Particles, jouerEffet, entretenirEffet, emitTrail, emitImpact, emitGround, emitHeal, emitBuff } from '../../../render2d/particles.js';
 import { NOMS_TYPES, moyenneFormule, recharge, NIVEAU_MAX } from '../spells-table/spells-table.js';
 import { copie, norm } from '../../forge.js';
 
@@ -129,7 +129,8 @@ export function SpellsEditorController(api) {
     get emplacementsFx() {
       const t = this.fiche?.type;
       return [['trail', 'Traînée (vol)', t === 'bolt'], ['impact', 'Impact (arrivée)', t === 'bolt' || t === 'aoe'],
-        ['ground', 'Zone au sol', t === 'aoe'], ['self', 'Sur le lanceur / la cible', true]].filter(e => e[2] || this.fiche?.fx?.[e[0]]);
+        ['ground', 'Zone au sol', t === 'aoe'], ['self', 'Sur le lanceur / la cible', true],
+        ['aura', 'Aura (tant que ses effets durent)', t !== 'heal']].filter(e => e[2] || this.fiche?.fx?.[e[0]]);
     },
 
     dire(t, err = false) { this.message = t; this.erreur = err; },
@@ -202,8 +203,8 @@ export function SpellsEditorController(api) {
           const boucle = (now) => { apercu.raf = requestAnimationFrame(boucle); this.image(now); };
           apercu.raf = requestAnimationFrame(boucle);
         }
-        apercu.P.pool.forEach(p => { p.on = false; });
-        apercu.t = 0; apercu.impact = false; apercu.sol = 0;
+        apercu.P.vider();
+        apercu.t = 0; apercu.impact = false; apercu.sol = 0; apercu.etats = {};
       }, 0);
     },
     image(now) {
@@ -217,35 +218,36 @@ export function SpellsEditorController(api) {
         const vol = 0.6;
         if (a.t < vol) {
           const x = L + (C - L) * (a.t / vol);
-          if (def('trail')) emitFromDef(a.P, def('trail'), x, 0, { raw: true }); else emitTrail(a.P, el, x, 0);
+          if (def('trail')) entretenirEffet(a.P, def('trail'), a.etats.trail ||= {}, x, 0, dt, { raw: true, teinte: f.color }); else emitTrail(a.P, el, x, 0);
         } else if (!a.impact) {
           a.impact = true;
-          if (def('impact')) emitFromDef(a.P, def('impact'), C, 0, { burst: true, raw: true }); else emitImpact(a.P, el, C, 0);
+          if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true, teinte: f.color }); else emitImpact(a.P, el, C, 0);
         }
       } else if (t === 'aoe') {
-        if (a.sol < 6 && a.t > a.sol * 0.15) {
-          a.sol++;
-          if (def('ground')) emitFromDef(a.P, def('ground'), C, 0, { raw: true }); else emitGround(a.P, el, C, 0, Math.min(3, f.radius || 2));
-        }
-        if (!a.impact) { a.impact = true; if (def('impact')) emitFromDef(a.P, def('impact'), C, 0, { burst: true, raw: true }); }
+        if (def('ground')) { if (a.t < 1.6) entretenirEffet(a.P, def('ground'), a.etats.ground ||= {}, C, 0, dt, { raw: true, teinte: f.color, rayon: Math.min(3, f.radius || 2) }); }
+        else if (a.sol < 6 && a.t > a.sol * 0.15) { a.sol++; emitGround(a.P, el, C, 0, Math.min(3, f.radius || 2)); }
+        if (!a.impact) { a.impact = true; if (def('impact')) jouerEffet(a.P, def('impact'), C, 0, { raw: true, teinte: f.color }); }
       } else if (!a.impact) {
         a.impact = true;
         const cible = t === 'buff' || t === 'heal' ? L : C;
-        if (def('self')) emitFromDef(a.P, def('self'), cible, 0, { burst: true, raw: true });
+        if (def('self')) jouerEffet(a.P, def('self'), cible, 0, { raw: true, teinte: f.color });
         else if (t === 'heal') emitHeal(a.P, cible, 0);
         else emitBuff(a.P, cible, 0, f.color);
       }
-      if (a.t > 2.2) this.rejouer();
+      // aura : entretenue sur la cible du sort une fois lancé
+      if (def('aura') && a.impact) entretenirEffet(a.P, def('aura'), a.etats.aura ||= {}, t === 'buff' || t === 'heal' || !t ? L : C, 0, dt, { raw: true, teinte: f.color });
+      if (a.t > (def('aura') ? 3.2 : 2.2)) this.rejouer();
       a.P.update(dt);
       const { g, cv } = a, k = cv.width / 9;
       g.clearRect(0, 0, cv.width, cv.height);
       for (const [x, nom] of [[L, 'Lanceur'], [C, 'Cible']]) {
         const px = cv.width / 2 + x * k, py = cv.height * 0.68;
         g.fillStyle = '#23262c'; g.beginPath(); g.ellipse(px, py, 18, 8, 0, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#5a5f69'; g.fillRect(px - 5, py - 34, 10, 30);
+        g.fillStyle = '#5a5f69'; g.fillRect(px - 14 * k / 96, py - 100 * k / 96, 28 * k / 96, 96 * k / 96); // personnage ≈ 100 px
         g.fillStyle = '#8b8f98'; g.font = '11px Inter, sans-serif'; g.textAlign = 'center'; g.fillText(nom, px, py + 22);
       }
-      a.P.draw(g, (x, z) => ({ x: cv.width / 2 + x * k, y: cv.height * 0.68 + z * k * 0.5 }), 1);
+      // échelle du jeu : une case vaut HW·s pixels (s choisi pour que tout tienne)
+      a.P.draw(g, (x, z) => ({ x: cv.width / 2 + x * k, y: cv.height * 0.68 + z * k * 0.5 }), k / 96);
     },
 
     async init() {
