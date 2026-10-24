@@ -1227,20 +1227,34 @@
     {
       "id": "event_levelup",
       "name": "Événement · Niveau supérieur",
-      "spawn": "circle",
-      "movement": "upward",
-      "radius": 0.4,
-      "colors": [
-        "#ffd24a",
-        "#fff2c0",
-        "#ffffff"
-      ],
-      "size": 3,
-      "density": 9,
-      "gravity": 60,
-      "speed": 2.6,
-      "life": 1,
-      "drag": 0.97
+      "mode": "ponctuel",
+      "couches": [
+        {
+          "type": "particules",
+          "ancien": true,
+          "spawn": "circle",
+          "movement": "upward",
+          "radius": 0.4,
+          "offsetX": 0,
+          "offsetZ": 0,
+          "offsetH": 0,
+          "colors": [
+            "#ffd24a",
+            "#fff2c0",
+            "#ffffff"
+          ],
+          "size": 3,
+          "gravity": 60,
+          "speed": 8,
+          "life": 1,
+          "drag": 0.97,
+          "rate": 540,
+          "burst": 27,
+          "forme": "net",
+          "fusion": "additif",
+          "alpha": "fondu"
+        }
+      ]
     },
     {
       "id": "event_teleport",
@@ -1619,6 +1633,70 @@
           "alpha": "entree",
           "opacite": 0.8,
           "hauteur": 90
+        }
+      ]
+    },
+    {
+      "id": "sol_pluie_pierres",
+      "name": "Pluie de pierres",
+      "mode": "ponctuel",
+      "duree": 1.2,
+      "couches": [
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "downward",
+          "radius": 1,
+          "colors": [
+            "#7a6a58",
+            "#8f8070",
+            "#5e5248"
+          ],
+          "size": 20,
+          "sizeEnd": 1,
+          "speed": 2,
+          "gravity": 800,
+          "drag": 1,
+          "life": 1.4,
+          "rate": 30,
+          "burst": 0,
+          "forme": "roche",
+          "fusion": "normal",
+          "alpha": "constant",
+          "opacite": 1,
+          "offsetH": 160,
+          "tailleMin": 4,
+          "repartition": "petits",
+          "sol": "rebondit",
+          "rebond": 0.3,
+          "rotation": 1
+        },
+        {
+          "type": "particules",
+          "spawn": "circle",
+          "movement": "outward",
+          "radius": 1,
+          "colors": [
+            "#8a7a68",
+            "#a09080"
+          ],
+          "size": 9,
+          "sizeEnd": 2,
+          "speed": 0.4,
+          "gravity": 500,
+          "drag": 1,
+          "life": 0.9,
+          "rate": 12,
+          "burst": 0,
+          "forme": "roche",
+          "fusion": "normal",
+          "alpha": "constant",
+          "opacite": 0.5,
+          "offsetH": 4,
+          "delai": 0.8,
+          "sol": "rebondit",
+          "rebond": 0.4,
+          "masque": true
         }
       ]
     }

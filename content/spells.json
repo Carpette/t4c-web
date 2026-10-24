@@ -1308,7 +1308,7 @@
       "level": 67,
       "wis": 95,
       "int": 55,
-      "requires": null,
+      "requires": "seisme",
       "mana": 16,
       "type": "aoe",
       "range": 9,
@@ -1326,7 +1326,10 @@
           "duration": 0,
           "element": "earth"
         }
-      ]
+      ],
+      "fx": {
+        "ground": "sol_pluie_pierres"
+      }
     },
     {
       "id": "vision_veritable",
